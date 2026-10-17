@@ -22,6 +22,14 @@ fn agent() -> &'static ureq::Agent {
     AGENT.get_or_init(|| ureq::AgentBuilder::new().timeout_connect(Duration::from_secs(5)).build())
 }
 
+/// A number in [0, 1) that differs between threads and calls (no RNG crate needed).
+fn jitter() -> f64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos());
+    (h.finish() >> 11) as f64 / (1u64 << 53) as f64
+}
+
 fn retries() -> u32 {
     std::env::var("TREEYARD_RETRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(6)
 }
@@ -81,7 +89,8 @@ pub fn call_with(url: &str, token: Option<&str>, op: &str, params: Value) -> Res
             Try::Done(r) => return r,
             Try::Again(why) if attempt == n => bail!("{why} (gave up after {} retries)", n),
             Try::Again(_) => {
-                std::thread::sleep(wait);
+                // Full jitter: clients that were refused together do not retry together.
+                std::thread::sleep(wait.mul_f64(0.5 + jitter()));
                 wait = (wait * 2).min(Duration::from_secs(2));
             }
         }

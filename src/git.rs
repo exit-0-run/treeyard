@@ -226,6 +226,10 @@ impl CatFile {
         let mut header = String::new();
         self.stdout.read_line(&mut header)?;
         let parts: Vec<&str> = header.trim_end().split(' ').collect();
+        // An answer for another id means the stream lost its place: never return that data.
+        if parts.first() != Some(&id) {
+            bail!("cat-file answered {header:?} for {id}");
+        }
         match parts.as_slice() {
             [_, "missing"] => Ok(None),
             [_, kind, size] => {
@@ -317,7 +321,14 @@ impl Odb {
         self.known.len()
     }
 
+    /// Reads one object. A miss or a broken answer restarts the readers and asks once more:
+    /// a long-lived `cat-file` can lose its place or miss a pack that appeared after it started.
     pub fn read(&mut self, id: &str) -> Result<Option<(String, Vec<u8>)>> {
+        if let Ok(Some(found)) = self.cat.read(id) {
+            return Ok(Some(found));
+        }
+        self.cat = CatFile::spawn(&self.dir)?;
+        self.check = CatFile::spawn_check(&self.dir)?;
         self.cat.read(id)
     }
 
