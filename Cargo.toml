@@ -1,0 +1,29 @@
+[package]
+name = "rootstock"
+version = "0.1.0"
+edition = "2024"
+description = "Version control server for agent swarms, with git underneath as the source of truth"
+license = "Apache-2.0"
+repository = "https://github.com/appnice/rootstock"
+
+[dependencies]
+anyhow = "1"
+axum = "0.8"
+base64 = "0.22"
+clap = { version = "4", features = ["derive", "env"] }
+diffy = "0.4"
+flate2 = "1"
+hex = "0.4"
+im = "15"
+rand = "0.8"
+regex = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+ureq = { version = "2", features = ["json"] }
+
+[dev-dependencies]
+tempfile = "3"
