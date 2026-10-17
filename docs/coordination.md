@@ -66,9 +66,13 @@ Each overlap carries `via` (`edited` or `declared` per path). `advice` names the
 ## (b) Live collisions and events
 
 Every `apply` (the workspace daemon's `sync` too, since it calls `apply`) checks the change against all
-other open changes. A shared path gets a trial 3-way merge with the older of the two bases as the merge
-base, the same merge `land` would run, without storing anything. The reply's `collisions` gives
-`kind` = `conflict` or `overlap` per path, and the changed line ranges of both sides (`hunks.mine`,
+other open changes. A shared path gets two trial landings on today's main, one per order: the first
+change merges onto main, then the second onto that result, the same merges `land` runs, with nothing
+stored. The reply's `collisions` gives `kind` = `conflict` or `overlap` per path and a `reason` for a
+conflict: `landing_order` (the change that lands second conflicts), `you_conflict_with_main` or
+`they_conflict_with_main` (one side cannot land on main even alone). `if_you_land_second` and
+`if_they_land_second` give the outcome of each order (`null` when the first one already conflicts with
+main). It also gives the changed line ranges of both sides (`hunks.mine`,
 `hunks.theirs`, half-open, 1-based, in base lines). Edits inside another change's declared paths
 (`declared`) or symbols (`symbol`) count too. Each new or changed collision of a pair and path is
 published once as a `collision` event.

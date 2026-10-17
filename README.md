@@ -104,8 +104,8 @@ Limits of these numbers:
 - TreeYard land time does not include CI. To run tests, set `landing.mode` to `queue` or `optimistic`.
 - The replay declares the exact paths of each commit. Real agents guess, so 0 thrown-away changes is an
   upper bound.
-- Overlap warnings have a precision of 0.40 to 0.54. About half the warnings are for changes that merge
-  without a conflict.
+- Conflict warnings catch 99 % to 100 % of real conflicts, and 72 % to 90 % of warned pairs really
+  conflict. The other warnings are false alarms.
 - With 50 agents on stale bases and no intents, the final tree is different from the history. A merge
   cannot see that a fix landed before the bug it fixes.
 

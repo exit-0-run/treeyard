@@ -81,6 +81,11 @@ struct Counts {
     flagged: usize,
     predicted: usize,
     predicted_hit: usize,
+    /// Pairs of open changes whose trial merge conflicted, and those where the one that landed
+    /// second really conflicted on a predicted path. Only the second of a pair can conflict, so
+    /// the per-change precision above counts the first one as a false alarm.
+    pairs_predicted: usize,
+    pairs_hit: usize,
     /// Conflicts continuous rebase put on a change before its owner called land.
     surfaced_by_rebase: usize,
     /// Intents: agents postponed to a later round, and rounds beyond the first.
@@ -303,17 +308,31 @@ pub fn run(o: &Options) -> Result<Value> {
                 // the ones whose trial merge with another open change conflicts.
                 let mut flagged = BTreeSet::new();
                 let mut predicted = BTreeSet::new();
+                let mut pairs: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
                 for (_, id) in &opened {
                     let ch = r.change(id)?;
                     if !r.overlaps(&ch)?.is_empty() {
                         flagged.insert(id.clone());
                     }
-                    if r.collisions(&ch)?.iter().any(|c| c["kind"] == "conflict") {
+                    for c in r.collisions(&ch)? {
+                        if c["kind"] != "conflict" {
+                            continue;
+                        }
                         predicted.insert(id.clone());
+                        let other = c["change"].as_str().unwrap_or_default().to_string();
+                        let key = if *id < other { (id.clone(), other) } else { (other, id.clone()) };
+                        let paths = c["files"].as_array().into_iter().flatten();
+                        pairs.entry(key).or_default().extend(
+                            paths
+                                .filter(|f| f["kind"] == "conflict")
+                                .filter_map(|f| f["path"].as_str().map(String::from)),
+                        );
                     }
                 }
                 n.flagged += flagged.len();
                 n.predicted += predicted.len();
+                n.pairs_predicted += pairs.len();
+                let mut conflicted: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
                 opened.shuffle(&mut rng);
                 let mut land = |r: &mut Inner, i: usize, id: &str, n: &mut Counts| -> Result<bool> {
                     let t = Instant::now();
@@ -414,10 +433,19 @@ pub fn run(o: &Options) -> Result<Value> {
                         if predicted.contains(&id) {
                             n.predicted_hit += 1;
                         }
+                        conflicted
+                            .insert(id.clone(), r.change(&id)?.conflicts.iter().map(|c| c.path.clone()).collect());
                         r.abandon(&id)?;
                         deferred.push(i);
                     }
                 }
+                // A predicted pair is right when one of the two hit a conflict on a predicted path.
+                n.pairs_hit += pairs
+                    .iter()
+                    .filter(|((x, y), paths)| {
+                        [x, y].iter().any(|id| conflicted.get(*id).is_some_and(|c| !c.is_disjoint(paths)))
+                    })
+                    .count();
                 // Redo thrown-away commits in history order until nothing moves, then force one.
                 let redo_base = o.wave_base.then_some("main");
                 deferred.sort_unstable();
@@ -605,6 +633,8 @@ pub fn run(o: &Options) -> Result<Value> {
             "overlaps_precision": ratio(n.flagged_early, n.flagged),
             "predicted_by_trial_merge": n.predicted, "predicted_and_conflicted": n.predicted_hit,
             "trial_merge_precision": ratio(n.predicted_hit, n.predicted), "trial_merge_recall": ratio(n.predicted_hit, n.first_conflicts),
+            "pairs_predicted": n.pairs_predicted, "pairs_hit": n.pairs_hit,
+            "trial_merge_pair_precision": ratio(n.pairs_hit, n.pairs_predicted),
         },
         "coordination": {
             "config": o.config, "intents": o.intents, "postponed": n.postponed, "extra_rounds": n.extra_rounds,

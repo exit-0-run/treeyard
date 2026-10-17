@@ -163,6 +163,28 @@ A shared path is a weak signal: 58 % to 80 % of the flagged changes landed clean
 alarms by 37 % to 62 % (ripgrep 16: 321 to 121) and keeps 97 % to 100 % recall. Neither number is 1, because the merge at land time is with
 main as it is then, not with one other change.
 
+**Per pair, and with both landing orders (2026-10-18).** The precision above counts changes. A warning
+names a pair, and only the change that lands second can conflict, so the first one always counts as a
+false alarm. `treeyard replay` now also counts pairs: a warned pair is right when one of the two
+conflicts on a warned path at its first land. The trial merge then changed from "3-way of the two heads
+on the older base" to "land one, then the other, on today's main, both orders; or one side already
+conflicts with main". Same 500 commits, seed 1, `--no-git-check`:
+
+```sh
+treeyard replay --src oss/ripgrep --from 3fce3b5~500 --to 3fce3b5 --agents 16 --seed 1 --no-git-check --data D
+```
+
+| Repo | Agents | Recall: old → new | Pair precision: old → new | Warned pairs: new |
+|---|---|---|---|---|
+| ripgrep | 16 | 0.975 → 0.988 | 0.621 → 0.720 | 410 (295 right) |
+| ripgrep | 50 | 0.974 → 1.0 | 0.767 → 0.888 | 1 521 (1 350 right) |
+| requests | 16 | 0.991 → 1.0 | 0.776 → 0.849 | 531 (451 right) |
+| requests | 50 | 1.0 → 1.0 | 0.852 → 0.904 | 1 584 (1 432 right) |
+
+Rules tried on the same runs (pair precision / recall, ripgrep 16): both orders only 0.655 / 0.741 (it
+misses changes that conflict with main by themselves); both orders and the old rule together 0.778 /
+0.593. "Both orders, or one side conflicts with main" was the only rule better on every run.
+
 ### Semantic guard
 
 No config, stale parents. A review task `absorbed_edit` is opened when a rebase makes one of the
