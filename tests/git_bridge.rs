@@ -1,9 +1,9 @@
 mod common;
 
 use common::*;
-use rootstock::{git, repo::Repo};
 use serde_json::json;
 use std::sync::Arc;
+use treeyard::{git, repo::Repo};
 
 /// Names that exercise git's tree ordering (a directory sorts as if it ended in '/').
 const TRICKY: &[(&str, &str)] = &[
@@ -63,7 +63,7 @@ fn landed_changes_become_valid_git_history() {
     );
     assert_eq!(applied["paths"].as_array().unwrap().len(), 5);
     let err =
-        rootstock::client::call(&url, "apply", json!({"change": id, "edits": [{"path": "a.b/x", "content": "no"}]}));
+        treeyard::client::call(&url, "apply", json!({"change": id, "edits": [{"path": "a.b/x", "content": "no"}]}));
     assert!(err.unwrap_err().to_string().contains("is a file"));
 
     let landed = call(&url, "land", json!({"change": id}));
@@ -79,8 +79,8 @@ fn landed_changes_become_valid_git_history() {
     assert_eq!(parent.trim(), git(&src, &["rev-parse", "HEAD"]).trim(), "history continues the imported commit");
 
     let msg = git(tmp.path(), &["--git-dir", gd_s, "log", "-1", "--format=%an <%ae>%n%B", "main"]);
-    assert!(msg.starts_with("agent-a <agent-a@agents.rootstock>\nReshape the tree\n\nBody line."), "{msg}");
-    assert!(msg.contains(&format!("Rootstock-Change: {id}")) && msg.contains("Rootstock-Model: test-model"));
+    assert!(msg.starts_with("agent-a <agent-a@agents.treeyard>\nReshape the tree\n\nBody line."), "{msg}");
+    assert!(msg.contains(&format!("TreeYard-Change: {id}")) && msg.contains("TreeYard-Model: test-model"));
 
     let clone = tmp.path().join("clone");
     git(tmp.path(), &["clone", "-q", gd_s, clone.to_str().unwrap()]);
@@ -115,7 +115,7 @@ fn mcp_bridge_lists_and_calls_tools() {
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
 
     use std::io::Write;
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_rootstock"))
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_treeyard"))
         .args(["mcp", "--url", &url, "--agent", "mcp-agent"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -138,7 +138,7 @@ fn mcp_bridge_lists_and_calls_tools() {
     let replies: Vec<serde_json::Value> =
         String::from_utf8(out.stdout).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
     assert_eq!(replies.len(), 4, "the notification gets no reply");
-    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "rootstock");
+    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "treeyard");
     assert!(replies[1]["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "land"));
     let opened: serde_json::Value =
         serde_json::from_str(replies[2]["result"]["content"][0]["text"].as_str().unwrap()).unwrap();

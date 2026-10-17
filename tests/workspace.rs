@@ -4,9 +4,6 @@
 mod common;
 
 use common::{call, fixture_repo, spawn_server};
-use rootstock::cow::Strategy;
-use rootstock::repo::Repo;
-use rootstock::workspace::{CreateOptions, LayerSpec, Node};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
@@ -14,6 +11,9 @@ use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+use treeyard::cow::Strategy;
+use treeyard::repo::Repo;
+use treeyard::workspace::{CreateOptions, LayerSpec, Node};
 
 fn server(root: &Path, extra: &[(&str, &str)]) -> String {
     let src = fixture_repo(root, 5, 20, extra);
@@ -36,7 +36,7 @@ fn opts(name: &str) -> CreateOptions {
 }
 
 fn read_at(url: &str, change: &str, path: &str) -> Value {
-    rootstock::client::call(url, "read", json!({"path": path, "at": change})).unwrap_or(Value::Null)
+    treeyard::client::call(url, "read", json!({"path": path, "at": change})).unwrap_or(Value::Null)
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn create_snapshot_and_remove() {
     let (ws, timing) = node.create(&opts("a")).unwrap();
     assert!(timing["total_s"].as_f64().unwrap() < 5.0);
     assert_eq!(fs::read_to_string(ws.dir.join("f00.txt")).unwrap().lines().count(), 20);
-    assert!(ws.dir.join(".rootstock/env").exists());
+    assert!(ws.dir.join(".treeyard/env").exists());
 
     // Nothing changed yet: sync sends nothing.
     let s = node.sync("a").unwrap();
@@ -180,9 +180,9 @@ fn env_file_and_port_blocks() {
     let (b, _) = node.create(&opts("b")).unwrap();
     assert_eq!(a.ports, (41000, 41009));
     assert_eq!(b.ports, (41010, 41019));
-    let env = fs::read_to_string(b.dir.join(".rootstock/env")).unwrap();
+    let env = fs::read_to_string(b.dir.join(".treeyard/env")).unwrap();
     assert!(env.contains("PORT=41010\n"), "{env}");
-    assert!(env.contains(&format!("ROOTSTOCK_CHANGE={}\n", b.change)));
+    assert!(env.contains(&format!("TREEYARD_CHANGE={}\n", b.change)));
     // A freed slot is reused.
     node.remove("a", true).unwrap();
     let (c, _) = node.create(&opts("c")).unwrap();
@@ -202,8 +202,8 @@ fn daemon_streams_edits_as_changesets() {
     let lines2 = lines.clone();
     let daemon = std::thread::spawn(move || {
         let node = Node::new(home2, url2);
-        let o = rootstock::daemon::Options { debounce: Duration::from_millis(200), rescan: Duration::ZERO, spares: 0 };
-        rootstock::daemon::run(&node, &o, stop2, &mut |l| lines2.lock().unwrap().push(l)).unwrap();
+        let o = treeyard::daemon::Options { debounce: Duration::from_millis(200), rescan: Duration::ZERO, spares: 0 };
+        treeyard::daemon::run(&node, &o, stop2, &mut |l| lines2.lock().unwrap().push(l)).unwrap();
     });
     std::thread::sleep(Duration::from_millis(300));
     // A burst of 20 writes within the debounce window.
@@ -249,12 +249,11 @@ fn shell_flow_through_the_cli() {
     let tmp = tempfile::tempdir().unwrap();
     let test_sh = "#!/bin/sh\n# the repo's own test: every f*.txt has 20 lines\nfor f in f*.txt; do [ $(wc -l < $f) -eq 20 ] || { echo \"FAIL $f\"; exit 1; }; done\necho ok\n";
     let url = server(tmp.path(), &[("test.sh", test_sh)]);
-    let bin = env!("CARGO_BIN_EXE_rootstock");
+    let bin = env!("CARGO_BIN_EXE_treeyard");
     let home = tmp.path().join("node");
     let rs = |args: &[&str]| {
-        let out =
-            Command::new(bin).args(args).env("ROOTSTOCK_HOME", &home).env("ROOTSTOCK_URL", &url).output().unwrap();
-        assert!(out.status.success(), "rootstock {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        let out = Command::new(bin).args(args).env("TREEYARD_HOME", &home).env("TREEYARD_URL", &url).output().unwrap();
+        assert!(out.status.success(), "treeyard {args:?}: {}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).into_owned()
     };
     let created: Value = serde_json::from_str(&rs(&["workspace", "create", "cli", "--agent", "shell"])).unwrap();
@@ -269,9 +268,9 @@ fn shell_flow_through_the_cli() {
     assert!(env.contains("export PORT='"));
     // exec runs a command with the workspace env and syncs afterwards.
     let out = Command::new(bin)
-        .args(["workspace", "exec", "cli", "--", "sh", "-c", "echo $ROOTSTOCK_WORKSPACE > who.txt"])
-        .env("ROOTSTOCK_HOME", &home)
-        .env("ROOTSTOCK_URL", &url)
+        .args(["workspace", "exec", "cli", "--", "sh", "-c", "echo $TREEYARD_WORKSPACE > who.txt"])
+        .env("TREEYARD_HOME", &home)
+        .env("TREEYARD_URL", &url)
         .output()
         .unwrap();
     assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
@@ -292,8 +291,8 @@ fn shell_flow_through_the_cli() {
 #[cfg(target_os = "linux")]
 #[test]
 fn overlay_workspace_when_root() {
-    if unsafe { libc::geteuid() } != 0 || std::env::var_os("ROOTSTOCK_TEST_OVERLAY").is_none() {
-        eprintln!("skip: overlay workspaces need root and ROOTSTOCK_TEST_OVERLAY=1 (TMPDIR not on overlayfs)");
+    if unsafe { libc::geteuid() } != 0 || std::env::var_os("TREEYARD_TEST_OVERLAY").is_none() {
+        eprintln!("skip: overlay workspaces need root and TREEYARD_TEST_OVERLAY=1 (TMPDIR not on overlayfs)");
         return;
     }
     let tmp = tempfile::tempdir().unwrap();

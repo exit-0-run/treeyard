@@ -9,7 +9,7 @@
 //! stack), so the server makes it wait until that change lands: no semantic reordering, at the
 //! price of serial landing.
 //!
-//! Coordination (phase 3): `config` installs a rootstock.toml (merge drivers, continuous
+//! Coordination (phase 3): `config` installs a treeyard.toml (merge drivers, continuous
 //! rebase). With `intents`, each agent declares the paths of its commit at `open_change`; an
 //! agent whose intent overlaps an open change of the wave is postponed to the next round (the
 //! orchestrator policy "defer"), and then applies its commit's diff onto the fresh main. Every
@@ -39,7 +39,7 @@ pub struct Options {
     pub data: PathBuf,
     pub check_git: bool,
     pub stacked: bool,
-    /// A rootstock.toml copied into the data directory before the repo opens.
+    /// A treeyard.toml copied into the data directory before the repo opens.
     pub config: Option<PathBuf>,
     /// Declare each commit's paths and postpone overlapping agents to a later round.
     pub intents: bool,

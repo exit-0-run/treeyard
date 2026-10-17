@@ -8,7 +8,7 @@ set -eu
 IMAGE=${IMAGE:-rust:1}
 cd "$(dirname "$0")/.."
 tar --exclude=./target --exclude=./.git -cf - . | docker run --rm -i --privileged \
-  -v rootstock-linux-target:/target -v rootstock-linux-cargo:/usr/local/cargo/registry \
+  -v treeyard-linux-target:/target -v treeyard-linux-cargo:/usr/local/cargo/registry \
   -e CARGO_TARGET_DIR=/target "$IMAGE" sh -euc '
     mkdir /work && tar -C /work -xf - && cd /work
     run() { if "$@" >/tmp/log 2>&1; then r=ok; else r=FAILED; fi
@@ -19,7 +19,7 @@ tar --exclude=./target --exclude=./.git -cf - . | docker run --rm -i --privilege
     run cargo test
     truncate -s 4G /xfs.img && mkfs.xfs -q -m reflink=1 /xfs.img && mkdir -p /mnt/xfs && mount -o loop /xfs.img /mnt/xfs
     echo "== 2. TMPDIR on $(stat -f -c %T /mnt/xfs) with reflink=1, as $(id -un)"
-    export TMPDIR=/mnt/xfs ROOTSTOCK_EXPECT_REFLINK=1 ROOTSTOCK_TEST_OVERLAY=1
+    export TMPDIR=/mnt/xfs TREEYARD_EXPECT_REFLINK=1 TREEYARD_TEST_OVERLAY=1
     run cargo test --lib cow -- --nocapture
     run cargo test --test workspace -- --nocapture
   '

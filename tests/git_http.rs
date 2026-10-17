@@ -4,10 +4,10 @@
 mod common;
 
 use common::*;
-use rootstock::repo::Repo;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 struct Setup {
     _tmp: tempfile::TempDir,
@@ -96,7 +96,7 @@ fn clone_then_push_lands_and_agents_read_it() {
     write(&work, "f00.txt", "rewritten by a person\n");
     hgit_ok(&work, &["commit", "-q", "-am", "Rewrite f00\n\nWith a body."]);
     let out = hgit_ok(&work, &["push", "origin", "main"]);
-    assert!(out.contains("rootstock: landed 2 commit(s) on main"), "{out}");
+    assert!(out.contains("treeyard: landed 2 commit(s) on main"), "{out}");
 
     // The pushed commits are main as they are (no rewrite), so the person stays in sync.
     let head = hgit_ok(&work, &["rev-parse", "HEAD"]);
@@ -282,7 +282,7 @@ fn mirror_pushes_main_to_a_bare_remote() {
     let mirror = s.root.join("mirror.git");
     git(&s.root, &["init", "-q", "--bare", "-b", "main", mirror.to_str().unwrap()]);
     let run = || {
-        std::process::Command::new(env!("CARGO_BIN_EXE_rootstock"))
+        std::process::Command::new(env!("CARGO_BIN_EXE_treeyard"))
             .args(["mirror", "--data", s.data.to_str().unwrap(), "--remote", mirror.to_str().unwrap()])
             .env("GIT_TERMINAL_PROMPT", "0")
             .output()
@@ -326,14 +326,14 @@ fn dumb_http_is_refused() {
     }
 }
 
-/// Round trip on a real repository: `ROOTSTOCK_REAL_REPO=<git repo> cargo test --release
-/// --test git_http -- --ignored --nocapture`. Times clone over Rootstock HTTP against a plain
+/// Round trip on a real repository: `TREEYARD_REAL_REPO=<git repo> cargo test --release
+/// --test git_http -- --ignored --nocapture`. Times clone over TreeYard HTTP against a plain
 /// `git clone --no-local` of the same export repo, then a push of one commit.
 #[test]
 #[ignore]
 fn real_repo_round_trip() {
-    let Ok(src) = std::env::var("ROOTSTOCK_REAL_REPO") else { return };
-    let tmp = tempfile::tempdir_in(std::env::var("ROOTSTOCK_SCRATCH").unwrap_or_else(|_| "/tmp".into())).unwrap();
+    let Ok(src) = std::env::var("TREEYARD_REAL_REPO") else { return };
+    let tmp = tempfile::tempdir_in(std::env::var("TREEYARD_SCRATCH").unwrap_or_else(|_| "/tmp".into())).unwrap();
     let root = tmp.path().to_path_buf();
     let data = root.join("data");
     let branch = git(Path::new(&src), &["symbolic-ref", "--short", "HEAD"]).trim().to_string();
@@ -348,13 +348,13 @@ fn real_repo_round_trip() {
     let http = t.elapsed().as_secs_f64();
     let work = root.join("http");
     assert_eq!(hgit_ok(&work, &["rev-parse", "HEAD"]), hgit_ok(&root.join("plain"), &["rev-parse", "HEAD"]));
-    write(&work, "ROOTSTOCK_PUSH_TEST.md", "pushed over http\n");
-    hgit_ok(&work, &["add", "ROOTSTOCK_PUSH_TEST.md"]);
+    write(&work, "TREEYARD_PUSH_TEST.md", "pushed over http\n");
+    hgit_ok(&work, &["add", "TREEYARD_PUSH_TEST.md"]);
     hgit_ok(&work, &["commit", "-q", "-m", "Push test"]);
     let t = std::time::Instant::now();
     hgit_ok(&work, &["push", "-q", "origin", &branch]);
     let push = t.elapsed().as_secs_f64();
-    assert_eq!(call(&url, "read", json!({"path": "ROOTSTOCK_PUSH_TEST.md"}))["content"], "pushed over http\n");
+    assert_eq!(call(&url, "read", json!({"path": "TREEYARD_PUSH_TEST.md"}))["content"], "pushed over http\n");
     let (ok, _, err) = git_status(&root, &["--git-dir", gd.to_str().unwrap(), "fsck", "--no-progress"]);
     let fsck = if ok { "clean".to_string() } else { format!("errors: {}", err.lines().count()) };
     println!("repo={src} clone_plain_s={plain:.3} clone_http_s={http:.3} push_one_commit_s={push:.3} fsck={fsck}");

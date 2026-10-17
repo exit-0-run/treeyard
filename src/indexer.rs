@@ -41,7 +41,7 @@ pub fn spawn(repo: Arc<Repo>) -> Option<std::thread::JoinHandle<()>> {
             if main != last {
                 match catch_up(&repo, search_on, symbols_on) {
                     Ok(_) => last = main,
-                    Err(e) => eprintln!("rootstock indexer: {e:#}"),
+                    Err(e) => eprintln!("treeyard indexer: {e:#}"),
                 }
             }
             std::thread::sleep(Duration::from_millis(250));

@@ -1,8 +1,8 @@
 # Coordination (phase 3)
 
-Rootstock sees every agent's edits while the agents work. Phase 3 uses that to make conflicts appear
+TreeYard sees every agent's edits while the agents work. Phase 3 uses that to make conflicts appear
 early and small, and to land without a global lock. Six parts, each configured per repo in
-`<data>/rootstock.toml` (a commented template is written by `rootstock init`; restart `serve` after a
+`<data>/treeyard.toml` (a commented template is written by `treeyard init`; restart `serve` after a
 change). The file lives in the data directory and not in the repo tree, because it names commands that
 the server runs: an agent's change must never change them.
 
@@ -16,20 +16,20 @@ the server runs: an agent's change must never change them.
 | (f) Semantic guard | `reviews`, `review_close`; `land` reply `reviews`; event `review` | `src/coord.rs`, `src/repo.rs` | `f_guard_…`, `tests/replay.rs` |
 
 All tests are in `tests/coordination.rs` unless named otherwise. Every operation is in the one table in
-`src/rpc.rs`, so HTTP, MCP and `rootstock call` get it at once.
+`src/rpc.rs`, so HTTP, MCP and `treeyard call` get it at once.
 
 ## Demo (two agents, one function)
 
-`/private/tmp/rootstock-harness/009/demo.sh` (not in the repo; the commands are below) ran on
-2026-10-17 against `rootstock serve` with `continuous_rebase = true`:
+`/private/tmp/treeyard-harness/009/demo.sh` (not in the repo; the commands are below) ran on
+2026-10-17 against `treeyard serve` with `continuous_rebase = true`:
 
 ```sh
-rootstock call open_change '{"agent":"alice","intent":"fix parse","paths":["lib.rs"],"symbols":["parse"]}'
-rootstock call open_change '{"agent":"bob","intent":"speed up parse","symbols":["parse"]}'
-rootstock call apply '{"change":"<alice>","edits":[{"path":"lib.rs","replace":{"old":"    1","new":"    10"}}]}'
-rootstock call apply '{"change":"<bob>","edits":[{"path":"lib.rs","replace":{"old":"    1","new":"    100"}}]}'
-rootstock call land '{"change":"<alice>"}'
-rootstock call events '{"change":"<bob>","kinds":["collision","conflict"]}'
+treeyard call open_change '{"agent":"alice","intent":"fix parse","paths":["lib.rs"],"symbols":["parse"]}'
+treeyard call open_change '{"agent":"bob","intent":"speed up parse","symbols":["parse"]}'
+treeyard call apply '{"change":"<alice>","edits":[{"path":"lib.rs","replace":{"old":"    1","new":"    10"}}]}'
+treeyard call apply '{"change":"<bob>","edits":[{"path":"lib.rs","replace":{"old":"    1","new":"    100"}}]}'
+treeyard call land '{"change":"<alice>"}'
+treeyard call events '{"change":"<bob>","kinds":["collision","conflict"]}'
 ```
 
 Output (fields picked by the script):
@@ -127,7 +127,7 @@ command = "pnpm install --lockfile-only --offline"
   resulting file in random order" ([gitattributes](https://git-scm.com/docs/gitattributes), opened
   2026-10-17). Use it for changelogs and registries only.
 - `regenerate`: writes the merged tree (main plus the change) to a temp dir under `<data>/tmp`, runs the
-  command there with `ROOTSTOCK_PATH` set, and reads the path back. A failing command leaves the
+  command there with `TREEYARD_PATH` set, and reads the path back. A failing command leaves the
   conflict. The command runs under the repo lock (the limit is below).
 - `ours` / `theirs`: take one side.
 - `syntax`: [mergiraf](https://mergiraf.org/languages.html) (opened 2026-10-17; it lists Rust, Python,
@@ -136,7 +136,7 @@ command = "pnpm install --lockfile-only --offline"
   test checks that the path stays a conflict.
 
 Safety rule: drivers run only when the change's base is an ancestor of main. On another base (work main
-does not have, as in `rootstock replay`'s stale-parent model), main looks as if it deleted that work, and a
+does not have, as in `treeyard replay`'s stale-parent model), main looks as if it deleted that work, and a
 driver would apply the deletion silently. The first replay with drivers on that model showed it:
 conflicts fell from 111 to 49, but no wave matched history (21 of 32 before), because CHANGELOG.md and
 Cargo.lock lost lines (run `t-drivers`, 2026-10-17, ripgrep at 16 agents).
@@ -162,7 +162,7 @@ timeout_s = 600
   changesets since the last green one, reverts the first failing changeset through the normal `revert`
   operation, and opens a `reverted_by_bisect` review task for its owner. Test `e_optimistic…`.
 
-`rootstock serve` starts a worker thread for `queue` and `optimistic`. The `queue_run` and `test_main`
+`treeyard serve` starts a worker thread for `queue` and `optimistic`. The `queue_run` and `test_main`
 operations run one step by hand (tests and CLI). Tests run outside the repo lock: agents keep reading
 and applying during a test. Before the queue lands a batch it checks that main and each change are
 unchanged; if not, the step reports `stale` and runs again. A `revert` and a human `git push` always land
@@ -194,7 +194,7 @@ task, and it is the `dbg!` fix: commit `e92e2ef8137a` "cli: remove stray `dbg!`"
 - `regenerate` and queue/optimistic tests copy the whole tree to a temp dir. `regenerate` runs under
   the repo lock, so a slow command blocks every agent for its duration.
 - mergiraf can take seconds on large files: in an early wave-model replay one land took 5.2 s (run
-  `t3-wfull`, land max 5216 ms). Rootstock passes `--timeout 5000` to cap one file.
+  `t3-wfull`, land max 5216 ms). TreeYard passes `--timeout 5000` to cap one file.
 - mergiraf prints a `mergiraf review <id>` hint after each solved conflict. Where it keeps that data
   was not checked.
 - No auth: anyone who reaches the port can read events.

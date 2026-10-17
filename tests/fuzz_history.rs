@@ -5,8 +5,8 @@
 //! - the exported commit's tree must list exactly the server's manifest (`git ls-tree -r`);
 //! - `read` must return the bytes `git cat-file` returns.
 //!
-//! At the end the export repo passes `git fsck --strict`. `ROOTSTOCK_FUZZ_SEEDS=N` runs N
-//! seeds (default 12); `ROOTSTOCK_FUZZ_SEED=S` runs one seed (to replay a failure).
+//! At the end the export repo passes `git fsck --strict`. `TREEYARD_FUZZ_SEEDS=N` runs N
+//! seeds (default 12); `TREEYARD_FUZZ_SEED=S` runs one seed (to replay a failure).
 
 mod common;
 
@@ -14,11 +14,11 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
 use common::*;
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
-use rootstock::repo::Repo;
-use rootstock::rpc;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::Path;
+use treeyard::repo::Repo;
+use treeyard::rpc;
 
 const DIRS: &[&str] = &["a", "b", "src", "deep", "x y", "ünï"];
 const NAMES: &[&str] = &["one.txt", "two.rs", "data.bin", "empty", "run.sh", "link", "crlf.txt", "nonl.txt"];
@@ -344,10 +344,10 @@ fn run_seed(seed: u64) -> Stats {
 
 #[test]
 fn random_histories_match_git() {
-    let seeds: Vec<u64> = match std::env::var("ROOTSTOCK_FUZZ_SEED") {
+    let seeds: Vec<u64> = match std::env::var("TREEYARD_FUZZ_SEED") {
         Ok(s) => vec![s.parse().unwrap()],
         Err(_) => {
-            let n = std::env::var("ROOTSTOCK_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(12);
+            let n = std::env::var("TREEYARD_FUZZ_SEEDS").ok().and_then(|v| v.parse().ok()).unwrap_or(12);
             (1..=n).collect()
         }
     };

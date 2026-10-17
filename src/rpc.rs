@@ -280,7 +280,7 @@ pub fn call_as(repo: &Repo, c: &Caller, op: &str, p: Value) -> Result<Value> {
         if AUDITED.contains(&op) || out.as_ref().is_err_and(|e| e.downcast_ref::<Denied>().is_some()) {
             let rec = record(r, c, op, &p, &out);
             if let Err(e) = r.audit_add(rec) {
-                eprintln!("rootstock: audit write failed for {op}: {e:#}");
+                eprintln!("treeyard: audit write failed for {op}: {e:#}");
             }
         }
         out
@@ -829,7 +829,7 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "bisect",
-            "Find the first bad changeset between good and bad (default main) on the first-parent history: the server runs a test command from rootstock.toml on temporary checkouts. Then call revert on it if you want it gone.",
+            "Find the first bad changeset between good and bad (default main) on the first-parent history: the server runs a test command from treeyard.toml on temporary checkouts. Then call revert on it if you want it gone.",
             json!({"good": at, "bad": at, "command": {"type": "string", "description": "name of a command in [bisect.commands]; default [bisect] test or landing.test"}, "verify": {"type": "boolean", "description": "test good and bad first (default true)"}}),
             &["good"],
         ),
@@ -891,7 +891,7 @@ pub fn tools() -> Vec<Value> {
             json!({}),
             &[],
         ),
-        tool("config", "The repo settings in effect (rootstock.toml).", json!({}), &[]),
+        tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
             "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, and live collisions (trial merge: conflict or overlap, with hunk ranges).",
@@ -937,7 +937,7 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "export_change",
-            "Write a change's head as a git commit under refs/rootstock/changes/<id>.",
+            "Write a change's head as a git commit under refs/treeyard/changes/<id>.",
             json!({"change": change}),
             &["change"],
         ),

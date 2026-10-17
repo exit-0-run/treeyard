@@ -1,4 +1,4 @@
-//! `rootstock daemon`: watches every workspace of a node and syncs one after its edits settle
+//! `treeyard daemon`: watches every workspace of a node and syncs one after its edits settle
 //! (debounce), so the server sees each agent's work live as new changesets of its change.
 
 use anyhow::Result;
@@ -122,7 +122,7 @@ mod tests {
         let root = Path::new("/n/ws");
         assert_eq!(workspace_of(root, Path::new("/n/ws/a/src/main.rs")).as_deref(), Some("a"));
         assert_eq!(workspace_of(root, Path::new("/n/ws/a/target/debug/x")), None);
-        assert_eq!(workspace_of(root, Path::new("/n/ws/b/.rootstock/env")), None);
+        assert_eq!(workspace_of(root, Path::new("/n/ws/b/.treeyard/env")), None);
         assert_eq!(workspace_of(root, Path::new("/n/other/a/x")), None);
     }
 }

@@ -583,7 +583,7 @@ mod tests {
 
     #[test]
     fn varint_round_trip() {
-        let v = trigrams(b"hello world, hello rootstock");
+        let v = trigrams(b"hello world, hello treeyard");
         assert_eq!(decode(&encode(&v)), v);
     }
 

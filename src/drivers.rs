@@ -248,7 +248,7 @@ pub fn mergiraf(bin: &str, path: &str, base: &str, ours: &str, theirs: &str) -> 
 
 /// A fresh private temp dir (removed by the caller).
 pub fn tempfile_dir() -> Result<std::path::PathBuf> {
-    let dir = std::env::temp_dir().join(format!("rootstock-{}-{:016x}", std::process::id(), rand::random::<u64>()));
+    let dir = std::env::temp_dir().join(format!("treeyard-{}-{:016x}", std::process::id(), rand::random::<u64>()));
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
 }

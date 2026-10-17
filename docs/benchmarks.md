@@ -1,4 +1,4 @@
-# Benchmarks: phase-0 baseline (plain git worktrees vs Rootstock)
+# Benchmarks: phase-0 baseline (plain git worktrees vs TreeYard)
 
 Measured 2026-10-17 by `bench/bench.py` (stdlib Python, driven by `make bench`). Every number below comes
 from the result JSON of the runs listed in [How to reproduce](#how-to-reproduce). The tables in
@@ -10,7 +10,7 @@ At 50 agents, the serial merge queue costs the most wall time on all three repos
 most work. The two pains add up, because a change that conflicts goes back to its agent and through the
 queue again. Workspace setup is third. History queries are last.
 
-| Pain (RFC phase 0) | 50 agents, plain git | Rootstock today |
+| Pain (RFC phase 0) | 50 agents, plain git | TreeYard today |
 |---|---|---|
 | Serial merge queue wait | last change waits 248 s (ripgrep), 1414 s (astro), 3614 s (requests); 705, 125 and 49 landings per hour | land p95 3.4 ms (ripgrep), 2.3 ms (requests), 43 ms (astro); no CI on the land path |
 | Late conflicts | 26 % to 37 % of changes conflict at merge time; 98 % to 100 % of them shared a path with another open change before the merge | the same conflicts, but `overlaps` names 139 of 139 (astro), 188 of 188 (requests), 156 of 156 (ripgrep) before landing |
@@ -20,11 +20,11 @@ queue again. Workspace setup is third. History queries are last.
 What this means for the plan:
 
 1. Landing comes first. A serial queue with the repo's own CI caps throughput at 3600 / CI seconds. A
-   50-change wave waits 4 min to 60 min for the last change. Rootstock lands in milliseconds, but only
+   50-change wave waits 4 min to 60 min for the last change. TreeYard lands in milliseconds, but only
    because it runs no CI. The RFC's optimistic mode (tests after the merge) is the missing half.
 2. Early conflict data comes second, and the server already has it. Almost every conflict that git
    found at merge time was visible earlier as a shared path between open changes (bench: 98 % to
-   100 %; Rootstock `flagged_early`: 100 %, except 76 of 77 for requests and 57 of 58 for ripgrep at 10
+   100 %; TreeYard `flagged_early`: 100 %, except 76 of 77 for requests and 57 of 58 for ripgrep at 10
    agents). Live collision events would move nearly all of them out of the merge step.
 3. Stale bases also break clean merges. In astro, wave 1 at 10 agents already gives a tree that is not
    the history: `[ci] release` lands first and deletes the `.changeset/*.md` files, then three PRs land
@@ -35,15 +35,15 @@ What this means for the plan:
    but not time (525 s to 427 s for 50). For ripgrep and requests a warm cache (uv, a cloned `target/`)
    is enough.
 
-## Phase 2: Rootstock workspaces vs plain worktrees (2026-10-17)
+## Phase 2: TreeYard workspaces vs plain worktrees (2026-10-17)
 
 Measured on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), same pinned revisions (ripgrep `3fce3b5`,
 astro `c75e897`), same warm caches (cargo registry, pnpm store), at most 8 workspaces made at once,
-in one session. Rootstock: `make release` on the task-#007 working tree. Other sessions used the Mac
+in one session. TreeYard: `make release` on the task-#007 working tree. Other sessions used the Mac
 during the runs. Commands:
 
 ```sh
-export BENCH_DIR=/private/tmp/rootstock-harness/007 BENCH_OSS=/private/tmp/rootstock-harness/oss
+export BENCH_DIR=/private/tmp/treeyard-harness/007 BENCH_OSS=/private/tmp/treeyard-harness/oss
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS workspaces --repo ripgrep --n 1,10,50 --setup checkout,cargo-warm-clone,cargo-cold   # 6 min
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS workspaces --repo astro --n 1,10,50 --setup checkout,pnpm-store                     # 25 min
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS cow --repo ripgrep --n 1,10,50    # 31 s
@@ -55,7 +55,7 @@ python3 bench/bench.py --dir $BENCH_DIR report
 
 ### Result: 50 extra agents, each ready to build and test
 
-| Repo | Plain git worktrees | Rootstock workspaces | Rootstock from the warm pool |
+| Repo | Plain git worktrees | TreeYard workspaces | TreeYard from the warm pool |
 |---|---|---|---|
 | ripgrep (237 files, `target/` 346 MB) | `worktree add` + clone of a warm `target/` + `cargo build`: 69.66 s, 7 789 MB (cold build: 180.38 s, 14 204 MB) | 1.22 s, 48.3 MB (1.0 MB per agent); per workspace p50 0.16 s | 0.86 s, 5.1 MB; p50 0.12 s |
 | astro (7 033 files, `node_modules` 1.2 GB) | `worktree add` + `pnpm install --offline` from the store: 352.53 s, 5 859 MB (117 MB per agent); p50 56.6 s | 85.30 s, 2 197 MB (43.9 MB per agent); p50 12.7 s | 26.19 s, 1 506 MB (30.1 MB per agent); p50 3.5 s |
@@ -69,7 +69,7 @@ What the numbers say:
 1. **Time.** The RFC target is a new workspace below 1 s. ripgrep meets it in every mode (p50 0.16 s
    with 8 at once). astro meets it only from the warm pool: cloning 562 `node_modules` directories takes
    0.93 s alone and about 7 s each when 8 run at once (APFS clones are metadata work per inode, and they
-   queue). `rootstock daemon --spares N` moves that cost out of the request.
+   queue). `treeyard daemon --spares N` moves that cost out of the request.
 2. **Disk.** Per extra agent, ripgrep costs about 1 MB instead of 156 MB (warm clone) or 284 MB (cold).
    astro costs 29 MB to 44 MB instead of 117 MB with pnpm's own store and 1 303 MB with copied
    `node_modules` (phase-0 run). The 29 MB is APFS metadata for the cloned inodes; the spare runs show
@@ -81,29 +81,29 @@ What the numbers say:
    counted, like the baseline seed). Filling the pool takes about 1 s per astro spare. Deleting 50 astro
    workspaces takes 142.6 s to 147.3 s; 50 ripgrep workspaces 2.8 s to 3.1 s.
 
-How it is measured (`cmd_cow` in `bench/bench.py`): `rootstock init` and `serve` on the pinned
+How it is measured (`cmd_cow` in `bench/bench.py`): `treeyard init` and `serve` on the pinned
 revision; one `first` workspace with `--setup` builds the layer. Then N workspaces at once (at most 8)
-with `rootstock workspace create NAME --layer DIR=LOCKFILE [--setup CMD]` through the CLI. Each one then
-appends a line to the README and runs `rootstock workspace sync`, and the bench checks that the server
+with `treeyard workspace create NAME --layer DIR=LOCKFILE [--setup CMD]` through the CLI. Each one then
+appends a line to the README and runs `treeyard workspace sync`, and the bench checks that the server
 got exactly that path. Per-workspace times are the `create` call alone; the run's wall time also covers
 the edit and the sync, so it is larger than the baseline's worktree-plus-setup time would be for the same
-work. `spare-*` modes first run `rootstock workspace spare --count N` (the "pool fill" column, not counted).
+work. `spare-*` modes first run `treeyard workspace spare --count N` (the "pool fill" column, not counted).
 `df delta` is the statvfs change of the volume over the batch; `du` counts each clone in full.
 
 ## Phase 3: coordination replay
 
-Measured 2026-10-17 on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), with `rootstock replay` on the last
+Measured 2026-10-17 on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), with `treeyard replay` on the last
 500 first-parent commits of ripgrep (`3fce3b5`) and requests (`611c6162`), seed 1, at 16 and 50 agents.
 Binary: `make release` of the working tree at the end of task #009 (copy
-`/private/tmp/rootstock-harness/009/rootstock-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
+`/private/tmp/treeyard-harness/009/treeyard-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
 binary of main `2d90daf` plus the #003 to #007 working tree, copied before any #009 change
-(`/private/tmp/rootstock-harness/009/rootstock-base`). Other sessions ran on the Mac at the same time,
+(`/private/tmp/treeyard-harness/009/treeyard-base`). Other sessions ran on the Mac at the same time,
 so the land times are noisy (see below).
 
-Command for one run (`rp.sh TAG REPO N CONFIG [flags]` in `/private/tmp/rootstock-harness/009/`):
+Command for one run (`rp.sh TAG REPO N CONFIG [flags]` in `/private/tmp/treeyard-harness/009/`):
 
 ```sh
-rootstock replay --src oss/ripgrep --from HEAD~500 --to HEAD --agents 16 --data D \
+treeyard replay --src oss/ripgrep --from HEAD~500 --to HEAD --agents 16 --data D \
   [--config full.toml] [--intents] [--wave-base]
 ```
 
@@ -192,9 +192,9 @@ difference is machine load, and the guard and event code add about 10 %. With in
 3.33 ms (fewer changes are open at once). A replay with continuous rebase on the wave-base model takes 2 to
 5 times longer than without (122 s to 260 s against 41 s to 64 s), because every rebase of every open change is also checked against git.
 
-Raw table (`python3 /private/tmp/rootstock-harness/009/table.py`, all columns, 36 rows) is in
-`/private/tmp/rootstock-harness/009/final-table.md`; each run's JSON is in
-`/private/tmp/rootstock-harness/009/results/`.
+Raw table (`python3 /private/tmp/treeyard-harness/009/table.py`, all columns, 36 rows) is in
+`/private/tmp/treeyard-harness/009/final-table.md`; each run's JSON is in
+`/private/tmp/treeyard-harness/009/results/`.
 
 ## Scale: linux, 96 080 files (task 013, 2026-10-17)
 
@@ -203,12 +203,12 @@ https://github.com/torvalds/linux at `58161ead29e50d70a317ea26b472e0c7508e69da` 
 96 080 files at the tip. Clone: `git clone --depth 1`, then four times `git fetch --deepen=500 origin
 master`. The result is a shallow clone that reaches 1 461 641 commits (59 279 first-parent), 5.8 GB in `.git`.
 
-Commands (scratch `/private/tmp/rootstock-harness/013`, JSON in `scale/results/`):
+Commands (scratch `/private/tmp/treeyard-harness/013`, JSON in `scale/results/`):
 
 ```sh
-D=/private/tmp/rootstock-harness/013; L=/private/tmp/rootstock-harness/oss/linux
+D=/private/tmp/treeyard-harness/013; L=/private/tmp/treeyard-harness/oss/linux
 git archive 2d90daf | tar -x -C $D/before && (cd $D/before && cargo build --release)   # the "before" binary
-python3 bench/scale.py --repo $L --dir $D/scale --tag linux-before --binary $D/before/target/release/rootstock --git
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-before --binary $D/before/target/release/treeyard --git
 python3 bench/scale.py --repo $L --dir $D/scale --tag linux-after --git                 # working tree at task start
 python3 bench/scale.py --repo $L --dir $D/scale --tag linux-after2                      # after the two fixes below
 python3 bench/scale.py --repo $L --dir $D/scale --tag linux-history10000 --history 10000 --no-grep   # before fix 2
@@ -252,7 +252,7 @@ Plain git baseline on the same clone (`--git`; worktree add, then per land: appe
 | `git grep -E -c`, the three patterns | 3 172.65 / 2 830.09 / 3 544.17 ms | 2 818.28 / 2 756.93 / 3 844.61 ms |
 | edit + commit + merge-tree + update-ref, 50 lands, p50 / p95 | 183.7 / 196.07 ms | 201.14 / 237.77 ms |
 
-So on linux a Rootstock land (p50 0.91 ms) is about 200 times faster than a local git commit plus merge
+So on linux a TreeYard land (p50 0.91 ms) is about 200 times faster than a local git commit plus merge
 (p50 183.7 to 201.14 ms). The first indexed grep is slower than a scan, because it builds the trigram
 index (255 MB of postings); later greps take 8 to 16 ms against 2.8 to 3.8 s for `git grep`. Set
 `[index] search = "eager"` to build the index when the server starts, or send `"index": false` to scan.
@@ -292,7 +292,7 @@ investigated). `init --history 10000` peaks at 1 051.5 MB RSS. The index holds 2
 
 | Command | Result |
 |---|---|
-| `ROOTSTOCK_FUZZ_SEEDS=300 cargo test --release --test fuzz_history -- --nocapture` | 300 seeds, 7718 lands, 5111 merges: 2200 clean and equal to git merge-tree, 2911 server conflicts (0 of them git merged cleanly); 7718 exports equal to the manifest, 7718 reads equal to git; 448.84 s |
+| `TREEYARD_FUZZ_SEEDS=300 cargo test --release --test fuzz_history -- --nocapture` | 300 seeds, 7718 lands, 5111 merges: 2200 clean and equal to git merge-tree, 2911 server conflicts (0 of them git merged cleanly); 7718 exports equal to the manifest, 7718 reads equal to git; 448.84 s |
 | `cargo test --test hardening` (part of `make check`) | 12 passed: kill at 6 failpoints and restart, duplicate land race, lost land reply, client retry, 503 busy, data-dir lock, bind refusal, hostile paths, sizes, repo content and push, shallow import, cold manifests |
 
 ## Machine and sources
@@ -304,7 +304,7 @@ investigated). `init --history 10000` peaks at 1 051.5 MB RSS. The index holds 2
 | ripgrep | https://github.com/BurntSushi/ripgrep at `3fce3b5bb0236da2df6d99672afb8a719642eca7` (2026-08-04), 237 files, 2215 first-parent commits |
 | requests | https://github.com/psf/requests at `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60` (2026-09-21), 130 files, 2669 first-parent commits |
 | astro | https://github.com/withastro/astro at `c75e89711a4935a0befea6f768842f6d6a9de2bb` (2026-10-16), 7033 files, 11736 first-parent commits; checkout 71 MB, with `node_modules` 1.2 GB per workspace |
-| Rootstock | this repo, `make release`, working tree on top of `2d90daf` plus the bench and the `flagged_early` counter |
+| TreeYard | this repo, `make release`, working tree on top of `2d90daf` plus the bench and the `flagged_early` counter |
 
 Other agent sessions used the same Mac during the runs. The `df` deltas and the timings carry that
 noise. Two runs of the conflict replay (`log-conflicts.txt` and `log-conflicts2.txt`) gave the same
@@ -313,10 +313,10 @@ counts, because the replay is deterministic for a seed.
 ## How to reproduce
 
 ```sh
-export BENCH_DIR=/private/tmp/rootstock-harness/003     # scratch: clones, seeds, workspaces, results
-export BENCH_OSS=/private/tmp/rootstock-harness/oss     # optional: existing clones (else cloned from the URLs)
+export BENCH_DIR=/private/tmp/treeyard-harness/003     # scratch: clones, seeds, workspaces, results
+export BENCH_OSS=/private/tmp/treeyard-harness/oss     # optional: existing clones (else cloned from the URLs)
 make bench-conflicts                                    # 16 min: 3 repos x 500 commits x N=1,10,50 x seeds 1,2,3
-make bench-rootstock                                    # 7 min: init, 1/10/50 API agents, `rootstock replay` N=1,10,50
+make bench-treeyard                                    # 7 min: init, 1/10/50 API agents, `treeyard replay` N=1,10,50
 make bench-workspaces                                   # 67 min: 3 repos x setups x N=1,10,50, 8 at once
 make bench-queue BENCH_REPOS=requests                   # 63 min (73 s CI x 51)
 make bench-queue BENCH_REPOS="ripgrep astro"            # 29 min
@@ -347,7 +347,7 @@ setup starts with warm caches (cargo registry, pip/uv cache, pnpm store); the se
 
 `du` counts APFS clones in full, so `du` is the cost on a file system without copy-on-write (for
 example ext4 in a container). `df delta` (statvfs used bytes before and after) is the real cost on this
-Mac. Rootstock: `rootstock init`, then `serve`; N threads each call `open_change`, then `read` of the
+Mac. TreeYard: `treeyard init`, then `serve`; N threads each call `open_change`, then `read` of the
 README and `grep TODO` at that change over HTTP.
 
 **Late conflicts.** The last 500 first-parent commits are cut into waves of N agents. Each agent works
@@ -358,7 +358,7 @@ newer main. If nothing lands in a redo round, one change is forced with `-Xtheir
 before merge" counts conflicts whose paths overlap another change of the same wave, which a server that
 sees all open changes knows before the merge. "Lines thrown away" is the added plus deleted lines of the
 conflicted changes, over all lines. A wave is faithful when main equals the tree of the wave's last
-original commit. `rootstock replay` runs the same model inside the server (its own RNG, so the landing
+original commit. `treeyard replay` runs the same model inside the server (its own RNG, so the landing
 order differs) and checks every merge against `git merge-tree`.
 
 **Serial merge queue.** N changes enter the queue at t = 0. The queue lands them one at a time in
@@ -437,7 +437,7 @@ the 10 files that the last 500 commits changed most, then N blames at once.
 | ripgrep | 10 | 4.0133 | 17.9808 | 36.3493 | 36.3493 | 40.46 | 889.7 | 0 |
 | ripgrep | 50 | 4.1748 | 118.804 | 226.4997 | 248.2778 | 255.45 | 704.6 | 0 |
 
-### Rootstock API agents (no workspace)
+### TreeYard API agents (no workspace)
 
 | repo | init s | data MB | files | N | wall s | open_change p50 s | ready p50 s | ready p95 s | df delta MB | server RSS MB |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -451,7 +451,7 @@ the 10 files that the last 500 commits changed most, then N blames at once.
 | ripgrep | 4.62 | 77.4 | 237 | 10 | 0.078 | 0.0011 | 0.0404 | 0.0755 | 0.08 | 12.3 |
 | ripgrep | 4.62 | 77.4 | 237 | 50 | 0.374 | 0.0585 | 0.185 | 0.3512 | 0.44 | 15.0 |
 
-### Rootstock replay (seed 1)
+### TreeYard replay (seed 1)
 
 | repo | commits | agents | first conflicts | flagged by overlaps | redone | forced | faithful waves | final tree equal | land p50 ms | land p95 ms | land max ms | merges same tree as git | server clean, git conflict | server conflict, git clean |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -473,7 +473,7 @@ the 10 files that the last 500 commits changed most, then N blames at once.
 | requests | 6495 | 10 | 0.0475 | 0.0573 | 0.0277 | 0.0864 | 0.03 / 0.0274 | 0.098 / 0.0951 | 0.252 / 0.1384 |
 | ripgrep | 2287 | 10 | 0.0367 | 0.0452 | 0.0453 | 0.062 | 0.071 / 0.0657 | 0.087 / 0.0829 | 0.215 / 0.1761 |
 
-### Phase 2 raw numbers (`report` on `/private/tmp/rootstock-harness/007`)
+### Phase 2 raw numbers (`report` on `/private/tmp/treeyard-harness/007`)
 
 #### Workspaces (git worktree add + setup)
 
@@ -495,7 +495,7 @@ the 10 files that the last 500 commits changed most, then N blames at once.
 | ripgrep | cargo-cold | 10 | 8 | 41.81 | 31.1136 | 33.7835 | 0.1716 | 302.9 | 3029.2 | 3029.2 | 2843.0 |
 | ripgrep | cargo-cold | 50 | 8 | 180.38 | 27.5405 | 41.2923 | 0.0776 | 303.1 | 15154.4 | 15154.4 | 14203.9 |
 
-#### Rootstock workspaces (copy-on-write clone + dependency layer)
+#### TreeYard workspaces (copy-on-write clone + dependency layer)
 
 | repo | mode | N | jobs | wall s | per ws p50 s | per ws p95 s | clone p50 s | layer p50 s | setup p50 s | sync p50 s | layer reused | du per ws MB | df delta MB | df per ws MB | pool fill s (not counted) | remove all s |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -538,10 +538,10 @@ the 10 files that the last 500 commits changed most, then N blames at once.
   shorter queue; the cap stays 3600 / CI seconds per hour.
 - Workspace timings come from at most 8 parallel setups on one machine with other sessions running.
   Setups for N = 10 and N = 50 are slower per workspace than N = 1 because they share CPU and disk.
-- Rootstock "ready" means an API-only agent: it can read, grep, diff and edit, but not build or run
+- TreeYard "ready" means an API-only agent: it can read, grep, diff and edit, but not build or run
   tests. Agents that run code still need a workspace (RFC phase 2).
 - Phase-0 land times (p50 0.6 ms on ripgrep, 11.6 ms on astro at 1 agent) come from the binary that
   rewrote the full tree on every export. Export is incremental now; see the scale section (linux p50 0.91 ms).
-- `rootstock replay` "merges same tree as git" counts every merge record, including trivial ones.
+- `treeyard replay` "merges same tree as git" counts every merge record, including trivial ones.
 - Not measured: ports, `.env` files and databases per workspace (research pain 3), and lost work from
   worktree cleanup (research pain 2).

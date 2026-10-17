@@ -1,4 +1,4 @@
-//! Landing modes with a test command (`[landing]` in rootstock.toml):
+//! Landing modes with a test command (`[landing]` in treeyard.toml):
 //!
 //! - `queue`: `land` puts the change in a queue. A step takes up to `batch` changes, rebases
 //!   them one on top of the other (main does not move), tests the top of the stack, and lands
@@ -84,7 +84,7 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
     let tail = &text[text.len().saturating_sub(4000)..];
     let mut output = String::from_utf8_lossy(tail).into_owned();
     if status.is_none() {
-        output.push_str(&format!("\n(rootstock: killed after {} s)", timeout.as_secs()));
+        output.push_str(&format!("\n(treeyard: killed after {} s)", timeout.as_secs()));
     }
     Ok(Outcome { ok: status.is_some_and(|s| s.success()), output, seconds: started.elapsed().as_secs_f64() })
 }
@@ -92,14 +92,14 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
 /// Materializes changeset `cs` and runs the repo's test command on it.
 fn test(repo: &Repo, cs: &str) -> Result<Outcome> {
     let (dir, cmd, timeout) = repo.with(|r| {
-        let cmd = r.cfg.landing.test.clone().context("landing.test is not set in rootstock.toml")?;
+        let cmd = r.cfg.landing.test.clone().context("landing.test is not set in treeyard.toml")?;
         let dir = r.scratch().join(format!("test-{}-{:08x}", &cs[..12], rand::random::<u32>()));
         std::fs::create_dir_all(&dir)?;
         let m = r.manifest(cs)?;
         materialize(r, &m, &dir)?;
         Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s)))
     })?;
-    let out = run_cmd(&cmd, &dir, timeout, &[("ROOTSTOCK_CHANGESET", cs)]);
+    let out = run_cmd(&cmd, &dir, timeout, &[("TREEYARD_CHANGESET", cs)]);
     let _ = std::fs::remove_dir_all(&dir);
     out
 }
@@ -396,7 +396,7 @@ pub fn optimistic_step(repo: &Repo) -> Result<Value> {
             &[&cs.meta.agent],
             json!({"main": main, "culprit": culprit, "output": bad.output}),
         );
-        let reverted = r.revert(&culprit, "rootstock-bisect")?;
+        let reverted = r.revert(&culprit, "treeyard-bisect")?;
         let status = reverted["status"].as_str().unwrap_or_default().to_string();
         if let Some(ch) = &owner {
             let kind = if status == "landed" { "reverted_by_bisect" } else { "revert_failed" };
@@ -426,9 +426,9 @@ pub fn spawn_worker(repo: Arc<Repo>) -> Option<std::thread::JoinHandle<()>> {
             };
             match step {
                 Ok(v) if v["status"] == "idle" => std::thread::sleep(Duration::from_millis(200)),
-                Ok(v) => eprintln!("rootstock landing: {}", v["status"]),
+                Ok(v) => eprintln!("treeyard landing: {}", v["status"]),
                 Err(e) => {
-                    eprintln!("rootstock landing step failed: {e:#}");
+                    eprintln!("treeyard landing step failed: {e:#}");
                     std::thread::sleep(Duration::from_secs(2));
                 }
             }

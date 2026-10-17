@@ -1,4 +1,4 @@
-//! MCP over stdio: a thin bridge from an agent's tool calls to one rootstock server.
+//! MCP over stdio: a thin bridge from an agent's tool calls to one treeyard server.
 
 use anyhow::Result;
 use serde_json::{Value, json};
@@ -6,7 +6,7 @@ use std::io::{BufRead, Write};
 
 use crate::{client, rpc};
 
-const INSTRUCTIONS: &str = "Rootstock serves the repository as an API. Read with read/list/grep/log \
+const INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/list/grep/log \
 without a checkout; ask blame (who changed a line, with intent), symbols/outline (definitions) and \
 bisect (first bad change) on the server. To change code: open_change (agent + one-line intent), apply edits, then land. \
 land rebases on the server; on status conflict, read the tasks in change.conflicts, write the final \
@@ -34,7 +34,7 @@ pub fn run(url: &str, agent: Option<String>) -> Result<()> {
             "initialize" => Ok(json!({
                 "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "rootstock", "version": env!("CARGO_PKG_VERSION")},
+                "serverInfo": {"name": "treeyard", "version": env!("CARGO_PKG_VERSION")},
                 "instructions": INSTRUCTIONS,
             })),
             "ping" => Ok(json!({})),
@@ -48,7 +48,7 @@ pub fn run(url: &str, agent: Option<String>) -> Result<()> {
                 // With a token the server names the agent itself (the token's name).
                 if matches!(name, "open_change" | "revert")
                     && args.get("agent").is_none()
-                    && std::env::var_os("ROOTSTOCK_TOKEN").is_none()
+                    && std::env::var_os("TREEYARD_TOKEN").is_none()
                     && let Some(a) = &agent
                 {
                     args["agent"] = json!(a);

@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use rootstock::replay::{Options, run};
+use treeyard::replay::{Options, run};
 
 const COMMITS: usize = 60;
 

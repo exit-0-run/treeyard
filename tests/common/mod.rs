@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use rootstock::repo::Repo;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 /// Runs git in `dir` with a fixed identity; panics on failure.
 pub fn git(dir: &Path, args: &[&str]) -> String {
@@ -55,12 +55,12 @@ pub fn spawn_server(repo: Arc<Repo>) -> String {
         rt.block_on(async move {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             tx.send(listener.local_addr().unwrap()).unwrap();
-            axum::serve(listener, rootstock::server::router(repo)).await.unwrap();
+            axum::serve(listener, treeyard::server::router(repo)).await.unwrap();
         });
     });
     format!("http://{}", rx.recv().unwrap())
 }
 
 pub fn call(url: &str, op: &str, params: Value) -> Value {
-    rootstock::client::call(url, op, params).unwrap_or_else(|e| panic!("{op} failed: {e:#}"))
+    treeyard::client::call(url, op, params).unwrap_or_else(|e| panic!("{op} failed: {e:#}"))
 }

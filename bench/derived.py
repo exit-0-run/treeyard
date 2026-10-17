@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase-4 derived data on a real repo: blame, history, grep and symbols through the Rootstock
+"""Phase-4 derived data on a real repo: blame, history, grep and symbols through the TreeYard
 API, each checked against (or timed next to) plain git on a checkout.
 
 Stdlib only. Prints one JSON document and writes it to <dir>/results/derived-<repo>.json.
@@ -140,10 +140,10 @@ def cmd_blame(args, url, repo, out):
         elif len(bad) < 10:
             first = next((i for i, (a, b) in enumerate(zip(r, g)) if a != b), min(len(r), len(g)))
             bad.append({"path": p, "lines": [len(r), len(g)], "first_diff_line": first + 1,
-                        "rootstock": r[first] if first < len(r) else None, "git": g[first] if first < len(g) else None})
+                        "treeyard": r[first] if first < len(r) else None, "git": g[first] if first < len(g) else None})
     out["blame"] = {
         "files": len(files), "files_equal": eq_files, "lines": lines, "lines_equal": eq_lines,
-        "rootstock_cold": stats(cold), "rootstock_warm": stats(warm), "git_blame": stats(gitt), "mismatches": bad,
+        "treeyard_cold": stats(cold), "treeyard_warm": stats(warm), "git_blame": stats(gitt), "mismatches": bad,
     }
 
 
@@ -160,7 +160,7 @@ def cmd_log(args, url, repo, out):
         ci = [e["commit"] for e in a["entries"] if e["agent"] != "import"]
         cs = [e["commit"] for e in b["entries"] if e["agent"] != "import"]
         gl = [c for c in g.split("\n") if c]
-        # git's list goes past the import; compare the part Rootstock holds.
+        # git's list goes past the import; compare the part TreeYard holds.
         rows.append({"path": d, "index_ms": round(ti * 1000, 2), "scan_ms": round(ts * 1000, 2),
                      "git_ms": round(tg * 1000, 2), "entries": len(ci), "index_eq_scan": ci == cs,
                      "eq_git_prefix": ci == gl[: len(ci)], "scanned_index": a["scanned"], "scanned_walk": b["scanned"]})
@@ -168,7 +168,7 @@ def cmd_log(args, url, repo, out):
 
 
 def cmd_grep(args, url, repo, out):
-    _, t_build = timed(lambda: post(url, "grep", {"pattern": "rootstock-warmup-xyz", "max": 1}))
+    _, t_build = timed(lambda: post(url, "grep", {"pattern": "treeyard-warmup-xyz", "max": 1}))
     rows = []
     for pat in PATTERNS:
         idx, ti = timed(lambda: post(url, "grep", {"pattern": pat, "max": 100000}))
@@ -248,7 +248,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True, help="a git clone (read only)")
     ap.add_argument("--dir", required=True, help="scratch dir: data dir and results go here")
-    ap.add_argument("--binary", default=str(Path(__file__).resolve().parent.parent / "target/release/rootstock"))
+    ap.add_argument("--binary", default=str(Path(__file__).resolve().parent.parent / "target/release/treeyard"))
     ap.add_argument("--history", type=int, default=500)
     ap.add_argument("--files", type=int, default=200)
     ap.add_argument("--seed", type=int, default=1)
@@ -271,7 +271,7 @@ def main(argv=None):
                                  "--history", str(args.history)]))
         out["init_s"] = round(t, 3)
         if args.bisect_test:
-            (data / "rootstock.toml").write_text(f"[bisect]\ntest = {json.dumps(args.bisect_test)}\ntimeout_s = 300\n")
+            (data / "treeyard.toml").write_text(f"[bisect]\ntest = {json.dumps(args.bisect_test)}\ntimeout_s = 300\n")
     if args.auth:
         global TOKEN
         TOKEN = sh([args.binary, "token", "create", "--data", str(data), "--name", "bench", "--write", "**"]).strip()

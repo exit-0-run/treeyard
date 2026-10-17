@@ -5,9 +5,9 @@ mod common;
 
 use common::*;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use rootstock::repo::Repo;
 use serde_json::{Value, json};
 use std::sync::{Arc, Barrier};
+use treeyard::repo::Repo;
 
 const AGENTS: usize = 50;
 const FILES: usize = 12;

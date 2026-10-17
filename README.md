@@ -48,19 +48,18 @@ When 10 or more agents work on one repository with `git worktree`:
 - The server answers history questions: `blame`, `log`, indexed `grep`, `symbols` and `bisect`.
 
 Status: v0.1. One node, one binary. There is no TLS and no token expiry yet. Threat model, controls and
-limits: [SECURITY.md](SECURITY.md). The binary is still named
-`rootstock` in v0.1. The rename to `treeyard` comes next.
+limits: [SECURITY.md](SECURITY.md).
 
 ## Quick start
 
 ```sh
 make release
-rootstock init --data /tmp/rs --from /path/to/repo --branch main
-rootstock serve --data /tmp/rs                      # http://127.0.0.1:7420
+treeyard init --data /tmp/rs --from /path/to/repo --branch main
+treeyard serve --data /tmp/rs                      # http://127.0.0.1:7420
 
-rootstock call open_change '{"agent": "a1", "intent": "fix a typo"}'
-rootstock call apply '{"change": "ch_…", "edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
-rootstock call land '{"change": "ch_…"}'
+treeyard call open_change '{"agent": "a1", "intent": "fix a typo"}'
+treeyard call apply '{"change": "ch_…", "edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
+treeyard call land '{"change": "ch_…"}'
 
 git clone http://127.0.0.1:7420/git repo            # the landed commit is on main
 ```
@@ -68,16 +67,16 @@ git clone http://127.0.0.1:7420/git repo            # the landed commit is on ma
 Connect an agent through MCP:
 
 ```sh
-claude mcp add rootstock -- rootstock mcp --url http://127.0.0.1:7420 --agent claude-1
+claude mcp add treeyard -- treeyard mcp --url http://127.0.0.1:7420 --agent claude-1
 ```
 
 Give an agent a workspace that is ready to build:
 
 ```sh
-rootstock daemon --spares 2 &
-rootstock workspace create fix-1 --agent claude-1 --git --setup "cargo build -q"
-cd "$(rootstock workspace path fix-1)"              # use any editor or tool, run the tests
-rootstock workspace land fix-1
+treeyard daemon --spares 2 &
+treeyard workspace create fix-1 --agent claude-1 --git --setup "cargo build -q"
+cd "$(treeyard workspace path fix-1)"              # use any editor or tool, run the tests
+treeyard workspace land fix-1
 ```
 
 All operations, configuration and the data model: [docs/reference.md](docs/reference.md).

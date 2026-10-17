@@ -1,4 +1,4 @@
-//! Rootstock: a version control server for agent swarms, with git underneath.
+//! TreeYard: a version control server for agent swarms, with git underneath.
 
 pub mod audit;
 pub mod auth;

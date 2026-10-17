@@ -4,15 +4,15 @@ use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use rootstock::audit::Record;
-use rootstock::cow::Strategy;
-use rootstock::workspace::{CreateOptions, LayerSpec, Node};
-use rootstock::{client, daemon, githttp, mcp, replay, repo::Repo, server};
+use treeyard::audit::Record;
+use treeyard::cow::Strategy;
+use treeyard::workspace::{CreateOptions, LayerSpec, Node};
+use treeyard::{client, daemon, githttp, mcp, replay, repo::Repo, server};
 
 const DEFAULT_URL: &str = "http://127.0.0.1:7420";
 
 #[derive(Parser)]
-#[command(name = "rootstock", version, about = "Version control server for agent swarms, git underneath")]
+#[command(name = "treeyard", version, about = "Version control server for agent swarms, git underneath")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -56,12 +56,12 @@ enum Cmd {
         #[arg(long, default_value_t = server::MAX_INFLIGHT)]
         max_inflight: usize,
     },
-    /// MCP server on stdio that forwards tool calls to a running rootstock.
+    /// MCP server on stdio that forwards tool calls to a running treeyard.
     Mcp {
-        #[arg(long, env = "ROOTSTOCK_URL", default_value = DEFAULT_URL)]
+        #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
         url: String,
         /// Default agent name for open_change and revert.
-        #[arg(long, env = "ROOTSTOCK_AGENT")]
+        #[arg(long, env = "TREEYARD_AGENT")]
         agent: Option<String>,
     },
     /// Replay real history: waves of N agents apply consecutive commits from stale bases.
@@ -89,7 +89,7 @@ enum Cmd {
         /// Each agent stacks on the previous agent's change, so landing waits for it.
         #[arg(long)]
         stacked: bool,
-        /// rootstock.toml for the replayed repo (merge drivers, continuous rebase).
+        /// treeyard.toml for the replayed repo (merge drivers, continuous rebase).
         #[arg(long)]
         config: Option<PathBuf>,
         /// Agents declare their commit's paths; an overlapping agent starts in a later round.
@@ -130,11 +130,11 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         spares: usize,
     },
-    /// Call one operation, e.g. `rootstock call read '{"path":"README.md"}'`.
+    /// Call one operation, e.g. `treeyard call read '{"path":"README.md"}'`.
     Call {
         op: String,
         params: Option<String>,
-        #[arg(long, env = "ROOTSTOCK_URL", default_value = DEFAULT_URL)]
+        #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
         url: String,
     },
 }
@@ -163,10 +163,10 @@ enum TokenCmd {
 
 #[derive(clap::Args)]
 struct NodeArgs {
-    /// Node home: bases, layers, workspaces (default ~/.rootstock).
-    #[arg(long, env = "ROOTSTOCK_HOME", global = true)]
+    /// Node home: bases, layers, workspaces (default ~/.treeyard).
+    #[arg(long, env = "TREEYARD_HOME", global = true)]
     home: Option<PathBuf>,
-    #[arg(long, env = "ROOTSTOCK_URL", default_value = DEFAULT_URL, global = true)]
+    #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL, global = true)]
     url: String,
 }
 
@@ -181,7 +181,7 @@ enum WsCmd {
     /// Open a change and make its workspace directory.
     Create {
         name: String,
-        #[arg(long, env = "ROOTSTOCK_AGENT", default_value = "agent")]
+        #[arg(long, env = "TREEYARD_AGENT", default_value = "agent")]
         agent: String,
         #[arg(long, default_value = "work in a workspace")]
         intent: String,
@@ -320,7 +320,7 @@ fn main() -> Result<()> {
                     let read = if read.is_empty() { vec!["**".to_string()] } else { read };
                     let (id, token) = repo.auth.create(&name, admin, &read, &write)?;
                     audit("token_create", format!("token {id} ({name})"))?;
-                    eprintln!("token {id} for {name}: store it now (it is shown once), e.g. in ROOTSTOCK_TOKEN");
+                    eprintln!("token {id} for {name}: store it now (it is shown once), e.g. in TREEYARD_TOKEN");
                     println!("{token}");
                 }
                 TokenCmd::List => print(&repo.auth.list()?)?,

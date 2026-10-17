@@ -135,7 +135,7 @@ impl ManifestCache {
 }
 
 fn paths(data: &Path) -> (PathBuf, PathBuf) {
-    (data.join("rootstock.db"), data.join("git"))
+    (data.join("treeyard.db"), data.join("git"))
 }
 
 impl Repo {
@@ -158,7 +158,7 @@ impl Repo {
     ) -> Result<String> {
         let (db, git_dir) = paths(data);
         if db.exists() || git_dir.exists() {
-            bail!("{} already holds a rootstock repo", data.display());
+            bail!("{} already holds a treeyard repo", data.display());
         }
         fs::create_dir_all(data)?;
         clone_bare(src, &git_dir)?;
@@ -226,7 +226,7 @@ impl Repo {
     pub fn open(data: &Path) -> Result<Self> {
         let (db, git_dir) = paths(data);
         if !db.exists() {
-            bail!("{} is not a rootstock repo (run `rootstock init` first)", data.display());
+            bail!("{} is not a treeyard repo (run `treeyard init` first)", data.display());
         }
         let store = Store::open(&db)?;
         let branch = store.get_ref("branch")?.context("no branch ref")?;
@@ -521,7 +521,7 @@ impl Inner {
             bail!("edit of {}: give exactly one of content, content_b64, delete, replace", e.path);
         }
         if cur.is_some_and(|c| c.mode == MODE_GITLINK) {
-            bail!("{} is a submodule; rootstock does not edit submodules", e.path);
+            bail!("{} is a submodule; treeyard does not edit submodules", e.path);
         }
         if e.delete == Some(true) {
             if cur.is_none() {
@@ -759,7 +759,7 @@ impl Inner {
         Ok(out)
     }
 
-    /// A merge driver for a path whose line merge conflicted, from `[merge]` in rootstock.toml.
+    /// A merge driver for a path whose line merge conflicted, from `[merge]` in treeyard.toml.
     fn drive(&mut self, path: &str, b: Option<&Entry>, o: &Entry, t: &Entry) -> Result<Option<Driven>> {
         let text = |s: &mut Self, e: Option<&Entry>| -> Result<Option<String>> {
             match e {
@@ -811,7 +811,7 @@ impl Inner {
         let res = (|| {
             landing::materialize(self, tree, &dir)?;
             let timeout = std::time::Duration::from_secs(rule.timeout_s.unwrap_or(300));
-            let out = landing::run_cmd(cmd, &dir, timeout, &[("ROOTSTOCK_PATH", path)])?;
+            let out = landing::run_cmd(cmd, &dir, timeout, &[("TREEYARD_PATH", path)])?;
             if !out.ok {
                 bail!("{cmd:?} failed: {}", out.output.trim());
             }
@@ -1145,7 +1145,7 @@ impl Inner {
             let moved = if old == cur { String::new() } else { format!(" (main moved from {old})") };
             bail!(
                 "non-fast-forward: your commit does not contain main {}{moved}; \
-                 run `git pull --rebase` and push again (Rootstock never rewrites main)",
+                 run `git pull --rebase` and push again (TreeYard never rewrites main)",
                 &cur[..12]
             );
         }
@@ -1257,8 +1257,8 @@ impl Inner {
         let slug: String =
             m.agent.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '.' { c } else { '-' }).collect();
         let name = m.agent.replace(['<', '>', '\n'], "");
-        let author = Signature { name, email: format!("{slug}@agents.rootstock"), time: m.time };
-        let committer = Signature { name: "Rootstock".into(), email: "rootstock@localhost".into(), time: m.time };
+        let author = Signature { name, email: format!("{slug}@agents.treeyard"), time: m.time };
+        let committer = Signature { name: "TreeYard".into(), email: "treeyard@localhost".into(), time: m.time };
         let bytes = git::commit_bytes(&tree, &parents, &author, &committer, &commit_message(m, id));
         let commit = self.odb.write("commit", &bytes)?;
         self.store.map_commit(id, &commit)?;
@@ -1281,7 +1281,7 @@ impl Inner {
     pub fn export_change(&mut self, id: &str) -> Result<Value> {
         let ch = self.change(id)?;
         let commit = self.commit_for(&ch.head)?;
-        let name = format!("refs/rootstock/changes/{id}");
+        let name = format!("refs/treeyard/changes/{id}");
         self.odb.update_ref(&name, &commit)?;
         Ok(json!({"change": id, "commit": commit, "ref": name}))
     }
@@ -1511,18 +1511,18 @@ fn commit_message(m: &Meta, changeset: &str) -> String {
     let mut s = if body.is_empty() { "(no message)".to_string() } else { body.to_string() };
     s.push_str("\n\n");
     if let Some(c) = &m.change {
-        s.push_str(&format!("Rootstock-Change: {c}\n"));
+        s.push_str(&format!("TreeYard-Change: {c}\n"));
     }
-    s.push_str(&format!("Rootstock-Changeset: {changeset}\n"));
-    s.push_str(&format!("Rootstock-Agent: {}\n", one_line(&m.agent)));
+    s.push_str(&format!("TreeYard-Changeset: {changeset}\n"));
+    s.push_str(&format!("TreeYard-Agent: {}\n", one_line(&m.agent)));
     if let Some(x) = &m.model {
-        s.push_str(&format!("Rootstock-Model: {}\n", one_line(x)));
+        s.push_str(&format!("TreeYard-Model: {}\n", one_line(x)));
     }
     if let Some(x) = &m.session {
-        s.push_str(&format!("Rootstock-Session: {}\n", one_line(x)));
+        s.push_str(&format!("TreeYard-Session: {}\n", one_line(x)));
     }
     if m.message.is_some() {
-        s.push_str(&format!("Rootstock-Intent: {}\n", one_line(&m.intent)));
+        s.push_str(&format!("TreeYard-Intent: {}\n", one_line(&m.intent)));
     }
     s
 }

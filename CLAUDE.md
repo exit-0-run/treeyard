@@ -1,31 +1,31 @@
-# rootstock — working notes
+# treeyard — working notes
 
 Version control server for agent swarms (Rust, single binary). Product docs, plan and state live in
-`~/appnice-apps/projects/rootstock/`.
+`~/appnice-apps/projects/treeyard/`.
 
 ## Commands
 
 - `make check`: `cargo fmt --check`, `clippy -D warnings`, `cargo test`. Run before every commit.
-- `make test` · `make release` (binary at `target/release/rootstock`).
+- `make test` · `make release` (binary at `target/release/treeyard`).
 - `make check` also runs `make bench-test` (stdlib unittest of `bench/bench.py` on a tiny repo).
 - Benchmarks: `make bench-quick` (minutes) or `make bench` (about 3 h, ~70 GB scratch peak), both
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust comes from Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`), not on the default PATH; the Makefile
   finds cargo there (`CARGO`), plain `cargo` in a shell needs that dir on PATH.
-- Run: `rootstock init --data D --from REPO [--history N]`, `rootstock serve --data D`, `rootstock call <op> '<json>'`,
-  `rootstock mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`,
-  `rootstock mirror --data D --remote URL [--every N]`.
-- Workspaces (node side, `ROOTSTOCK_HOME`, default `~/.rootstock`): `rootstock workspace create NAME
+- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`,
+  `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`,
+  `treeyard mirror --data D --remote URL [--every N]`.
+- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK]`, `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`, `remove
-  [--abandon]`; `rootstock daemon` syncs every workspace after edits settle. `make bench-cow`.
-- Coordination (docs/coordination.md): `<data>/rootstock.toml` (template written by `init`).
-  `rootstock replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
+  [--abandon]`; `treeyard daemon` syncs every workspace after edits settle. `make bench-cow`.
+- Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
+  `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.
-- Derived data and IAM (docs/derived.md, docs/access.md): `rootstock token create --data D --name N
-  [--admin] [--read G] [--write G]`; clients send `ROOTSTOCK_TOKEN`. `python3 bench/derived.py --repo
+- Derived data and IAM (docs/derived.md, docs/access.md): `treeyard token create --data D --name N
+  [--admin] [--read G] [--write G]`; clients send `TREEYARD_TOKEN`. `python3 bench/derived.py --repo
   CLONE --dir SCRATCH [--history N] [--only blame,log,grep,symbols,bisect,land]`. Real-repo checks
-  (ignored): `cargo test --release --test derived --test xdiff_git -- --ignored` (`ROOTSTOCK_REAL_REPO`).
+  (ignored): `cargo test --release --test derived --test xdiff_git -- --ignored` (`TREEYARD_REAL_REPO`).
 
 ## Layout
 
@@ -37,7 +37,7 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 | `src/merge.rs` | per-path 3-way merge (entry level, then `diffy` line merge) |
 | `src/repo.rs` | changes, rebase, land, revert, export, read queries |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
-| `src/config.rs` | `rootstock.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
+| `src/config.rs` | `treeyard.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
 | `src/coord.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews |
 | `src/drivers.rs` | merge drivers: union, Cargo.lock per package, mergiraf; regenerate is in `repo.rs` |
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
@@ -45,7 +45,7 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 | `src/githttp.rs` | git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror` |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
 | `src/workspace.rs`, `src/daemon.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon |
-| `src/replay.rs` | `rootstock replay`: real history in waves of N agents, stale or stacked, checked against git |
+| `src/replay.rs` | `treeyard replay`: real history in waves of N agents, stale or stacked, checked against git |
 | `src/history.rs`, `src/blame.rs`, `src/xdiff.rs` | mainline + changed-path index, `log`; blame cached per (changeset, path); git's Myers diff port |
 | `src/search.rs`, `src/symbols.rs`, `src/indexer.rs` | trigram grep index; tree-sitter symbols; eager background indexing |
 | `src/bisect.rs`, `src/auth.rs`, `src/audit.rs` | server-side bisect; API tokens with path globs; audit log |
@@ -78,7 +78,7 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 - On APFS `du` counts clones in full; `df_delta_mb` (statvfs) is the physical cost, noisy under other load.
 - Workspaces: `sync` sends whole files (base64) that differ from `meta/<name>.state.json`, one `apply`
   per 8 MiB. Tracked files are always checked; new files obey `.gitignore` (the `ignore` crate, no git
-  needed). Layer dirs and `.rootstock/` are never synced. The stat cache needs clones that keep mtime.
+  needed). Layer dirs and `.treeyard/` are never synced. The stat cache needs clones that keep mtime.
 - Layers keep mtimes, so `cargo build` in a new workspace is a no-op. A `.venv` holds absolute paths
   (shebangs, editable installs): do not share it as a layer unless it is relocatable.
 - Linux paths (reflink on XFS/btrfs, overlay as root) are tested in Docker: docs/workspaces.md.

@@ -5,10 +5,10 @@
 mod common;
 
 use common::*;
-use rootstock::repo::Repo;
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 fn write(dir: &Path, path: &str, body: &str) {
     let p = dir.join(path);
@@ -320,7 +320,7 @@ fn bisect_finds_a_planted_bad_change_and_revert_removes_it() {
     let data = tmp.path().join("data");
     Repo::init(&data, &src, "main", None).unwrap();
     std::fs::write(
-        data.join("rootstock.toml"),
+        data.join("treeyard.toml"),
         "[bisect]\ntest = \"! grep -q PLANTED f00.txt\"\n[bisect.commands]\nfiles = \"test -f f05.txt\"\n",
     )
     .unwrap();
@@ -352,13 +352,13 @@ fn bisect_finds_a_planted_bad_change_and_revert_removes_it() {
     assert_eq!(b["candidates"], 40);
     assert!(b["tests"].as_u64().unwrap() <= 2 + 6, "binary search: {} tests", b["tests"]);
     // A named command from [bisect.commands]; an unknown name is an error.
-    let no = rootstock::client::call(&url, "bisect", json!({"good": good, "command": "nope"}));
+    let no = treeyard::client::call(&url, "bisect", json!({"good": good, "command": "nope"}));
     assert!(format!("{:#}", no.unwrap_err()).contains("no bisect command"));
     let reverted = call(&url, "revert", json!({"changeset": planted, "agent": "fixer"}));
     assert_eq!(reverted["status"], "landed");
     let text = call(&url, "read", json!({"path": "f00.txt"}))["content"].as_str().unwrap().to_string();
     assert!(!text.contains("PLANTED") && text.contains("file 0 line 7\n"));
-    let again = rootstock::client::call(&url, "bisect", json!({"good": good}));
+    let again = treeyard::client::call(&url, "bisect", json!({"good": good}));
     assert!(format!("{:#}", again.unwrap_err()).contains("passes on bad"));
     // The audit log shows the bisect and the revert.
     let audit = call(&url, "audit", json!({"limit": 5}));
@@ -366,12 +366,12 @@ fn bisect_finds_a_planted_bad_change_and_revert_removes_it() {
     assert!(ops.contains(&"bisect") && ops.contains(&"revert"), "{ops:?}");
 }
 
-/// Real-repo blame check (needs a clone): `ROOTSTOCK_REAL_REPO=/path cargo test --release
+/// Real-repo blame check (needs a clone): `TREEYARD_REAL_REPO=/path cargo test --release
 /// --test derived -- --ignored --nocapture`. Default: the ripgrep clone of the harness.
 #[test]
 #[ignore]
 fn blame_equals_git_blame_on_a_real_repo() {
-    let repo = std::env::var("ROOTSTOCK_REAL_REPO").unwrap_or("/private/tmp/rootstock-harness/oss/ripgrep".into());
+    let repo = std::env::var("TREEYARD_REAL_REPO").unwrap_or("/private/tmp/treeyard-harness/oss/ripgrep".into());
     let src = Path::new(&repo);
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("data");
@@ -403,17 +403,17 @@ fn derived_data_is_persisted_and_grows_incrementally() {
     let src = history_repo(tmp.path());
     let data = tmp.path().join("data");
     Repo::init_with_history(&data, &src, "main", None, 50).unwrap();
-    std::fs::write(data.join("rootstock.toml"), "[index]\nsearch = \"eager\"\nsymbols = \"eager\"\n").unwrap();
+    std::fs::write(data.join("treeyard.toml"), "[index]\nsearch = \"eager\"\nsymbols = \"eager\"\n").unwrap();
     let repo = Arc::new(Repo::open(&data).unwrap());
-    let (tri, sym) = rootstock::indexer::catch_up(&repo, true, true).unwrap();
+    let (tri, sym) = treeyard::indexer::catch_up(&repo, true, true).unwrap();
     assert!(tri == 7 && sym == 4, "first pass indexes every blob: {tri} trigram rows, {sym} symbol rows");
-    assert_eq!(rootstock::indexer::catch_up(&repo, true, true).unwrap(), (0, 0), "nothing new");
+    assert_eq!(treeyard::indexer::catch_up(&repo, true, true).unwrap(), (0, 0), "nothing new");
     let url = spawn_server(repo.clone());
     let ch = call(&url, "open_change", json!({"agent": "a", "intent": "one new file"}));
     let id = ch["id"].as_str().unwrap();
     call(&url, "apply", json!({"change": id, "edits": [{"path": "src/new.rs", "content": "pub fn fresh() {}\n"}]}));
     call(&url, "land", json!({"change": id}));
-    assert_eq!(rootstock::indexer::catch_up(&repo, true, true).unwrap(), (1, 1), "only the new blob");
+    assert_eq!(treeyard::indexer::catch_up(&repo, true, true).unwrap(), (1, 1), "only the new blob");
     let blame_rows = |r: &Repo| -> i64 {
         r.with(|i| Ok(i.store.conn().query_row("SELECT COUNT(*) FROM blame_cache", [], |x| x.get(0))?)).unwrap()
     };
@@ -426,7 +426,7 @@ fn derived_data_is_persisted_and_grows_incrementally() {
     drop(url);
     let again = Repo::open(&data).unwrap();
     let main = again.with(|r| r.main()).unwrap();
-    assert_eq!(rootstock::search::prepare(&again, &main).unwrap(), 0);
-    assert_eq!(rootstock::symbols::prepare(&again, &main).unwrap(), 0);
+    assert_eq!(treeyard::search::prepare(&again, &main).unwrap(), 0);
+    assert_eq!(treeyard::symbols::prepare(&again, &main).unwrap(), 0);
     assert_eq!(blame_rows(&again), cached);
 }

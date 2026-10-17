@@ -45,7 +45,7 @@ pub fn deny(msg: impl Into<String>) -> anyhow::Error {
     anyhow::Error::new(Denied(msg.into()))
 }
 
-/// Path globs of a token (gitignore style, as in rootstock.toml); `**` means every path.
+/// Path globs of a token (gitignore style, as in treeyard.toml); `**` means every path.
 #[derive(Clone, Debug)]
 pub struct Rules {
     pub patterns: Vec<String>,
@@ -181,7 +181,7 @@ impl Auth {
         }
         let unauth = |m: &str| anyhow::Error::new(Unauthorized(m.to_string()));
         let token = token.map(str::trim).filter(|t| !t.is_empty()).ok_or_else(|| {
-            unauth("this server needs a token: send Authorization: Bearer <token> (set ROOTSTOCK_TOKEN for the CLI and MCP)")
+            unauth("this server needs a token: send Authorization: Bearer <token> (set TREEYARD_TOKEN for the CLI and MCP)")
         })?;
         let id =
             token.strip_prefix("rst_").and_then(|t| t.split('_').next()).ok_or_else(|| unauth("malformed token"))?;

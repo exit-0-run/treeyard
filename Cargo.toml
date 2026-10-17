@@ -1,10 +1,10 @@
 [package]
-name = "rootstock"
+name = "treeyard"
 version = "0.1.0"
 edition = "2024"
 description = "Version control server for agent swarms, with git underneath as the source of truth"
 license = "Apache-2.0"
-repository = "https://github.com/appnice/rootstock"
+repository = "https://github.com/exit0-run/treeyard"
 
 [dependencies]
 anyhow = "1"

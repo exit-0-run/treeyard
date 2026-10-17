@@ -360,12 +360,12 @@ mod tests {
         }
     }
 
-    /// Runs where the temp dir is on btrfs or XFS with reflink (set ROOTSTOCK_EXPECT_REFLINK=1).
+    /// Runs where the temp dir is on btrfs or XFS with reflink (set TREEYARD_EXPECT_REFLINK=1).
     #[cfg(target_os = "linux")]
     #[test]
     fn reflink_on_a_reflink_file_system() {
-        if std::env::var_os("ROOTSTOCK_EXPECT_REFLINK").is_none() {
-            eprintln!("skip: set ROOTSTOCK_EXPECT_REFLINK=1 with TMPDIR on btrfs or XFS (reflink=1)");
+        if std::env::var_os("TREEYARD_EXPECT_REFLINK").is_none() {
+            eprintln!("skip: set TREEYARD_EXPECT_REFLINK=1 with TMPDIR on btrfs or XFS (reflink=1)");
             return;
         }
         let tmp = tempfile::tempdir().unwrap();
