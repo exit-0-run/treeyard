@@ -1,5 +1,6 @@
 //! Rootstock: a version control server for agent swarms, with git underneath.
 
+pub mod apidoc;
 pub mod audit;
 pub mod auth;
 pub mod bisect;

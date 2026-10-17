@@ -1,0 +1,12 @@
+$ examples/swarm-demo.sh --agents 50 --pairs 5
+swarm-demo: 50 agents, 2000 files, 5 same-line pairs
+| Step                                      | git worktrees       | TreeYard           |
+|-------------------------------------------|---------------------|--------------------|
+| Give 50 agents a place to work (s)        | 8.06                | 1.22               |
+| Extra disk for 50 agents (MB)             | 391.2               | 6.8                |
+| Edit and commit, all agents at once (s)   | 2.85                | 2.07               |
+| Land every change (s)                     | 3.71 (serial queue) | 0.88 (all at once) |
+| Change is on main after, p50 / p95 (ms)   | 2021 / 3562         | 500 / 834          |
+| Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |
+| Conflicts at land (agent redoes the edit) | 5                   | 5                  |
+| Edits missing from main                   | 0 of 50             | 0 of 50            |

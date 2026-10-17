@@ -19,6 +19,7 @@ pub fn catch_up(repo: &Repo, search_on: bool, symbols_on: bool) -> Result<(usize
     let mut done = (0, 0);
     if search_on {
         done.0 = search::prepare(repo, &main)?;
+        search::build_index(repo, &main)?;
         repo.with(|r| r.search_index(&main))?;
     }
     if symbols_on {

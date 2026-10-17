@@ -430,3 +430,38 @@ fn derived_data_is_persisted_and_grows_incrementally() {
     assert_eq!(rootstock::symbols::prepare(&again, &main).unwrap(), 0);
     assert_eq!(blame_rows(&again), cached);
 }
+
+/// `search::build_index` builds the posting index outside the repo lock. Lands after the build
+/// (and blobs without a stored row) must still give the scan's matches, and a second build
+/// must keep the first index.
+#[test]
+fn index_built_outside_the_lock_follows_later_lands() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = history_repo(tmp.path());
+    let data = tmp.path().join("data");
+    Repo::init_with_history(&data, &src, "main", None, 10).unwrap();
+    let repo = Arc::new(Repo::open(&data).unwrap());
+    let old_main = repo.with(|r| r.main()).unwrap();
+    // No `prepare` first: every row is computed inside `build_index`.
+    assert!(rootstock::search::build_index(&repo, &old_main).unwrap());
+    assert!(!rootstock::search::build_index(&repo, &old_main).unwrap(), "the first index stays");
+    let url = spawn_server(repo.clone());
+    for (i, body) in ["late needle_qq one\n", "late needle_qq two\n"].iter().enumerate() {
+        let ch = call(&url, "open_change", json!({"agent": format!("late{i}"), "intent": "after the build"}));
+        let id = ch["id"].as_str().unwrap();
+        call(
+            &url,
+            "apply",
+            json!({"change": id, "edits": [{"path": format!("late/{i}.txt"), "content": body}, {"path": format!("f0{}.txt", i * 2), "delete": true}]}),
+        );
+        assert_eq!(call(&url, "land", json!({"change": id}))["status"], "landed");
+    }
+    for pat in ["needle_qq", "line 1", "file 1 line"] {
+        let idx = call(&url, "grep", json!({"pattern": pat, "max": 1000}));
+        let scan = call(&url, "grep", json!({"pattern": pat, "max": 1000, "index": false}));
+        assert_eq!(idx["matches"], scan["matches"], "pattern {pat}");
+        assert_eq!(idx["index"]["used"], true);
+    }
+    let hits = call(&url, "grep", json!({"pattern": "needle_qq"}));
+    assert_eq!(hits["matches"].as_array().unwrap().len(), 2);
+}

@@ -434,10 +434,8 @@ fn read_tree(odb: &mut Odb, id: &str) -> Result<BTreeMap<String, TreeItem>> {
 }
 
 fn encode_tree(items: &BTreeMap<String, TreeItem>) -> Result<Vec<u8>> {
-    let mut sorted: Vec<(String, &String, &TreeItem)> = items
-        .iter()
-        .map(|(n, it)| (if it.is_tree() { format!("{n}/") } else { n.clone() }, n, it))
-        .collect();
+    let mut sorted: Vec<(String, &String, &TreeItem)> =
+        items.iter().map(|(n, it)| (if it.is_tree() { format!("{n}/") } else { n.clone() }, n, it)).collect();
     sorted.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
     let mut buf = Vec::new();
     for (_, name, it) in sorted {

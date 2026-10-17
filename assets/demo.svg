@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 775 286" width="775" height="286" role="img" aria-label="Terminal: examples/swarm-demo.sh output">
+<style>
+text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;white-space:pre}
+.bg{fill:#0d1117}.bar{fill:#161b22}.o{fill:#c9d1d9}.c{fill:#7fc496}.p{fill:#d99a1e}.h{fill:#e6edf3;font-weight:700}
+.l{animation:show .01s linear both}
+@keyframes show{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.l{animation:none}}
+</style>
+<rect class="bg" width="775" height="286" rx="10"/>
+<rect class="bar" width="775" height="28" rx="10"/><rect class="bar" y="18" width="775" height="10"/>
+<circle cx="18" cy="14" r="5.5" fill="#ff5f56"/><circle cx="36" cy="14" r="5.5" fill="#ffbd2e"/><circle cx="54" cy="14" r="5.5" fill="#27c93f"/>
+<text class="l" x="18" y="46" style="animation-delay:0.30s"><tspan class="p">$ </tspan><tspan class="c">examples/swarm-demo.sh --agents 50 --pairs 5</tspan></text>
+<text class="l" x="18" y="65" style="animation-delay:1.20s"><tspan class="h">swarm-demo: 50 agents, 2000 files, 5 same-line pairs</tspan></text>
+<text class="l" x="18" y="84" style="animation-delay:1.32s"><tspan class="h">| Step                                      | git worktrees       | TreeYard           |</tspan></text>
+<text class="l" x="18" y="103" style="animation-delay:1.44s"><tspan class="o">|-------------------------------------------|---------------------|--------------------|</tspan></text>
+<text class="l" x="18" y="122" style="animation-delay:1.56s"><tspan class="o">| Give 50 agents a place to work (s)        | 8.06                | 1.22               |</tspan></text>
+<text class="l" x="18" y="141" style="animation-delay:1.68s"><tspan class="o">| Extra disk for 50 agents (MB)             | 391.2               | 6.8                |</tspan></text>
+<text class="l" x="18" y="160" style="animation-delay:1.80s"><tspan class="o">| Edit and commit, all agents at once (s)   | 2.85                | 2.07               |</tspan></text>
+<text class="l" x="18" y="179" style="animation-delay:1.92s"><tspan class="o">| Land every change (s)                     | 3.71 (serial queue) | 0.88 (all at once) |</tspan></text>
+<text class="l" x="18" y="198" style="animation-delay:2.04s"><tspan class="o">| Change is on main after, p50 / p95 (ms)   | 2021 / 3562         | 500 / 834          |</tspan></text>
+<text class="l" x="18" y="217" style="animation-delay:2.16s"><tspan class="o">| Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |</tspan></text>
+<text class="l" x="18" y="236" style="animation-delay:2.28s"><tspan class="o">| Conflicts at land (agent redoes the edit) | 5                   | 5                  |</tspan></text>
+<text class="l" x="18" y="255" style="animation-delay:2.40s"><tspan class="o">| Edits missing from main                   | 0 of 50             | 0 of 50            |</tspan></text>
+</svg>

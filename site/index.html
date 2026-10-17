@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TreeYard: git for agent swarms</title>
+<meta name="description" content="A self-hosted version control server for 10 to 200 AI coding agents on one repository. Git underneath. Apache-2.0.">
+<link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+<!-- Static page: no scripts, no remote fonts or styles. Every number links to the command that produced it. -->
+<style>
+:root{--bg:#f6f8f5;--card:#fff;--line:#d5dcd6;--ink:#1c2420;--mute:#5b675f;--green:#2f6b45;--amber:#d99a1e;--git:#b9c1bb}
+@media (prefers-color-scheme: dark){:root{--bg:#0d1117;--card:#161b22;--line:#30363d;--ink:#e6edf3;--mute:#8d96a0;--green:#7fc496;--git:#3d444d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+a{color:var(--green)}
+main{max-width:1040px;margin:0 auto;padding:0 20px 60px}
+header{display:flex;align-items:center;gap:12px;padding:20px 0}
+header img{width:40px;height:40px}
+header b{font-size:20px}
+header nav{margin-left:auto;display:flex;gap:18px;font-size:15px}
+.hero{padding:40px 0 24px}
+.hero h1{font-size:46px;line-height:1.1;margin:0 0 14px;letter-spacing:-.02em}
+.hero p{font-size:19px;color:var(--mute);max-width:720px;margin:0 0 22px}
+.cta{display:inline-block;background:var(--green);color:var(--bg);padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:700;margin-right:10px}
+.ghost{background:transparent;color:var(--green);border:1px solid var(--green)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:26px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.big{font-size:38px;font-weight:800;color:var(--green);line-height:1.1}
+.card .what{font-weight:700;margin:6px 0 4px}
+.card .vs{font-size:14px;color:var(--mute)}
+h2{font-size:28px;margin:46px 0 10px}
+.lead{color:var(--mute);max-width:760px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:15px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute)}
+td.ty{color:var(--green);font-weight:700}
+pre{background:#0d1117;color:#c9d1d9;padding:16px;border-radius:10px;overflow:auto;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.pains{counter-reset:p;list-style:none;padding:0}
+.pains li{counter-increment:p;margin:0 0 12px;padding-left:44px;position:relative}
+.pains li::before{content:counter(p);position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%;background:var(--amber);color:#1c2420;font-weight:800;display:flex;align-items:center;justify-content:center}
+.note{font-size:14px;color:var(--mute)}
+footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;font-size:14px;color:var(--mute)}
+@media (max-width:640px){.hero h1{font-size:34px}header nav{display:none}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <img src="../assets/logo.svg" alt="">
+  <b>TreeYard</b>
+  <nav><a href="#numbers">Numbers</a><a href="#demo">Demo</a><a href="#how">How</a><a href="#start">Start</a><a href="../docs/comparison.md">Compare</a></nav>
+</header>
+
+<section class="hero">
+  <h1>Git for agent swarms.<br>One server for every agent.</h1>
+  <p>TreeYard is a self-hosted version control server for 10 to 200 AI coding agents on one repository.
+  Agents get a workspace in about a second, see each other's edits while they work, and land in milliseconds.
+  Git stays the source of truth. Apache-2.0, one binary.</p>
+  <a class="cta" href="../docs/quickstart.md">Quickstart</a>
+  <a class="cta ghost" href="../docs/spec/rpc.md">Open RPC spec v0</a>
+</section>
+
+<section id="numbers">
+  <div class="grid">
+    <div class="card"><div class="big">57&times;</div><div class="what">faster workspaces</div>
+      <div class="vs">50 build-ready ripgrep workspaces: 1.22 s vs 69.66 s for git worktrees</div></div>
+    <div class="card"><div class="big">161&times;</div><div class="what">less disk</div>
+      <div class="vs">48.3 MB vs 7&nbsp;789 MB for the same 50 workspaces</div></div>
+    <div class="card"><div class="big">98&ndash;100%</div><div class="what">of conflicts seen before land</div>
+      <div class="vs">500 real commits replayed; 26&ndash;37% of changes conflict at merge time with git</div></div>
+    <div class="card"><div class="big">0.91 ms</div><div class="what">land p50 on linux (96&nbsp;080 files)</div>
+      <div class="vs">vs 183.7&ndash;201.14 ms for commit + merge-tree in plain git; no CI on the land path</div></div>
+  </div>
+  <p class="note">One machine: 15-core ARM64 CPU, 48 GB RAM, APFS, macOS 26.6, 2026-10-17. Commands and raw data:
+  <a href="../docs/benchmarks.md">docs/benchmarks.md</a>.</p>
+</section>
+
+<h2>What hurts with git worktrees</h2>
+<ol class="pains">
+  <li><b>Conflicts show up too late.</b> 27.67% of 107K+ agent pull requests have a merge conflict (arXiv 2604.03551, a preprint).</li>
+  <li><b>Work gets lost.</b> Worktree cleanup and one agent's <code>git stash</code> delete another's work (Claude Code issues #46444, #102465).</li>
+  <li><b>Every agent sets up a full checkout.</b> Builds and dependencies again, per agent.</li>
+  <li><b>Landing is serial.</b> With each repo's own CI, the 50th change waits 248 s (ripgrep) to 3&nbsp;614 s (requests).</li>
+</ol>
+
+<h2 id="demo">50 scripted agents: git worktrees vs TreeYard</h2>
+<p class="lead">Same work on both sides: each agent adds a file and edits its own line; 5 pairs edit the same line.
+Git lands through a serial queue (rebase + fast-forward, no CI). TreeYard agents all call <code>land</code> at once.
+Recorded 2026-10-18 with <code>examples/swarm-demo.sh --agents 50 --pairs 5</code>.</p>
+<table>
+  <tr><th>Step</th><th>git worktrees</th><th>TreeYard</th></tr>
+  <tr><td>Give 50 agents a place to work</td><td>8.06 s</td><td class="ty">1.22 s</td></tr>
+  <tr><td>Extra disk for 50 agents</td><td>391.2 MB</td><td class="ty">6.8 MB</td></tr>
+  <tr><td>Land every change</td><td>3.71 s (serial queue)</td><td class="ty">0.88 s (all at once)</td></tr>
+  <tr><td>Change is on main after, p50 / p95</td><td>2&nbsp;021 / 3&nbsp;562 ms</td><td class="ty">500 / 834 ms</td></tr>
+  <tr><td>Same-line conflicts warned before land</td><td>0 of 5</td><td class="ty">5 of 5</td></tr>
+  <tr><td>Conflicts at land</td><td>5</td><td>5</td></tr>
+  <tr><td>Edits missing from main</td><td>0 of 50</td><td>0 of 50</td></tr>
+</table>
+<p class="note">The TreeYard agents in this demo use the API and have no directory. Both sides see the same 5 conflicts;
+TreeYard reports them before anyone lands. Method and four more runs: <a href="../docs/benchmarks.md">docs/benchmarks.md</a>.</p>
+
+<h2>More measured results (50 agents)</h2>
+<table>
+  <tr><th>Measurement</th><th>Plain git</th><th>TreeYard</th></tr>
+  <tr><td>50 workspaces ready to build, astro (pnpm monorepo)</td><td>352.53 s, 5&nbsp;859 MB</td><td class="ty">85.30 s, 2&nbsp;197 MB; 26.19 s, 1&nbsp;506 MB from the warm pool</td></tr>
+  <tr><td>Changes thrown away, ripgrep replay, 16 agents</td><td>111</td><td class="ty">0 with declared intents (upper bound)</td></tr>
+  <tr><td><code>blame</code>, ripgrep, p50</td><td>24.76 ms</td><td class="ty">15.85 ms cold, 0.58 ms warm; same lines as git</td></tr>
+  <tr><td><code>grep</code>, go, 15&nbsp;311 files</td><td>482&ndash;664 ms (<code>git grep</code>)</td><td class="ty">5.15&ndash;393.92 ms; same matches</td></tr>
+  <tr><td>Clean merges equal to <code>git merge-tree</code> (300 random histories)</td><td>&mdash;</td><td class="ty">2&nbsp;200 of 2&nbsp;200</td></tr>
+</table>
+
+<h2 id="how">How it works</h2>
+<div class="grid">
+  <div class="card"><div class="what">Changes, not branches</div><div class="vs">An agent opens a change (one row), applies edits, and lands. Stable ids; every revision kept.</div></div>
+  <div class="card"><div class="what">Conflicts as tasks</div><div class="vs">The server rebases and merges on land. A conflict returns base, ours, theirs and who changed the path.</div></div>
+  <div class="card"><div class="what">Live collisions</div><div class="vs">Every apply runs a trial merge against other open changes. Intents and events warn before land.</div></div>
+  <div class="card"><div class="what">Copy-on-write workspaces</div><div class="vs">A clone of a built base, with <code>target/</code> or <code>node_modules</code> as a layer. Synced to the change after each edit.</div></div>
+  <div class="card"><div class="what">Git underneath</div><div class="vs">Each land is one deterministic git commit. People clone, pull and push; mirror to GitHub.</div></div>
+  <div class="card"><div class="what">One API, three doors</div><div class="vs">HTTP, MCP (Claude Code, Codex, OpenCode) and the CLI share one operation table.</div></div>
+</div>
+
+<h2 id="start">Start</h2>
+<pre>rootstock init --data rs-data --from ./my-repo
+rootstock serve --data rs-data &amp;
+claude mcp add --transport stdio rootstock -- rootstock mcp --agent claude-1</pre>
+<p>Full steps, checked word for word in an empty directory on macOS and Linux:
+<a href="../docs/quickstart.md">docs/quickstart.md</a>. Agents: <a href="../docs/mcp.md">docs/mcp.md</a>.
+Versus worktrees, GitButler, jj and merge queues: <a href="../docs/comparison.md">docs/comparison.md</a>.</p>
+
+<h2>Honest limits</h2>
+<ul>
+  <li>Land times do not include CI. Use the <code>queue</code> or <code>optimistic</code> landing mode to test.</li>
+  <li>Overlap warnings have a precision of 0.40 to 0.54: about half of them are for changes that merge cleanly.</li>
+  <li>v0.1 is one node. No TLS and no token expiry yet. The binary is still named <code>rootstock</code>.</li>
+  <li>Every agent in these numbers is a script. No Claude Code, Codex or OpenCode session ran.</li>
+</ul>
+
+<footer>TreeYard (working name Rootstock) &middot; Apache-2.0 &middot; an <a href="https://appnice.dev">appnice</a> project &middot;
+numbers from <a href="../docs/benchmarks.md">docs/benchmarks.md</a>, 2026-10-17 and 2026-10-18.</footer>
+</main>
+</body>
+</html>

@@ -33,6 +33,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -139,8 +140,9 @@ def run_rootstock(args, repo, out):
     if data.exists():
         shutil.rmtree(data)
     branch = sh(["git", "-C", repo, "symbolic-ref", "--short", "HEAD"]).strip()
-    wall, rss = time_l([args.binary, "init", "--data", str(data), "--from", repo, "--branch", branch,
-                        "--history", str(args.history)])
+    # `--history 0` is left out, so a binary older than the history import (the "before" run) works.
+    hist = ["--history", str(args.history)] if args.history else []
+    wall, rss = time_l([args.binary, "init", "--data", str(data), "--from", repo, "--branch", branch, *hist])
     out["init"] = {"wall_s": wall, "peak_rss_mb": rss, "history": args.history}
     out["data_mb"] = round(int(sh(["du", "-sk", str(data)]).split()[0]) / 1024, 1)
     srv = Server(args.binary, data)
@@ -153,8 +155,11 @@ def run_rootstock(args, repo, out):
         out["read"] = stats(reads)
         _, out["list_root_ms"] = timed(lambda: post(srv.url, "list", {"path": ""}))
         out["list_root_ms"] = round(out["list_root_ms"] * 1000, 2)
-        tree, t = timed(lambda: post(srv.url, "tree", {}))
-        out["tree"] = {"files": tree["files"], "ms": round(t * 1000, 2)}
+        try:
+            tree, t = timed(lambda: post(srv.url, "tree", {}))
+            out["tree"] = {"files": tree["files"], "ms": round(t * 1000, 2)}
+        except urllib.error.HTTPError as e:
+            out["tree"] = {"unsupported": e.code}
         _, t = timed(lambda: post(srv.url, "status", {}))
         out["status_ms"] = round(t * 1000, 2)
         out["rss_mb"]["after_reads"] = rss_mb(srv.proc.pid)
@@ -164,7 +169,8 @@ def run_rootstock(args, repo, out):
                 r1, t1 = timed(lambda: post(srv.url, "grep", {"pattern": pat, "max": 100}))
                 _, t2 = timed(lambda: post(srv.url, "grep", {"pattern": pat, "max": 100}))
                 g[pat] = {"first_ms": round(t1 * 1000, 2), "repeat_ms": round(t2 * 1000, 2),
-                          "matches": len(r1.get("matches", []))}
+                          "matches": len(r1.get("matches", []) if isinstance(r1, dict) else r1),
+                          "postings_mb": ((r1.get("index") if isinstance(r1, dict) else None) or {}).get("postings_mb")}
             out["grep"] = g
             out["rss_mb"]["after_grep"] = rss_mb(srv.proc.pid)
         lands = [land_one(srv.url, f"seq-{i}", paths[i % len(paths)], f"/* scale {i} */\n")

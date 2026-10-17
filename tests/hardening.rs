@@ -536,3 +536,71 @@ fn shallow_source_is_imported_without_a_transport_clone() {
     assert_eq!(git(root, &["--git-dir", gd, "show", "main:f00.txt"]), "v3\n");
     fsck(root, &data);
 }
+
+/// A cold `manifest` stops a long replay at a changeset with a git commit and reads its tree
+/// (`MANIFEST_WALK`). For every changeset on main (150 imported commits with deletes, mode
+/// flips, symlinks, renames and deep paths, then 80 lands), it must equal a full replay.
+#[test]
+fn cold_manifest_from_git_equals_a_full_replay() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 6, 5, &[]);
+    use std::os::unix::fs::PermissionsExt;
+    for i in 0..150 {
+        let deep = format!("d/{}/e/f/g/h{}", i % 7, i % 3);
+        std::fs::create_dir_all(src.join(&deep)).unwrap();
+        std::fs::write(src.join(format!("{deep}/n{i}.txt")), format!("commit {i}\n")).unwrap();
+        let f = src.join(format!("f{:02}.txt", i % 6));
+        match i % 5 {
+            0 if f.exists() => std::fs::remove_file(&f).unwrap(),
+            1 if f.exists() => {
+                std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            2 => {
+                let _ = std::fs::remove_file(src.join("link"));
+                std::os::unix::fs::symlink(format!("f{:02}.txt", i % 6), src.join("link")).unwrap();
+            }
+            3 if f.exists() => {
+                git(&src, &["mv", f.file_name().unwrap().to_str().unwrap(), &format!("moved{i}.txt")]);
+            }
+            _ => std::fs::write(&f, format!("rewritten at {i}\n")).unwrap(),
+        }
+        git(&src, &["add", "-A"]);
+        git(&src, &["commit", "-q", "-m", &format!("c{i}")]);
+    }
+    let data = tmp.path().join("data");
+    Repo::init_with_history(&data, &src, "main", None, 150).unwrap();
+    {
+        let repo = Repo::open(&data).unwrap();
+        for i in 0..80 {
+            let ch =
+                rootstock::rpc::call(&repo, "open_change", json!({"agent": format!("a{i}"), "intent": "x"})).unwrap();
+            let id = ch["id"].as_str().unwrap().to_string();
+            let path = if i % 4 == 0 { "f00.txt".to_string() } else { format!("land/{i}.txt") };
+            let edit = if i % 8 == 0 {
+                json!({"path": path, "delete": true})
+            } else {
+                json!({"path": path, "content": format!("{i}\n")})
+            };
+            let _ = rootstock::rpc::call(&repo, "apply", json!({"change": id, "edits": [edit]}));
+            let _ = rootstock::rpc::call(&repo, "land", json!({"change": id}));
+        }
+    }
+    let fast = Repo::open(&data).unwrap();
+    let slow = Repo::open(&data).unwrap();
+    slow.with(|r| {
+        r.manifest_from_git = false;
+        Ok(())
+    })
+    .unwrap();
+    let mut cur = Some(fast.with(|r| r.main()).unwrap());
+    let mut checked = 0;
+    while let Some(id) = cur {
+        let a = fast.with(|r| r.manifest(&id)).unwrap();
+        let b = slow.with(|r| r.manifest(&id)).unwrap();
+        assert_eq!(a, b, "manifest of {id} (step {checked} from main)");
+        cur = fast.with(|r| r.changeset(&id)).unwrap().parents.first().cloned();
+        checked += 1;
+    }
+    assert!(checked > 2 * rootstock::repo::MANIFEST_WALK, "checked {checked} changesets");
+    eprintln!("cold manifests equal to a full replay: {checked} changesets");
+}

@@ -56,7 +56,7 @@ The tests use a local bare repo only.
 
 ## Measured
 
-Apple M5 Pro, macOS 26, git 2.54, release build, 2026-10-17. Command:
+15-core CPU, 48 GB RAM, macOS, git 2.54, release build, 2026-10-17. Command:
 
 ```sh
 ROOTSTOCK_SCRATCH=/private/tmp/rootstock-harness/005/real \

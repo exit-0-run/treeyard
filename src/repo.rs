@@ -69,6 +69,9 @@ pub struct Inner {
     mergiraf: Option<String>,
     data: PathBuf,
     manifests: ManifestCache,
+    /// Whether `manifest` may read a git tree after `MANIFEST_WALK` steps (tests turn it off
+    /// to compare with a full replay).
+    pub manifest_from_git: bool,
     pub(crate) heights: HashMap<String, u64>,
     pub(crate) parents: HashMap<String, Option<String>>,
     pub(crate) seen_collisions: HashMap<String, String>,
@@ -98,6 +101,11 @@ enum Driven {
 /// Most manifests kept in memory. A manifest shares structure with its parent, so the cost of
 /// one is the changed paths times the map depth, but an unbounded cache grows with history.
 pub const MANIFEST_CACHE: usize = 4096;
+
+/// Changesets a cold `manifest` call replays before it reads a git tree instead. On linux
+/// (96 080 files) `git ls-tree -r` takes about 0.09 s, and a replay of 10 000 imported
+/// changesets took 0.75 s and 745 MB (`docs/benchmarks.md`, scale run).
+pub const MANIFEST_WALK: usize = 64;
 
 /// Manifests by changeset, least recently used out first. A miss rebuilds from the nearest
 /// cached ancestor (or the root changeset) by replaying the changesets in between.
@@ -241,6 +249,7 @@ impl Repo {
             mergiraf,
             data: data.to_path_buf(),
             manifests: ManifestCache::default(),
+            manifest_from_git: true,
             heights: HashMap::new(),
             parents: HashMap::new(),
             seen_collisions: HashMap::new(),
@@ -357,6 +366,16 @@ impl Inner {
         let mut cur = id.to_string();
         let mut m = loop {
             if let Some(m) = self.manifests.get(&cur) {
+                break m;
+            }
+            // A long walk stops at the first changeset with a git commit: its tree is the
+            // persisted form of its manifest (an export or an imported commit, `map_commit`).
+            if self.manifest_from_git
+                && chain.len() >= MANIFEST_WALK
+                && let Some(commit) = self.store.commit_of(&cur)?
+            {
+                let m: Manifest = git::ls_tree(self.odb.dir(), &commit)?.into_iter().collect();
+                self.manifests.insert(cur.clone(), m.clone());
                 break m;
             }
             let cs = self.changeset(&cur)?;

@@ -130,6 +130,12 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         spares: usize,
     },
+    /// Print the API reference (Markdown, docs/api.md) generated from the operation table.
+    ApiDoc {
+        /// Print the raw tool table as JSON instead (the MCP `tools/list` reply).
+        #[arg(long)]
+        json: bool,
+    },
     /// Call one operation, e.g. `rootstock call read '{"path":"README.md"}'`.
     Call {
         op: String,
@@ -380,6 +386,14 @@ fn main() -> Result<()> {
             };
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             daemon::run(&node.node(), &o, stop, &mut |line| println!("{line}"))?;
+        }
+        Cmd::ApiDoc { json } => {
+            let tools = rootstock::rpc::tools();
+            if json {
+                println!("{}", serde_json::to_string_pretty(&json!({"tools": tools}))?);
+            } else {
+                print!("{}", rootstock::apidoc::markdown(&tools));
+            }
         }
         Cmd::Call { op, params, url } => {
             let params: Value = match params {

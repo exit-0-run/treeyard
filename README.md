@@ -10,70 +10,91 @@
   <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5b4fc4">
   <img alt="Git compatible" src="https://img.shields.io/badge/git-compatible-f05032?logo=git&logoColor=white">
   <img alt="Single binary" src="https://img.shields.io/badge/single-binary-4a5560">
+  <img alt="Agents: 10-200" src="https://img.shields.io/badge/agents-10%E2%80%93200-d99a1e">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2f6b45">
 </p>
 
-TreeYard is a version control server for many AI coding agents that work on one repository.
-Git stays the source of truth.
+<h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
 
-## The problem
+<p align="center">
+  <a href="#benchmarks"><img src="assets/results.svg" alt="TreeYard vs plain git worktrees: 57x faster workspaces, 161x less disk, 13x faster on astro, 43x faster blame, 111 to 0 thrown-away changes, no queue wait" width="900"></a>
+</p>
 
-When 10 or more agents work on one repository with `git worktree`:
+<p align="center"><b>Also:</b> 98% to 100% of merge conflicts reported before land, not at merge time · 8× faster grep on a 15 311-file repo · 1 binary, git underneath</p>
 
-- Each agent gets a full checkout. Each agent must build the code or install the dependencies again.
-- Agents do not see the edits of other agents. Conflicts show only at merge time, and agents lose work.
-- Changes land one at a time through a merge queue that runs CI for each change.
+Your agents are fast. Git makes them wait. TreeYard is a self-hosted version control server for 10
+to 200 AI coding agents on one repository. Agents get a workspace in about a second, see each
+other's edits while they work, and land in milliseconds. Git stays the source of truth, so people
+keep `git clone`, `git pull`, `git push` and GitHub.
 
-## What TreeYard does
+The binary is still named `rootstock` in v0.1. The rename to `treeyard` comes next.
 
-- Agents read, search and edit the repository through one API: HTTP, MCP or the CLI.
-- An agent opens a *change*, applies edits and lands the change. The server does the rebase and the merge.
-- A conflict comes back as a task: the base, the two sides, and the agent that changed the path.
-- The server compares each edit with the other open changes. It tells the agent about an overlap before
-  the change lands.
-- Each landed change becomes a normal git commit. People use `git clone`, `git pull` and `git push`.
-- An agent that must build gets a copy-on-write workspace. The workspace shares build output and
-  dependencies with the base, so the agent does not build again.
-- The server answers history questions: `blame`, `log`, indexed `grep`, `symbols` and `bisect`.
+## The pains
 
-Status: v0.1. One node, one binary. There is no TLS and no token expiry yet. The binary is still named
-`rootstock` in v0.1. The rename to `treeyard` comes next.
+What hurts when many agents work on one repository with `git worktree` (sources:
+[docs/comparison.md](docs/comparison.md); our numbers: [docs/benchmarks.md](docs/benchmarks.md)):
 
-## Quick start
+1. **Conflicts show up too late.** 27.67 % of 107K+ agent pull requests have a merge conflict
+   (arXiv 2604.03551). On 500 replayed commits, 26 % to 37 % of changes conflicted at merge time.
+2. **Work gets lost.** Worktree cleanup and one agent's `git stash` or `git clean` delete another's
+   work (Claude Code issues #46444, #75490, #102465).
+3. **Every agent sets up a full checkout.** 50 ripgrep worktrees ready to build: 69.66 s and 7 789 MB.
+4. **Landing is serial.** With each repo's own CI, a queue makes the 50th change wait 248 s to
+   3 614 s. Hosted merge queues on private repos need a paid plan.
 
-```sh
-make release
-rootstock init --data /tmp/rs --from /path/to/repo --branch main
-rootstock serve --data /tmp/rs                      # http://127.0.0.1:7420
+## What TreeYard does about them
 
-rootstock call open_change '{"agent": "a1", "intent": "fix a typo"}'
-rootstock call apply '{"change": "ch_…", "edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
-rootstock call land '{"change": "ch_…"}'
+- **See conflicts while you work.** Each `apply` runs a trial merge against every other open
+  change and reports `conflict` or `overlap` with line ranges. Agents declare intents (paths,
+  symbols) and get overlaps at `open_change`. Events stream to every agent.
+- **Lose nothing.** A change keeps every revision on the server. A workspace syncs to its change
+  about 300 ms after each edit. Removing the directory keeps the change.
+- **Start in about a second.** Agents that only edit need no checkout: they use the API. Agents that
+  build get a copy-on-write clone of a built base, with `target/` or `node_modules` shared as a layer.
+- **Land without a lock.** The server rebases and merges on `land`. A conflict comes back as a task
+  with the base, both sides and who changed the path. Optional modes test before (`queue`) or after
+  (`optimistic`) the land, with bisect and revert.
+- **Keep git.** Every land is one deterministic git commit. People clone, pull and push over HTTP;
+  `rootstock mirror` pushes `main` to GitHub.
+- **Ask the server.** `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`,
+  tree-sitter `symbols`, server-side `bisect`.
 
-git clone http://127.0.0.1:7420/git repo            # the landed commit is on main
+## See it: 50 scripted agents, git worktrees vs TreeYard
+
+<p align="center"><img src="assets/demo.svg" alt="Terminal: swarm-demo.sh with 50 agents, git worktrees against TreeYard" width="760"></p>
+
+`examples/swarm-demo.sh` gives N scripted agents the same work twice. Each agent adds a file and
+edits its own line of a shared file; 5 pairs edit the same line (a real conflict). First every
+agent gets a `git worktree`, commits, and a serial queue lands each branch (`git rebase` +
+`git merge --ff-only`, no CI). Then every agent opens a change on TreeYard, applies the same edits,
+and calls `land` at the same time. A conflicted agent redoes its edit on the new main on both sides.
+The run below is the one in the image (15-core CPU, 48 GB RAM):
+
+```text
+$ examples/swarm-demo.sh --agents 50 --pairs 5
+swarm-demo: 50 agents, 2000 files, 5 same-line pairs
+| Step                                      | git worktrees       | TreeYard           |
+|-------------------------------------------|---------------------|--------------------|
+| Give 50 agents a place to work (s)        | 8.06                | 1.22               |
+| Extra disk for 50 agents (MB)             | 391.2               | 6.8                |
+| Edit and commit, all agents at once (s)   | 2.85                | 2.07               |
+| Land every change (s)                     | 3.71 (serial queue) | 0.88 (all at once) |
+| Change is on main after, p50 / p95 (ms)   | 2021 / 3562         | 500 / 834          |
+| Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |
+| Conflicts at land (agent redoes the edit) | 5                   | 5                  |
+| Edits missing from main                   | 0 of 50             | 0 of 50            |
 ```
 
-Connect an agent through MCP:
-
-```sh
-claude mcp add rootstock -- rootstock mcp --url http://127.0.0.1:7420 --agent claude-1
-```
-
-Give an agent a workspace that is ready to build:
-
-```sh
-rootstock daemon --spares 2 &
-rootstock workspace create fix-1 --agent claude-1 --git --setup "cargo build -q"
-cd "$(rootstock workspace path fix-1)"              # use any editor or tool, run the tests
-rootstock workspace land fix-1
-```
-
-All operations, configuration and the data model: [docs/reference.md](docs/reference.md).
+Read it fairly: the same 5 conflicts happen on both sides. The difference is that TreeYard warns
+about all 5 before anyone lands, and nobody waits for a queue. The TreeYard agents have no
+directory (API only); for agents that need one, see the workspace numbers below. Four more runs and
+the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-git-worktrees-vs-treeyard-task-015-2026-10-18).
 
 ## Benchmarks
 
-> **Measured results, not estimates.** One Apple M5 Pro (macOS 26.6, APFS), 2026-10-17, one run per
+> **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
-> go `dfc6f7db9bd7`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
+> go `dfc6f7db9bd7`, linux `58161ead29e5`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
 
 | Measurement (50 agents) | Plain git | TreeYard | Gain |
 |---|---|---|---|
@@ -81,10 +102,15 @@ All operations, configuration and the data model: [docs/reference.md](docs/refer
 | 50 workspaces ready to build, astro | 352.53 s, 5 859 MB | 85.30 s, 2 197 MB | **4.1× faster, 2.7× less disk** |
 | Same, astro, from the warm pool | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
 | Wait of the last change in a serial queue with the repository's CI (ripgrep / astro / requests) | 248 s / 1 414 s / 3 614 s | land p95 3.4 / 43 / 2.3 ms | **no queue wait** (CI runs after land, see limits) |
-| Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **all reported before land** |
+| Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **98 % to 100 % reported before land** |
 | Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |
 | `blame`, ripgrep, p50 | 24.76 ms | 15.85 ms cold, 0.58 ms warm | **1.6× faster cold, 43× warm**, same lines |
 | `grep`, go (15 311 files) | 482 to 664 ms | 5.15 to 393.92 ms | **8× faster (median)**, same matches |
+| Land on linux (96 080 files), p50, 50 in a row | 183.7 to 201.14 ms (commit + merge-tree) | 0.91 ms | **about 200× faster** |
+
+Correctness: 300 random histories gave 2 200 clean server merges, all equal to `git merge-tree`, and
+0 server conflicts that git merged cleanly (`ROOTSTOCK_FUZZ_SEEDS=300 cargo test --release --test
+fuzz_history`, [docs/benchmarks.md](docs/benchmarks.md#hardening-checks-task-013-2026-10-17)).
 
 Limits of these numbers:
 
@@ -95,11 +121,73 @@ Limits of these numbers:
   without a conflict.
 - With 50 agents on stale bases and no intents, the final tree is different from the history. A merge
   cannot see that a fix landed before the bug it fixes.
+- All agents in these measurements are scripts. No Claude Code, Codex or OpenCode session ran.
 
-## Not yet
+## Quick start
 
-Two-way workspace sync, a virtual file system, persistent events, blame of moved lines, symbol references,
-token expiry, TLS, Postgres and S3 storage.
+Install a release ([docs/install.md](docs/install.md)) or build with `make release`, then run this in
+an empty directory. `sh scripts/check-quickstart.sh README.md` runs these blocks word for word; the
+longer version with conflicts, workspaces and MCP is [docs/quickstart.md](docs/quickstart.md).
+
+```sh
+mkdir demo-repo
+git -C demo-repo init -q -b main
+printf 'hello wrold\n' > demo-repo/README.md
+git -C demo-repo add README.md
+git -C demo-repo -c user.name=me -c user.email=me@example.com commit -q -m "first commit"
+rootstock init --data rs-data --from demo-repo
+rootstock serve --data rs-data > serve.log 2>&1 &
+SERVER=$!
+sleep 1
+```
+
+An agent opens a change, edits without a checkout, and lands:
+
+```sh
+CH=$(rootstock call open_change '{"agent": "a1", "intent": "fix a typo"}' | sed -n 's/^  "id": "\(ch_[0-9a-f]*\)",$/\1/p')
+rootstock call apply "{\"change\": \"$CH\", \"edits\": [{\"path\": \"README.md\", \"replace\": {\"old\": \"wrold\", \"new\": \"world\"}}]}" > /dev/null
+rootstock call land "{\"change\": \"$CH\"}" | grep '"status"'
+```
+
+People see a normal git commit:
+
+```sh
+git clone -q http://127.0.0.1:7420/git people-clone
+git -C people-clone log --format='%s | %an' -n 1
+kill "$SERVER"
+```
+
+## Connect your agents
+
+```text
+claude mcp add --transport stdio rootstock -- rootstock mcp --agent claude-1
+codex mcp add rootstock -- rootstock mcp --agent codex-1
+```
+
+OpenCode, `.mcp.json`, and Claude Code worktree hooks that make `claude --worktree` and subagents
+use TreeYard workspaces: [docs/mcp.md](docs/mcp.md).
+
+## Docs
+
+| Doc | What |
+|---|---|
+| [docs/quickstart.md](docs/quickstart.md) | ten minutes, checked word for word, with its transcript |
+| [docs/concepts.md](docs/concepts.md) | changes, landing, conflicts as tasks, workspaces, git |
+| [docs/api.md](docs/api.md) | every operation, generated from the operation table |
+| [docs/spec/rpc.md](docs/spec/rpc.md) | Agent Repo RPC v0: an open protocol for repo servers for agents |
+| [docs/mcp.md](docs/mcp.md) | Claude Code, Codex, OpenCode |
+| [docs/comparison.md](docs/comparison.md) | vs worktrees, GitButler, jj, merge queues |
+| [docs/install.md](docs/install.md) | release archives, checksums, cross builds |
+| [docs/workspaces.md](docs/workspaces.md), [docs/coordination.md](docs/coordination.md), [docs/git-http.md](docs/git-http.md), [docs/derived.md](docs/derived.md), [docs/access.md](docs/access.md) | the parts in detail |
+| [docs/reference.md](docs/reference.md), [docs/benchmarks.md](docs/benchmarks.md), [SECURITY.md](SECURITY.md) | configuration, numbers, threat model |
+| [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md) | history, how to help |
+
+## Status and not yet
+
+v0.1: one node, one binary, macOS and Linux. There is no TLS and no token expiry yet: keep the
+server on loopback or behind a TLS proxy with tokens ([SECURITY.md](SECURITY.md)). Not built yet:
+two-way workspace sync, a virtual file system, persistent events, blame of moved lines, symbol
+references, Postgres and S3 storage.
 
 ## Licence
 

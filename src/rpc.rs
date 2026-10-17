@@ -319,6 +319,7 @@ fn prepare(repo: &Repo, op: &str, p: &Value) -> Result<()> {
     if op == "grep" {
         if mode != IndexMode::Off && p.get("index").and_then(Value::as_bool) != Some(false) {
             search::prepare(repo, &main)?;
+            search::build_index(repo, &main)?;
         }
     } else if let Some(cs) = cs {
         symbols::prepare(repo, &cs)?;

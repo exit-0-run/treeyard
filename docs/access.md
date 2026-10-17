@@ -68,7 +68,7 @@ same lock hold as the operation. Reads are not audited. Token secrets never reac
 ## Cost
 
 HTTP land latency on ripgrep `3fce3b5bb023`, 300 sequential lands of one new file each, release
-build, Apple M5 Pro, 2026-10-17: auth off p50 1.63 ms, p95 2.4 ms; auth on p50 1.75 ms, p95 2.67 ms.
+build, 15-core CPU, 48 GB RAM, 2026-10-17: auth off p50 1.63 ms, p95 2.4 ms; auth on p50 1.75 ms, p95 2.67 ms.
 Both write one audit row per land (300 rows). Command: `python3 bench/derived.py --repo <ripgrep
 clone> --dir <scratch> --history 0 --only land [--auth]`.
 

@@ -280,6 +280,49 @@ fn union(a: &[u32], b: &[u32]) -> Vec<u32> {
 
 // ---- the in-memory index ----------------------------------------------------------------
 
+/// One posting list: increasing file ids as varint deltas (1 to 2 bytes per id instead of 4,
+/// and no spare capacity of a growing `Vec<u32>`).
+#[derive(Default)]
+struct PostingList {
+    bytes: Vec<u8>,
+    last: u32,
+    len: u32,
+}
+
+impl PostingList {
+    fn push(&mut self, id: u32) {
+        let mut d = id - self.last;
+        self.last = id;
+        self.len += 1;
+        loop {
+            let b = (d & 0x7f) as u8;
+            d >>= 7;
+            if d == 0 {
+                self.bytes.push(b);
+                return;
+            }
+            self.bytes.push(b | 0x80);
+        }
+    }
+
+    fn ids(&self) -> Vec<u32> {
+        let mut out = Vec::with_capacity(self.len as usize);
+        let (mut prev, mut cur, mut shift) = (0u32, 0u32, 0);
+        for &b in &self.bytes {
+            cur |= u32::from(b & 0x7f) << shift;
+            if b & 0x80 == 0 {
+                prev += cur;
+                out.push(prev);
+                cur = 0;
+                shift = 0;
+            } else {
+                shift += 7;
+            }
+        }
+        out
+    }
+}
+
 /// Posting lists for the text files of one revision (normally main).
 #[derive(Default)]
 pub struct Index {
@@ -287,7 +330,7 @@ pub struct Index {
     files: Vec<(String, String)>,
     live: Vec<bool>,
     by_path: HashMap<String, u32>,
-    postings: HashMap<u32, Vec<u32>>,
+    postings: HashMap<u32, PostingList>,
     dead: usize,
     /// Blobs with a row in `trigrams` (loaded once).
     known: HashSet<String>,
@@ -315,7 +358,7 @@ impl Index {
     fn eval(&self, p: &Plan) -> Option<Vec<u32>> {
         match p {
             Plan::All => None,
-            Plan::Tri(t) => Some(self.postings.get(t).cloned().unwrap_or_default()),
+            Plan::Tri(t) => Some(self.postings.get(t).map(PostingList::ids).unwrap_or_default()),
             Plan::And(v) => {
                 let mut sets: Vec<Vec<u32>> = v.iter().filter_map(|x| self.eval(x)).collect();
                 sets.sort_by_key(Vec::len);
@@ -335,7 +378,7 @@ impl Index {
 
     /// Memory held by the posting lists, in bytes (rough).
     pub fn bytes(&self) -> usize {
-        self.postings.values().map(|v| v.capacity() * 4 + 32).sum::<usize>() + self.files.len() * 96
+        self.postings.values().map(|v| v.bytes.capacity() + 40).sum::<usize>() + self.files.len() * 96
     }
 }
 
@@ -387,6 +430,28 @@ impl Inner {
         })?;
         self.search.known.extend(rows.iter().map(|(b, _)| b.clone()));
         Ok(())
+    }
+
+    /// The stored rows of `blobs`, in order; a blob without a row gets one now (a file that
+    /// landed after `prepare`).
+    fn trigram_rows(&mut self, blobs: &[&str]) -> Result<Vec<Vec<u8>>> {
+        let mut out = Vec::with_capacity(blobs.len());
+        for b in blobs {
+            let row: Option<Vec<u8>> = rusqlite::OptionalExtension::optional(self.store.conn().query_row(
+                "SELECT data FROM trigrams WHERE blob = ?1",
+                [b],
+                |r| r.get(0),
+            ))?;
+            out.push(match row {
+                Some(d) => d,
+                None => {
+                    let d = trigram_row(&self.blob(b)?);
+                    self.trigram_store(&[(b.to_string(), d.clone())])?;
+                    d
+                }
+            });
+        }
+        Ok(out)
     }
 
     fn trigrams_of(&mut self, blob: &str) -> Result<Option<Vec<u32>>> {
@@ -548,12 +613,16 @@ pub fn diff_manifests(a: &Manifest, b: &Manifest) -> Vec<(String, Option<crate::
     out
 }
 
+/// Blob bytes one `prepare` step reads under the repo lock. On linux, during the first grep, the
+/// slowest land took 0.31 s with 16 MiB and 0.19 to 0.21 s with 4 MiB (`docs/benchmarks.md`).
+const PREPARE_CHUNK: usize = 4 << 20;
+
 /// Computes missing trigram rows for `at` in chunks: blobs are read under the repo lock, the
 /// trigrams are computed outside it (on all cores), so agents keep landing meanwhile.
 pub fn prepare(repo: &Repo, at: &str) -> Result<usize> {
     let mut done = 0;
     loop {
-        let todo = repo.with(|r| r.trigram_todo(at, 16 << 20))?;
+        let todo = repo.with(|r| r.trigram_todo(at, PREPARE_CHUNK))?;
         if todo.is_empty() {
             return Ok(done);
         }
@@ -561,6 +630,40 @@ pub fn prepare(repo: &Repo, at: &str) -> Result<usize> {
         let rows = par_map(&todo, |(b, d)| (b.clone(), trigram_row(d)));
         repo.with(|r| r.trigram_store(&rows))?;
     }
+}
+
+/// Files whose stored rows one `build_index` step reads under the repo lock.
+const BUILD_CHUNK: usize = 2048;
+
+/// Builds the in-memory posting index of `at` when the server has none, outside the repo
+/// lock: rows are read under the lock in chunks of `BUILD_CHUNK` files, then decoded and
+/// added without it. On linux (96 080 files) the build held the lock for about 4.5 s before
+/// (`docs/benchmarks.md`, scale run). `search_index` then moves the result to main.
+pub fn build_index(repo: &Repo, at: &str) -> Result<bool> {
+    let m = repo.with(|r| if r.search.at.is_empty() { r.manifest(at).map(Some) } else { Ok(None) })?;
+    let Some(m) = m else { return Ok(false) };
+    let files: Vec<(String, String)> =
+        m.iter().filter(|(_, e)| searchable(e)).map(|(p, e)| (p.clone(), e.blob.clone())).collect();
+    let mut idx = Index::default();
+    for chunk in files.chunks(BUILD_CHUNK) {
+        let blobs: Vec<&str> = chunk.iter().map(|(_, b)| b.as_str()).collect();
+        let rows = repo.with(|r| r.trigram_rows(&blobs))?;
+        for ((path, blob), row) in chunk.iter().zip(rows) {
+            if row != BINARY {
+                idx.add(path, blob, &decode(&row));
+            }
+        }
+    }
+    idx.at = at.to_string();
+    repo.with(|r| {
+        // Another caller can build and install an index meanwhile; keep the first one.
+        if r.search.at.is_empty() {
+            idx.known = std::mem::take(&mut r.search.known);
+            idx.loaded = r.search.loaded;
+            r.search = idx;
+        }
+        Ok(true)
+    })
 }
 
 /// Maps `f` over `items` on all cores, keeping the order.

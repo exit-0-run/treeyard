@@ -57,6 +57,7 @@ fn unsupported(e: &io::Error) -> bool {
         || e.raw_os_error() == Some(libc::EOPNOTSUPP)
 }
 
+#[cfg(target_os = "macos")]
 fn cstr(p: &Path) -> Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
     Ok(std::ffi::CString::new(p.as_os_str().as_bytes())?)
