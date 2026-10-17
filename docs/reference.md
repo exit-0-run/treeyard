@@ -108,6 +108,17 @@ incrementally), `tests/iam.rs` (401 and 403 cases, read filtering, write globs, 
 git clone and push with tokens, MCP with `ROOTSTOCK_TOKEN`). On real clones (ignored by default):
 `cargo test --release --test derived --test xdiff_git -- --ignored` with `ROOTSTOCK_REAL_REPO=<clone>`.
 
+Hardening (SECURITY.md): `tests/hardening.rs` kills a real `rootstock serve` (SIGABRT through
+`ROOTSTOCK_FAILPOINT`) at each of 6 points of a land, restarts it, and checks that SQLite main, the git
+ref and `git fsck --strict` agree and that the land can be repeated. It also covers duplicate lands that
+race, a client that waits for a late server, a lost land reply (a TCP proxy drops it), `503 busy` and
+client retries, the data-dir lock, the loopback rule, hostile paths, a hostile push and hostile imported
+trees. `tests/fuzz_history.rs` builds random histories (edits, deletes, renames as delete plus add, mode
+flips, binary, empty, symlink, CRLF, no final newline, deep and non-ASCII paths; fresh and stale bases;
+rebase, resolve, abandon) and checks every land against `git merge-tree`, every export against the
+manifest (`git ls-tree -r`) and a full tree write, and every sampled `read` against `git cat-file`.
+`ROOTSTOCK_FUZZ_SEEDS=N` runs more seeds; `ROOTSTOCK_FUZZ_SEED=S` replays one.
+
 ## Replay on real history
 
 `rootstock replay --src REPO --from REV [--to REV] --agents N [--stacked] [--config TOML] [--intents]

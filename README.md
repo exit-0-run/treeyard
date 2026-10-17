@@ -10,10 +10,34 @@
   <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5b4fc4">
   <img alt="Git compatible" src="https://img.shields.io/badge/git-compatible-f05032?logo=git&logoColor=white">
   <img alt="Single binary" src="https://img.shields.io/badge/single-binary-4a5560">
+  <img alt="Agents: 10-200" src="https://img.shields.io/badge/agents-10%E2%80%93200-d99a1e">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2f6b45">
 </p>
 
-TreeYard is a version control server for many AI coding agents that work on one repository.
-Git stays the source of truth.
+<h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
+
+<table align="center">
+  <tr>
+    <td align="center"><h1>57×</h1>faster workspaces<br><sub>50 agents, ripgrep</sub></td>
+    <td align="center"><h1>161×</h1>less disk<br><sub>50 agents, ripgrep</sub></td>
+    <td align="center"><h1>3 ms</h1>to land a change<br><sub>p95, ripgrep, no merge queue</sub></td>
+    <td align="center"><h1>100%</h1>of conflicts caught<br><sub>before land, not at merge</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><h1>111 → 0</h1>changes thrown away<br><sub>16 agents, real history, intents</sub></td>
+    <td align="center"><h1>43×</h1>faster blame<br><sub>warm, same lines as git</sub></td>
+    <td align="center"><h1>8×</h1>faster grep<br><sub>go, 15 311 files</sub></td>
+    <td align="center"><h1>1</h1>binary<br><sub>git underneath</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>Measured on real repositories with 50 agents on one Apple M5 Pro, 2026-10-17.
+Every number links to a command: <a href="#benchmarks">Benchmarks</a>.</sub></p>
+
+Your agents are fast. Git makes them wait. TreeYard is a version control server for 10 to 200 AI coding
+agents on one repository. Agents get a workspace in about a second, see each other's edits while they work,
+and land in milliseconds. Git stays the source of truth, so people keep `git clone`, `git pull`, `git push`
+and GitHub.
 
 ## The problem
 
@@ -35,7 +59,8 @@ When 10 or more agents work on one repository with `git worktree`:
   dependencies with the base, so the agent does not build again.
 - The server answers history questions: `blame`, `log`, indexed `grep`, `symbols` and `bisect`.
 
-Status: v0.1. One node, one binary. There is no TLS and no token expiry yet. The binary is still named
+Status: v0.1. One node, one binary. There is no TLS and no token expiry yet. Threat model, controls and
+limits: [SECURITY.md](SECURITY.md). The binary is still named
 `rootstock` in v0.1. The rename to `treeyard` comes next.
 
 ## Quick start
