@@ -55,7 +55,7 @@ bench-cow: release
 test-linux:
 	sh bench/test-linux.sh
 
-# Everything: about 3 hours on an M5 Pro; about 70 GB of scratch at the peak (astro, 50 copies).
+# Everything: about 3 hours on a 15-core CPU; about 70 GB of scratch at the peak (astro, 50 copies).
 bench: bench-workspaces bench-conflicts bench-queue bench-history bench-treeyard
 	$(BENCH_PY) report
 

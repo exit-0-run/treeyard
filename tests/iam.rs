@@ -4,10 +4,10 @@
 mod common;
 
 use common::*;
-use treeyard::client::call_with;
-use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::sync::Arc;
+use treeyard::client::call_with;
+use treeyard::repo::Repo;
 
 struct Setup {
     _tmp: tempfile::TempDir,

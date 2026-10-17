@@ -6,12 +6,12 @@
 mod common;
 
 use common::{fixture_repo, spawn_server};
-use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 fn hook(script: &str, input: &Value, url: &str, home: &Path) -> (bool, String, String) {
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_treeyard"));

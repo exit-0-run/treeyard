@@ -4,9 +4,6 @@
 mod common;
 
 use common::{call, fixture_repo, spawn_server};
-use treeyard::cow::Strategy;
-use treeyard::repo::Repo;
-use treeyard::workspace::{CreateOptions, LayerSpec, Node};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
@@ -14,6 +11,9 @@ use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+use treeyard::cow::Strategy;
+use treeyard::repo::Repo;
+use treeyard::workspace::{CreateOptions, LayerSpec, Node};
 
 fn server(root: &Path, extra: &[(&str, &str)]) -> String {
     let src = fixture_repo(root, 5, 20, extra);
@@ -252,8 +252,7 @@ fn shell_flow_through_the_cli() {
     let bin = env!("CARGO_BIN_EXE_treeyard");
     let home = tmp.path().join("node");
     let rs = |args: &[&str]| {
-        let out =
-            Command::new(bin).args(args).env("TREEYARD_HOME", &home).env("TREEYARD_URL", &url).output().unwrap();
+        let out = Command::new(bin).args(args).env("TREEYARD_HOME", &home).env("TREEYARD_URL", &url).output().unwrap();
         assert!(out.status.success(), "treeyard {args:?}: {}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).into_owned()
     };

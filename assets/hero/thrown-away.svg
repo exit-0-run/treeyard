@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 280" width="640" height="280" role="img" aria-label="111 → 0 : changes thrown away. git 111, TreeYard 0.">
+<style>
+.bg{fill:#ffffff;stroke:#d5dcd6}.t{fill:#1c2420}.m{fill:#5b675f}.track{fill:#eef1ee}.git{fill:#9aa39c}.ty{fill:#2f6b45}.big{fill:#2f6b45}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+.n{font-size:92px;font-weight:800;letter-spacing:-2px}.w{font-size:34px;font-weight:700}.what{font-size:25px;font-weight:600}
+.lab{font-size:22px;font-weight:700}.v{font-size:22px;font-weight:700;font-family:ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme: dark){.bg{fill:#161b22;stroke:#30363d}.t{fill:#e6edf3}.m{fill:#8d96a0}.track{fill:#21262d}.git{fill:#545d68}.ty{fill:#7fc496}.big{fill:#7fc496}}
+</style>
+<rect class="bg" x="1" y="1" width="638" height="278" rx="18"/>
+<text class="big" x="28" y="104"><tspan class="n">111 → 0</tspan><tspan class="w" dx="16"></tspan></text>
+<text class="m what" x="32" y="146">changes thrown away · 16 agents</text>
+<text class="t lab" x="32" y="197">git</text>
+<rect class="track" x="150" y="172" width="340" height="34" rx="6"/>
+<rect class="git" x="150" y="172" width="340.0" height="34" rx="6">
+  <animate attributeName="width" values="340.0;340.0;0;340.0;340.0" keyTimes="0;0.250;0.251;0.952;1" dur="6.0s" repeatCount="indefinite"/>
+</rect>
+<text class="t v" x="502.0" y="197">111
+  <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.250;0.251;0.952;1" dur="6.0s" repeatCount="indefinite"/>
+</text>
+<text class="t lab" x="32" y="247">TreeYard</text>
+<rect class="track" x="150" y="222" width="340" height="34" rx="6"/>
+<rect class="ty" x="150" y="222" width="6.0" height="34" rx="6">
+  <animate attributeName="width" values="6.0;6.0;0;6.0;6.0" keyTimes="0;0.250;0.251;0.256;1" dur="6.0s" repeatCount="indefinite"/>
+</rect>
+<text class="t v" x="168.0" y="247">0
+  <animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.250;0.251;0.256;1" dur="6.0s" repeatCount="indefinite"/>
+</text>
+</svg>

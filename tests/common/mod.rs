@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use treeyard::repo::Repo;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 /// Runs git in `dir` with a fixed identity; panics on failure.
 pub fn git(dir: &Path, args: &[&str]) -> String {

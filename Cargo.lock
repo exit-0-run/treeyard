@@ -1073,45 +1073,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "treeyard"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "clap",
- "diffy",
- "flate2",
- "futures-util",
- "globset",
- "hex",
- "ignore",
- "im",
- "libc",
- "notify",
- "rand",
- "regex",
- "regex-syntax",
- "rusqlite",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
- "streaming-iterator",
- "tempfile",
- "tokio",
- "tokio-util",
- "toml",
- "tree-sitter",
- "tree-sitter-go",
- "tree-sitter-javascript",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-typescript",
- "ureq",
-]
-
-[[package]]
 name = "rusqlite"
 version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1624,6 +1585,45 @@ checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
 dependencies = [
  "cc",
  "tree-sitter-language",
+]
+
+[[package]]
+name = "treeyard"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "clap",
+ "diffy",
+ "flate2",
+ "futures-util",
+ "globset",
+ "hex",
+ "ignore",
+ "im",
+ "libc",
+ "notify",
+ "rand",
+ "regex",
+ "regex-syntax",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "streaming-iterator",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tree-sitter",
+ "tree-sitter-go",
+ "tree-sitter-javascript",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+ "ureq",
 ]
 
 [[package]]

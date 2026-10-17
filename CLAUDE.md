@@ -1,7 +1,6 @@
 # treeyard — working notes
 
-Version control server for agent swarms (Rust, single binary). Product docs, plan and state live in
-`~/appnice-apps/projects/treeyard/`.
+Version control server for agent swarms (Rust, single binary). Notes for coding agents working on this repo.
 
 ## Commands
 
@@ -96,5 +95,5 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   files and `dir/` keys. Bump `INDEX_VERSION` in history.rs when rows change meaning.
 - `rpc::call` runs as `Caller::internal()`; HTTP uses `call_as` with the token's caller. Writes and
   denials write an audit row inside the same `Repo::with`. Never put a token secret in a row or a log.
-- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM". Product name TreeYard in docs; binary, crate, commands stay `treeyard` until the rename.
-- Never add `.github/workflows/` (no GitHub Actions on appnice repos). Commit author: 320388883+exit0-run@users.noreply.github.com.
+- README: race GIF and hero cards on top (`assets/hero/make.py`, `make_gif.py`), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM".
+- No `.github/workflows/`: checks run locally with `make check`.

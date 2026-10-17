@@ -5,10 +5,10 @@
 mod common;
 
 use common::*;
-use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
+use treeyard::repo::Repo;
 
 fn write(dir: &Path, path: &str, body: &str) {
     let p = dir.join(path);

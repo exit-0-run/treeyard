@@ -17,17 +17,18 @@
 <h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
 
 <p align="center">
-  <a href="#benchmarks"><img src="assets/results.svg" alt="TreeYard vs plain git worktrees: 57x faster workspaces, 161x less disk, 13x faster on astro, 43x faster blame, 111 to 0 thrown-away changes, no queue wait" width="900"></a>
+  <img src="assets/hero/treeyard-race.gif" alt="TreeYard vs plain git worktrees: 50 workspaces 57x faster, 161x less disk, blame 43x faster, thrown-away changes 111 to 0" width="900">
 </p>
 
-<p align="center"><b>Also:</b> 98% to 100% of merge conflicts reported before land, not at merge time · 8× faster grep on a 15 311-file repo · 1 binary, git underneath</p>
+<p align="center"><b>Also:</b> land a change in 3 ms with no merge queue* · 99–100% of conflicts reported before land · 8× faster grep · 1 binary, git underneath</p>
+
+<p align="center"><sub>Measured on 15-core CPU, 48 GB RAM, one run per configuration. * Land time excludes CI: tests run on main
+after land, or in a tested queue. 111 → 0 is an upper bound: the replay declares the exact paths of each change.</sub></p>
 
 Your agents are fast. Git makes them wait. TreeYard is a self-hosted version control server for 10
 to 200 AI coding agents on one repository. Agents get a workspace in about a second, see each
 other's edits while they work, and land in milliseconds. Git stays the source of truth, so people
 keep `git clone`, `git pull`, `git push` and GitHub.
-
-The binary is still named `treeyard` in v0.1. The rename to `treeyard` comes next.
 
 ## The pains
 
@@ -44,8 +45,8 @@ What hurts when many agents work on one repository with `git worktree` (sources:
 
 ## What TreeYard does about them
 
-- **See conflicts while you work.** Each `apply` runs a trial merge against every other open
-  change and reports `conflict` or `overlap` with line ranges. Agents declare intents (paths,
+- **See conflicts while you work.** Each `apply` lands every pair of open changes on today's main, in
+  both orders, without storing anything, and reports `conflict` (with the reason) or `overlap` with line ranges. Agents declare intents (paths,
   symbols) and get overlaps at `open_change`. Events stream to every agent.
 - **Lose nothing.** A change keeps every revision on the server. A workspace syncs to its change
   about 300 ms after each edit. Removing the directory keeps the change.
@@ -92,6 +93,14 @@ the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-g
 
 ## Benchmarks
 
+<p align="center">
+  <img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640">
+  <img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640">
+  <img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640">
+  <img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640">
+  <img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640">
+</p>
+
 > **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
 > go `dfc6f7db9bd7`, linux `58161ead29e5`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
@@ -117,8 +126,8 @@ Limits of these numbers:
 - TreeYard land time does not include CI. To run tests, set `landing.mode` to `queue` or `optimistic`.
 - The replay declares the exact paths of each commit. Real agents guess, so 0 thrown-away changes is an
   upper bound.
-- Overlap warnings have a precision of 0.40 to 0.54. About half the warnings are for changes that merge
-  without a conflict.
+- Conflict warnings catch 99 % to 100 % of real conflicts, and 72 % to 90 % of warned pairs really
+  conflict. The other warnings are false alarms.
 - With 50 agents on stale bases and no intents, the final tree is different from the history. A merge
   cannot see that a fix landed before the bug it fixes.
 - All agents in these measurements are scripts. No Claude Code, Codex or OpenCode session ran.

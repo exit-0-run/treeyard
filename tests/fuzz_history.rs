@@ -14,11 +14,11 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
 use common::*;
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
-use treeyard::repo::Repo;
-use treeyard::rpc;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::Path;
+use treeyard::repo::Repo;
+use treeyard::rpc;
 
 const DIRS: &[&str] = &["a", "b", "src", "deep", "x y", "ünï"];
 const NAMES: &[&str] = &["one.txt", "two.rs", "data.bin", "empty", "run.sh", "link", "crlf.txt", "nonl.txt"];

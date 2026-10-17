@@ -71,7 +71,7 @@ footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px;font-si
     <div class="card"><div class="big">0.91 ms</div><div class="what">land p50 on linux (96&nbsp;080 files)</div>
       <div class="vs">vs 183.7&ndash;201.14 ms for commit + merge-tree in plain git; no CI on the land path</div></div>
   </div>
-  <p class="note">One machine: 15-core ARM64 CPU, 48 GB RAM, APFS, macOS 26.6, 2026-10-17. Commands and raw data:
+  <p class="note">Measured on 15-core CPU, 48 GB RAM. Commands and raw data:
   <a href="../docs/benchmarks.md">docs/benchmarks.md</a>.</p>
 </section>
 
@@ -114,7 +114,7 @@ TreeYard reports them before anyone lands. Method and four more runs: <a href=".
 <div class="grid">
   <div class="card"><div class="what">Changes, not branches</div><div class="vs">An agent opens a change (one row), applies edits, and lands. Stable ids; every revision kept.</div></div>
   <div class="card"><div class="what">Conflicts as tasks</div><div class="vs">The server rebases and merges on land. A conflict returns base, ours, theirs and who changed the path.</div></div>
-  <div class="card"><div class="what">Live collisions</div><div class="vs">Every apply runs a trial merge against other open changes. Intents and events warn before land.</div></div>
+  <div class="card"><div class="what">Live collisions</div><div class="vs">Every apply lands each pair of open changes on today's main, both orders, and says why they would conflict. Intents and events warn before land.</div></div>
   <div class="card"><div class="what">Copy-on-write workspaces</div><div class="vs">A clone of a built base, with <code>target/</code> or <code>node_modules</code> as a layer. Synced to the change after each edit.</div></div>
   <div class="card"><div class="what">Git underneath</div><div class="vs">Each land is one deterministic git commit. People clone, pull and push; mirror to GitHub.</div></div>
   <div class="card"><div class="what">One API, three doors</div><div class="vs">HTTP, MCP (Claude Code, Codex, OpenCode) and the CLI share one operation table.</div></div>
@@ -131,8 +131,8 @@ Versus worktrees, GitButler, jj and merge queues: <a href="../docs/comparison.md
 <h2>Honest limits</h2>
 <ul>
   <li>Land times do not include CI. Use the <code>queue</code> or <code>optimistic</code> landing mode to test.</li>
-  <li>Overlap warnings have a precision of 0.40 to 0.54: about half of them are for changes that merge cleanly.</li>
-  <li>v0.1 is one node. No TLS and no token expiry yet. The binary is still named <code>treeyard</code>.</li>
+  <li>Conflict warnings catch 99 % to 100 % of real conflicts; 72 % to 90 % of warned pairs really conflict.</li>
+  <li>v0.1 is one node. No TLS and no token expiry yet.</li>
   <li>Every agent in these numbers is a script. No Claude Code, Codex or OpenCode session ran.</li>
 </ul>
 

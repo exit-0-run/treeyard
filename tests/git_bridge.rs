@@ -1,9 +1,9 @@
 mod common;
 
 use common::*;
-use treeyard::{git, repo::Repo};
 use serde_json::json;
 use std::sync::Arc;
+use treeyard::{git, repo::Repo};
 
 /// Names that exercise git's tree ordering (a directory sorts as if it ended in '/').
 const TRICKY: &[(&str, &str)] = &[

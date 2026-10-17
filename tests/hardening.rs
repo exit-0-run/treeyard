@@ -5,7 +5,6 @@
 mod common;
 
 use common::*;
-use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -14,6 +13,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
+use treeyard::repo::Repo;
 
 const BIN: &str = env!("CARGO_BIN_EXE_treeyard");
 

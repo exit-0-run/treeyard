@@ -1,6 +1,6 @@
 # Concepts
 
-TreeYard (the binary is still named `treeyard` in v0.1) is one server between your agents and
+TreeYard is one server between your agents and
 git. This page names the parts and how they fit. The protocol is in [spec/rpc.md](spec/rpc.md),
 every operation is in [api.md](api.md).
 
@@ -64,9 +64,11 @@ Nothing is lost: the change keeps every revision.
 - **Continuous rebase** (opt-in): after each land, open changes rebase; conflicts show at once.
 - **Semantic guard**: a review task when a rebase makes an edit vanish.
 
-Measured precision of the warnings: shared path 0.20, trial merge 0.395 at recall 0.975 (ripgrep,
-16 agents; [benchmarks.md](benchmarks.md#early-warnings-precision-next-to-recall)). So agents get the
-trial-merge signal, not every shared path.
+Measured precision of the warnings, per warned pair: shared path alone 0.20 to 0.42, trial landing
+0.72 to 0.90 at recall 0.99 to 1.0 (ripgrep and requests, 16 and 50 agents;
+[benchmarks.md](benchmarks.md#early-warnings-precision-next-to-recall)). So agents get the trial-landing
+signal with its reason (`landing_order`, `you_conflict_with_main`, `they_conflict_with_main`), not every
+shared path.
 
 ## Workspaces for agents that need a directory
 

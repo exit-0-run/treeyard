@@ -4,12 +4,12 @@
 mod common;
 
 use common::*;
-use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::io::BufRead;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use treeyard::repo::Repo;
 
 /// A fixture repo (f00..f03.txt, 30 lines each, plus `extra`) served with `config` as its
 /// treeyard.toml.
@@ -108,6 +108,7 @@ fn b_live_collisions_trial_merge_and_events() {
     let col = &r["collisions"][0];
     assert_eq!(col["change"], a.as_str());
     assert_eq!(col["kind"], "conflict", "{r}");
+    assert_eq!(col["files"][0]["reason"], "landing_order", "{r}");
     assert_eq!(col["files"][0]["hunks"]["mine"], json!([[6, 7]]));
     assert_eq!(col["files"][0]["hunks"]["theirs"], json!([[6, 7]]));
 
@@ -154,6 +155,30 @@ fn b_live_collisions_trial_merge_and_events() {
     let (took, r) = waiter.join().unwrap();
     assert!(took < Duration::from_secs(5), "{took:?}");
     assert_eq!(r["events"][0]["changes"], json!([a]));
+}
+
+#[test]
+fn b_collision_names_the_side_that_already_conflicts_with_main() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_repo, url) = setup(tmp.path(), "", &[]);
+    let base = read(&url, "f00.txt", "main");
+    // a starts on the old main; x then changes the same line and lands; b starts on the new main.
+    let a = id(&open(&url, "a", json!({})));
+    let x = id(&open(&url, "x", json!({})));
+    write(&url, &x, "f00.txt", &set_line(&base, 5, "X was here"));
+    assert_eq!(call(&url, "land", json!({"change": x}))["status"], "landed");
+    let now = read(&url, "f00.txt", "main");
+    let b = id(&open(&url, "b", json!({})));
+    write(&url, &a, "f00.txt", &set_line(&base, 5, "A was here"));
+    // b edits a line far away: the pair would merge either way, but a cannot land on main.
+    let r = write(&url, &b, "f00.txt", &set_line(&now, 25, "B was here"));
+    let f = &r["collisions"][0]["files"][0];
+    assert_eq!((&f["kind"], &f["reason"]), (&json!("conflict"), &json!("they_conflict_with_main")), "{r}");
+    let r = write(&url, &a, "f01.txt", "touch\n");
+    let f = &r["collisions"][0]["files"][0];
+    assert_eq!((&f["path"], &f["reason"]), (&json!("f00.txt"), &json!("you_conflict_with_main")), "{r}");
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "conflict");
 }
 
 #[test]
