@@ -55,6 +55,10 @@ pub fn run(node: &Node, o: &Options, stop: Arc<AtomicBool>, log: &mut dyn FnMut(
     })?;
     watcher.watch(&ws_root, RecursiveMode::Recursive)?;
     log(json!({"daemon": "watching", "dir": ws_root}).to_string());
+    let finished = node.finish_removes()?;
+    if !finished.is_empty() {
+        log(json!({"daemon": "finished_removes", "workspaces": finished}).to_string());
+    }
     // The warm pool fills in its own thread, so a slow clone never delays a sync.
     let pool = (o.spares > 0).then(|| {
         let (home, url, count, stop) = (node.home.clone(), node.url.clone(), o.spares, stop.clone());

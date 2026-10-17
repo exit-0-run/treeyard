@@ -730,15 +730,34 @@ impl Node {
         Ok(out)
     }
 
-    /// Removes the workspace directory and its record; `abandon` also drops the change.
-    pub fn remove(&self, name: &str, abandon: bool) -> Result<Value> {
+    /// Removes a workspace without losing work. Under the workspace lock it syncs first, so an
+    /// edit the daemon has not sent yet still reaches the change; if that sync fails, nothing is
+    /// deleted unless `force`. `abandon` drops the change instead (no sync then). The record is
+    /// marked `removing` before the directory goes, so `finish_removes` can end a remove that a
+    /// crash cut short. Only a directory under `<home>/ws` is ever deleted.
+    pub fn remove(&self, name: &str, abandon: bool, force: bool) -> Result<Value> {
         let ws = self.get(name)?;
-        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
-        if ws.strategy == Strategy::Overlay {
-            cow::overlay_unmount(&ws.dir)?;
-        } else {
-            cow::remove_tree(&ws.dir)?;
+        if !ws.dir.starts_with(self.home.join("ws")) {
+            bail!(
+                "refusing to delete {}: a workspace lives under {}",
+                ws.dir.display(),
+                self.home.join("ws").display()
+            );
         }
+        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        let mut synced = Value::Null;
+        if !abandon && ws.dir.exists() {
+            match self.sync_locked(name, &ws) {
+                Ok(s) => synced = s,
+                Err(e) if force => synced = json!({"error": format!("{e:#}")}),
+                Err(e) => bail!(
+                    "could not send the last edits of workspace {name:?} to its change ({e:#}); nothing was deleted. \
+                     Retry when the server answers, or pass --force to delete the edits"
+                ),
+            }
+        }
+        fs::write(self.removing_path(name), b"")?;
+        self.delete_files(&ws)?;
         let mut abandoned = false;
         if abandon {
             let st = self.call("change", json!({"change": ws.change}))?;
@@ -747,16 +766,57 @@ impl Node {
                 abandoned = true;
             }
         }
+        self.forget(name)?;
+        Ok(json!({"removed": name, "change": ws.change, "abandoned": abandoned, "synced": synced}))
+    }
+
+    fn removing_path(&self, name: &str) -> PathBuf {
+        self.home.join("meta").join(format!("{name}.removing"))
+    }
+
+    fn delete_files(&self, ws: &Workspace) -> Result<()> {
+        if ws.strategy == Strategy::Overlay { cow::overlay_unmount(&ws.dir) } else { cow::remove_tree(&ws.dir) }
+    }
+
+    fn forget(&self, name: &str) -> Result<()> {
         let _ = fs::remove_file(self.state_path(name));
-        fs::remove_file(self.meta_path(name))?;
-        Ok(json!({"removed": name, "change": ws.change, "abandoned": abandoned}))
+        let _ = fs::remove_file(self.meta_path(name));
+        let _ = fs::remove_file(self.removing_path(name));
+        Ok(())
+    }
+
+    /// Ends removes that a crash cut short (a `removing` mark is left); returns their names.
+    pub fn finish_removes(&self) -> Result<Vec<String>> {
+        let mut done = Vec::new();
+        let Ok(rd) = fs::read_dir(self.home.join("meta")) else { return Ok(done) };
+        for e in rd {
+            let p = e?.path();
+            let Some(name) = p.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".removing")) else {
+                continue;
+            };
+            let name = name.to_string();
+            let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+            if let Ok(ws) = self.get(&name)
+                && ws.dir.starts_with(self.home.join("ws"))
+            {
+                self.delete_files(&ws)?;
+            }
+            self.forget(&name)?;
+            done.push(name);
+        }
+        Ok(done)
     }
 
     /// Sends every file that differs from the last sync as one new changeset of the change.
     pub fn sync(&self, name: &str) -> Result<Value> {
-        let t0 = Instant::now();
         let ws = self.get(name)?;
         let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        self.sync_locked(name, &ws)
+    }
+
+    /// `sync` for a caller that holds the workspace lock.
+    fn sync_locked(&self, name: &str, ws: &Workspace) -> Result<Value> {
+        let t0 = Instant::now();
         let mut state: State = read_json(&self.state_path(name))?;
         let layer_dirs: BTreeSet<String> =
             ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();

@@ -30,6 +30,10 @@ treeyard workspace remove fix-1
 6. `sync` (by hand, after `exec`, or from the daemon) sends every file that differs from the last sync as
    one new changeset of the same change. The server sees each agent's work live, and `apply` returns the
    `overlaps` with other open changes (also written to `.treeyard/overlaps.json`).
+7. `remove` syncs first, under the workspace lock, so an edit that the daemon has not sent yet still
+   reaches the change. When that sync fails (for example the server is down), nothing is deleted unless
+   `--force`. `--abandon` drops the change instead. The record is marked `removing` before the directory
+   goes; `treeyard daemon` finishes such a remove at start. Only a directory under `ws/` is deleted.
 
 ## Clone strategies (`--strategy`)
 

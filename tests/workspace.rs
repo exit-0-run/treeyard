@@ -92,10 +92,42 @@ fn create_snapshot_and_remove() {
     let landed = node.land("a").unwrap();
     assert_eq!(landed["land"]["status"], "landed", "{landed}");
     assert!(read_at(&url, "main", "src/new.rs")["content"].is_string());
-    let r = node.remove("b", true).unwrap();
+    let r = node.remove("b", true, false).unwrap();
     assert_eq!(r["abandoned"], true);
     assert!(!b.dir.exists());
-    node.remove("a", false).unwrap();
+    node.remove("a", false, false).unwrap();
+    assert!(node.list().unwrap().is_empty());
+}
+
+#[test]
+fn remove_sends_unsent_edits_and_keeps_them_when_it_cannot() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let node = Node::new(tmp.path().join("node"), &url);
+
+    // An edit that no sync has sent yet reaches the change before the directory goes.
+    let (a, _) = node.create(&opts("a")).unwrap();
+    fs::write(a.dir.join("f01.txt"), "last edit\n").unwrap();
+    let r = node.remove("a", false, false).unwrap();
+    assert_eq!(r["synced"]["changesets"], 1, "{r}");
+    assert!(!a.dir.exists());
+    assert_eq!(read_at(&url, &a.change, "f01.txt")["content"], "last edit\n");
+
+    // No server: nothing is deleted without --force.
+    let (b, _) = node.create(&opts("b")).unwrap();
+    fs::write(b.dir.join("f01.txt"), "unsent\n").unwrap();
+    let offline = Node::new(tmp.path().join("node"), "http://127.0.0.1:9");
+    let e = offline.remove("b", false, false).unwrap_err().to_string();
+    assert!(e.contains("nothing was deleted"), "{e}");
+    assert_eq!(fs::read_to_string(b.dir.join("f01.txt")).unwrap(), "unsent\n");
+    assert!(offline.remove("b", false, true).unwrap()["synced"]["error"].is_string());
+    assert!(!b.dir.exists());
+
+    // A remove cut short (its mark left behind) is finished later.
+    let (c, _) = node.create(&opts("c")).unwrap();
+    fs::write(tmp.path().join("node/meta/c.removing"), "").unwrap();
+    assert_eq!(node.finish_removes().unwrap(), vec!["c".to_string()]);
+    assert!(!c.dir.exists());
     assert!(node.list().unwrap().is_empty());
 }
 
@@ -127,7 +159,7 @@ fn every_clone_strategy_makes_a_working_workspace() {
         // The shared base did not change.
         let base = node.home.join("bases").join(&ws.base).join("f00.txt");
         assert!(!fs::read_to_string(base).unwrap().contains("LINE THREE"), "{s:?} wrote through to the base");
-        node.remove(&name, true).unwrap();
+        node.remove(&name, true, false).unwrap();
     }
 }
 
@@ -184,7 +216,7 @@ fn env_file_and_port_blocks() {
     assert!(env.contains("PORT=41010\n"), "{env}");
     assert!(env.contains(&format!("TREEYARD_CHANGE={}\n", b.change)));
     // A freed slot is reused.
-    node.remove("a", true).unwrap();
+    node.remove("a", true, false).unwrap();
     let (c, _) = node.create(&opts("c")).unwrap();
     assert_eq!(c.ports.0, 41000);
 }
@@ -308,7 +340,7 @@ fn overlay_workspace_when_root() {
     assert!(tmp.path().join("node/ws/ov.upper/f00.txt").exists());
     let base = node.home.join("bases").join(&ws.base).join("f00.txt");
     assert!(fs::read_to_string(base).unwrap().starts_with("file 0 line 0"));
-    node.remove("ov", true).unwrap();
+    node.remove("ov", true, false).unwrap();
     assert!(!ws.dir.exists());
 }
 

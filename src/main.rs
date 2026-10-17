@@ -238,11 +238,14 @@ enum WsCmd {
         #[arg(trailing_var_arg = true, required = true)]
         cmd: Vec<String>,
     },
-    /// Delete the workspace directory (and with --abandon, its open change).
+    /// Send the last edits to the change, then delete the workspace directory. With --abandon the
+    /// open change is dropped instead. Refuses when the edits cannot be sent, unless --force.
     Remove {
         name: String,
         #[arg(long)]
         abandon: bool,
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -298,7 +301,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             eprintln!("{}", serde_json::to_string(&sync)?);
             std::process::exit(status.code().unwrap_or(1));
         }
-        WsCmd::Remove { name, abandon } => print(&node.remove(&name, abandon)?)?,
+        WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())
 }
