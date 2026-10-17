@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Phase-0 baseline: what plain git worktrees cost a swarm of N agents, next to Rootstock.
+"""Phase-0 baseline: what plain git worktrees cost a swarm of N agents, next to TreeYard.
 
 Stdlib only. Every subcommand prints one JSON document and also writes it to <out>/<name>.json.
 
   workspaces  time and disk to make N ready workspaces (git worktree add + dependency setup)
   conflicts   late conflicts: real history replayed in waves of N agents, merged with git merge-tree
   queue       a serial merge queue: N changes arrive at once, each runs the repo's CI in turn
-  rootstock   the same agents on the Rootstock API: init, N agents open a change and read, replay
-  cow         Rootstock workspaces: N copy-on-write workspaces with a shared dependency layer
+  treeyard   the same agents on the TreeYard API: init, N agents open a change and read, replay
+  cow         TreeYard workspaces: N copy-on-write workspaces with a shared dependency layer
 
 Sources are pinned (REPOS). `fetch` clones them into <oss> when missing; worktrees are made from
 a local clone in <dir>/src/<repo>, so the clones in <oss> stay untouched.
@@ -162,7 +162,7 @@ def seed(args, name):
     """A worktree with dependencies installed once (warms the caches; reused by warm setups)."""
     src, spec = source(args, name)
     s = Path(args.dir) / "seed" / name
-    if not (s / ".rootstock-bench-seeded").exists():
+    if not (s / ".treeyard-bench-seeded").exists():
         if s.exists():
             shutil.rmtree(s)
             git(src, "worktree", "prune")
@@ -171,8 +171,8 @@ def seed(args, name):
         t = time.monotonic()
         for step in spec["seed"]:
             sh(step, cwd=s)
-        (s / ".rootstock-bench-seeded").write_text(f"{time.monotonic() - t:.2f}\n")
-    return s, float((s / ".rootstock-bench-seeded").read_text())
+        (s / ".treeyard-bench-seeded").write_text(f"{time.monotonic() - t:.2f}\n")
+    return s, float((s / ".treeyard-bench-seeded").read_text())
 
 
 def run_step(step, ws, seed_dir):
@@ -291,7 +291,7 @@ class Git:
 def replay_git(g, commits, agents, seed):
     """Worktree model: each agent works on its commit's true parent, unaware of the others; the
     wave lands in random order through git; a conflict is seen only at merge time, thrown away and
-    redone on the newer main. Mirrors `rootstock replay` (src/replay.rs), with git as the merger."""
+    redone on the newer main. Mirrors `treeyard replay` (src/replay.rs), with git as the merger."""
     rng = random.Random(seed)
     parent = {c: p for p, c in zip(commits, commits[1:])}
     main = commits[0]
@@ -433,7 +433,7 @@ def cmd_queue(args):
                                       "from": commits[0], "ci_each_s": [round(x, 2) for x in ci], "runs": runs})
 
 
-# ---- rootstock -------------------------------------------------------------------------------
+# ---- treeyard -------------------------------------------------------------------------------
 
 def post(url, op, body):
     req = urllib.request.Request(f"{url}/api/{op}", data=json.dumps(body).encode(),
@@ -460,7 +460,7 @@ def rss_mb(pid):
     return round(int(sh(["ps", "-o", "rss=", "-p", str(pid)]).strip() or 0) / 1024, 1)
 
 
-def cmd_rootstock(args):
+def cmd_treeyard(args):
     src, spec = source(args, args.repo)
     binary = Path(args.bin).resolve()
     data = Path(args.dir) / "rs" / args.repo
@@ -532,10 +532,10 @@ def cmd_rootstock(args):
               file=sys.stderr)
         shutil.rmtree(rdata)
     result["replay"] = replays
-    emit(args, f"rootstock-{args.repo}", result)
+    emit(args, f"treeyard-{args.repo}", result)
 
 
-# ---- rootstock workspaces --------------------------------------------------------------------
+# ---- treeyard workspaces --------------------------------------------------------------------
 
 def serve(binary, data):
     port = free_port()
@@ -555,7 +555,7 @@ def serve(binary, data):
 
 
 def cmd_cow(args):
-    """N Rootstock workspaces next to the worktree baseline: the first one builds the dependency
+    """N TreeYard workspaces next to the worktree baseline: the first one builds the dependency
     layer (not counted), then N more are made at once (at most --jobs), with the setup command
     (`build`: ready to build and test) and without it (`files`: files plus the layer clone).
     Each new workspace then edits one tracked file and syncs it to the server."""
@@ -570,7 +570,7 @@ def cmd_cow(args):
     data, home = root / "data", root / "node"
     sh([str(binary), "init", "--data", str(data), "--from", str(src), "--branch", "bench-base"])
     proc, url = serve(binary, data)
-    env = {**os.environ, "ROOTSTOCK_URL": url, "ROOTSTOCK_HOME": str(home)}
+    env = {**os.environ, "TREEYARD_URL": url, "TREEYARD_HOME": str(home)}
     layer = ["--layer", cow["layer"]] if cow.get("layer") else ["--no-layers"]
 
     def create(name, setup):
@@ -603,7 +603,7 @@ def cmd_cow(args):
                 names = [f"{mode}-{n}-{i:02}" for i in range(n)]
                 fill_s = None
                 if mode.startswith("spare"):
-                    # The warm pool (what `rootstock daemon --spares N` keeps): filled first, not counted.
+                    # The warm pool (what `treeyard daemon --spares N` keeps): filled first, not counted.
                     t = time.monotonic()
                     sh([str(binary), "workspace", "spare", "--count", str(n), *layer], env=env)
                     fill_s = round(time.monotonic() - t, 2)
@@ -717,13 +717,13 @@ def cmd_report(args):
              round(r["df_delta_mb"] / r["n"], 1), r.get("pool_fill_s") or "", r.get("remove_wall_s", "")]
             for k, d in res.items() if k.startswith("cow-") for r in d["runs"]]
     if rows:
-        parts.append("### Rootstock workspaces (copy-on-write clone + dependency layer)\n\n" + table(
+        parts.append("### TreeYard workspaces (copy-on-write clone + dependency layer)\n\n" + table(
             ["repo", "mode", "N", "jobs", "wall s", "per ws p50 s", "per ws p95 s", "clone p50 s", "layer p50 s",
              "setup p50 s", "sync p50 s", "layer reused", "du per ws MB", "df delta MB", "df per ws MB",
              "pool fill s (not counted)", "remove all s"], rows))
     rows, rrows = [], []
     for k, d in res.items():
-        if k.startswith("rootstock-"):
+        if k.startswith("treeyard-"):
             for r in d["agents"]:
                 rows.append([d["repo"], d["init_s"], d["data_mb"], d["files"], r["n"], r["wall_s"],
                              r["open_change_s"]["p50"], r["ready_s"]["p50"], r["ready_s"]["p95"], r["df_delta_mb"],
@@ -735,11 +735,11 @@ def cmd_report(args):
                               round(r["land_ms"]["p50"], 2), round(r["land_ms"]["p95"], 2), round(r["land_ms"]["max"], 2),
                               g.get("same_tree"), len(g.get("server_clean_git_conflict", [])), g.get("server_conflict_git_clean")])
     if rows:
-        parts.append("### Rootstock API agents (no workspace)\n\n" + table(
+        parts.append("### TreeYard API agents (no workspace)\n\n" + table(
             ["repo", "init s", "data MB", "files", "N", "wall s", "open_change p50 s", "ready p50 s", "ready p95 s",
              "df delta MB", "server RSS MB"], rows))
     if rrows:
-        parts.append("### Rootstock replay (seed 1)\n\n" + table(
+        parts.append("### TreeYard replay (seed 1)\n\n" + table(
             ["repo", "commits", "agents", "first conflicts", "flagged by overlaps", "redone", "forced", "faithful waves",
              "final tree equal", "land p50 ms", "land p95 ms", "land max ms", "merges same tree as git",
              "server clean, git conflict", "server conflict, git clean"], rrows))
@@ -761,8 +761,8 @@ def cmd_fetch(args):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--dir", default=os.environ.get("BENCH_DIR", "/tmp/rootstock-bench"),
-                    help="scratch: clones, seeds, workspaces (default $BENCH_DIR or /tmp/rootstock-bench)")
+    ap.add_argument("--dir", default=os.environ.get("BENCH_DIR", "/tmp/treeyard-bench"),
+                    help="scratch: clones, seeds, workspaces (default $BENCH_DIR or /tmp/treeyard-bench)")
     ap.add_argument("--oss", default=os.environ.get("BENCH_OSS"), help="where pinned repos are cloned (default <dir>/oss)")
     ap.add_argument("--out", default=None, help="result JSON dir (default <dir>/results)")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -782,9 +782,9 @@ def main(argv=None):
     q = sub.add_parser("queue")
     q.add_argument("--repo", choices=REPOS, required=True)
     q.add_argument("--n", default="1,10,50")
-    r = sub.add_parser("rootstock")
+    r = sub.add_parser("treeyard")
     r.add_argument("--repo", choices=REPOS, required=True)
-    r.add_argument("--bin", default="target/release/rootstock")
+    r.add_argument("--bin", default="target/release/treeyard")
     r.add_argument("--n", default="1,10,50")
     r.add_argument("--jobs", type=int, default=50)
     r.add_argument("--agents", default="1,10,50", help="replay agent counts ('' to skip replay)")
@@ -796,7 +796,7 @@ def main(argv=None):
     h.add_argument("--n", default="1,10,50")
     k = sub.add_parser("cow")
     k.add_argument("--repo", choices=REPOS, required=True)
-    k.add_argument("--bin", default="target/release/rootstock")
+    k.add_argument("--bin", default="target/release/treeyard")
     k.add_argument("--n", default="1,10,50")
     k.add_argument("--modes", default="files,build,spare-files,spare-build",
                    help="files (no setup), build (setup command); spare-*: the same from a warm pool")
@@ -807,7 +807,7 @@ def main(argv=None):
     args.oss = args.oss or str(Path(args.dir) / "oss")
     args.out = args.out or str(Path(args.dir) / "results")
     {"fetch": cmd_fetch, "workspaces": cmd_workspaces, "conflicts": cmd_conflicts, "queue": cmd_queue,
-     "rootstock": cmd_rootstock, "cow": cmd_cow, "history": cmd_history, "report": cmd_report}[args.cmd](args)
+     "treeyard": cmd_treeyard, "cow": cmd_cow, "history": cmd_history, "report": cmd_report}[args.cmd](args)
 
 
 if __name__ == "__main__":

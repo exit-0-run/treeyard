@@ -1,7 +1,7 @@
-# rootstock — working notes
+# treeyard — working notes
 
 Version control server for agent swarms (Rust, single binary). Product docs, plan and state live in
-`~/appnice-apps/projects/rootstock/`.
+`~/appnice-apps/projects/treeyard/`.
 
 ## Commands
 
@@ -10,23 +10,23 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
-- Run: `rootstock init --data D --from REPO [--history N]`, `rootstock serve --data D`, `rootstock call <op> '<json>'`,
-  `rootstock mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `rootstock mirror --data D --remote URL`.
-- Workspaces (node side, `ROOTSTOCK_HOME`, default `~/.rootstock`): `rootstock workspace create NAME
+- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`,
+  `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`.
+- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK]`, `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`, `remove
-  [--abandon]`; `rootstock daemon` syncs every workspace after edits settle. `make bench-cow`.
-- Coordination (docs/coordination.md): `<data>/rootstock.toml` (template written by `init`).
-  `rootstock replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
+  [--abandon]`; `treeyard daemon` syncs every workspace after edits settle. `make bench-cow`.
+- Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
+  `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.
-- Derived data and IAM (docs/derived.md, docs/access.md): `rootstock token create --data D --name N
-  [--admin] [--read G] [--write G]`; clients send `ROOTSTOCK_TOKEN`. `python3 bench/derived.py --repo
+- Derived data and IAM (docs/derived.md, docs/access.md): `treeyard token create --data D --name N
+  [--admin] [--read G] [--write G]`; clients send `TREEYARD_TOKEN`. `python3 bench/derived.py --repo
   CLONE --dir SCRATCH [--history N] [--only blame,log,grep,symbols,bisect,land]`. Real-repo checks
-  (ignored): `cargo test --release --test derived --test xdiff_git -- --ignored` (`ROOTSTOCK_REAL_REPO`).
-- Hardening (SECURITY.md): `ROOTSTOCK_FUZZ_SEEDS=300 cargo test --test fuzz_history` (default 12 seeds);
+  (ignored): `cargo test --release --test derived --test xdiff_git -- --ignored` (`TREEYARD_REAL_REPO`).
+- Hardening (SECURITY.md): `TREEYARD_FUZZ_SEEDS=300 cargo test --test fuzz_history` (default 12 seeds);
   `python3 bench/scale.py --repo CLONE --dir SCRATCH --tag T [--history N] [--git]`; `bench/grep_stall.py` (docs/benchmarks.md).
 - Release and docs: `sh scripts/dist.sh` (dist/ + SHA256SUMS + install.sh; Linux musl needs cargo-zigbuild and zig on
   PATH, docs/install.md); `sh scripts/check-quickstart.sh docs/quickstart.md|README.md [--write]` (runs ```sh blocks in
-  an empty dir); `examples/swarm-demo.sh --agents N [--pairs P]`; `rootstock api-doc > docs/api.md`;
+  an empty dir); `examples/swarm-demo.sh --agents N [--pairs P]`; `treeyard api-doc > docs/api.md`;
   `python3 scripts/demo-svg.py assets/demo.txt > assets/demo.svg`. `tests/docs.rs` fails when any of these is stale.
 
 ## Layout
@@ -40,14 +40,14 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 | `src/safety.rs`, `src/failpoint.rs` | path/size limits, hostile trees, no write through a symlink, loopback check; crash points |
 | `src/repo.rs` | changes, rebase, land, revert, export, read queries |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
-| `src/config.rs` | `rootstock.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
+| `src/config.rs` | `treeyard.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
 | `src/coord.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews |
 | `src/drivers.rs` | merge drivers: union, Cargo.lock per package, mergiraf; regenerate is in `repo.rs` |
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
 | `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP, CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror` |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
 | `src/workspace.rs`, `src/daemon.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon |
-| `src/replay.rs` | `rootstock replay`: real history in waves of N agents, stale or stacked, checked against git |
+| `src/replay.rs` | `treeyard replay`: real history in waves of N agents, stale or stacked, checked against git |
 | `src/history.rs`, `src/blame.rs`, `src/xdiff.rs` | mainline + changed-path index, `log`; blame cached per (changeset, path); git's Myers diff port |
 | `src/search.rs`, `src/symbols.rs`, `src/indexer.rs` | trigram grep index; tree-sitter symbols; eager background indexing |
 | `src/bisect.rs`, `src/auth.rs`, `src/audit.rs` | server-side bisect; API tokens with path globs; audit log |
@@ -83,7 +83,7 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   only new fsck errors (real histories carry their own, e.g. requests has a bad timezone).
 - On APFS `du` counts clones in full; `df_delta_mb` (statvfs) is the physical cost, noisy under other load.
 - Workspaces: `sync` sends changed whole files (base64), one `apply` per 8 MiB; new files obey `.gitignore`
-  (`ignore` crate). Layer dirs and `.rootstock/` are never synced. Clones keep mtimes (stat cache; `cargo build`
+  (`ignore` crate). Layer dirs and `.treeyard/` are never synced. Clones keep mtimes (stat cache; `cargo build`
   is a no-op). Never share a `.venv` layer: it holds absolute paths.
 - `Repo::with` publishes `Inner::emit` events after the closure succeeds. `events`, `queue_run`, `test_main` run outside the lock.
 - `land` = mode dispatch (`queue` enqueues); `land_direct` moves main. `revert` and `land_push` always
@@ -96,5 +96,5 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   files and `dir/` keys. Bump `INDEX_VERSION` in history.rs when rows change meaning.
 - `rpc::call` runs as `Caller::internal()`; HTTP uses `call_as` with the token's caller. Writes and
   denials write an audit row inside the same `Repo::with`. Never put a token secret in a row or a log.
-- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM". Product name TreeYard in docs; binary, crate, commands stay `rootstock` until the rename.
+- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM". Product name TreeYard in docs; binary, crate, commands stay `treeyard` until the rename.
 - Never add `.github/workflows/` (no GitHub Actions on appnice repos). Commit author: 320388883+exit0-run@users.noreply.github.com.

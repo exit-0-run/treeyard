@@ -119,10 +119,10 @@ class BenchTest(unittest.TestCase):
         self.assertEqual(len(listed), 2, listed)  # the bare-ish clone itself and the seed
 
     def test_cow_workspaces_reuse_the_layer_and_sync(self):
-        built = [p for p in (ROOT / "target/release/rootstock", ROOT / "target/debug/rootstock") if p.exists()]
+        built = [p for p in (ROOT / "target/release/treeyard", ROOT / "target/debug/treeyard") if p.exists()]
         binary = max(built, key=lambda p: p.stat().st_mtime, default=None)
         if binary is None:
-            self.skipTest("no rootstock binary built yet")
+            self.skipTest("no treeyard binary built yet")
         self.run_bench("cow", "--repo", "tiny", "--bin", str(binary), "--n", "1,3", "--jobs", "2")
         r = self.result("cow-tiny")
         self.assertEqual(r["first"]["layers"][0]["restored"], False)

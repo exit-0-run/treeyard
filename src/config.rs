@@ -1,4 +1,4 @@
-//! Per-repo settings from `<data>/rootstock.toml`: merge drivers, landing mode, coordination.
+//! Per-repo settings from `<data>/treeyard.toml`: merge drivers, landing mode, coordination.
 //!
 //! The file lives in the data directory, not in the repo tree: it names commands the server
 //! runs, so only the server owner may change it (an agent's change must never do that).
@@ -8,10 +8,10 @@ use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-pub const FILE: &str = "rootstock.toml";
+pub const FILE: &str = "treeyard.toml";
 
-/// Written by `rootstock init`. Every setting is commented out: the defaults behave like git.
-pub const TEMPLATE: &str = r#"# Rootstock repo settings (docs/coordination.md). Changes need a server restart.
+/// Written by `treeyard init`. Every setting is commented out: the defaults behave like git.
+pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). Changes need a server restart.
 
 # [coordination]
 # continuous_rebase = true       # rebase open changes onto main after every land
@@ -99,13 +99,13 @@ impl Bisect {
         match name {
             Some(n) => self.commands.get(n).cloned().with_context(|| {
                 let known: Vec<&String> = self.commands.keys().collect();
-                format!("no bisect command {n:?} in rootstock.toml (known: {known:?})")
+                format!("no bisect command {n:?} in treeyard.toml (known: {known:?})")
             }),
             None => self
                 .test
                 .clone()
                 .or_else(|| landing.test.clone())
-                .context("set [bisect] test (or landing.test) in rootstock.toml"),
+                .context("set [bisect] test (or landing.test) in treeyard.toml"),
         }
     }
 }

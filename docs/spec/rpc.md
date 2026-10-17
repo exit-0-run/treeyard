@@ -2,7 +2,7 @@
 
 An open protocol for a server that gives coding agents a repository as an API: read without a
 checkout, open cheap changes, land through a server-side merge, and get conflicts back as typed
-data. Rootstock is the first implementation. Other servers may implement this protocol; the
+data. TreeYard is the first implementation. Other servers may implement this protocol; the
 licence of this text is Apache-2.0, the same as the repository.
 
 Status: draft v0, 2026-10-18. Breaking changes are allowed until v1. The operation list in this
@@ -49,14 +49,14 @@ A server MUST offer the HTTP binding. It SHOULD offer the MCP binding.
 
 Each operation is one MCP tool with the same name and the same parameters (`inputSchema`). The
 tool result is one `text` content item that holds the JSON reply. A failed call sets `isError`.
-Rootstock serves MCP over stdio (`rootstock mcp --url URL --agent NAME`) and forwards each call
+TreeYard serves MCP over stdio (`treeyard mcp --url URL --agent NAME`) and forwards each call
 to the HTTP binding.
 
 ### 2.3 Retries
 
 A client SHOULD retry on `503` and on a lost connection, with a short backoff. `land` MUST be
 safe to retry: a second `land` of a change that landed returns `status` `landed` with
-`"repeated": true` and does not move `main` again (Rootstock test:
+`"repeated": true` and does not move `main` again (TreeYard test:
 `lost_land_reply_is_retried_and_lands_once` in `tests/hardening.rs`).
 
 ## 3. Operations
@@ -112,7 +112,7 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 |---|---|
 | Node | `tree`, `blobs` (a node builds a workspace directory from them) |
 | History | `blame`, `symbols`, `outline`, `bisect` |
-| Git | `export_change` (a change head as a git commit under `refs/rootstock/changes/<id>`) |
+| Git | `export_change` (a change head as a git commit under `refs/treeyard/changes/<id>`) |
 | Access | `whoami`, `token_create`, `token_list`, `token_revoke`, `audit` |
 
 ### 3.4 Land statuses
@@ -128,15 +128,15 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 ## 4. Rules for a server
 
 1. Merges MUST be deterministic. A clean 3-way merge SHOULD give the same tree as
-   `git merge-tree --write-tree` on the same three commits. Rootstock checks this on every merge in
-   `tests/swarm.rs`, `tests/fuzz_history.rs` and `rootstock replay`.
+   `git merge-tree --write-tree` on the same three commits. TreeYard checks this on every merge in
+   `tests/swarm.rs`, `tests/fuzz_history.rs` and `treeyard replay`.
 2. A land MUST be atomic: `main` moves to the new changeset or does not move.
 3. A clean merge MUST NOT drop an edit of either side. A merge driver (union, lockfile, syntax)
    MAY solve a line conflict. It MUST NOT change a merge that is clean without it.
 4. Each mainline changeset MUST map to one git commit. The commit SHOULD carry the agent and the
-   intent (Rootstock writes git trailers).
+   intent (TreeYard writes git trailers).
 5. A server MUST NOT run a command that a request names, unless an operator configured that
-   command by name (Rootstock: `rootstock.toml`, never the repository tree).
+   command by name (TreeYard: `treeyard.toml`, never the repository tree).
 6. A token MAY limit reads and writes to path globs. A call outside the globs gets `403`.
 
 ## 5. Versioning

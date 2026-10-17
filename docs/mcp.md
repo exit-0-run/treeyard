@@ -5,12 +5,12 @@ Every agent reaches the server in one of three ways. All three use the one opera
 
 | Way | When | How |
 |---|---|---|
-| MCP tools | the agent edits through the API, no checkout | `rootstock mcp --url URL --agent NAME` (stdio) |
-| A workspace directory | the agent must build or run tests | `rootstock workspace create NAME` + `rootstock daemon` |
-| CLI | scripts and orchestrators | `rootstock call <op> '<json>'` |
+| MCP tools | the agent edits through the API, no checkout | `treeyard mcp --url URL --agent NAME` (stdio) |
+| A workspace directory | the agent must build or run tests | `treeyard workspace create NAME` + `treeyard daemon` |
+| CLI | scripts and orchestrators | `treeyard call <op> '<json>'` |
 
-`rootstock mcp` reads `ROOTSTOCK_URL` (default `http://127.0.0.1:7420`) and `ROOTSTOCK_TOKEN`. With a
-token, the server names the agent from the token. Without one, `--agent` (or `ROOTSTOCK_AGENT`)
+`treeyard mcp` reads `TREEYARD_URL` (default `http://127.0.0.1:7420`) and `TREEYARD_TOKEN`. With a
+token, the server names the agent from the token. Without one, `--agent` (or `TREEYARD_AGENT`)
 fills `agent` in `open_change` and `revert`. The server sends short instructions in its MCP
 `initialize` reply: read with `read`/`list`/`grep`, then `open_change`, `apply`, `land`, and how to
 handle a conflict.
@@ -27,8 +27,8 @@ budget for model calls.
 Add the server for one project (local scope) or for all projects (`--scope user`):
 
 ```text
-claude mcp add --env ROOTSTOCK_URL=http://127.0.0.1:7420 --transport stdio rootstock -- rootstock mcp --agent claude-1
-claude mcp get rootstock
+claude mcp add --env TREEYARD_URL=http://127.0.0.1:7420 --transport stdio treeyard -- treeyard mcp --agent claude-1
+claude mcp get treeyard
 ```
 
 To share it with a team, put it in `.mcp.json` at the project root:
@@ -36,28 +36,28 @@ To share it with a team, put it in `.mcp.json` at the project root:
 ```json
 {
   "mcpServers": {
-    "rootstock": {
-      "command": "rootstock",
+    "treeyard": {
+      "command": "treeyard",
       "args": ["mcp", "--agent", "claude"],
-      "env": { "ROOTSTOCK_URL": "http://127.0.0.1:7420" }
+      "env": { "TREEYARD_URL": "http://127.0.0.1:7420" }
     }
   }
 }
 ```
 
-### Claude Code worktrees become Rootstock workspaces
+### Claude Code worktrees become TreeYard workspaces
 
 Claude Code runs a `WorktreeCreate` hook instead of `git worktree add` for `claude --worktree`,
 subagents with `isolation: "worktree"`, workflows and background sessions. The hook prints the
 directory as its last stdout line. `examples/claude-code/` has both hooks:
 
-- `worktree-create.sh` reads `name` from stdin, runs `rootstock workspace create NAME --git`
-  (set `ROOTSTOCK_SETUP="cargo build -q"` to build once), and prints the workspace path.
+- `worktree-create.sh` reads `name` from stdin, runs `treeyard workspace create NAME --git`
+  (set `TREEYARD_SETUP="cargo build -q"` to build once), and prints the workspace path.
 - `worktree-remove.sh` reads `worktree_path`, syncs the last edits to the server, then deletes the
   directory. The change stays open on the server, so a removed worktree loses nothing that synced.
 
 Add them to `.claude/settings.json` (absolute paths; see `examples/claude-code/settings.json`), and
-run `rootstock daemon &` on the machine so edits sync while the session works:
+run `treeyard daemon &` on the machine so edits sync while the session works:
 
 ```json
 {
@@ -74,29 +74,29 @@ file in the workspace, removes it, and reads the edit back from the open change.
 Limits that the Claude Code docs state: the hook does not run when Claude types `git worktree add`
 in Bash; `.worktreeinclude` is not processed (copy `.env` files in your setup command). When a
 subagent finishes, Claude Code keeps the worktree and does not run the remove hook: land or remove
-those workspaces yourself (`rootstock workspace list`).
+those workspaces yourself (`treeyard workspace list`).
 
 ## Codex
 
 ```text
-codex mcp add rootstock --env ROOTSTOCK_URL=http://127.0.0.1:7420 -- rootstock mcp --agent codex-1
+codex mcp add treeyard --env TREEYARD_URL=http://127.0.0.1:7420 -- treeyard mcp --agent codex-1
 codex mcp list
 ```
 
 Or in `~/.codex/config.toml`:
 
 ```toml
-[mcp_servers.rootstock]
-command = "rootstock"
+[mcp_servers.treeyard]
+command = "treeyard"
 args = ["mcp", "--agent", "codex-1"]
 
-[mcp_servers.rootstock.env]
-ROOTSTOCK_URL = "http://127.0.0.1:7420"
+[mcp_servers.treeyard.env]
+TREEYARD_URL = "http://127.0.0.1:7420"
 ```
 
 Codex has no worktree hook (openai/codex issue #26648 asks for a custom worktree backend). For a
 directory, create a workspace first and start Codex in it:
-`cd "$(rootstock workspace path fix-1)" && codex`.
+`cd "$(treeyard workspace path fix-1)" && codex`.
 
 ## OpenCode
 
@@ -106,11 +106,11 @@ In `opencode.json` (project) or the global OpenCode config:
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "rootstock": {
+    "treeyard": {
       "type": "local",
-      "command": ["rootstock", "mcp", "--agent", "opencode-1"],
+      "command": ["treeyard", "mcp", "--agent", "opencode-1"],
       "enabled": true,
-      "environment": { "ROOTSTOCK_URL": "http://127.0.0.1:7420" }
+      "environment": { "TREEYARD_URL": "http://127.0.0.1:7420" }
     }
   }
 }
@@ -132,8 +132,8 @@ Check with `opencode mcp list`. For a directory, start OpenCode inside a workspa
 ```text
 $ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"status","arguments":{}}}' \
-  | rootstock mcp --agent a1
+  | treeyard mcp --agent a1
 ```
 
-The first reply has `serverInfo.name` `rootstock` and the instructions. The second has the status
+The first reply has `serverInfo.name` `treeyard` and the instructions. The second has the status
 JSON as one text item.

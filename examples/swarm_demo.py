@@ -7,7 +7,7 @@ conflict for the second one to land). Then every agent lands its change on main.
 
 - git worktrees: `git worktree add` per agent, edit and commit in parallel, then a serial queue
   lands each branch with `git rebase main` + `git merge --ff-only` (no CI, like the TreeYard side).
-- TreeYard (binary `rootstock`): `open_change` per agent through `rootstock call`, `apply` in parallel, then every
+- TreeYard (binary `treeyard`): `open_change` per agent through `treeyard call`, `apply` in parallel, then every
   agent calls `land` at once; the server rebases and merges.
 
 A conflicted agent redoes its hot.txt edit on top of the new main and lands again (both sides).
@@ -214,13 +214,13 @@ def free_port():
         return s.getsockname()[1]
 
 
-def side_rootstock(base, scratch, plan, binary):
-    data = os.path.join(scratch, "rootstock", "data")
+def side_treeyard(base, scratch, plan, binary):
+    data = os.path.join(scratch, "treeyard", "data")
     os.makedirs(os.path.dirname(data))
     run([binary, "init", "--data", data, "--from", base, "--branch", "main"])
     port = free_port()
     url = f"http://127.0.0.1:{port}"
-    log = open(os.path.join(scratch, "rootstock", "serve.log"), "w")
+    log = open(os.path.join(scratch, "treeyard", "serve.log"), "w")
     server = subprocess.Popen([binary, "serve", "--data", data, "--addr", f"127.0.0.1:{port}"], stdout=log, stderr=log)
     try:
         for _ in range(200):
@@ -230,17 +230,17 @@ def side_rootstock(base, scratch, plan, binary):
             except OSError:
                 time.sleep(0.05)
         else:
-            raise RuntimeError("rootstock serve did not start; see serve.log")
-        return drive_rootstock(plan, binary, url, data)
+            raise RuntimeError("treeyard serve did not start; see serve.log")
+        return drive_treeyard(plan, binary, url, data)
     finally:
         server.terminate()
         server.wait()
         log.close()
 
 
-def drive_rootstock(plan, binary, url, data):
-    env = dict(os.environ, ROOTSTOCK_URL=url)
-    env.pop("ROOTSTOCK_TOKEN", None)
+def drive_treeyard(plan, binary, url, data):
+    env = dict(os.environ, TREEYARD_URL=url)
+    env.pop("TREEYARD_TOKEN", None)
 
     def call(op, params):
         p = run([binary, "call", op, json.dumps(params)], env=env)
@@ -366,7 +366,7 @@ def main():
     ap.add_argument("--agents", type=int, default=10)
     ap.add_argument("--files", type=int, default=2000, help="files in the synthetic repo")
     ap.add_argument("--pairs", type=int, default=2, help="pairs of agents that edit the same line")
-    ap.add_argument("--bin", default=os.environ.get("ROOTSTOCK_BIN", "rootstock"))
+    ap.add_argument("--bin", default=os.environ.get("TREEYARD_BIN", "treeyard"))
     ap.add_argument("--dir", help="scratch directory (default: a new temporary directory, deleted after)")
     ap.add_argument("--json", help="also write raw numbers to this file")
     a = ap.parse_args()
@@ -374,14 +374,14 @@ def main():
         ap.error("--agents must be at least 2")
     binary = shutil.which(a.bin) or a.bin
     if not os.path.exists(binary):
-        ap.error(f"rootstock binary not found: {a.bin} (build with `make release` or pass --bin)")
+        ap.error(f"treeyard binary not found: {a.bin} (build with `make release` or pass --bin)")
     plan = Plan(a.agents, a.pairs)
     scratch = a.dir or tempfile.mkdtemp(prefix="swarm-demo-")
     os.makedirs(scratch, exist_ok=True)
     try:
         base = os.path.join(scratch, "base")
         make_repo(base, a.files, plan)
-        sides = (side_git(base, scratch, plan), side_rootstock(base, scratch, plan, binary))
+        sides = (side_git(base, scratch, plan), side_treeyard(base, scratch, plan, binary))
         for r in sides:
             r["lost"] = check(plan, r)
         table(plan, a.files, sides, sys.stdout)

@@ -1,4 +1,4 @@
-//! Crash injection for the recovery tests. `ROOTSTOCK_FAILPOINT=<name>[,<name>...]` makes the
+//! Crash injection for the recovery tests. `TREEYARD_FAILPOINT=<name>[,<name>...]` makes the
 //! process abort (no unwinding, no flush, like `kill -9`) when it reaches a named point. The
 //! points sit between the steps of a land and of an object write; see tests/hardening.rs.
 
@@ -11,7 +11,7 @@ pub const POINTS: &[&str] =
 fn armed() -> &'static [String] {
     static ARMED: OnceLock<Vec<String>> = OnceLock::new();
     ARMED.get_or_init(|| {
-        std::env::var("ROOTSTOCK_FAILPOINT")
+        std::env::var("TREEYARD_FAILPOINT")
             .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
             .unwrap_or_default()
     })
@@ -21,7 +21,7 @@ fn armed() -> &'static [String] {
 pub fn hit(name: &str) {
     let a = armed();
     if !a.is_empty() && a.iter().any(|p| p == name) {
-        eprintln!("rootstock: failpoint {name} reached, aborting");
+        eprintln!("treeyard: failpoint {name} reached, aborting");
         std::process::abort();
     }
 }

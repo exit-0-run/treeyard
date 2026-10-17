@@ -1,6 +1,6 @@
 # Plain git for people: smart HTTP and a mirror
 
-People keep plain git. `rootstock serve` also answers git smart HTTP under `/git`:
+People keep plain git. `treeyard serve` also answers git smart HTTP under `/git`:
 
 ```sh
 git clone http://127.0.0.1:7420/git myrepo
@@ -14,15 +14,15 @@ git push origin main
 | Command | Server side |
 |---|---|
 | `git clone`, `git fetch`, `git pull` | `git upload-pack --stateless-rpc` on the export repo (`<data>/git`). Protocol v2 is passed through (`Git-Protocol` header). |
-| `git push origin main` | Rootstock reads the ref updates itself, stores the pack with `git index-pack --fix-thin`, then lands under the same lock as agents. |
-| `rootstock mirror --data D --remote URL [--every N]` | `git push URL refs/heads/main:refs/heads/main` from the export repo, never forced. |
+| `git push origin main` | TreeYard reads the ref updates itself, stores the pack with `git index-pack --fix-thin`, then lands under the same lock as agents. |
+| `treeyard mirror --data D --remote URL [--every N]` | `git push URL refs/heads/main:refs/heads/main` from the export repo, never forced. |
 
 ## Push rules
 
 1. Only `refs/heads/<branch>` (the imported branch, usually `main`) accepts pushes. Other refs get
-   `ng ... rootstock accepts pushes to refs/heads/main only; agents use the API for other work`.
+   `ng ... treeyard accepts pushes to refs/heads/main only; agents use the API for other work`.
 2. The pushed commit must contain main's exported commit (a fast-forward). Otherwise the server refuses
-   and tells the person to fetch and rebase. Rootstock never rewrites main.
+   and tells the person to fetch and rebase. TreeYard never rewrites main.
 3. Deleting main is refused.
 4. Each commit on the path from main to the pushed commit becomes one change (agent `git:<author name>`,
    intent = subject, message = full commit message). Each change goes through `land`. The pushed commits
@@ -36,9 +36,9 @@ What a person sees on a forced push of diverged work (from
 `cargo test --test git_http non_fast -- --nocapture`, 2026-10-17):
 
 ```
-remote: rootstock: rejected: non-fast-forward: your commit does not contain main e6440dfe8256; run `git pull --rebase` and push again (Rootstock never rewrites main)
+remote: treeyard: rejected: non-fast-forward: your commit does not contain main e6440dfe8256; run `git pull --rebase` and push again (TreeYard never rewrites main)
 To http://127.0.0.1:58713/git
- ! [remote rejected] main -> main (non-fast-forward: your commit does not contain main e6440dfe8256; run `git pull --rebase` and push again (Rootstock never rewrites main))
+ ! [remote rejected] main -> main (non-fast-forward: your commit does not contain main e6440dfe8256; run `git pull --rebase` and push again (TreeYard never rewrites main))
 error: failed to push some refs to 'http://127.0.0.1:58713/git'
 ```
 
@@ -47,11 +47,11 @@ A push without `--force` from a stale clone never reaches the server: git refuse
 
 ## Mirror
 
-`rootstock mirror --data D --remote URL` pushes main to a read-only mirror, for example a GitHub repo
+`treeyard mirror --data D --remote URL` pushes main to a read-only mirror, for example a GitHub repo
 that people browse. With `--every N` it keeps running and pushes every N seconds (a no-op when main did
 not move). The push is never forced: if someone wrote to the mirror, the mirror push fails with
 "if the mirror moved on its own, it is not read-only". Credentials for the remote come from the
-normal git credential helper of the user who runs the command. Rootstock stores no token.
+normal git credential helper of the user who runs the command. TreeYard stores no token.
 The tests use a local bare repo only.
 
 ## Measured
@@ -59,16 +59,16 @@ The tests use a local bare repo only.
 15-core CPU, 48 GB RAM, macOS, git 2.54, release build, 2026-10-17. Command:
 
 ```sh
-ROOTSTOCK_SCRATCH=/private/tmp/rootstock-harness/005/real \
-ROOTSTOCK_REAL_REPO=/private/tmp/rootstock-harness/oss/<repo> \
+TREEYARD_SCRATCH=/private/tmp/rootstock-harness/005/real \
+TREEYARD_REAL_REPO=/private/tmp/rootstock-harness/oss/<repo> \
   cargo test --release --test git_http real_repo -- --ignored --nocapture
 ```
 
 The test imports the repo's current branch, clones the export repo with `git clone --no-local`
-(baseline: plain git, no HTTP), clones it again over Rootstock HTTP, then pushes one commit over HTTP.
+(baseline: plain git, no HTTP), clones it again over TreeYard HTTP, then pushes one commit over HTTP.
 Three runs each, seconds:
 
-| Repo (rev) | Plain `git clone --no-local` | Clone over Rootstock HTTP | Push of one commit |
+| Repo (rev) | Plain `git clone --no-local` | Clone over TreeYard HTTP | Push of one commit |
 |---|---|---|---|
 | ripgrep (3fce3b5) | 0.384, 0.386, 0.390, 0.363 | 0.433, 0.433, 0.493, 0.438 | 0.190, 0.227, 0.299, 0.209 |
 | requests (611c6162) | 0.493, 0.502, 0.559, 0.528 | 0.550, 0.613, 0.584, 0.607 | 0.238, 0.299, 0.247, 0.261 |

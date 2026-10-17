@@ -5,10 +5,10 @@ the server's memory, next to plain git on a worktree of the same repo.
 Stdlib only. Prints one JSON document and writes it to <dir>/results/scale-<tag>.json.
 
   python3 bench/scale.py --repo /path/to/clone --dir /tmp/scratch --tag after \
-      [--binary target/release/rootstock] [--history 1000] [--lands 50] [--agents 16] [--git]
+      [--binary target/release/treeyard] [--history 1000] [--lands 50] [--agents 16] [--git]
 
-- init:   `rootstock init` wall time and peak RSS (`/usr/bin/time -l`).
-- start:  `rootstock serve` until /health answers (Repo::open), twice: first and warm restart.
+- init:   `treeyard init` wall time and peak RSS (`/usr/bin/time -l`).
+- start:  `treeyard serve` until /health answers (Repo::open), twice: first and warm restart.
 - read:   `read` of 200 sampled files (seeded); `list` of the root; `tree` of main.
 - grep:   three patterns, first call (builds the lazy trigram index) and a repeat.
 - land:   N sequential agents (open_change, apply one line to a sampled file, land), then
@@ -134,7 +134,7 @@ def land_one(url, agent, path, line):
     return t
 
 
-def run_rootstock(args, repo, out):
+def run_treeyard(args, repo, out):
     d = Path(args.dir)
     data = d / f"data-{args.tag}"
     if data.exists():
@@ -251,7 +251,7 @@ def main(argv=None):
     ap.add_argument("--repo", required=True)
     ap.add_argument("--dir", required=True)
     ap.add_argument("--tag", required=True)
-    ap.add_argument("--binary", default=str(Path(__file__).resolve().parent.parent / "target/release/rootstock"))
+    ap.add_argument("--binary", default=str(Path(__file__).resolve().parent.parent / "target/release/treeyard"))
     ap.add_argument("--history", type=int, default=0)
     ap.add_argument("--lands", type=int, default=50)
     ap.add_argument("--agents", type=int, default=16)
@@ -270,7 +270,7 @@ def main(argv=None):
                     "load": os.getloadavg()},
     }
     if not args.git_only:
-        run_rootstock(args, repo, out)
+        run_treeyard(args, repo, out)
     if args.git or args.git_only:
         run_git(args, repo, out)
     res = Path(args.dir) / "results"

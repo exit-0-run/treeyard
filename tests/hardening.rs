@@ -5,7 +5,7 @@
 mod common;
 
 use common::*;
-use rootstock::repo::Repo;
+use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -15,13 +15,13 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
-const BIN: &str = env!("CARGO_BIN_EXE_rootstock");
+const BIN: &str = env!("CARGO_BIN_EXE_treeyard");
 
 fn free_port() -> u16 {
     TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
 }
 
-/// A `rootstock serve` child process.
+/// A `treeyard serve` child process.
 struct Server {
     child: Child,
     url: String,
@@ -35,7 +35,7 @@ impl Server {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         if let Some(f) = failpoint {
-            cmd.env("ROOTSTOCK_FAILPOINT", f);
+            cmd.env("TREEYARD_FAILPOINT", f);
         }
         let child = cmd.spawn().unwrap();
         let url = format!("http://127.0.0.1:{port}");
@@ -106,7 +106,7 @@ fn open_and_edit(url: &str, agent: &str, path: &str, body: &str) -> String {
 
 #[test]
 fn crash_during_land_recovers_at_every_failpoint() {
-    for (i, point) in rootstock::failpoint::POINTS.iter().enumerate() {
+    for (i, point) in treeyard::failpoint::POINTS.iter().enumerate() {
         let (_tmp, root, data) = setup(4);
         let before = export_main(&root, &data);
 
@@ -164,7 +164,7 @@ fn second_server_on_the_same_data_is_refused() {
         .unwrap();
     assert!(!out.status.success());
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.contains("another rootstock server already serves"), "{err}");
+    assert!(err.contains("another treeyard server already serves"), "{err}");
 }
 
 #[test]
@@ -200,7 +200,7 @@ fn open_server_refuses_a_public_address() {
             }
             line.push_str(&String::from_utf8_lossy(&buf[..n]));
         }
-        assert!(line.contains("rootstock listening"), "{extra:?}: {line}");
+        assert!(line.contains("treeyard listening"), "{extra:?}: {line}");
         let _ = child.kill();
         let _ = child.wait();
     }
@@ -254,12 +254,12 @@ fn client_retries_until_the_server_comes_up() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async move {
             let l = tokio::net::TcpListener::bind(("127.0.0.1", port)).await.unwrap();
-            axum::serve(l, rootstock::server::router(repo)).await.unwrap();
+            axum::serve(l, treeyard::server::router(repo)).await.unwrap();
         });
     });
     let t = Instant::now();
     // open_change is not safe to repeat, but a refused connection never reached the server.
-    let ch = rootstock::client::call(&url, "open_change", json!({"agent": "early", "intent": "x"})).unwrap();
+    let ch = treeyard::client::call(&url, "open_change", json!({"agent": "early", "intent": "x"})).unwrap();
     assert!(ch["id"].as_str().unwrap().starts_with("ch_"));
     assert!(t.elapsed() >= Duration::from_millis(600), "the call waited for the server");
 }
@@ -268,11 +268,11 @@ fn client_retries_until_the_server_comes_up() {
 fn busy_server_answers_503_and_clients_retry() {
     let (_tmp, _root, data) = setup(2);
     let repo = Arc::new(Repo::open(&data).unwrap());
-    let url0 = spawn_router(rootstock::server::router_with(repo.clone(), rootstock::server::Limits::new(0)));
+    let url0 = spawn_router(treeyard::server::router_with(repo.clone(), treeyard::server::Limits::new(0)));
     let err = raw(&url0, "status", json!({})).unwrap_err();
     assert!(err.starts_with("HTTP 503") && err.contains("server busy"), "{err}");
 
-    let url1 = spawn_router(rootstock::server::router_with(repo, rootstock::server::Limits::new(1)));
+    let url1 = spawn_router(treeyard::server::router_with(repo, treeyard::server::Limits::new(1)));
     let busy = Arc::new(AtomicUsize::new(0));
     let start = Arc::new(Barrier::new(16));
     let hs: Vec<_> = (0..16)
@@ -284,7 +284,7 @@ fn busy_server_answers_503_and_clients_retry() {
                     if raw(&url, "read", json!({"path": "f00.txt"})).is_err() {
                         busy.fetch_add(1, Ordering::Relaxed);
                     }
-                    let r = rootstock::client::call(&url, "read", json!({"path": "f00.txt"})).unwrap();
+                    let r = treeyard::client::call(&url, "read", json!({"path": "f00.txt"})).unwrap();
                     assert!(r["content"].as_str().unwrap().contains("file 0 line 0"));
                 }
             })
@@ -366,7 +366,7 @@ fn lost_land_reply_is_retried_and_lands_once() {
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
     let proxy = lossy_proxy(url.clone());
     let id = open_and_edit(&proxy, "flaky", "f00.txt", "over a bad network\n");
-    let r = rootstock::client::call(&proxy, "land", json!({"change": id})).unwrap();
+    let r = treeyard::client::call(&proxy, "land", json!({"change": id})).unwrap();
     assert_eq!(r["status"], "landed", "{r}");
     assert_eq!(r["repeated"], true, "the first reply was lost; the retry saw the landed change");
     let gd = data.join("git");
@@ -375,7 +375,7 @@ fn lost_land_reply_is_retried_and_lands_once() {
 
     // A non-repeatable call whose reply is lost is not retried: the client says so.
     let proxy2 = lossy_proxy(url.clone());
-    let e = rootstock::client::call(&proxy2, "land", json!({"change": "ch_000000000000"}));
+    let e = treeyard::client::call(&proxy2, "land", json!({"change": "ch_000000000000"}));
     assert!(e.is_err());
 }
 
@@ -573,7 +573,7 @@ fn cold_manifest_from_git_equals_a_full_replay() {
         let repo = Repo::open(&data).unwrap();
         for i in 0..80 {
             let ch =
-                rootstock::rpc::call(&repo, "open_change", json!({"agent": format!("a{i}"), "intent": "x"})).unwrap();
+                treeyard::rpc::call(&repo, "open_change", json!({"agent": format!("a{i}"), "intent": "x"})).unwrap();
             let id = ch["id"].as_str().unwrap().to_string();
             let path = if i % 4 == 0 { "f00.txt".to_string() } else { format!("land/{i}.txt") };
             let edit = if i % 8 == 0 {
@@ -581,8 +581,8 @@ fn cold_manifest_from_git_equals_a_full_replay() {
             } else {
                 json!({"path": path, "content": format!("{i}\n")})
             };
-            let _ = rootstock::rpc::call(&repo, "apply", json!({"change": id, "edits": [edit]}));
-            let _ = rootstock::rpc::call(&repo, "land", json!({"change": id}));
+            let _ = treeyard::rpc::call(&repo, "apply", json!({"change": id, "edits": [edit]}));
+            let _ = treeyard::rpc::call(&repo, "land", json!({"change": id}));
         }
     }
     let fast = Repo::open(&data).unwrap();
@@ -601,6 +601,6 @@ fn cold_manifest_from_git_equals_a_full_replay() {
         cur = fast.with(|r| r.changeset(&id)).unwrap().parents.first().cloned();
         checked += 1;
     }
-    assert!(checked > 2 * rootstock::repo::MANIFEST_WALK, "checked {checked} changesets");
+    assert!(checked > 2 * treeyard::repo::MANIFEST_WALK, "checked {checked} changesets");
     eprintln!("cold manifests equal to a full replay: {checked} changesets");
 }

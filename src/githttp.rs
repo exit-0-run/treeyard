@@ -80,7 +80,7 @@ async fn caller(repo: &Arc<Repo>, headers: &HeaderMap, write: bool) -> Result<Ca
         Ok(Ok(c)) => c,
         Ok(Err(e)) => {
             let mut resp = error(StatusCode::UNAUTHORIZED, format!("{e:#}"));
-            resp.headers_mut().insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Basic realm=\"rootstock\""));
+            resp.headers_mut().insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Basic realm=\"treeyard\""));
             return Err(Box::new(resp));
         }
         Err(e) => return Err(Box::new(error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))),
@@ -138,7 +138,7 @@ async fn info_refs(
             match adv {
                 Ok(Ok((commit, branch))) => {
                     let caps = format!(
-                        "report-status side-band-64k ofs-delta delete-refs quiet object-format=sha1 agent=rootstock/{}",
+                        "report-status side-band-64k ofs-delta delete-refs quiet object-format=sha1 agent=treeyard/{}",
                         env!("CARGO_PKG_VERSION")
                     );
                     let mut body = pkt(b"# service=git-receive-pack\n");
@@ -151,7 +151,7 @@ async fn info_refs(
                 Err(e) => error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             }
         }
-        _ => error(StatusCode::FORBIDDEN, "rootstock serves git over smart HTTP only (git 1.6.6 or newer)".into()),
+        _ => error(StatusCode::FORBIDDEN, "treeyard serves git over smart HTTP only (git 1.6.6 or newer)".into()),
     }
 }
 
@@ -243,7 +243,7 @@ fn push_response(sideband: bool, messages: &[String], report: &[String]) -> Vec<
     let mut out = Vec::new();
     for m in messages {
         let mut band = vec![2u8];
-        band.extend_from_slice(format!("rootstock: {m}\n").as_bytes());
+        band.extend_from_slice(format!("treeyard: {m}\n").as_bytes());
         out.extend(pkt(&band));
     }
     for chunk in inner.chunks(65515) {
@@ -284,7 +284,7 @@ pub fn handle_push(repo: &Repo, who: &Caller, data: &[u8]) -> Result<Vec<u8>> {
         let want = format!("refs/heads/{}", r.branch);
         for (old, new, name) in &req.commands {
             if *name != want {
-                let why = format!("rootstock accepts pushes to {want} only; agents use the API for other work");
+                let why = format!("treeyard accepts pushes to {want} only; agents use the API for other work");
                 messages.push(format!("rejected {name}: {why}"));
                 report.push(format!("ng {name} {why}"));
                 continue;
@@ -370,7 +370,7 @@ fn audit_push(r: &mut crate::repo::Inner, who: &Caller, new: &str, out: &Result<
     }
     for rec in rows {
         if let Err(e) = r.audit_add(rec) {
-            eprintln!("rootstock: audit write failed for push: {e:#}");
+            eprintln!("treeyard: audit write failed for push: {e:#}");
         }
     }
 }
@@ -396,7 +396,7 @@ async fn receive_pack(State(repo): State<Arc<Repo>>, headers: HeaderMap, body: B
 pub fn mirror(data: &Path, remote: &str) -> Result<String> {
     let gd = data.join("git");
     if !gd.join("HEAD").exists() {
-        bail!("{} is not a rootstock data directory", data.display());
+        bail!("{} is not a treeyard data directory", data.display());
     }
     let branch = git::run(Some(&gd), &["symbolic-ref", "--short", "HEAD"])?.trim().to_string();
     let commit = git::run(Some(&gd), &["rev-parse", "--verify", &format!("refs/heads/{branch}")])?.trim().to_string();
@@ -439,7 +439,7 @@ mod tests {
         let plain = push_response(false, &["hi".into()], &["unpack ok".into(), "ok refs/heads/main".into()]);
         assert_eq!(plain, b"000eunpack ok\n0017ok refs/heads/main\n0000");
         let banded = push_response(true, &["hi".into()], &["unpack ok".into()]);
-        assert!(banded.starts_with(b"0013\x02rootstock: hi\n"));
+        assert!(banded.starts_with(b"0012\x02treeyard: hi\n"));
         assert!(banded.ends_with(b"0000"));
     }
 }

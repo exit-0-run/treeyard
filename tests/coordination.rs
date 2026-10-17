@@ -4,7 +4,7 @@
 mod common;
 
 use common::*;
-use rootstock::repo::Repo;
+use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::io::BufRead;
 use std::path::Path;
@@ -12,12 +12,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// A fixture repo (f00..f03.txt, 30 lines each, plus `extra`) served with `config` as its
-/// rootstock.toml.
+/// treeyard.toml.
 fn setup(root: &Path, config: &str, extra: &[(&str, &str)]) -> (Arc<Repo>, String) {
     let src = fixture_repo(root, 4, 30, extra);
     let data = root.join("data");
     Repo::init(&data, &src, "main", None).unwrap();
-    std::fs::write(data.join("rootstock.toml"), config).unwrap();
+    std::fs::write(data.join("treeyard.toml"), config).unwrap();
     let repo = Arc::new(Repo::open(&data).unwrap());
     let url = spawn_server(repo.clone());
     (repo, url)
@@ -89,7 +89,7 @@ fn a_intents_report_overlaps_at_open() {
     let ev = events(&url, json!({"kinds": ["intent_overlap"]}));
     assert!(ev.len() >= 4, "{ev:?}");
     assert!(ev.iter().any(|e| e["changes"] == json!([b["id"], a["id"]])));
-    let bad = rootstock::client::call(&url, "open_change", json!({"agent": "x", "intent": "y", "paths": ["src/[a"]}));
+    let bad = treeyard::client::call(&url, "open_change", json!({"agent": "x", "intent": "y", "paths": ["src/[a"]}));
     assert!(bad.is_err());
 }
 
@@ -206,7 +206,7 @@ fn c_continuous_rebase_surfaces_conflicts_early_and_keeps_stale_writes() {
     assert!(now.contains("A line 1\n") && now.contains("B line 20 v2\n"), "{now}");
     assert!(read(&url, "f01.txt", "main").contains("B line 1\n"));
     // An empty change that never had edits still cannot land.
-    assert!(rootstock::client::call(&url, "land", json!({"change": d})).is_err());
+    assert!(treeyard::client::call(&url, "land", json!({"change": d})).is_err());
 }
 
 const LOCK_BASE: &str = "version = 3\n\n[[package]]\nname = \"aho\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"aho\",\n \"bstr\",\n]\n\n[[package]]\nname = \"bstr\"\nversion = \"1.0.0\"\n";
@@ -352,7 +352,7 @@ fn e_queue_mode_tests_batches_and_bisects() {
     assert_eq!(call(&url, "change", json!({"change": ch[1]}))["state"], "open");
 
     // The owner fixes the change; the background worker lands it.
-    rootstock::landing::spawn_worker(repo.clone()).unwrap();
+    treeyard::landing::spawn_worker(repo.clone()).unwrap();
     write(&url, &ch[1], "f01.txt", "fixed\n");
     assert_eq!(call(&url, "land", json!({"change": ch[1]}))["status"], "queued");
     let ev = call(&url, "events", json!({"change": ch[1], "kinds": ["landed"], "wait_ms": 15000}));
@@ -423,7 +423,7 @@ fn f_guard_flags_an_edit_that_a_rebase_makes_vanish() {
 
         // The same fix without the extra line becomes empty: already_on_main plus a review.
         let ch = r.open_change("fixer2", "remove stray dbg! only", None, None, Some(&cs1))?;
-        let only = Some(rootstock::model::Entry { blob: r.put_blob(orig.as_bytes())?, mode: 0o100644 });
+        let only = Some(treeyard::model::Entry { blob: r.put_blob(orig.as_bytes())?, mode: 0o100644 });
         r.apply_entries(&ch.id, vec![("f00.txt".into(), only)], None)?;
         let out = r.land(&ch.id)?;
         assert_eq!(out["status"], "already_on_main", "{out}");
@@ -452,7 +452,7 @@ fn mcp_agent_declares_intent_and_polls_events_over_stdio() {
     let tmp = tempfile::tempdir().unwrap();
     let (_repo, url) = setup(tmp.path(), "", &[]);
     let other = id(&open(&url, "http-agent", json!({"paths": ["f00.txt"]})));
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_rootstock"))
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_treeyard"))
         .args(["mcp", "--url", &url, "--agent", "mcp-agent"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

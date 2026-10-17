@@ -1,10 +1,10 @@
-# Rootstock reference
+# TreeYard reference
 
 Details moved from the README: operations, workspaces, coordination, git over HTTP, the data model, tests and the replay results.
 
 ## Operations
 
-The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `rootstock call`.
+The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `treeyard call`.
 
 | Group | Operations |
 |---|---|
@@ -13,7 +13,7 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `root
 | Access | `whoami`, `audit`, `token_create`, `token_list`, `token_revoke` ([docs/access.md](access.md)) |
 | Write | `open_change`, `apply` (content, base64, delete, exact-once `replace`, executable bit, symlink), `resolve`, `rebase`, `abandon` |
 | Land | `land`, `revert` |
-| Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/rootstock/changes/<id>`) |
+| Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
 | Coordinate | `declare`, `events` (poll or long poll; `GET /api/events` is the server-sent event stream), `reviews`, `review_close`, `queue`, `queue_run`, `test_main`, `config` |
 
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes
@@ -27,12 +27,12 @@ task is opened), or `waiting`. A change opened with
 
 ## Workspaces
 
-`rootstock workspace create NAME [--setup CMD] [--layer DIR=LOCKFILE] [--git] [--strategy S]` opens a
-change and makes `$ROOTSTOCK_HOME/ws/NAME` (default `~/.rootstock`). The node keeps one materialised base
+`treeyard workspace create NAME [--setup CMD] [--layer DIR=LOCKFILE] [--git] [--strategy S]` opens a
+change and makes `$TREEYARD_HOME/ws/NAME` (default `~/.treeyard`). The node keeps one materialised base
 per base changeset. Each workspace is a copy-on-write clone of it: APFS `clonefile` on macOS, reflink on
 btrfs and XFS, overlayfs on Linux with mount rights, and hardlinks or copies elsewhere. Dependency
 directories are layers keyed by a hash of their lockfiles, built once and cloned into later workspaces.
-`.rootstock/env` gives each workspace `PORT` and a block of 10 ports. `rootstock daemon` watches every
+`.treeyard/env` gives each workspace `PORT` and a block of 10 ports. `treeyard daemon` watches every
 workspace and syncs after edits settle (300 ms): each sync is one new changeset of the workspace's change,
 so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`,
 `spare`, `remove [--abandon]`. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
@@ -41,14 +41,14 @@ so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against
 `bench/bench.py workspaces`, 2026-10-17, [docs/benchmarks.md](benchmarks.md)):
 
-| Repo | `git worktree` + setup | Rootstock workspace | Rootstock, warm pool |
+| Repo | `git worktree` + setup | TreeYard workspace | TreeYard, warm pool |
 |---|---|---|---|
 | ripgrep (`cargo build`) | 69.66 s, 7 789 MB | 1.22 s, 48.3 MB | 0.86 s, 5.1 MB |
 | astro (`pnpm install --offline`) | 352.53 s, 5 859 MB | 85.30 s, 2 197 MB | 26.19 s, 1 506 MB |
 
 ## Coordination
 
-Per repo in `<data>/rootstock.toml` (`rootstock init` writes a commented template). Details, the demo
+Per repo in `<data>/treeyard.toml` (`treeyard init` writes a commented template). Details, the demo
 output and limits: [docs/coordination.md](coordination.md). Tests: `tests/coordination.rs`.
 
 ```toml
@@ -70,10 +70,10 @@ of ripgrep at 16 agents it flags exactly the known `dbg!` reordering (commit `e9
 
 ## Plain git for people
 
-`rootstock serve` also speaks git smart HTTP under `/git`: `git clone`, `fetch`, `pull` and `push`.
+`treeyard serve` also speaks git smart HTTP under `/git`: `git clone`, `fetch`, `pull` and `push`.
 A push to main must be a fast-forward of main's exported commit. Each pushed commit becomes a change
 that goes through `land`, so it takes the same path as an agent's change, and agents read it at once.
-A non-fast-forward push is refused with a hint to run `git pull --rebase`. `rootstock mirror` pushes main
+A non-fast-forward push is refused with a hint to run `git pull --rebase`. `treeyard mirror` pushes main
 to a read-only mirror (never forced). Rules, the exact rejection text and timings:
 [docs/git-http.md](git-http.md). Tests: `tests/git_http.rs`.
 
@@ -88,10 +88,10 @@ to a read-only mirror (never forced). Rules, the exact rejection text and timing
   markers until the path is written again or settled with `resolve`.
 - **Git bridge**: each main changeset maps to one deterministic commit (dates and author come from the
   changeset), written as loose objects into the bare repo at `<data>/git`. The commit message carries
-  `Rootstock-Change`, `Rootstock-Changeset`, `Rootstock-Agent`, `Rootstock-Model` and `Rootstock-Session`
+  `TreeYard-Change`, `TreeYard-Changeset`, `TreeYard-Agent`, `TreeYard-Model` and `TreeYard-Session`
   trailers.
 
-Storage: SQLite (`<data>/rootstock.db`) holds metadata and the blobs that agents wrote. The imported
+Storage: SQLite (`<data>/treeyard.db`) holds metadata and the blobs that agents wrote. The imported
 content stays in the git repo and is read through one `git cat-file --batch`.
 
 ## Tests
@@ -105,11 +105,11 @@ Phase 4: `tests/derived.rs` (blame equals `git blame --first-parent` on imported
 land, and at an open change; the `log` index equals the scan and `git log`; indexed `grep` equals the
 scan; symbols; bisect finds a planted change and `revert` removes it; derived rows persist and grow
 incrementally), `tests/iam.rs` (401 and 403 cases, read filtering, write globs, ownership, audit rows,
-git clone and push with tokens, MCP with `ROOTSTOCK_TOKEN`). On real clones (ignored by default):
-`cargo test --release --test derived --test xdiff_git -- --ignored` with `ROOTSTOCK_REAL_REPO=<clone>`.
+git clone and push with tokens, MCP with `TREEYARD_TOKEN`). On real clones (ignored by default):
+`cargo test --release --test derived --test xdiff_git -- --ignored` with `TREEYARD_REAL_REPO=<clone>`.
 
-Hardening (SECURITY.md): `tests/hardening.rs` kills a real `rootstock serve` (SIGABRT through
-`ROOTSTOCK_FAILPOINT`) at each of 6 points of a land, restarts it, and checks that SQLite main, the git
+Hardening (SECURITY.md): `tests/hardening.rs` kills a real `treeyard serve` (SIGABRT through
+`TREEYARD_FAILPOINT`) at each of 6 points of a land, restarts it, and checks that SQLite main, the git
 ref and `git fsck --strict` agree and that the land can be repeated. It also covers duplicate lands that
 race, a client that waits for a late server, a lost land reply (a TCP proxy drops it), `503 busy` and
 client retries, the data-dir lock, the loopback rule, hostile paths, a hostile push and hostile imported
@@ -117,11 +117,11 @@ trees. `tests/fuzz_history.rs` builds random histories (edits, deletes, renames 
 flips, binary, empty, symlink, CRLF, no final newline, deep and non-ASCII paths; fresh and stale bases;
 rebase, resolve, abandon) and checks every land against `git merge-tree`, every export against the
 manifest (`git ls-tree -r`) and a full tree write, and every sampled `read` against `git cat-file`.
-`ROOTSTOCK_FUZZ_SEEDS=N` runs more seeds; `ROOTSTOCK_FUZZ_SEED=S` replays one.
+`TREEYARD_FUZZ_SEEDS=N` runs more seeds; `TREEYARD_FUZZ_SEED=S` replays one.
 
 ## Replay on real history
 
-`rootstock replay --src REPO --from REV [--to REV] --agents N [--stacked] [--config TOML] [--intents]
+`treeyard replay --src REPO --from REV [--to REV] --agents N [--stacked] [--config TOML] [--intents]
 [--wave-base] --data DIR` splits consecutive
 first-parent commits into waves of N agents. Without `--stacked`, each agent starts on its commit's true
 parent (a stale base) and the wave lands in random order. A conflicted change is thrown away and redone.
@@ -167,7 +167,7 @@ has precision 0.20 to 0.42.
 ## Benchmark commands
 
 Commands: `make bench-workspaces`, `make bench-conflicts`, `make bench-queue`, `make bench-history`,
-`make bench-rootstock` with `BENCH_DIR=<scratch>`; `python3 bench/bench.py --dir <scratch> report` prints
+`make bench-treeyard` with `BENCH_DIR=<scratch>`; `python3 bench/bench.py --dir <scratch> report` prints
 the tables. `make bench-cow` measures the workspaces. The last two rows: `python3 bench/derived.py --repo
 <clone> --dir <scratch> --history 2000` (ripgrep 3fce3b5, 2 000 commits) and `--history 20000` (go
 dfc6f7db9bd7, 20 000 commits); raw numbers in [docs/derived.md](derived.md).

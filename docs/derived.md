@@ -1,7 +1,7 @@
 # Derived data: history, blame, search, symbols, bisect
 
 Agents and CI ask history questions all day: who wrote this line, what changed under this
-directory, where is this function, which change broke the tests. Rootstock answers them on the
+directory, where is this function, which change broke the tests. TreeYard answers them on the
 server, without a checkout, from derived data that it computes from the changesets and keeps.
 
 ## Operations
@@ -18,14 +18,14 @@ Every derived row is keyed by content (a blob id, or a changeset id and a path),
 stale. A new revision only adds rows for its new blobs and paths. The rows live in the SQLite file
 of the data directory and survive a restart.
 
-`[index]` in `rootstock.toml` picks when the search and symbol rows are made: `lazy` (default: on
+`[index]` in `treeyard.toml` picks when the search and symbol rows are made: `lazy` (default: on
 the first `grep` or `symbols` call), `eager` (a background thread follows main), or `off` (grep
 scans). The history index follows main on every query. Blame rows are made on the first `blame` of
 a file version. Heavy work (reading blobs aside) runs outside the repo lock, in chunks.
 
 ## Import with history
 
-`rootstock init --data D --from REPO --history N` imports the last N first-parent commits as
+`treeyard init --data D --from REPO --history N` imports the last N first-parent commits as
 changesets. Each one maps to its own git commit, so `log`, `blame` and `bisect` reach into real
 history and commit ids stay the same. Lines older than the oldest imported commit are blamed by
 `git blame --first-parent` on that commit: blame continues into everything git holds.
@@ -52,7 +52,7 @@ Command: `python3 bench/derived.py --repo <clone> --dir <scratch> --history <N> 
 "Cold" is the first `blame` of a file over HTTP; "warm" is the second. `git blame` runs on the
 same clone. Hunk check of the diff alone: `cargo test --release --test xdiff_git -- --ignored`
 printed "1106 file pairs, 0 differ" (ripgrep, last 500 commits) and "1538 file pairs, 0 differ"
-(go, `ROOTSTOCK_REAL_REPO=<go clone> ROOTSTOCK_COMMITS=400`): every hunk equals `git diff -U0`.
+(go, `TREEYARD_REAL_REPO=<go clone> TREEYARD_COMMITS=400`): every hunk equals `git diff -U0`.
 
 What the checks found on the way: with imara-diff 0.2 (the first choice) only 90 of 100 ripgrep
 files had the same blame as git. The port without git's `trim_common_tail` still differed from
@@ -123,7 +123,7 @@ tests both ends (unless `verify: false`), and halves the range. One temporary ch
 step to step: only changed files are written, files the test changed are restored, and other files
 the test made (build output) stay, as in `git bisect`. A rewritten file gets an mtime at least one
 second newer, because same-size edits in the same second looked unchanged to Python's `.pyc` check
-(the first real run blamed the wrong change). Commands come only from `rootstock.toml`
+(the first real run blamed the wrong change). Commands come only from `treeyard.toml`
 (`[bisect] test`, named `[bisect.commands]`, else `landing.test`): agents pick one by name and never
 send a command of their own. Then `revert` removes the culprit.
 

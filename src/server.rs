@@ -230,7 +230,7 @@ pub fn check_bind(repo: &Repo, addr: &str, insecure_open: bool) -> Result<()> {
     }
     anyhow::bail!(
         "refusing to serve {addr} without auth: there are no API tokens, so anyone who reaches \
-         the port could read the repo and land on main. Create one with `rootstock token create \
+         the port could read the repo and land on main. Create one with `treeyard token create \
          --data DIR --name admin --admin`, bind 127.0.0.1, or pass --insecure-open"
     )
 }
@@ -241,8 +241,8 @@ pub struct DataLock(#[allow(dead_code)] std::fs::File);
 
 pub fn lock_data(data: &std::path::Path) -> Result<DataLock> {
     use anyhow::Context as _;
-    if !data.join("rootstock.db").exists() {
-        anyhow::bail!("{} is not a rootstock repo (run `rootstock init` first)", data.display());
+    if !data.join("treeyard.db").exists() {
+        anyhow::bail!("{} is not a treeyard repo (run `treeyard init` first)", data.display());
     }
     let path = data.join("serve.lock");
     let f = std::fs::File::options()
@@ -254,7 +254,7 @@ pub fn lock_data(data: &std::path::Path) -> Result<DataLock> {
     match f.try_lock() {
         Ok(()) => Ok(DataLock(f)),
         Err(std::fs::TryLockError::WouldBlock) => {
-            anyhow::bail!("another rootstock server already serves {} (lock {})", data.display(), path.display())
+            anyhow::bail!("another treeyard server already serves {} (lock {})", data.display(), path.display())
         }
         Err(std::fs::TryLockError::Error(e)) => Err(e).with_context(|| format!("locking {}", path.display())),
     }
@@ -268,15 +268,15 @@ pub async fn serve_with(repo: Arc<Repo>, addr: &str, opts: ServeOptions) -> Resu
     check_bind(&repo, addr, opts.insecure_open)?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let at = listener.local_addr()?;
-    eprintln!("rootstock listening on http://{at} (API /api/<op>, events /api/events, git clone http://{at}/git)");
+    eprintln!("treeyard listening on http://{at} (API /api/<op>, events /api/events, git clone http://{at}/git)");
     if landing::spawn_worker(repo.clone()).is_some() {
-        eprintln!("rootstock landing worker started");
+        eprintln!("treeyard landing worker started");
     }
     if crate::indexer::spawn(repo.clone()).is_some() {
-        eprintln!("rootstock indexer started (eager derived data)");
+        eprintln!("treeyard indexer started (eager derived data)");
     }
     if !repo.auth.enabled()? {
-        eprintln!("rootstock: no API tokens yet, so the server is open; `rootstock token create` turns auth on");
+        eprintln!("treeyard: no API tokens yet, so the server is open; `treeyard token create` turns auth on");
     }
     axum::serve(listener, router_with(repo, opts.limits)).await?;
     Ok(())

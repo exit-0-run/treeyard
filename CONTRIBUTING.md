@@ -7,13 +7,13 @@ Thank you for your help. This file tells you how to build, test and send a chang
 1. Install Rust (edition 2024, rustc 1.85 or newer) and git 2.44 or newer.
 2. Run `make check`. It runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, the
    Python unit tests of `bench/`, and `cargo test`. It must pass before you send a change.
-3. Run `make release` for `target/release/rootstock`.
+3. Run `make release` for `target/release/treeyard`.
 
 Useful extra checks:
 
 - `sh scripts/check-quickstart.sh docs/quickstart.md` runs the quickstart in an empty directory.
 - `examples/swarm-demo.sh --agents 10` compares scripted agents on git worktrees and on the server.
-- `ROOTSTOCK_FUZZ_SEEDS=300 cargo test --release --test fuzz_history` runs more random histories.
+- `TREEYARD_FUZZ_SEEDS=300 cargo test --release --test fuzz_history` runs more random histories.
 - `make test-linux` runs the Linux clone paths in a privileged Docker container.
 
 There is no hosted CI. Checks run on your machine.

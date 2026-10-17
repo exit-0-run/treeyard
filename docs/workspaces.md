@@ -1,19 +1,19 @@
 # Workspaces: a real directory per agent (phase 2)
 
 Agents that only read and edit use the API. Agents that must build and run tests need a directory.
-`rootstock workspace` gives each agent one, bound to one change on the server:
+`treeyard workspace` gives each agent one, bound to one change on the server:
 
 ```sh
-export ROOTSTOCK_URL=http://127.0.0.1:7420          # a running `rootstock serve`
-export ROOTSTOCK_HOME=~/.rootstock                   # node home (default)
-rootstock daemon &                                   # streams every workspace's edits to the server
+export TREEYARD_URL=http://127.0.0.1:7420          # a running `treeyard serve`
+export TREEYARD_HOME=~/.treeyard                   # node home (default)
+treeyard daemon &                                   # streams every workspace's edits to the server
 
-rootstock workspace create fix-1 --agent claude-1 --intent "fix the glob bug" --setup "cargo build --offline -q"
-cd "$(rootstock workspace path fix-1)"
+treeyard workspace create fix-1 --agent claude-1 --intent "fix the glob bug" --setup "cargo build --offline -q"
+cd "$(treeyard workspace path fix-1)"
 # ... any tool edits files here: an editor, sed, Claude Code, Codex; tests run here ...
 cargo test -p globset
-rootstock workspace land fix-1                       # sync, then land on main
-rootstock workspace remove fix-1
+treeyard workspace land fix-1                       # sync, then land on main
+treeyard workspace remove fix-1
 ```
 
 ## What happens
@@ -24,12 +24,12 @@ rootstock workspace remove fix-1
    blobs that differ.
 3. The workspace is a copy-on-write clone of the base (`ws/<name>/`).
 4. Dependency layers are restored, the `--setup` command runs, and a missing layer is saved after it.
-5. `.rootstock/env` holds the workspace environment: `ROOTSTOCK_URL`, `ROOTSTOCK_CHANGE`, `PORT` and a
-   block of 10 ports, and a database name. `rootstock workspace env NAME` prints it as `export` lines;
-   `rootstock workspace exec NAME -- CMD` runs a command with it and syncs after it.
+5. `.treeyard/env` holds the workspace environment: `TREEYARD_URL`, `TREEYARD_CHANGE`, `PORT` and a
+   block of 10 ports, and a database name. `treeyard workspace env NAME` prints it as `export` lines;
+   `treeyard workspace exec NAME -- CMD` runs a command with it and syncs after it.
 6. `sync` (by hand, after `exec`, or from the daemon) sends every file that differs from the last sync as
    one new changeset of the same change. The server sees each agent's work live, and `apply` returns the
-   `overlaps` with other open changes (also written to `.rootstock/overlaps.json`).
+   `overlaps` with other open changes (also written to `.treeyard/overlaps.json`).
 
 ## Clone strategies (`--strategy`)
 
@@ -62,7 +62,7 @@ lockfile is a new key. Without `--layer`, layers come from the lockfiles at the 
 Caveat: a `.venv` holds absolute paths (script shebangs, editable installs that point at the first
 workspace). Share it only if it is relocatable; the bench does not share it for requests.
 
-## Warm pool (`rootstock daemon --spares N`, `rootstock workspace spare --count N`)
+## Warm pool (`treeyard daemon --spares N`, `treeyard workspace spare --count N`)
 
 A spare is a ready directory for current main: a base clone with every saved layer restored. `create`
 takes a matching spare with one rename. The daemon refills the pool in its own thread and drops spares
@@ -78,9 +78,9 @@ copies it, so `git status`, `git diff`, `git log` and even local commits work. T
 
 ## Daemon
 
-`rootstock daemon [--debounce-ms 300] [--rescan-s 30] [--spares N]` watches `ws/` (FSEvents on macOS,
+`treeyard daemon [--debounce-ms 300] [--rescan-s 30] [--spares N]` watches `ws/` (FSEvents on macOS,
 inotify on Linux, through the `notify` crate). A workspace syncs when no event came for the debounce time.
-Events under `target`, `node_modules`, `.venv`, `.git`, `__pycache__`, `.pytest_cache` and `.rootstock`
+Events under `target`, `node_modules`, `.venv`, `.git`, `__pycache__`, `.pytest_cache` and `.treeyard`
 are ignored; a rescan every 30 s catches anything missed. Each sync that sent something is one JSON line
 on stdout.
 
@@ -91,7 +91,7 @@ node.lock                 node-wide lock (bases, port slots, spares)
 bases/<changeset>/        materialised tree; bases/<changeset>.json = entries + stat cache
 layers/<dir>-<key>/       dependency dirs at their workspace paths; <dir>-<key>.json lists them
 spares/<id>/              warm pool; <id>.json = base, layer keys, git
-ws/<name>/                the workspace; ws/<name>/.rootstock/env
+ws/<name>/                the workspace; ws/<name>/.treeyard/env
 meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
 git.cache/                bare git cache for --git
 ```

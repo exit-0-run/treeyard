@@ -1,6 +1,6 @@
 # Install
 
-`rootstock` is one binary (static on Linux). It needs `git` 2.44 or newer on the server and on
+`treeyard` is one binary (static on Linux). It needs `git` 2.44 or newer on the server and on
 nodes: the server reads objects with `git cat-file` and merges lines with
 `git merge-file --diff-algorithm`, which git 2.44 added
 ([release notes](https://raw.githubusercontent.com/git/git/master/Documentation/RelNotes/2.44.0.adoc),
@@ -19,9 +19,9 @@ sh install.sh --from https://HOST/PATH/v0.1.0  # any URL that serves the same fi
 
 | Archive | Platform | Built with |
 |---|---|---|
-| `rootstock-0.1.0-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
-| `rootstock-0.1.0-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
-| `rootstock-0.1.0-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.0-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
+| `treeyard-0.1.0-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.0-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
 
 No release is published yet. Build one with the next section.
 
@@ -32,7 +32,7 @@ sh scripts/dist.sh
 ```
 
 It builds this machine's target and, when `cargo-zigbuild` and `zig` are on `PATH`, the two Linux
-musl targets. It writes `dist/rootstock-<version>-<target>.tar.gz`, `dist/SHA256SUMS` and
+musl targets. It writes `dist/treeyard-<version>-<target>.tar.gz`, `dist/SHA256SUMS` and
 `dist/install.sh`. `dist/` is gitignored. The script uploads nothing.
 
 Cross-build tools, kept outside the repo (no global install needed):
@@ -50,8 +50,8 @@ sh scripts/dist.sh` should work after `rustup target add x86_64-apple-darwin`, b
 ## From source
 
 ```text
-make release                     # target/release/rootstock
-cp target/release/rootstock ~/.local/bin/
+make release                     # target/release/treeyard
+cp target/release/treeyard ~/.local/bin/
 ```
 
 Rust 2024 edition (rustc 1.85 or newer; this repo builds with 1.99.1). `make check` runs format,
@@ -62,7 +62,7 @@ clippy and all tests.
 - `sh scripts/dist.sh` on the macOS arm64 machine built all three archives (about 50 s with warm
   caches) and wrote `SHA256SUMS`. The Linux binaries are `ELF 64-bit LSB executable ... statically
   linked` (`file`).
-- `sh dist/install.sh --from dist --prefix <empty dir>` printed `installed rootstock 0.1.0 ...
+- `sh dist/install.sh --from dist --prefix <empty dir>` printed `installed treeyard 0.1.0 ...
   (checksum ok)`. With one byte appended to the archive it printed `install: checksum mismatch` and
   exited 1 without installing.
 - In `alpine:3` containers (Docker on the same machine), `install.sh` installed the arm64 archive

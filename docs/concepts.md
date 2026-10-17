@@ -1,6 +1,6 @@
 # Concepts
 
-TreeYard (the binary is still named `rootstock` in v0.1) is one server between your agents and
+TreeYard (the binary is still named `treeyard` in v0.1) is one server between your agents and
 git. This page names the parts and how they fit. The protocol is in [spec/rpc.md](spec/rpc.md),
 every operation is in [api.md](api.md).
 
@@ -11,16 +11,16 @@ every operation is in [api.md](api.md).
    |  MCP (stdio)   |  HTTP /api/<op>   |  CLI              |  git clone / pull / push
    v                v                   v                   v
  +---------------------------------------------------------------+
- | rootstock serve                                               |
+ | treeyard serve                                               |
  |  changes + changesets (SQLite)   merge / rebase / land        |
  |  events, intents, collisions     blame, log, grep, symbols    |
  |  tokens + audit                  git smart HTTP under /git    |
  +---------------------------------------------------------------+
    |  every land = one deterministic git commit on main
    v
- bare git repository (data/git)  --- rootstock mirror --->  GitHub (read-only mirror)
+ bare git repository (data/git)  --- treeyard mirror --->  GitHub (read-only mirror)
 
- node: rootstock workspace / rootstock daemon
+ node: treeyard workspace / treeyard daemon
    copy-on-write directories of main, synced to their change after each edit
 ```
 
@@ -72,7 +72,7 @@ trial-merge signal, not every shared path.
 
 Many agents only read and edit through the API. An agent that must build or run tests gets a
 **workspace**: a copy-on-write clone of a built base (APFS `clonefile`, reflink, overlayfs), with
-dependency layers (`target/`, `node_modules`) keyed by lockfile hash. `rootstock daemon` syncs each
+dependency layers (`target/`, `node_modules`) keyed by lockfile hash. `treeyard daemon` syncs each
 workspace to its change about 300 ms after the last edit, so the server sees the work live and a
 deleted directory loses nothing that synced ([workspaces.md](workspaces.md)). For Claude Code, the
 `WorktreeCreate` hook makes `claude --worktree` and subagents use workspaces ([mcp.md](mcp.md)).
@@ -82,7 +82,7 @@ deleted directory loses nothing that synced ([workspaces.md](workspaces.md)). Fo
 - Every landed changeset maps to one deterministic git commit on `main` (same input, same commit id).
 - People use `git clone`, `git pull` and `git push` on `http://HOST:7420/git`. A push must be a
   fast-forward of main; each pushed commit lands as a change ([git-http.md](git-http.md)).
-- `rootstock mirror` pushes `main` to GitHub or any remote, never forced.
+- `treeyard mirror` pushes `main` to GitHub or any remote, never forced.
 
 ## History and search on the server
 

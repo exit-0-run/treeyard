@@ -1,6 +1,6 @@
 # Access control and audit
 
-Rootstock has API tokens: one per agent (or person), each with read and write path globs, plus
+TreeYard has API tokens: one per agent (or person), each with read and write path globs, plus
 admin tokens. An audit log records every write and every denied call.
 
 ## Turn auth on
@@ -9,16 +9,16 @@ A new data directory is open: every caller acts as `open` with full rights, as i
 token turns auth on, and auth stays on, even after you revoke every token.
 
 ```sh
-rootstock token create --data D --name root --admin          # prints the token once
-rootstock token create --data D --name claude-1 --write 'src/**' --write 'tests/**'
-rootstock token create --data D --name reviewer               # read everything, write nothing
-rootstock token list --data D                                  # ids, names, globs; never secrets
-rootstock token revoke --data D <id>
+treeyard token create --data D --name root --admin          # prints the token once
+treeyard token create --data D --name claude-1 --write 'src/**' --write 'tests/**'
+treeyard token create --data D --name reviewer               # read everything, write nothing
+treeyard token list --data D                                  # ids, names, globs; never secrets
+treeyard token revoke --data D <id>
 ```
 
 The server keeps only a SHA-256 hash of each token. Store a token where the agent reads it, for
-example in the environment variable `ROOTSTOCK_TOKEN` or in a secret manager. Do not commit it.
-`rootstock call`, `rootstock mcp` and the workspace commands send `ROOTSTOCK_TOKEN` as
+example in the environment variable `TREEYARD_TOKEN` or in a secret manager. Do not commit it.
+`treeyard call`, `treeyard mcp` and the workspace commands send `TREEYARD_TOKEN` as
 `Authorization: Bearer <token>`. An admin can also call `token_create`, `token_list` and
 `token_revoke` through the API.
 
@@ -34,10 +34,10 @@ example in the environment variable `ROOTSTOCK_TOKEN` or in a secret manager. Do
 - Admin tokens may do everything, including `config`, `queue_run`, `test_main` and token calls.
 - `audit` needs an admin token or a token that reads every path. `bisect` needs a token that reads
   every path and may write something (it runs a command on the server).
-- Globs use the gitignore style of `rootstock.toml`: `Cargo.lock` matches at any depth, `docs/` covers
+- Globs use the gitignore style of `treeyard.toml`: `Cargo.lock` matches at any depth, `docs/` covers
   a directory, `src/*.rs` stays in one directory, `**` is everything.
 - Git over HTTP: git sends the token as the Basic password (or user name), for example
-  `git clone http://x:$ROOTSTOCK_TOKEN@host:7420/git`. A clone needs a token that reads every path. A
+  `git clone http://x:$TREEYARD_TOKEN@host:7420/git`. A clone needs a token that reads every path. A
   push needs a write token, and every path the pushed commits change must match its write globs.
 
 ## Audit log
@@ -56,9 +56,9 @@ One row per call of `open_change`, `declare`, `apply`, `resolve`, `rebase`, `lan
 | `paths` | the paths it changed (or tried to change) |
 
 ```sh
-rootstock call audit '{"path": "src/parser", "status": "landed"}'   # who landed what under src/parser
-rootstock call audit '{"agent": "claude-1", "limit": 50}'
-rootstock call audit '{"status": "denied"}'                          # every refusal
+treeyard call audit '{"path": "src/parser", "status": "landed"}'   # who landed what under src/parser
+treeyard call audit '{"agent": "claude-1", "limit": 50}'
+treeyard call audit '{"status": "denied"}'                          # every refusal
 ```
 
 Filters: `agent`, `actor`, `change`, `op`, `status`, `path` (a file or a directory), `since` and
@@ -76,7 +76,7 @@ clone> --dir <scratch> --history 0 --only land [--auth]`.
 
 `cargo test --test iam`: 401 and 403 cases, read filtering of `list`, `tree`, `grep` and `blobs`,
 write globs, ownership, revocation, the audit rows of a land and of each denial, git clone and push
-with tokens, and MCP with `ROOTSTOCK_TOKEN`.
+with tokens, and MCP with `TREEYARD_TOKEN`.
 
 ## Limits
 

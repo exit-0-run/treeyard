@@ -4,7 +4,7 @@
 //! `503 busy` reply are retried for every operation. A request that may have reached the
 //! server (the connection broke while waiting for the reply) is retried only for reads and
 //! `land`, because landing twice answers like the first land. Retries back off from 100 ms to
-//! 2 s, `ROOTSTOCK_RETRIES` times (default 6, about 6 s in total).
+//! 2 s, `TREEYARD_RETRIES` times (default 6, about 6 s in total).
 
 use anyhow::{Result, bail};
 use serde_json::Value;
@@ -23,12 +23,12 @@ fn agent() -> &'static ureq::Agent {
 }
 
 fn retries() -> u32 {
-    std::env::var("ROOTSTOCK_RETRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(6)
+    std::env::var("TREEYARD_RETRIES").ok().and_then(|v| v.parse().ok()).unwrap_or(6)
 }
 
-/// Calls `op` with the token from `ROOTSTOCK_TOKEN`, if set.
+/// Calls `op` with the token from `TREEYARD_TOKEN`, if set.
 pub fn call(url: &str, op: &str, params: Value) -> Result<Value> {
-    let token = std::env::var("ROOTSTOCK_TOKEN").ok().filter(|t| !t.is_empty());
+    let token = std::env::var("TREEYARD_TOKEN").ok().filter(|t| !t.is_empty());
     call_with(url, token.as_deref(), op, params)
 }
 
@@ -60,10 +60,10 @@ fn once(endpoint: &str, url: &str, token: Option<&str>, op: &str, params: &Value
         Err(ureq::Error::Transport(t)) => {
             let unsent = matches!(t.kind(), ureq::ErrorKind::ConnectionFailed | ureq::ErrorKind::Dns);
             if unsent || SAFE_TO_REPEAT.contains(&op) {
-                Try::Again(format!("cannot reach rootstock at {url}: {t}"))
+                Try::Again(format!("cannot reach treeyard at {url}: {t}"))
             } else {
                 Try::Done(Err(anyhow::anyhow!(
-                    "connection to rootstock at {url} broke during {op}; the server may have run it: \
+                    "connection to treeyard at {url} broke during {op}; the server may have run it: \
                      check with `change` or `status` before you call it again ({t})"
                 )))
             }

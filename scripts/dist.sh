@@ -30,16 +30,16 @@ for t in $DIST_TARGETS; do
         rustup target add "$t" >/dev/null
         "$CARGO" zigbuild --release --locked --target "$t"
     fi
-    name="rootstock-$version-$t"
+    name="treeyard-$version-$t"
     stage=$(mktemp -d)
     mkdir "$stage/$name"
-    cp "target/$t/release/rootstock" LICENSE README.md CHANGELOG.md "$stage/$name/"
+    cp "target/$t/release/treeyard" LICENSE README.md CHANGELOG.md "$stage/$name/"
     tar -C "$stage" -czf "dist/$name.tar.gz" "$name"
     rm -rf "$stage"
     echo "dist: dist/$name.tar.gz"
 done
 
-(cd dist && rm -f SHA256SUMS && for f in rootstock-*.tar.gz; do
+(cd dist && rm -f SHA256SUMS && for f in treeyard-*.tar.gz; do
     if command -v sha256sum >/dev/null 2>&1; then sha256sum "$f"; else shasum -a 256 "$f"; fi
 done > SHA256SUMS)
 cp scripts/install.sh dist/install.sh

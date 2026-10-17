@@ -27,7 +27,7 @@ to 200 AI coding agents on one repository. Agents get a workspace in about a sec
 other's edits while they work, and land in milliseconds. Git stays the source of truth, so people
 keep `git clone`, `git pull`, `git push` and GitHub.
 
-The binary is still named `rootstock` in v0.1. The rename to `treeyard` comes next.
+The binary is still named `treeyard` in v0.1. The rename to `treeyard` comes next.
 
 ## The pains
 
@@ -55,7 +55,7 @@ What hurts when many agents work on one repository with `git worktree` (sources:
   with the base, both sides and who changed the path. Optional modes test before (`queue`) or after
   (`optimistic`) the land, with bisect and revert.
 - **Keep git.** Every land is one deterministic git commit. People clone, pull and push over HTTP;
-  `rootstock mirror` pushes `main` to GitHub.
+  `treeyard mirror` pushes `main` to GitHub.
 - **Ask the server.** `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`,
   tree-sitter `symbols`, server-side `bisect`.
 
@@ -109,7 +109,7 @@ the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-g
 | Land on linux (96 080 files), p50, 50 in a row | 183.7 to 201.14 ms (commit + merge-tree) | 0.91 ms | **about 200× faster** |
 
 Correctness: 300 random histories gave 2 200 clean server merges, all equal to `git merge-tree`, and
-0 server conflicts that git merged cleanly (`ROOTSTOCK_FUZZ_SEEDS=300 cargo test --release --test
+0 server conflicts that git merged cleanly (`TREEYARD_FUZZ_SEEDS=300 cargo test --release --test
 fuzz_history`, [docs/benchmarks.md](docs/benchmarks.md#hardening-checks-task-013-2026-10-17)).
 
 Limits of these numbers:
@@ -135,8 +135,8 @@ git -C demo-repo init -q -b main
 printf 'hello wrold\n' > demo-repo/README.md
 git -C demo-repo add README.md
 git -C demo-repo -c user.name=me -c user.email=me@example.com commit -q -m "first commit"
-rootstock init --data rs-data --from demo-repo
-rootstock serve --data rs-data > serve.log 2>&1 &
+treeyard init --data rs-data --from demo-repo
+treeyard serve --data rs-data > serve.log 2>&1 &
 SERVER=$!
 sleep 1
 ```
@@ -144,9 +144,9 @@ sleep 1
 An agent opens a change, edits without a checkout, and lands:
 
 ```sh
-CH=$(rootstock call open_change '{"agent": "a1", "intent": "fix a typo"}' | sed -n 's/^  "id": "\(ch_[0-9a-f]*\)",$/\1/p')
-rootstock call apply "{\"change\": \"$CH\", \"edits\": [{\"path\": \"README.md\", \"replace\": {\"old\": \"wrold\", \"new\": \"world\"}}]}" > /dev/null
-rootstock call land "{\"change\": \"$CH\"}" | grep '"status"'
+CH=$(treeyard call open_change '{"agent": "a1", "intent": "fix a typo"}' | sed -n 's/^  "id": "\(ch_[0-9a-f]*\)",$/\1/p')
+treeyard call apply "{\"change\": \"$CH\", \"edits\": [{\"path\": \"README.md\", \"replace\": {\"old\": \"wrold\", \"new\": \"world\"}}]}" > /dev/null
+treeyard call land "{\"change\": \"$CH\"}" | grep '"status"'
 ```
 
 People see a normal git commit:
@@ -160,8 +160,8 @@ kill "$SERVER"
 ## Connect your agents
 
 ```text
-claude mcp add --transport stdio rootstock -- rootstock mcp --agent claude-1
-codex mcp add rootstock -- rootstock mcp --agent codex-1
+claude mcp add --transport stdio treeyard -- treeyard mcp --agent claude-1
+codex mcp add treeyard -- treeyard mcp --agent codex-1
 ```
 
 OpenCode, `.mcp.json`, and Claude Code worktree hooks that make `claude --worktree` and subagents

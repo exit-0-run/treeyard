@@ -1,10 +1,10 @@
 {
   "hooks": {
     "WorktreeCreate": [
-      { "hooks": [ { "type": "command", "command": "sh /path/to/rootstock/examples/claude-code/worktree-create.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "sh /path/to/treeyard/examples/claude-code/worktree-create.sh" } ] }
     ],
     "WorktreeRemove": [
-      { "hooks": [ { "type": "command", "command": "sh /path/to/rootstock/examples/claude-code/worktree-remove.sh" } ] }
+      { "hooks": [ { "type": "command", "command": "sh /path/to/treeyard/examples/claude-code/worktree-remove.sh" } ] }
     ]
   }
 }

@@ -1,6 +1,6 @@
 //! Docs that must follow the code: the API reference is generated from the operation table,
 //! and every operation of the table is named in the open RPC spec.
-//! `ROOTSTOCK_BLESS=1 cargo test --test docs` rewrites docs/api.md.
+//! `TREEYARD_BLESS=1 cargo test --test docs` rewrites docs/api.md.
 
 use std::path::Path;
 
@@ -10,19 +10,19 @@ fn root() -> &'static Path {
 
 #[test]
 fn api_reference_matches_the_operation_table() {
-    let want = rootstock::apidoc::markdown(&rootstock::rpc::tools());
+    let want = treeyard::apidoc::markdown(&treeyard::rpc::tools());
     let path = root().join("docs/api.md");
-    if std::env::var_os("ROOTSTOCK_BLESS").is_some() {
+    if std::env::var_os("TREEYARD_BLESS").is_some() {
         std::fs::write(&path, &want).unwrap();
     }
     let have = std::fs::read_to_string(&path).unwrap_or_default();
-    assert!(have == want, "docs/api.md is stale: run `cargo run -q -- api-doc > docs/api.md` (or ROOTSTOCK_BLESS=1)");
+    assert!(have == want, "docs/api.md is stale: run `cargo run -q -- api-doc > docs/api.md` (or TREEYARD_BLESS=1)");
 }
 
 #[test]
 fn rpc_spec_names_every_operation() {
     let spec = std::fs::read_to_string(root().join("docs/spec/rpc.md")).unwrap();
-    for t in rootstock::rpc::tools() {
+    for t in treeyard::rpc::tools() {
         let name = t["name"].as_str().unwrap();
         assert!(spec.contains(&format!("`{name}`")), "docs/spec/rpc.md does not name operation {name}");
     }

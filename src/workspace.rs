@@ -11,7 +11,7 @@
 //! node.lock                 node-wide lock (bases, layers, port slots)
 //! bases/<changeset>/        materialised tree; bases/<changeset>.json = entries + stat cache
 //! layers/<name>-<key>/      dependency dirs at their workspace-relative paths (+ .json)
-//! ws/<name>/                the workspace; ws/<name>/.rootstock/env holds its environment
+//! ws/<name>/                the workspace; ws/<name>/.treeyard/env holds its environment
 //! meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
 //! ```
 
@@ -33,7 +33,7 @@ use crate::git;
 use crate::model::{MODE_EXEC, MODE_FILE, MODE_GITLINK, MODE_LINK};
 
 /// The workspace's private directory: never synced, never part of a layer.
-pub const PRIVATE: &str = ".rootstock";
+pub const PRIVATE: &str = ".treeyard";
 /// One sync request carries at most about this many bytes of file content.
 const BATCH_BYTES: usize = 8 << 20;
 pub const DEFAULT_PORT_BASE: u16 = 20000;
@@ -114,16 +114,16 @@ pub struct Workspace {
 impl Workspace {
     pub fn env(&self) -> Vec<(String, String)> {
         vec![
-            ("ROOTSTOCK_URL".into(), self.url.clone()),
-            ("ROOTSTOCK_WORKSPACE".into(), self.name.clone()),
-            ("ROOTSTOCK_CHANGE".into(), self.change.clone()),
-            ("ROOTSTOCK_AGENT".into(), self.agent.clone()),
-            ("ROOTSTOCK_PORT_BASE".into(), self.ports.0.to_string()),
-            ("ROOTSTOCK_PORT_COUNT".into(), (self.ports.1 - self.ports.0 + 1).to_string()),
+            ("TREEYARD_URL".into(), self.url.clone()),
+            ("TREEYARD_WORKSPACE".into(), self.name.clone()),
+            ("TREEYARD_CHANGE".into(), self.change.clone()),
+            ("TREEYARD_AGENT".into(), self.agent.clone()),
+            ("TREEYARD_PORT_BASE".into(), self.ports.0.to_string()),
+            ("TREEYARD_PORT_COUNT".into(), (self.ports.1 - self.ports.0 + 1).to_string()),
             ("PORT".into(), self.ports.0.to_string()),
             (
-                "ROOTSTOCK_DB".into(),
-                format!("rootstock_{}", self.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
+                "TREEYARD_DB".into(),
+                format!("treeyard_{}", self.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")),
             ),
         ]
     }
@@ -218,12 +218,12 @@ impl Node {
         Node { home: home.into(), url: url.into(), port_base: DEFAULT_PORT_BASE, port_block: DEFAULT_PORT_BLOCK }
     }
 
-    /// `ROOTSTOCK_HOME`, else `~/.rootstock`.
+    /// `TREEYARD_HOME`, else `~/.treeyard`.
     pub fn default_home() -> PathBuf {
-        if let Some(h) = std::env::var_os("ROOTSTOCK_HOME") {
+        if let Some(h) = std::env::var_os("TREEYARD_HOME") {
             return h.into();
         }
-        PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| ".".into())).join(".rootstock")
+        PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| ".".into())).join(".treeyard")
     }
 
     fn call(&self, op: &str, params: Value) -> Result<Value> {
@@ -339,7 +339,7 @@ impl Node {
     /// an alternate to the node's bare cache (`git.cache`), fetched from the server's `/git`.
     pub fn git_base(&self, cs: &str) -> Result<()> {
         let dir = self.base_dir(cs);
-        let ready = dir.join(".git").join("rootstock-ready");
+        let ready = dir.join(".git").join("treeyard-ready");
         if ready.exists() {
             return Ok(());
         }
@@ -632,7 +632,7 @@ impl Node {
             self.git_base(base)?;
         }
         let strategy = cow::clone_tree(&base_dir, &tmp, Strategy::Auto)?;
-        let tmp_has_git = tmp.join(".git/rootstock-ready").exists();
+        let tmp_has_git = tmp.join(".git/treeyard-ready").exists();
         let mut keys = Vec::new();
         for spec in &specs {
             let key = self.layer_key(&base_dir, spec)?;
@@ -899,7 +899,7 @@ pub struct Scan {
 }
 
 /// Compares the workspace with `state`. Tracked files are always checked; untracked files only
-/// when no `.gitignore` excludes them (like git). Layer directories and `.rootstock` are skipped.
+/// when no `.gitignore` excludes them (like git). Layer directories and `.treeyard` are skipped.
 pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result<Scan> {
     let mut out = Scan::default();
     for (path, st) in state {
@@ -977,7 +977,7 @@ mod tests {
 
     #[test]
     fn unsafe_server_paths_are_refused() {
-        for p in ["../x", "/etc/passwd", "a/../../b", ".git/config", "a/.rootstock/env", "a//b"] {
+        for p in ["../x", "/etc/passwd", "a/../../b", ".git/config", "a/.treeyard/env", "a//b"] {
             assert!(check_rel(p).is_err(), "{p}");
         }
         check_rel("src/main.rs").unwrap();

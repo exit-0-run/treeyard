@@ -5,7 +5,7 @@ mod common;
 
 use common::*;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use rootstock::repo::Repo;
+use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::sync::{Arc, Barrier};
 

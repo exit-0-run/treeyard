@@ -1,4 +1,4 @@
-//! examples/swarm-demo.sh runs end to end: both sides keep every edit, and only Rootstock warns
+//! examples/swarm-demo.sh runs end to end: both sides keep every edit, and only TreeYard warns
 //! about the same-line conflict before land.
 
 use std::process::Command;
@@ -8,8 +8,8 @@ fn swarm_demo_runs_and_keeps_every_edit() {
     let root = env!("CARGO_MANIFEST_DIR");
     let out = Command::new("sh")
         .arg(format!("{root}/examples/swarm-demo.sh"))
-        .args(["--agents", "4", "--pairs", "1", "--files", "50", "--bin", env!("CARGO_BIN_EXE_rootstock")])
-        .env_remove("ROOTSTOCK_TOKEN")
+        .args(["--agents", "4", "--pairs", "1", "--files", "50", "--bin", env!("CARGO_BIN_EXE_treeyard")])
+        .env_remove("TREEYARD_TOKEN")
         .output()
         .expect("run swarm-demo.sh");
     let text = String::from_utf8_lossy(&out.stdout);

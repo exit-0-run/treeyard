@@ -4,8 +4,8 @@
 mod common;
 
 use common::*;
-use rootstock::client::call_with;
-use rootstock::repo::Repo;
+use treeyard::client::call_with;
+use treeyard::repo::Repo;
 use serde_json::{Value, json};
 use std::sync::Arc;
 
@@ -31,7 +31,7 @@ fn setup() -> Setup {
     let data = tmp.path().join("data");
     Repo::init(&data, &src, "main", None).unwrap();
     let repo = Arc::new(Repo::open(&data).unwrap());
-    // `rootstock token create --admin` does the same on the data directory.
+    // `treeyard token create --admin` does the same on the data directory.
     let (_, admin) = repo.auth.create("root", true, &["**".into()], &["**".into()]).unwrap();
     let url = spawn_server(repo);
     Setup { _tmp: tmp, url, admin, data }
@@ -157,7 +157,7 @@ fn tokens_scope_reads_and_writes_and_every_write_is_audited() {
     }
     let created = ok(url, &s.admin, "audit", json!({"op": "token_create"}));
     assert!(!created.to_string().contains(&agent), "the audit log never holds a secret");
-    assert!(s.data.join("rootstock.db").exists());
+    assert!(s.data.join("treeyard.db").exists());
 }
 
 #[test]
@@ -195,9 +195,9 @@ fn mcp_bridge_sends_the_token_from_the_environment() {
     let s = setup();
     let agent = token(&s.url, &s.admin, "agent-mcp", &["**"], &["src/**"]);
     use std::io::Write;
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_rootstock"))
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_treeyard"))
         .args(["mcp", "--url", &s.url])
-        .env("ROOTSTOCK_TOKEN", &agent)
+        .env("TREEYARD_TOKEN", &agent)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()

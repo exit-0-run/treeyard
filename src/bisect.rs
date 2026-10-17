@@ -1,7 +1,7 @@
 //! Server-side bisect: binary search over the first-parent changesets between a good and a
 //! bad revision. Each step moves one temporary materialisation to the next changeset (only
 //! changed files are written; files the test edited are restored) and runs a test command
-//! from `rootstock.toml`. Tests run outside the repo lock, so agents keep landing.
+//! from `treeyard.toml`. Tests run outside the repo lock, so agents keep landing.
 
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
@@ -167,7 +167,7 @@ pub fn run(repo: &Repo, a: &Args) -> Result<Value> {
         let mut test = |i: usize, work: &mut Work| -> Result<bool> {
             let cs = &chain[i];
             work.move_to(repo, cs)?;
-            let out = run_cmd(&cmd, &work.dir, timeout, &[("ROOTSTOCK_CHANGESET", cs)])?;
+            let out = run_cmd(&cmd, &work.dir, timeout, &[("TREEYARD_CHANGESET", cs)])?;
             let commit = repo.with(|r| r.store.commit_of(cs))?;
             steps.push(json!({"changeset": cs, "commit": commit, "ok": out.ok, "seconds": out.seconds}));
             if !out.ok {
