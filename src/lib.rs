@@ -5,6 +5,7 @@ pub mod git;
 pub mod mcp;
 pub mod merge;
 pub mod model;
+pub mod replay;
 pub mod repo;
 pub mod rpc;
 pub mod server;

@@ -27,7 +27,7 @@ fn import_tree_matches_git_byte_for_byte() {
     git(&src, &["commit", "-q", "-m", "exec and link"]);
 
     let data = tmp.path().join("data");
-    let root = Repo::init(&data, &src, "main").unwrap();
+    let root = Repo::init(&data, &src, "main", None).unwrap();
     let repo = Repo::open(&data).unwrap();
     let ours = repo
         .with(|r| {
@@ -44,7 +44,7 @@ fn landed_changes_become_valid_git_history() {
     let tmp = tempfile::tempdir().unwrap();
     let src = fixture_repo(tmp.path(), 3, 5, TRICKY);
     let data = tmp.path().join("data");
-    Repo::init(&data, &src, "main").unwrap();
+    Repo::init(&data, &src, "main", None).unwrap();
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
 
     let ch =
@@ -111,7 +111,7 @@ fn mcp_bridge_lists_and_calls_tools() {
     let tmp = tempfile::tempdir().unwrap();
     let src = fixture_repo(tmp.path(), 1, 3, &[]);
     let data = tmp.path().join("data");
-    Repo::init(&data, &src, "main").unwrap();
+    Repo::init(&data, &src, "main", None).unwrap();
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
 
     use std::io::Write;
@@ -144,4 +144,44 @@ fn mcp_bridge_lists_and_calls_tools() {
         serde_json::from_str(replies[2]["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
     assert_eq!(opened["agent"], "mcp-agent");
     assert_eq!(replies[3]["result"]["isError"], true);
+}
+
+#[test]
+fn commit_message_survives_rebase_and_resolve() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 1, 3, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let gd = data.join("git");
+    let gd_s = gd.to_str().unwrap();
+    let subject = |rev: &str| git(tmp.path(), &["--git-dir", gd_s, "log", "-1", "--format=%s", rev]).trim().to_string();
+
+    let a = call(&url, "open_change", json!({"agent": "a", "intent": "intent a"}))["id"].as_str().unwrap().to_string();
+    let b = call(&url, "open_change", json!({"agent": "b", "intent": "intent b"}))["id"].as_str().unwrap().to_string();
+    let c = call(&url, "open_change", json!({"agent": "c", "intent": "intent c"}))["id"].as_str().unwrap().to_string();
+    call(
+        &url,
+        "apply",
+        json!({"change": a, "message": "Message A", "edits": [{"path": "f00.txt", "replace": {"old": "line 0", "new": "A0"}}]}),
+    );
+    call(
+        &url,
+        "apply",
+        json!({"change": b, "message": "Message B", "edits": [{"path": "f00.txt", "replace": {"old": "line 2", "new": "B2"}}]}),
+    );
+    call(
+        &url,
+        "apply",
+        json!({"change": c, "message": "Message C", "edits": [{"path": "f00.txt", "replace": {"old": "line 0", "new": "C0"}}]}),
+    );
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    // b is rebased on the server: its message must reach the commit.
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    assert_eq!(subject("main"), "Message B");
+    // c conflicts with a; settling it with resolve keeps the message too.
+    assert_eq!(call(&url, "land", json!({"change": c}))["status"], "conflict");
+    call(&url, "resolve", json!({"change": c, "path": "f00.txt", "take": "ours"}));
+    assert_eq!(call(&url, "land", json!({"change": c}))["status"], "landed");
+    assert_eq!(subject("main"), "Message C");
 }

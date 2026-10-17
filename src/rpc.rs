@@ -219,7 +219,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "open_change",
             "Start a change on top of main (no branch). Returns its id; edit it with apply, then land.",
-            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": at}),
+            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}}),
             &["agent", "intent"],
         ),
         tool(
@@ -242,7 +242,7 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "land",
-            "Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit) or conflict (with tasks).",
+            "Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), already_on_main (main had every edit), waiting (stacked on a change that has not landed), or conflict (with tasks).",
             json!({"change": change}),
             &["change"],
         ),

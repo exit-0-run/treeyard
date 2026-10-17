@@ -62,9 +62,10 @@ fn paths(data: &Path) -> (PathBuf, PathBuf) {
 }
 
 impl Repo {
-    /// Creates a data directory from the tip of `branch` in the git repo at `src`. The export
-    /// repo is a bare clone of `src`, so landed commits continue its history.
-    pub fn init(data: &Path, src: &Path, branch: &str) -> Result<String> {
+    /// Creates a data directory from the tip of `branch` in the git repo at `src`, or from `rev`
+    /// (then `branch` is pointed at it). The export repo is a bare clone of `src`, so landed
+    /// commits continue its history.
+    pub fn init(data: &Path, src: &Path, branch: &str, rev: Option<&str>) -> Result<String> {
         let (db, git_dir) = paths(data);
         if db.exists() || git_dir.exists() {
             bail!("{} already holds a rootstock repo", data.display());
@@ -72,9 +73,10 @@ impl Repo {
         fs::create_dir_all(data)?;
         let (src_s, git_s) = (src.to_string_lossy(), git_dir.to_string_lossy());
         git::run(None, &["clone", "--bare", "--quiet", &src_s, &git_s])?;
-        let commit = git::run(Some(&git_dir), &["rev-parse", "--verify", &format!("refs/heads/{branch}^{{commit}}")])?
-            .trim()
-            .to_string();
+        let rev = rev.map_or_else(|| format!("refs/heads/{branch}"), str::to_string);
+        let commit =
+            git::run(Some(&git_dir), &["rev-parse", "--verify", &format!("{rev}^{{commit}}")])?.trim().to_string();
+        git::run(Some(&git_dir), &["update-ref", &format!("refs/heads/{branch}"), &commit])?;
         git::run(Some(&git_dir), &["symbolic-ref", "HEAD", &format!("refs/heads/{branch}")])?;
         let time: i64 = git::run(Some(&git_dir), &["show", "-s", "--format=%ct", &commit])?.trim().parse()?;
         let changes = git::ls_tree(&git_dir, &commit)?.into_iter().map(|(p, e)| (p, Some(e))).collect();
@@ -248,6 +250,11 @@ impl Inner {
         Ok(id)
     }
 
+    /// The commit message on the change's current head, kept across amend, resolve and rebase.
+    fn head_message(&self, ch: &Change) -> Result<Option<String>> {
+        if ch.head == ch.base { Ok(None) } else { Ok(self.changeset(&ch.head)?.meta.message) }
+    }
+
     fn own_changes(&self, ch: &Change) -> Result<Changes> {
         if ch.head == ch.base { Ok(Changes::new()) } else { Ok(self.changeset(&ch.head)?.changes) }
     }
@@ -317,7 +324,7 @@ impl Inner {
         let head = if changes.is_empty() {
             ch.base.clone()
         } else {
-            let meta = Self::meta_for(ch, message);
+            let meta = Self::meta_for(ch, message.or(self.head_message(ch)?));
             self.store.put_changeset(&Changeset { parents: vec![ch.base.clone()], changes, meta })?
         };
         if head != ch.head {
@@ -399,6 +406,46 @@ impl Inner {
         Ok(ch)
     }
 
+    /// Sets paths of an open change to entries whose blobs already exist (used by replay).
+    pub fn apply_entries(
+        &mut self,
+        id: &str,
+        entries: Vec<(String, Option<Entry>)>,
+        message: Option<String>,
+    ) -> Result<Change> {
+        let mut ch = self.open_change_mut(id)?;
+        self.set_entries(&mut ch, entries, message)?;
+        Ok(ch)
+    }
+
+    /// Records an existing git commit as a changeset on top of its first parent's changeset
+    /// (which must be known), mapped to that same commit. Not on main.
+    pub fn import_commit(&mut self, commit: &str) -> Result<String> {
+        if let Some(cs) = self.store.changeset_of_commit(commit)? {
+            return Ok(cs);
+        }
+        let gd = self.odb.dir().to_path_buf();
+        let parent = git::run(Some(&gd), &["rev-parse", &format!("{commit}^1")])?.trim().to_string();
+        let parent_cs = self
+            .store
+            .changeset_of_commit(&parent)?
+            .with_context(|| format!("parent {parent} of {commit} is not imported"))?;
+        let info = git::run(Some(&gd), &["show", "-s", "--format=%ct%n%an%n%s", commit])?;
+        let mut lines = info.lines();
+        let time: i64 = lines.next().unwrap_or("0").parse()?;
+        let author = lines.next().unwrap_or("").to_string();
+        let subject = lines.next().unwrap_or("").to_string();
+        let changes = git::diff_tree(&gd, &parent, commit)?.into_iter().collect();
+        let cs = Changeset {
+            parents: vec![parent_cs],
+            changes,
+            meta: Meta { agent: format!("import:{author}"), intent: subject, time, ..Meta::default() },
+        };
+        let id = self.store.put_changeset(&cs)?;
+        self.store.map_commit(&id, commit)?;
+        Ok(id)
+    }
+
     /// Settles one conflicted path by taking one side; `apply` on the path also settles it.
     pub fn resolve(&mut self, id: &str, path: &str, take: &str) -> Result<Change> {
         let mut ch = self.open_change_mut(id)?;
@@ -478,7 +525,7 @@ impl Inner {
         let head = if changes.is_empty() {
             onto.to_string()
         } else {
-            let meta = Self::meta_for(ch, None);
+            let meta = Self::meta_for(ch, self.head_message(ch)?);
             self.store.put_changeset(&Changeset { parents: vec![onto.to_string()], changes, meta })?
         };
         ch.predecessors.push(std::mem::replace(&mut ch.head, head));
@@ -502,6 +549,20 @@ impl Inner {
         if !ch.conflicts.is_empty() {
             return Ok(json!({"status": "conflict", "change": self.change_view(&ch)?}));
         }
+        if ch.head == ch.base {
+            bail!("change {id} is empty: apply edits before landing");
+        }
+        // A change stacked on another change's head waits until that change lands; landing it
+        // first would apply its diff to a main that lacks the work it was written against.
+        if let Some(dep) = self.changeset(&ch.base)?.meta.change.filter(|d| *d != ch.id) {
+            match self.change(&dep)?.state {
+                ChangeState::Open => return Ok(json!({"status": "waiting", "change": ch.id, "waiting_for": dep})),
+                ChangeState::Abandoned => {
+                    bail!("change {id} is stacked on abandoned change {dep}; rebase it onto main")
+                }
+                ChangeState::Landed => {}
+            }
+        }
         let main = self.main()?;
         let mut merged_from = Value::Null;
         if ch.base != main {
@@ -517,7 +578,14 @@ impl Inner {
             }
         }
         if ch.head == ch.base {
-            bail!("change {id} has nothing to land (empty, or main already has its edits)");
+            // The rebase found every edit already on main: nothing new to commit.
+            ch.state = ChangeState::Landed;
+            ch.landed_as = Some(main.clone());
+            self.store.put_change(&ch)?;
+            let commit = self.commit_for(&main)?;
+            return Ok(
+                json!({"status": "already_on_main", "change": ch.id, "changeset": main, "commit": commit, "merged_from": merged_from}),
+            );
         }
         let commit = self.commit_for(&ch.head)?;
         ch.state = ChangeState::Landed;

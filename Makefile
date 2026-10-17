@@ -1,21 +1,23 @@
 # Checks run locally (no GitHub Actions on appnice repos).
-export PATH := /opt/homebrew/opt/rustup/bin:$(HOME)/.cargo/bin:$(PATH)
+# Rust comes from Homebrew rustup, which is not on the default PATH.
+CARGO ?= $(shell command -v cargo 2>/dev/null || echo /opt/homebrew/opt/rustup/bin/cargo)
+export PATH := $(dir $(CARGO)):$(PATH)
 
 .PHONY: build test check fmt release
 
 build:
-	cargo build
+	$(CARGO) build
 
 test:
-	cargo test
+	$(CARGO) test
 
 check:
-	cargo fmt --check
-	cargo clippy --all-targets -- -D warnings
-	cargo test
+	$(CARGO) fmt --check
+	$(CARGO) clippy --all-targets -- -D warnings
+	$(CARGO) test
 
 fmt:
-	cargo fmt
+	$(CARGO) fmt
 
 release:
-	cargo build --release
+	$(CARGO) build --release

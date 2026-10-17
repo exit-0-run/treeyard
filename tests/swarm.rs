@@ -80,7 +80,7 @@ fn fifty_agents_land_and_git_agrees_with_every_merge() {
     let tmp = tempfile::tempdir().unwrap();
     let src = fixture_repo(tmp.path(), FILES, LINES, &[]);
     let data = tmp.path().join("data");
-    Repo::init(&data, &src, "main").unwrap();
+    Repo::init(&data, &src, "main", None).unwrap();
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
 
     let start = Arc::new(Barrier::new(AGENTS));

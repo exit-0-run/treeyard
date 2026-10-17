@@ -7,7 +7,8 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 
 - `make check`: `cargo fmt --check`, `clippy -D warnings`, `cargo test`. Run before every commit.
 - `make test` · `make release` (binary at `target/release/rootstock`).
-- Rust comes from Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`); the Makefile puts it on PATH.
+- Rust comes from Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`), not on the default PATH; the Makefile
+  finds cargo there (`CARGO`), plain `cargo` in a shell needs that dir on PATH.
 - Run: `rootstock init --data D --from REPO`, `rootstock serve --data D`, `rootstock call <op> '<json>'`,
   `rootstock mcp --url URL --agent NAME`.
 
@@ -22,6 +23,8 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 | `src/repo.rs` | changes, rebase, land, revert, export, read queries |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
 | `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs` | axum API, ureq client, stdio MCP, CLI |
+| `src/replay.rs` | `rootstock replay`: real history in waves of N agents, stale or stacked, checked against git |
+| `tests/replay.rs` | replay on a synthetic linear history (stale merges match git; stacked reproduces it) |
 | `tests/swarm.rs` | phase-1 gate: 50 agents, every merge checked against `git merge-tree` |
 | `tests/git_bridge.rs` | tree bytes vs git, fsck, clone, trailers, revert, MCP over stdio |
 
@@ -29,6 +32,9 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 
 - All state goes through `Repo::with` (one mutex). Landing is serialised by it, so there is no git lock.
 - A change's `head` equals `base` while it is empty; otherwise its only parent is `base`.
+- Stacked changes: if the base changeset belongs to another open change, `land` returns `waiting`.
+- Keep the commit message across amend, resolve and rebase (`head_message`); replay caught it being dropped.
+- Real histories carry their own fsck errors (requests has a bad timezone); replay counts only new ones.
 - Git tree order: a directory sorts as if its name ended in `/` (`write_dir`). Any change to tree or
   commit encoding must keep `import_tree_matches_git_byte_for_byte` green.
 - Commits must stay deterministic: their dates and author come from the changeset, never from the clock.

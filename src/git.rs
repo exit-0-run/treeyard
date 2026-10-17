@@ -55,6 +55,34 @@ pub fn ls_tree(git_dir: &Path, commit: &str) -> Result<Vec<(String, Entry)>> {
     Ok(entries)
 }
 
+/// Paths that differ between two commits (no rename detection), with the new entry or `None`.
+pub fn diff_tree(git_dir: &Path, from: &str, to: &str) -> Result<Vec<(String, Option<Entry>)>> {
+    let out = Command::new("git")
+        .arg("--git-dir")
+        .arg(git_dir)
+        .args(["diff-tree", "-r", "-z", "--no-renames", "--no-commit-id", from, to])
+        .output()?;
+    if !out.status.success() {
+        bail!("git diff-tree {from} {to} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
+    }
+    // Records come as ":oldmode newmode oldid newid status\0path\0".
+    let mut fields = out.stdout.split(|b| *b == 0).filter(|r| !r.is_empty());
+    let mut changes = Vec::new();
+    while let Some(meta) = fields.next() {
+        let meta = std::str::from_utf8(meta)?;
+        let path = std::str::from_utf8(fields.next().context("diff-tree record without path")?)?;
+        let parts: Vec<&str> = meta.trim_start_matches(':').split(' ').collect();
+        let [_, new_mode, _, new_id, status] = parts.as_slice() else { bail!("bad diff-tree record {meta}") };
+        let entry = if status.starts_with('D') {
+            None
+        } else {
+            Some(Entry { blob: new_id.to_string(), mode: u32::from_str_radix(new_mode, 8)? })
+        };
+        changes.push((path.to_string(), entry));
+    }
+    Ok(changes)
+}
+
 struct CatFile {
     child: Child,
     stdin: ChildStdin,
