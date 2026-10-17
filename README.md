@@ -17,11 +17,7 @@
 <h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
 
 <p align="center">
-  <a href="#benchmarks"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640"></a>
+  <img src="assets/hero/treeyard-race.gif" alt="TreeYard vs plain git worktrees: 50 workspaces 57x faster, 161x less disk, blame 43x faster, thrown-away changes 111 to 0" width="900">
 </p>
 
 <p align="center"><b>Also:</b> land a change in 3 ms with no merge queue* · 99–100% of conflicts reported before land · 8× faster grep · 1 binary, git underneath</p>
@@ -89,6 +85,14 @@ treeyard workspace land fix-1
 All operations, configuration and the data model: [docs/reference.md](docs/reference.md).
 
 ## Benchmarks
+
+<p align="center">
+  <img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640">
+  <img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640">
+  <img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640">
+  <img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640">
+  <img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640">
+</p>
 
 > **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
