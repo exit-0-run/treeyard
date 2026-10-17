@@ -31,7 +31,7 @@
   </tr>
 </table>
 
-<p align="center"><sub>Measured on real repositories with 50 agents on one Apple M5 Pro, 2026-10-17.
+<p align="center"><sub>Measured on real repositories with 50 agents on one machine (15-core ARM64 CPU, 48 GB RAM, NVMe SSD), 2026-10-17.
 Every number links to a command: <a href="#benchmarks">Benchmarks</a>.</sub></p>
 
 Your agents are fast. Git makes them wait. TreeYard is a version control server for 10 to 200 AI coding
@@ -96,9 +96,9 @@ All operations, configuration and the data model: [docs/reference.md](docs/refer
 
 ## Benchmarks
 
-> **Measured results, not estimates.** One Apple M5 Pro (macOS 26.6, APFS), 2026-10-17, one run per
+> **Measured results, not estimates.** One machine: 15-core ARM64 CPU (5 performance + 10 efficiency cores), 48 GB RAM, 1 TB NVMe SSD, APFS, macOS 26.6; no GPU use, 2026-10-17, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
-> go `dfc6f7db9bd7`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
+> go `dfc6f7db9bd7`, linux `58161ead29e5`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
 
 | Measurement (50 agents) | Plain git | TreeYard | Gain |
 |---|---|---|---|
@@ -110,6 +110,7 @@ All operations, configuration and the data model: [docs/reference.md](docs/refer
 | Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |
 | `blame`, ripgrep, p50 | 24.76 ms | 15.85 ms cold, 0.58 ms warm | **1.6× faster cold, 43× warm**, same lines |
 | `grep`, go (15 311 files) | 482 to 664 ms | 5.15 to 393.92 ms | **8× faster (median)**, same matches |
+| Land on linux (96 080 files), p50, 50 in a row | 183.7 to 201.14 ms (commit + merge-tree) | 0.91 ms | **about 200× faster** |
 
 Limits of these numbers:
 

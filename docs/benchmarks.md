@@ -37,7 +37,7 @@ What this means for the plan:
 
 ## Phase 2: Rootstock workspaces vs plain worktrees (2026-10-17)
 
-Measured on the same Mac (Apple M5 Pro, macOS 26.6, APFS), same pinned revisions (ripgrep `3fce3b5`,
+Measured on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), same pinned revisions (ripgrep `3fce3b5`,
 astro `c75e897`), same warm caches (cargo registry, pnpm store), at most 8 workspaces made at once,
 in one session. Rootstock: `make release` on the task-#007 working tree. Other sessions used the Mac
 during the runs. Commands:
@@ -92,7 +92,7 @@ work. `spare-*` modes first run `rootstock workspace spare --count N` (the "pool
 
 ## Phase 3: coordination replay
 
-Measured 2026-10-17 on the same Mac (Apple M5 Pro, macOS 26.6, APFS), with `rootstock replay` on the last
+Measured 2026-10-17 on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), with `rootstock replay` on the last
 500 first-parent commits of ripgrep (`3fce3b5`) and requests (`611c6162`), seed 1, at 16 and 50 agents.
 Binary: `make release` of the working tree at the end of task #009 (copy
 `/private/tmp/rootstock-harness/009/rootstock-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
@@ -196,11 +196,110 @@ Raw table (`python3 /private/tmp/rootstock-harness/009/table.py`, all columns, 3
 `/private/tmp/rootstock-harness/009/final-table.md`; each run's JSON is in
 `/private/tmp/rootstock-harness/009/results/`.
 
+## Scale: linux, 96 080 files (task 013, 2026-10-17)
+
+Question: does one server stay fast on a big repo with long history? Repo: the Linux kernel,
+https://github.com/torvalds/linux at `58161ead29e50d70a317ea26b472e0c7508e69da` (`master`, 2026-10-17),
+96 080 files at the tip. Clone: `git clone --depth 1`, then four times `git fetch --deepen=500 origin
+master`. The result is a shallow clone that reaches 1 461 641 commits (59 279 first-parent), 5.8 GB in `.git`.
+
+Commands (scratch `/private/tmp/rootstock-harness/013`, JSON in `scale/results/`):
+
+```sh
+D=/private/tmp/rootstock-harness/013; L=/private/tmp/rootstock-harness/oss/linux
+git archive 2d90daf | tar -x -C $D/before && (cd $D/before && cargo build --release)   # the "before" binary
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-before --binary $D/before/target/release/rootstock --git
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-after --git                 # working tree at task start
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-after2                      # after the two fixes below
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-history10000 --history 10000 --no-grep   # before fix 2
+python3 bench/scale.py --repo $L --dir $D/scale --tag linux-history10000-walk --history 10000 --no-grep
+```
+
+"before" is the last commit on main (`2d90daf`). "after" is the working tree, which holds the hardening
+work: incremental export (`write_tree_changed`), a lazy object cache, a bounded manifest cache, a
+copy-on-write import of a shallow source, and the trigram index. One run per row. Other agent sessions
+used the Mac at the same time: load average 6 to 17 on 15 cores (the `load` field of each JSON).
+
+| Measurement (linux, history 0) | before `2d90daf` | after (task start) | after (fixes 1 and 2) |
+|---|---|---|---|
+| `init` wall time | 315.13 s | 1.23 s | 1.69 s |
+| `init` peak RSS | 8 930.6 MB | 282.1 MB | 282.2 MB |
+| `serve` start until `/health` answers | 6.07 s | 0.017 s | 0.014 s |
+| Restart (second start) | 5.94 s | 0.033 s | 0.024 s |
+| Server RSS after start / after 200 reads | 1 801.2 / 1 852.2 MB | 10.9 / 101.2 MB | 10.8 / 102.5 MB |
+| Server RSS after grep / after 130 lands | 1 854.2 / 1 021.9 MB | 860.2 / 873.7 MB | 772.3 / 782.6 MB |
+| `read`, 200 files, p50 / p95 / max | 0.25 / 0.43 / 55.0 ms | 0.44 / 0.78 / 56.27 ms | 0.5 / 0.86 / 58.49 ms |
+| `list` of the root | 5.17 ms | 5.72 ms | 5.32 ms |
+| `tree` of main (96 080 files) | no such op | 45.89 ms | 42.87 ms |
+| `grep EXPORT_SYMBOL_GPL\(`, max 100, first / repeat | 680.15 / 634.16 ms (scan) | 17 635.41 / 11.12 ms | 18 827.15 / 8.08 ms |
+| `grep struct file_operations [a-z_]+ = \{`, first / repeat | 945.43 / 900.82 ms | 20.56 / 19.75 ms | 15.96 / 15.82 ms |
+| `grep TODO\|FIXME`, first / repeat | 236.95 / 239.52 ms | 14.19 / 10.12 ms | 7.9 / 7.96 ms |
+| `land`, 50 one after another, p50 / p95 / max | 69.29 / 73.52 / 112.56 ms | 1.28 / 2.45 / 26.49 ms | 0.91 / 1.96 / 20.4 ms |
+| `land`, 16 agents x 5 at once, p50 / p95 | 695.23 / 1 092.82 ms | 29.14 / 64.1 ms | 17.64 / 30.27 ms |
+| Lands per second, 16 agents | 7.2 | 196.2 | 252.9 |
+| `git fsck --connectivity-only` on the export repo | clean | clean | clean |
+
+The data directory is 5 197.6 MB (before) and 5 944.9 MB (after) in `du -sk`. `du` counts APFS clones in
+full, and the after import clones `objects/` copy-on-write, so the physical cost is lower (not measured).
+
+Plain git baseline on the same clone (`--git`; worktree add, then per land: append a line, `git commit -a`,
+`git merge-tree --write-tree`, `git update-ref`; no CI). Two runs, in the before and the after-task-start runs:
+
+| Plain git, linux | run 1 | run 2 |
+|---|---|---|
+| `git worktree add` (checkout 1.7 GB) | 8.437 s | 7.684 s |
+| `git status --porcelain` | 0.534 s | 0.315 s |
+| `git grep -E -c`, the three patterns | 3 172.65 / 2 830.09 / 3 544.17 ms | 2 818.28 / 2 756.93 / 3 844.61 ms |
+| edit + commit + merge-tree + update-ref, 50 lands, p50 / p95 | 183.7 / 196.07 ms | 201.14 / 237.77 ms |
+
+So on linux a Rootstock land (p50 0.91 ms) is about 200 times faster than a local git commit plus merge
+(p50 183.7 to 201.14 ms). The first indexed grep is slower than a scan, because it builds the trigram
+index (255 MB of postings); later greps take 8 to 16 ms against 2.8 to 3.8 s for `git grep`. Set
+`[index] search = "eager"` to build the index when the server starts, or send `"index": false` to scan.
+
+### Hotspots found and fixed in this task
+
+1. **The first grep stopped every land for seconds.** The posting index was built under the repo lock.
+   Probe: land in a loop while the first grep runs (`python3 bench/grep_stall.py BINARY $L $D/probe/data`).
+   The first rows ran the same loop from a scratch copy of the script; the last run is `bench/grep_stall.py`.
+
+   | Build | grep wall | Lands during grep | Slowest land round trip | Land p50 |
+   |---|---|---|---|---|
+   | index built under the lock | 18.15 s | 378 | 4.567 s | 4.9 ms |
+   | `search::build_index` outside the lock, 16 MiB prepare chunks | 17.37 s | 1 112 | 0.314 s | 4.1 ms |
+   | same, 4 MiB prepare chunks (three runs) | 20.69 / 20.6 / 21.43 s | 1 365 / 1 366 / 1 383 | 0.191 / 0.205 / 0.218 s | 4.4 / 4.4 / 4.7 ms |
+
+   Test: `index_built_outside_the_lock_follows_later_lands` (tests/derived.rs).
+2. **A cold read after a long history import replayed every changeset.** With `--history 10000`, the
+   first `read` rebuilt main's manifest from the root changeset and cached each step. Now `manifest` reads
+   the git tree (`git ls-tree -r`, about 0.09 s on linux) after `MANIFEST_WALK` = 64 replayed steps.
+
+   | linux, `--history 10000` | before fix 2 | after fix 2 |
+   |---|---|---|
+   | `init` wall / peak RSS | 6.334 s / 1 051.3 MB | 6.432 s / 1 051.5 MB |
+   | `read`, 200 files, p50 / max (the first read is the max) | 0.45 / 752.7 ms | 0.42 / 114.74 ms |
+   | Server RSS after reads | 756.3 MB | 97.1 MB |
+   | `land`, 50 one after another, p50 / p95 | 1.3 / 3.06 ms | 1.21 / 2.9 ms |
+   | `land`, 16 agents x 5, p50 / p95 | 22.88 / 171.62 ms | 27.79 / 152.63 ms |
+
+   Test: `cold_manifest_from_git_equals_a_full_replay` (tests/hardening.rs) compares 231 changesets with a
+   full replay. A mutation (drop one tree entry) makes it fail.
+
+Open: with 10 000 imported changesets, parallel land p95 is 152.63 ms against 30.27 ms with none (not
+investigated). `init --history 10000` peaks at 1 051.5 MB RSS. The index holds 255 MB of postings for linux.
+
+## Hardening checks (task 013, 2026-10-17)
+
+| Command | Result |
+|---|---|
+| `ROOTSTOCK_FUZZ_SEEDS=300 cargo test --release --test fuzz_history -- --nocapture` | 300 seeds, 7718 lands, 5111 merges: 2200 clean and equal to git merge-tree, 2911 server conflicts (0 of them git merged cleanly); 7718 exports equal to the manifest, 7718 reads equal to git; 448.84 s |
+| `cargo test --test hardening` (part of `make check`) | 12 passed: kill at 6 failpoints and restart, duplicate land race, lost land reply, client retry, 503 busy, data-dir lock, bind refusal, hostile paths, sizes, repo content and push, shallow import, cold manifests |
+
 ## Machine and sources
 
 | Item | Value |
 |---|---|
-| Machine | Apple M5 Pro, 15 cores, 48 GB, macOS 26.6 (25G72), APFS, 764 GB free at the start |
+| Machine | 15-core ARM64 CPU (5 performance + 10 efficiency cores), 48 GB RAM, 1 TB NVMe SSD, macOS 26.6 (25G72), APFS, 764 GB free at the start |
 | Tools | git 2.54.0 (Apple Git-157), Python 3.15.0, rustc and cargo 1.99.1, node v26.11.1, pnpm 11.28.4 (astro's `packageManager`), uv 0.13.0, pip 26.2.1 |
 | ripgrep | https://github.com/BurntSushi/ripgrep at `3fce3b5bb0236da2df6d99672afb8a719642eca7` (2026-08-04), 237 files, 2215 first-parent commits |
 | requests | https://github.com/psf/requests at `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60` (2026-09-21), 130 files, 2669 first-parent commits |
@@ -441,8 +540,8 @@ the 10 files that the last 500 commits changed most, then N blames at once.
   Setups for N = 10 and N = 50 are slower per workspace than N = 1 because they share CPU and disk.
 - Rootstock "ready" means an API-only agent: it can read, grep, diff and edit, but not build or run
   tests. Agents that run code still need a workspace (RFC phase 2).
-- Rootstock land time grows with the tree: p50 0.6 ms on ripgrep (237 files) and 11.6 ms on astro
-  (7033 files) at 1 agent, because every export rewrites the full tree (a known gap).
+- Phase-0 land times (p50 0.6 ms on ripgrep, 11.6 ms on astro at 1 agent) come from the binary that
+  rewrote the full tree on every export. Export is incremental now; see the scale section (linux p50 0.91 ms).
 - `rootstock replay` "merges same tree as git" counts every merge record, including trivial ones.
 - Not measured: ports, `.env` files and databases per workspace (research pain 3), and lost work from
   worktree cleanup (research pain 2).
