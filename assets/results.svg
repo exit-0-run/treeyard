@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 658" width="900" height="658" role="img" aria-label="TreeYard against plain git worktrees: measured results">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 676" width="900" height="676" role="img" aria-label="TreeYard against plain git worktrees: measured results">
 <style>
 .bg{fill:#f6f8f5}.card{fill:#ffffff;stroke:#d5dcd6}.t{fill:#1c2420}.m{fill:#5b675f}.git{fill:#b9c1bb}.ty{fill:#2f6b45}.big{fill:#2f6b45}.amber{fill:#d99a1e}.rule{stroke:#e3e8e4}
 text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
-.h1{font-size:24px;font-weight:800}.lab{font-size:15px;font-weight:700}.sub{font-size:12px}.val{font-size:12.5px;font-weight:600;font-family:ui-monospace,Menlo,monospace}.mul{font-size:34px;font-weight:800}.mulsub{font-size:12px}.leg{font-size:12.5px}.foot{font-size:11.5px}
+.h1{font-size:24px;font-weight:800}.lab{font-size:15px;font-weight:700}.sub{font-size:13px}.val{font-size:13.5px;font-weight:600;font-family:ui-monospace,Menlo,monospace}.mul{font-size:34px;font-weight:800}.mulsub{font-size:13px}.leg{font-size:12.5px}.foot{font-size:14px}
 @media (prefers-color-scheme: dark){.bg{fill:#0d1117}.card{fill:#161b22;stroke:#30363d}.t{fill:#e6edf3}.m{fill:#8d96a0}.git{fill:#3d444d}.ty{fill:#7fc496}.big{fill:#7fc496}.rule{stroke:#21262d}}
 </style>
-<rect class="bg" width="900" height="658" rx="14"/>
-<rect class="card" x="12" y="12" width="876" height="634" rx="10"/>
+<rect class="bg" width="900" height="676" rx="14"/>
+<rect class="card" x="12" y="12" width="876" height="652" rx="10"/>
 <text class="t h1" x="36" y="52">TreeYard vs plain git worktrees</text>
 <rect class="git" x="300" y="66" width="14" height="10" rx="2"/><text class="m leg" x="320" y="75">plain git</text>
 <rect class="ty" x="400" y="66" width="14" height="10" rx="2"/><text class="m leg" x="420" y="75">TreeYard</text>
@@ -57,15 +57,15 @@ text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
 <text class="m mulsub" x="810" y="464" text-anchor="middle">with intents</text>
 <line class="rule" x1="36" x2="864" y1="478" y2="478"/>
 <text class="t lab" x="36" y="508">Wait to land the last change</text>
-<text class="m sub" x="36" y="526">requests, 50 agents, serial queue with CI</text>
+<text class="m sub" x="36" y="526">requests, 50 agents, CI queue</text>
 <rect class="git" x="300" y="494" width="420" height="18" rx="3"/>
 <text class="t val" x="712" y="507" text-anchor="end">3 614 s</text>
 <rect class="ty" x="300" y="518" width="4.0" height="18" rx="3"/>
 <text class="t val" x="312.0" y="531">2.3 ms*</text>
 <text class="big mul" x="810" y="524" text-anchor="middle">0</text>
 <text class="m mulsub" x="810" y="542" text-anchor="middle">queue wait*</text>
-<text class="m foot" x="36" y="574">Measured 2026-10-17 on one machine: 15-core ARM64 CPU, 48 GB RAM, NVMe SSD, APFS. One run per configuration.</text>
-<text class="m foot" x="36" y="591">Commands and raw data: docs/benchmarks.md.</text>
-<text class="m foot" x="36" y="608">* TreeYard land time does not include CI: tests run on main after land (optimistic mode) or in a tested queue.</text>
-<text class="m foot" x="36" y="625">111→0 is an upper bound: the replay declares the exact paths of each change.</text>
+<text class="m foot" x="36" y="576">Measured on one laptop: 15-core ARM64, 48 GB RAM, SSD. One run per configuration.</text>
+<text class="m foot" x="36" y="597">Commands and raw data: docs/benchmarks.md.</text>
+<text class="m foot" x="36" y="618">* Land time excludes CI: tests run on main after land, or in a tested queue.</text>
+<text class="m foot" x="36" y="639">111→0 is an upper bound: the replay declares the exact paths of each change.</text>
 </svg>

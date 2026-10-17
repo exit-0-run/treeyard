@@ -38,7 +38,7 @@ so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME
 `spare`, `remove [--abandon]`. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
-50 extra agents, each ready to build, on a 15-core ARM64 machine (48 GB RAM), 8 at once (`bench/bench.py cow` against
+50 extra agents, each ready to build, on one laptop (15-core ARM64, 48 GB RAM), 8 at once (`bench/bench.py cow` against
 `bench/bench.py workspaces`, 2026-10-17, [docs/benchmarks.md](benchmarks.md)):
 
 | Repo | `git worktree` + setup | TreeYard workspace | TreeYard, warm pool |

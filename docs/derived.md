@@ -39,7 +39,7 @@ way `git blame` does: the candidate sources are the files that changeset deleted
 destination is the blamed path. Two differences from `git blame` remain by design: blame follows
 first parents only, and it does not look for moved or copied lines (`-M`, `-C`).
 
-Checks (commands run 2026-10-17, 15-core ARM64 CPU, 48 GB RAM, macOS 26.6, release build):
+Checks (commands run 2026-10-17, 15-core ARM64, 48 GB RAM, macOS, release build):
 
 | Repo, revision | Imported commits | Files checked | Lines equal to git | `blame` cold p50 / p95 | `blame` warm p50 | `git blame --first-parent` p50 / p95 |
 |---|---|---|---|---|---|---|

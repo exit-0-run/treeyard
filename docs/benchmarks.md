@@ -37,13 +37,13 @@ What this means for the plan:
 
 ## Phase 2: TreeYard workspaces vs plain worktrees (2026-10-17)
 
-Measured on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), same pinned revisions (ripgrep `3fce3b5`,
+Measured on the same Mac (15-core ARM64, 48 GB RAM, macOS, APFS), same pinned revisions (ripgrep `3fce3b5`,
 astro `c75e897`), same warm caches (cargo registry, pnpm store), at most 8 workspaces made at once,
 in one session. TreeYard: `make release` on the task-#007 working tree. Other sessions used the Mac
 during the runs. Commands:
 
 ```sh
-export BENCH_DIR=/private/tmp/treeyard-harness/007 BENCH_OSS=/private/tmp/treeyard-harness/oss
+export BENCH_DIR=/private/tmp/rootstock-harness/007 BENCH_OSS=/private/tmp/rootstock-harness/oss
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS workspaces --repo ripgrep --n 1,10,50 --setup checkout,cargo-warm-clone,cargo-cold   # 6 min
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS workspaces --repo astro --n 1,10,50 --setup checkout,pnpm-store                     # 25 min
 python3 bench/bench.py --dir $BENCH_DIR --oss $BENCH_OSS cow --repo ripgrep --n 1,10,50    # 31 s
@@ -92,15 +92,15 @@ work. `spare-*` modes first run `treeyard workspace spare --count N` (the "pool 
 
 ## Phase 3: coordination replay
 
-Measured 2026-10-17 on the same Mac (15-core ARM64 CPU, 48 GB RAM, macOS 26.6, APFS), with `treeyard replay` on the last
+Measured 2026-10-17 on the same Mac (15-core ARM64, 48 GB RAM, macOS, APFS), with `treeyard replay` on the last
 500 first-parent commits of ripgrep (`3fce3b5`) and requests (`611c6162`), seed 1, at 16 and 50 agents.
 Binary: `make release` of the working tree at the end of task #009 (copy
-`/private/tmp/treeyard-harness/009/treeyard-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
+`/private/tmp/rootstock-harness/009/treeyard-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
 binary of main `2d90daf` plus the #003 to #007 working tree, copied before any #009 change
-(`/private/tmp/treeyard-harness/009/treeyard-base`). Other sessions ran on the Mac at the same time,
+(`/private/tmp/rootstock-harness/009/treeyard-base`). Other sessions ran on the Mac at the same time,
 so the land times are noisy (see below).
 
-Command for one run (`rp.sh TAG REPO N CONFIG [flags]` in `/private/tmp/treeyard-harness/009/`):
+Command for one run (`rp.sh TAG REPO N CONFIG [flags]` in `/private/tmp/rootstock-harness/009/`):
 
 ```sh
 treeyard replay --src oss/ripgrep --from HEAD~500 --to HEAD --agents 16 --data D \
@@ -192,9 +192,9 @@ difference is machine load, and the guard and event code add about 10 %. With in
 3.33 ms (fewer changes are open at once). A replay with continuous rebase on the wave-base model takes 2 to
 5 times longer than without (122 s to 260 s against 41 s to 64 s), because every rebase of every open change is also checked against git.
 
-Raw table (`python3 /private/tmp/treeyard-harness/009/table.py`, all columns, 36 rows) is in
-`/private/tmp/treeyard-harness/009/final-table.md`; each run's JSON is in
-`/private/tmp/treeyard-harness/009/results/`.
+Raw table (`python3 /private/tmp/rootstock-harness/009/table.py`, all columns, 36 rows) is in
+`/private/tmp/rootstock-harness/009/final-table.md`; each run's JSON is in
+`/private/tmp/rootstock-harness/009/results/`.
 
 ## Scale: linux, 96 080 files (task 013, 2026-10-17)
 
@@ -203,10 +203,10 @@ https://github.com/torvalds/linux at `58161ead29e50d70a317ea26b472e0c7508e69da` 
 96 080 files at the tip. Clone: `git clone --depth 1`, then four times `git fetch --deepen=500 origin
 master`. The result is a shallow clone that reaches 1 461 641 commits (59 279 first-parent), 5.8 GB in `.git`.
 
-Commands (scratch `/private/tmp/treeyard-harness/013`, JSON in `scale/results/`):
+Commands (scratch `/private/tmp/rootstock-harness/013`, JSON in `scale/results/`):
 
 ```sh
-D=/private/tmp/treeyard-harness/013; L=/private/tmp/treeyard-harness/oss/linux
+D=/private/tmp/rootstock-harness/013; L=/private/tmp/rootstock-harness/oss/linux
 git archive 2d90daf | tar -x -C $D/before && (cd $D/before && cargo build --release)   # the "before" binary
 python3 bench/scale.py --repo $L --dir $D/scale --tag linux-before --binary $D/before/target/release/treeyard --git
 python3 bench/scale.py --repo $L --dir $D/scale --tag linux-after --git                 # working tree at task start
@@ -299,7 +299,7 @@ investigated). `init --history 10000` peaks at 1 051.5 MB RSS. The index holds 2
 
 | Item | Value |
 |---|---|
-| Machine | 15-core ARM64 CPU (5 performance + 10 efficiency cores), 48 GB RAM, 1 TB NVMe SSD, macOS 26.6 (25G72), APFS, 764 GB free at the start |
+| Machine | 15-core ARM64, 48 GB RAM, SSD, macOS, APFS |
 | Tools | git 2.54.0 (Apple Git-157), Python 3.15.0, rustc and cargo 1.99.1, node v26.11.1, pnpm 11.28.4 (astro's `packageManager`), uv 0.13.0, pip 26.2.1 |
 | ripgrep | https://github.com/BurntSushi/ripgrep at `3fce3b5bb0236da2df6d99672afb8a719642eca7` (2026-08-04), 237 files, 2215 first-parent commits |
 | requests | https://github.com/psf/requests at `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60` (2026-09-21), 130 files, 2669 first-parent commits |
@@ -313,8 +313,8 @@ counts, because the replay is deterministic for a seed.
 ## How to reproduce
 
 ```sh
-export BENCH_DIR=/private/tmp/treeyard-harness/003     # scratch: clones, seeds, workspaces, results
-export BENCH_OSS=/private/tmp/treeyard-harness/oss     # optional: existing clones (else cloned from the URLs)
+export BENCH_DIR=/private/tmp/rootstock-harness/003     # scratch: clones, seeds, workspaces, results
+export BENCH_OSS=/private/tmp/rootstock-harness/oss     # optional: existing clones (else cloned from the URLs)
 make bench-conflicts                                    # 16 min: 3 repos x 500 commits x N=1,10,50 x seeds 1,2,3
 make bench-treeyard                                    # 7 min: init, 1/10/50 API agents, `treeyard replay` N=1,10,50
 make bench-workspaces                                   # 67 min: 3 repos x setups x N=1,10,50, 8 at once
@@ -473,7 +473,7 @@ the 10 files that the last 500 commits changed most, then N blames at once.
 | requests | 6495 | 10 | 0.0475 | 0.0573 | 0.0277 | 0.0864 | 0.03 / 0.0274 | 0.098 / 0.0951 | 0.252 / 0.1384 |
 | ripgrep | 2287 | 10 | 0.0367 | 0.0452 | 0.0453 | 0.062 | 0.071 / 0.0657 | 0.087 / 0.0829 | 0.215 / 0.1761 |
 
-### Phase 2 raw numbers (`report` on `/private/tmp/treeyard-harness/007`)
+### Phase 2 raw numbers (`report` on `/private/tmp/rootstock-harness/007`)
 
 #### Workspaces (git worktree add + setup)
 

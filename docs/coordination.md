@@ -20,7 +20,7 @@ All tests are in `tests/coordination.rs` unless named otherwise. Every operation
 
 ## Demo (two agents, one function)
 
-`/private/tmp/treeyard-harness/009/demo.sh` (not in the repo; the commands are below) ran on
+`/private/tmp/rootstock-harness/009/demo.sh` (not in the repo; the commands are below) ran on
 2026-10-17 against `treeyard serve` with `continuous_rebase = true`:
 
 ```sh
