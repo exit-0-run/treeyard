@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 658" width="900" height="658" role="img" aria-label="TreeYard against plain git worktrees: measured results">
+<style>
+.bg{fill:#f6f8f5}.card{fill:#ffffff;stroke:#d5dcd6}.t{fill:#1c2420}.m{fill:#5b675f}.git{fill:#b9c1bb}.ty{fill:#2f6b45}.big{fill:#2f6b45}.amber{fill:#d99a1e}.rule{stroke:#e3e8e4}
+text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+.h1{font-size:24px;font-weight:800}.lab{font-size:15px;font-weight:700}.sub{font-size:12px}.val{font-size:12.5px;font-weight:600;font-family:ui-monospace,Menlo,monospace}.mul{font-size:34px;font-weight:800}.mulsub{font-size:12px}.leg{font-size:12.5px}.foot{font-size:11.5px}
+@media (prefers-color-scheme: dark){.bg{fill:#0d1117}.card{fill:#161b22;stroke:#30363d}.t{fill:#e6edf3}.m{fill:#8d96a0}.git{fill:#3d444d}.ty{fill:#7fc496}.big{fill:#7fc496}.rule{stroke:#21262d}}
+</style>
+<rect class="bg" width="900" height="658" rx="14"/>
+<rect class="card" x="12" y="12" width="876" height="634" rx="10"/>
+<text class="t h1" x="36" y="52">TreeYard vs plain git worktrees</text>
+<rect class="git" x="300" y="66" width="14" height="10" rx="2"/><text class="m leg" x="320" y="75">plain git</text>
+<rect class="ty" x="400" y="66" width="14" height="10" rx="2"/><text class="m leg" x="420" y="75">TreeYard</text>
+<text class="m leg" x="810" y="75" text-anchor="middle">gain</text>
+<text class="t lab" x="36" y="118">Spin up 50 workspaces</text>
+<text class="m sub" x="36" y="136">ripgrep, ready to build</text>
+<rect class="git" x="300" y="104" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="117" text-anchor="end">69.66 s</text>
+<rect class="ty" x="300" y="128" width="7.4" height="18" rx="3"/>
+<text class="t val" x="315.4" y="141">1.22 s</text>
+<text class="big mul" x="810" y="134" text-anchor="middle">57×</text>
+<text class="m mulsub" x="810" y="152" text-anchor="middle">faster</text>
+<line class="rule" x1="36" x2="864" y1="166" y2="166"/>
+<text class="t lab" x="36" y="196">Disk for 50 workspaces</text>
+<text class="m sub" x="36" y="214">ripgrep, ready to build</text>
+<rect class="git" x="300" y="182" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="195" text-anchor="end">7 789 MB</text>
+<rect class="ty" x="300" y="206" width="4.0" height="18" rx="3"/>
+<text class="t val" x="312.0" y="219">48.3 MB</text>
+<text class="big mul" x="810" y="212" text-anchor="middle">161×</text>
+<text class="m mulsub" x="810" y="230" text-anchor="middle">less disk</text>
+<line class="rule" x1="36" x2="864" y1="244" y2="244"/>
+<text class="t lab" x="36" y="274">Spin up 50 workspaces</text>
+<text class="m sub" x="36" y="292">astro, 1.2 GB node_modules, warm pool</text>
+<rect class="git" x="300" y="260" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="273" text-anchor="end">352.53 s</text>
+<rect class="ty" x="300" y="284" width="31.2" height="18" rx="3"/>
+<text class="t val" x="339.2" y="297">26.19 s</text>
+<text class="big mul" x="810" y="290" text-anchor="middle">13×</text>
+<text class="m mulsub" x="810" y="308" text-anchor="middle">faster</text>
+<line class="rule" x1="36" x2="864" y1="322" y2="322"/>
+<text class="t lab" x="36" y="352">Blame a file</text>
+<text class="m sub" x="36" y="370">ripgrep, warm cache, p50</text>
+<rect class="git" x="300" y="338" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="351" text-anchor="end">24.76 ms</text>
+<rect class="ty" x="300" y="362" width="9.8" height="18" rx="3"/>
+<text class="t val" x="317.8" y="375">0.58 ms</text>
+<text class="big mul" x="810" y="368" text-anchor="middle">43×</text>
+<text class="m mulsub" x="810" y="386" text-anchor="middle">faster</text>
+<line class="rule" x1="36" x2="864" y1="400" y2="400"/>
+<text class="t lab" x="36" y="430">Changes thrown away</text>
+<text class="m sub" x="36" y="448">ripgrep, 16 agents, 500 real commits</text>
+<rect class="git" x="300" y="416" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="429" text-anchor="end">111</text>
+<rect class="ty" x="300" y="440" width="4.0" height="18" rx="3"/>
+<text class="t val" x="312.0" y="453">0</text>
+<text class="big mul" x="810" y="446" text-anchor="middle">111→0</text>
+<text class="m mulsub" x="810" y="464" text-anchor="middle">with intents</text>
+<line class="rule" x1="36" x2="864" y1="478" y2="478"/>
+<text class="t lab" x="36" y="508">Wait to land the last change</text>
+<text class="m sub" x="36" y="526">requests, 50 agents, serial queue with CI</text>
+<rect class="git" x="300" y="494" width="420" height="18" rx="3"/>
+<text class="t val" x="712" y="507" text-anchor="end">3 614 s</text>
+<rect class="ty" x="300" y="518" width="4.0" height="18" rx="3"/>
+<text class="t val" x="312.0" y="531">2.3 ms*</text>
+<text class="big mul" x="810" y="524" text-anchor="middle">0</text>
+<text class="m mulsub" x="810" y="542" text-anchor="middle">queue wait*</text>
+<text class="m foot" x="36" y="574">Measured 2026-10-17 on one machine: 15-core ARM64 CPU, 48 GB RAM, NVMe SSD, APFS. One run per configuration.</text>
+<text class="m foot" x="36" y="591">Commands and raw data: docs/benchmarks.md.</text>
+<text class="m foot" x="36" y="608">* TreeYard land time does not include CI: tests run on main after land (optimistic mode) or in a tested queue.</text>
+<text class="m foot" x="36" y="625">111→0 is an upper bound: the replay declares the exact paths of each change.</text>
+</svg>

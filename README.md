@@ -16,23 +16,11 @@
 
 <h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
 
-<table align="center">
-  <tr>
-    <td align="center"><h1>57×</h1>faster workspaces<br><sub>50 agents, ripgrep</sub></td>
-    <td align="center"><h1>161×</h1>less disk<br><sub>50 agents, ripgrep</sub></td>
-    <td align="center"><h1>3 ms</h1>to land a change<br><sub>p95, ripgrep, no merge queue</sub></td>
-    <td align="center"><h1>100%</h1>of conflicts caught<br><sub>before land, not at merge</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><h1>111 → 0</h1>changes thrown away<br><sub>16 agents, real history, intents</sub></td>
-    <td align="center"><h1>43×</h1>faster blame<br><sub>warm, same lines as git</sub></td>
-    <td align="center"><h1>8×</h1>faster grep<br><sub>go, 15 311 files</sub></td>
-    <td align="center"><h1>1</h1>binary<br><sub>git underneath</sub></td>
-  </tr>
-</table>
+<p align="center">
+  <a href="#benchmarks"><img src="assets/results.svg" alt="TreeYard vs plain git worktrees: 57x faster workspaces, 161x less disk, 13x faster on astro, 43x faster blame, 111 to 0 thrown-away changes, no queue wait" width="900"></a>
+</p>
 
-<p align="center"><sub>Measured on real repositories with 50 agents on one machine (15-core ARM64 CPU, 48 GB RAM, NVMe SSD), 2026-10-17.
-Every number links to a command: <a href="#benchmarks">Benchmarks</a>.</sub></p>
+<p align="center"><b>Also:</b> 100% of conflicts reported before land, not at merge time · 8× faster grep on a 15 311-file repo · 1 binary, git underneath</p>
 
 Your agents are fast. Git makes them wait. TreeYard is a version control server for 10 to 200 AI coding
 agents on one repository. Agents get a workspace in about a second, see each other's edits while they work,
