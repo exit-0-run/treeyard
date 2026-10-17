@@ -1,7 +1,6 @@
 # treeyard — working notes
 
-Version control server for agent swarms (Rust, single binary). Product docs, plan and state live in
-`~/appnice-apps/projects/treeyard/`.
+Version control server for agent swarms (Rust, single binary). Notes for coding agents working on this repo.
 
 ## Commands
 
@@ -71,8 +70,7 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
 - Human push (`Inner::land_push`): one change per commit on the ancestry path, each through `land`;
   pushed commits are mapped as they are (`map_commit`), never re-encoded. New pack objects must reach
   `Odb::learn`, or `commit_for` looks for their blobs in SQLite.
-- The workspace push guard hook blocks `git push` to a localhost URL typed in a shell; push tests run
-  inside `cargo test`.
+- Push tests run inside `cargo test` (a local server and `git push` to it).
 - Bench: pinned revisions live in `REPOS` in `bench/bench.py`; worktrees come from a local clone in
   `$BENCH_DIR/src`, never from your clones. `replay` reports `first_conflicts` and `flagged_early`.
 - On APFS `du` counts clones in full; `df_delta_mb` (statvfs) is the physical cost, noisy under other load.
@@ -96,5 +94,5 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   files and `dir/` keys. Bump `INDEX_VERSION` in history.rs when rows change meaning.
 - `rpc::call` runs as `Caller::internal()`; HTTP uses `call_as` with the token's caller. Writes and
   denials write an audit row inside the same `Repo::with`. Never put a token secret in a row or a log.
-- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM".
-- Never add `.github/workflows/` (no GitHub Actions on appnice repos). Commit author: 320388883+exit0-run@users.noreply.github.com.
+- README: hero cards of measured multipliers on top (`assets/hero/make.py`), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM".
+- No `.github/workflows/`: checks run locally with `make check`.
