@@ -1,111 +1,106 @@
-# Rootstock
+<p align="center">
+  <img src="assets/wordmark.svg" alt="TreeYard" width="300">
+</p>
 
-A self-hosted version control server for agent swarms, with git underneath as the source of truth.
+<p align="center">
+  <img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-2f6b45">
+  <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-2f6b45">
+  <img alt="Rust 2024" src="https://img.shields.io/badge/rust-2024_edition-b7410e?logo=rust&logoColor=white">
+  <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platform-macOS_%7C_Linux-4a5560">
+  <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5b4fc4">
+  <img alt="Git compatible" src="https://img.shields.io/badge/git-compatible-f05032?logo=git&logoColor=white">
+  <img alt="Single binary" src="https://img.shields.io/badge/single-binary-4a5560">
+</p>
 
-Agents talk to the server instead of a local checkout: they read, grep and diff the repo through an
-API, open a *change* (no branch), apply edits, and *land*. The server rebases on landing, and a conflict
-comes back as a typed task with base, ours, theirs, and who touched the path. Every landed change becomes
-an ordinary git commit that continues the history of the repo you imported, so people keep using
-`git clone`, `git log` and GitHub.
+TreeYard is a version control server for many AI coding agents that work on one repository.
+Git stays the source of truth.
 
-Status: v0.1, phase 1 of the plan (server core). Single node, single binary.
+## The problem
+
+When 10 or more agents work on one repository with `git worktree`:
+
+- Each agent gets a full checkout. Each agent must build the code or install the dependencies again.
+- Agents do not see the edits of other agents. Conflicts show only at merge time, and agents lose work.
+- Changes land one at a time through a merge queue that runs CI for each change.
+
+## What TreeYard does
+
+- Agents read, search and edit the repository through one API: HTTP, MCP or the CLI.
+- An agent opens a *change*, applies edits and lands the change. The server does the rebase and the merge.
+- A conflict comes back as a task: the base, the two sides, and the agent that changed the path.
+- The server compares each edit with the other open changes. It tells the agent about an overlap before
+  the change lands.
+- Each landed change becomes a normal git commit. People use `git clone`, `git pull` and `git push`.
+- An agent that must build gets a copy-on-write workspace. The workspace shares build output and
+  dependencies with the base, so the agent does not build again.
+- The server answers history questions: `blame`, `log`, indexed `grep`, `symbols` and `bisect`.
+
+Status: v0.1. One node, one binary. There is no TLS and no token expiry yet. The binary is still named
+`rootstock` in v0.1. The rename to `treeyard` comes next.
 
 ## Quick start
 
 ```sh
 make release
-./target/release/rootstock init --data /tmp/rs-data --from /path/to/your/repo --branch main
-./target/release/rootstock serve --data /tmp/rs-data            # http://127.0.0.1:7420
+rootstock init --data /tmp/rs --from /path/to/repo --branch main
+rootstock serve --data /tmp/rs                      # http://127.0.0.1:7420
 
-rootstock call status
-rootstock call grep '{"pattern": "fn main"}'
-rootstock call open_change '{"agent": "me", "intent": "fix the typo in README"}'
+rootstock call open_change '{"agent": "a1", "intent": "fix a typo"}'
 rootstock call apply '{"change": "ch_…", "edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
 rootstock call land '{"change": "ch_…"}'
 
-git clone /tmp/rs-data/git   # the landed commit is on main
+git clone http://127.0.0.1:7420/git repo            # the landed commit is on main
 ```
 
-MCP for Claude Code, Codex or OpenCode (stdio, forwards to the running server):
+Connect an agent through MCP:
 
 ```sh
 claude mcp add rootstock -- rootstock mcp --url http://127.0.0.1:7420 --agent claude-1
 ```
 
-## Operations
+Give an agent a workspace that is ready to build:
 
-The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `rootstock call`.
+```sh
+rootstock daemon --spares 2 &
+rootstock workspace create fix-1 --agent claude-1 --git --setup "cargo build -q"
+cd "$(rootstock workspace path fix-1)"              # use any editor or tool, run the tests
+rootstock workspace land fix-1
+```
 
-| Group | Operations |
-|---|---|
-| Read | `status`, `read`, `list`, `grep`, `diff`, `log` (`at` = `main`, a change id, a changeset id or prefix, or a git commit) |
-| Write | `open_change`, `apply` (content, base64, delete, exact-once `replace`, executable bit), `resolve`, `rebase`, `abandon` |
-| Land | `land`, `revert` |
-| Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/rootstock/changes/<id>`) |
+All operations, configuration and the data model: [docs/reference.md](docs/reference.md).
 
-`apply` also returns `overlaps`: the other open changes touching the same paths.
+## Benchmarks
 
-`land` answers with one of four statuses: `landed` (with the git commit), `conflict` (with tasks),
-`already_on_main` (the rebase found every edit already there), or `waiting`. A change opened with
-`base` set to another change id is stacked on it, and it waits until that change lands.
+> **Measured results, not estimates.** One Apple M5 Pro (macOS 26.6, APFS), 2026-10-17, one run per
+> configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
+> go `dfc6f7db9bd7`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
 
-## Model
+| Measurement (50 agents) | Plain git | TreeYard | Gain |
+|---|---|---|---|
+| 50 workspaces ready to build, ripgrep | 69.66 s, 7 789 MB | 1.22 s, 48.3 MB | **57× faster, 161× less disk** |
+| 50 workspaces ready to build, astro | 352.53 s, 5 859 MB | 85.30 s, 2 197 MB | **4.1× faster, 2.7× less disk** |
+| Same, astro, from the warm pool | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
+| Wait of the last change in a serial queue with the repository's CI (ripgrep / astro / requests) | 248 s / 1 414 s / 3 614 s | land p95 3.4 / 43 / 2.3 ms | **no queue wait** (CI runs after land, see limits) |
+| Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **all reported before land** |
+| Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |
+| `blame`, ripgrep, p50 | 24.76 ms | 15.85 ms cold, 0.58 ms warm | **1.6× faster cold, 43× warm**, same lines |
+| `grep`, go (15 311 files) | 482 to 664 ms | 5.15 to 393.92 ms | **8× faster (median)**, same matches |
 
-- **Changeset**: immutable, content-addressed (SHA-256). Parents plus the changed paths, each mapped to a
-  git blob id and mode (or a deletion), relative to the first parent, plus metadata: change, agent, model,
-  session, intent, message, time. The import is one root changeset that lists the whole tree.
-- **Change**: a stable id owned by one agent. It points at one head changeset on top of its base and
-  survives amend and rebase. Main is the only ref.
-- **Conflict**: stored on the change, which keeps living with it. Text conflicts hold the file with
-  markers until the path is written again or settled with `resolve`.
-- **Git bridge**: each main changeset maps to one deterministic commit (dates and author come from the
-  changeset), written as loose objects into the bare repo at `<data>/git`. The commit message carries
-  `Rootstock-Change`, `Rootstock-Changeset`, `Rootstock-Agent`, `Rootstock-Model` and `Rootstock-Session`
-  trailers.
+Limits of these numbers:
 
-Storage: SQLite (`<data>/rootstock.db`) holds metadata and the blobs that agents wrote. The imported
-content stays in the git repo and is read through one `git cat-file --batch`.
-
-## Tests
-
-`make check` (fmt, clippy, tests). `tests/swarm.rs` is the phase-1 gate: 50 agents open changes on the
-same main at once, edit and land through the HTTP API. Every server-side merge is replayed with
-`git merge-tree --write-tree` on the exported commits and must produce the same tree. The exported repo
-must pass `git fsck --strict`, and every agent's edit must survive.
-
-## Replay on real history
-
-`rootstock replay --src REPO --from REV [--to REV] --agents N [--stacked] --data DIR` splits consecutive
-first-parent commits into waves of N agents. Without `--stacked`, each agent starts on its commit's true
-parent (a stale base) and the wave lands in random order. A conflicted change is thrown away and redone.
-With `--stacked`, each agent builds on the previous agent's change and the server makes it wait. Every
-server merge is checked against `git -c merge.renames=false merge-tree`, and after every wave main is
-compared with the original tree.
-
-Last 500 commits of ripgrep and of requests (2026-10-17, seed 1):
-
-| Repo | Agents | Merges checked | Same tree as git | Server clean, git conflict | Conflicts (redone) | Waves equal to history | Final tree equal |
-|---|---|---|---|---|---|---|---|
-| ripgrep | 4 | 517 | 496/496 clean | 0 | 21 (19) | 120/125 | yes |
-| ripgrep | 16 | 602 | 491/491 clean | 0 | 111 (97) | 21/32 | yes |
-| ripgrep | 50 | 737 | 490/490 clean | 0 | 247 (231) | 1/10 | no |
-| requests | 4 | 537 | 496/496 clean | 0 | 41 (35) | 121/125 | yes |
-| requests | 16 | 635 | 497/497 clean | 0 | 138 (132) | 30/32 | yes |
-| requests | 50 | 736 | 497/497 clean | 0 | 239 (233) | 0/10 | no |
-| both | 4–50, `--stacked` | 0 | n/a | 0 | 0 | all | yes |
-
-Every clean merge gives the same tree as git. In 2 cases the server reported a conflict where git
-merged. Waves diverge for a reason no merge can see. One example: a fix ("remove stray `dbg!`") lands
-before the commit that added the `dbg!`. Main does not have the line yet, so the fix is a no-op, and then
-the bug lands. Stacked changes prevent this, at the price of landing serially. Land time p95 is under
-5 ms.
+- TreeYard land time does not include CI. To run tests, set `landing.mode` to `queue` or `optimistic`.
+- The replay declares the exact paths of each commit. Real agents guess, so 0 thrown-away changes is an
+  upper bound.
+- Overlap warnings have a precision of 0.40 to 0.54. About half the warnings are for changes that merge
+  without a conflict.
+- With 50 agents on stale bases and no intents, the final tree is different from the history. A merge
+  cannot see that a fix landed before the bug it fixes.
 
 ## Not yet
 
-Copy-on-write workspaces and the node daemon, git smart-HTTP push for people, live collision events and
-continuous rebase, merge drivers (lockfiles, generated code), blame and indexes, per-agent permissions,
-Postgres/S3. See the plan in the project docs.
+Two-way workspace sync, a virtual file system, persistent events, blame of moved lines, symbol references,
+token expiry, TLS, Postgres and S3 storage.
 
 ## Licence
 
-Apache-2.0. Inspired by Anthropic's write-up of Scion and by Meta's Mononoke (Bonsai changesets).
+Apache-2.0.

@@ -4,19 +4,22 @@ use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as B64;
 use rand::Rng;
-use regex::Regex;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::config::{Config, DriverRule, Drivers, Mode};
+use crate::coord::Events;
 use crate::git::{self, Odb, Signature};
 use crate::merge::{Blobs, Merged, merge3};
 use crate::model::*;
+use crate::safety::{self, check_path};
 use crate::store::Store;
+use crate::{drivers, landing};
 
 const TEXT_LIMIT: usize = 256 * 1024;
 
@@ -35,6 +38,8 @@ pub struct Edit {
     pub delete: Option<bool>,
     pub replace: Option<Replace>,
     pub executable: Option<bool>,
+    /// The content is a symlink target.
+    pub symlink: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -48,13 +53,85 @@ pub struct Replace {
 
 pub struct Repo {
     inner: Mutex<Inner>,
+    git_dir: PathBuf,
+    /// Coordination events, published after each operation that produced them.
+    pub events: Events,
+    /// API tokens (own SQLite connection: a token check never waits for the repo lock).
+    pub auth: crate::auth::Auth,
 }
 
 pub struct Inner {
     pub store: Store,
     pub odb: Odb,
     pub branch: String,
-    manifests: HashMap<String, Manifest>,
+    pub cfg: Config,
+    drivers: Drivers,
+    mergiraf: Option<String>,
+    data: PathBuf,
+    manifests: ManifestCache,
+    pub(crate) heights: HashMap<String, u64>,
+    pub(crate) parents: HashMap<String, Option<String>>,
+    pub(crate) seen_collisions: HashMap<String, String>,
+    /// Events of the running operation; `Repo::with` publishes them when it succeeds.
+    pub(crate) outbox: Vec<Value>,
+    /// The trigram posting index of main (derived data, see `search`).
+    pub(crate) search: crate::search::Index,
+    /// (blob, language) pairs with symbol rows (see `symbols`).
+    pub(crate) symbol_done: HashSet<(String, String)>,
+}
+
+/// What a rebase did besides the line merge: merge drivers used per path, and edits of the
+/// change that the result no longer carries (the semantic guard).
+#[derive(Debug, Default)]
+pub struct RebaseReport {
+    pub drivers: Vec<Value>,
+    pub absorbed: Vec<Value>,
+}
+
+/// A driver decision for one conflicted path.
+enum Driven {
+    Clean(Entry, &'static str),
+    /// Regenerate after the per-path pass, starting from this entry.
+    Later(DriverRule, Option<Entry>),
+}
+
+/// Most manifests kept in memory. A manifest shares structure with its parent, so the cost of
+/// one is the changed paths times the map depth, but an unbounded cache grows with history.
+pub const MANIFEST_CACHE: usize = 4096;
+
+/// Manifests by changeset, least recently used out first. A miss rebuilds from the nearest
+/// cached ancestor (or the root changeset) by replaying the changesets in between.
+#[derive(Default)]
+struct ManifestCache {
+    map: HashMap<String, (Manifest, u64)>,
+    tick: u64,
+}
+
+impl ManifestCache {
+    fn get(&mut self, id: &str) -> Option<Manifest> {
+        self.tick += 1;
+        let t = self.tick;
+        self.map.get_mut(id).map(|(m, used)| {
+            *used = t;
+            m.clone()
+        })
+    }
+
+    fn insert(&mut self, id: String, m: Manifest) {
+        self.tick += 1;
+        self.map.insert(id, (m, self.tick));
+        if self.map.len() > MANIFEST_CACHE {
+            // Drop the oldest quarter at once, so eviction costs O(1) per insert on average.
+            let mut ticks: Vec<u64> = self.map.values().map(|(_, t)| *t).collect();
+            ticks.sort_unstable();
+            let cut = ticks[MANIFEST_CACHE / 4];
+            self.map.retain(|_, (_, t)| *t > cut);
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.map.len()
+    }
 }
 
 fn paths(data: &Path) -> (PathBuf, PathBuf) {
@@ -66,20 +143,57 @@ impl Repo {
     /// (then `branch` is pointed at it). The export repo is a bare clone of `src`, so landed
     /// commits continue its history.
     pub fn init(data: &Path, src: &Path, branch: &str, rev: Option<&str>) -> Result<String> {
+        Self::init_with_history(data, src, branch, rev, 0)
+    }
+
+    /// Like `init`, and also imports the last `history` first-parent commits as changesets,
+    /// each mapped to its own git commit (so blame, log and bisect reach into real history).
+    /// Returns the main changeset.
+    pub fn init_with_history(
+        data: &Path,
+        src: &Path,
+        branch: &str,
+        rev: Option<&str>,
+        history: usize,
+    ) -> Result<String> {
         let (db, git_dir) = paths(data);
         if db.exists() || git_dir.exists() {
             bail!("{} already holds a rootstock repo", data.display());
         }
         fs::create_dir_all(data)?;
-        let (src_s, git_s) = (src.to_string_lossy(), git_dir.to_string_lossy());
-        git::run(None, &["clone", "--bare", "--quiet", &src_s, &git_s])?;
+        clone_bare(src, &git_dir)?;
         let rev = rev.map_or_else(|| format!("refs/heads/{branch}"), str::to_string);
-        let commit =
+        let tip =
             git::run(Some(&git_dir), &["rev-parse", "--verify", &format!("{rev}^{{commit}}")])?.trim().to_string();
-        git::run(Some(&git_dir), &["update-ref", &format!("refs/heads/{branch}"), &commit])?;
+        git::run(Some(&git_dir), &["update-ref", &format!("refs/heads/{branch}"), &tip])?;
         git::run(Some(&git_dir), &["symbolic-ref", "HEAD", &format!("refs/heads/{branch}")])?;
+        // The root changeset holds the whole tree of the oldest imported commit.
+        let mut commit = tip.clone();
+        if history > 0 {
+            let n = history.to_string();
+            let list = git::run(Some(&git_dir), &["rev-list", "--first-parent", "-n", &n, &tip])?;
+            let oldest = list.lines().last().unwrap_or(&tip).to_string();
+            commit = git::run(Some(&git_dir), &["rev-parse", "--verify", "--quiet", &format!("{oldest}^1")])
+                .map(|s| s.trim().to_string())
+                .unwrap_or(oldest);
+        }
+        let log = if commit == tip { vec![] } else { crate::history::import_log(&git_dir, &commit, &tip)? };
+        for (c, cs) in &log {
+            for p in cs.changes.keys() {
+                check_path(p).with_context(|| format!("importing {c}"))?;
+            }
+        }
+        if commit != tip {
+            let tip_files = git::ls_tree(&git_dir, &tip)?;
+            safety::check_tree(tip_files.iter().map(|(p, _)| p.as_str()))
+                .with_context(|| format!("importing {tip}"))?;
+        }
         let time: i64 = git::run(Some(&git_dir), &["show", "-s", "--format=%ct", &commit])?.trim().parse()?;
-        let changes = git::ls_tree(&git_dir, &commit)?.into_iter().map(|(p, e)| (p, Some(e))).collect();
+        let files = git::ls_tree(&git_dir, &commit)?;
+        // Hostile repo content: a path that escapes the work tree, names .git, or sits under a
+        // file (a symlink there would redirect writes) is refused before anything is stored.
+        safety::check_tree(files.iter().map(|(p, _)| p.as_str())).with_context(|| format!("importing {commit}"))?;
+        let changes: Changes = files.into_iter().map(|(p, e)| (p, Some(e))).collect();
         let root = Changeset {
             parents: vec![],
             changes,
@@ -91,13 +205,22 @@ impl Repo {
             },
         };
         let store = Store::open(&db)?;
-        store.tx(|s| {
-            let id = s.put_changeset(&root)?;
-            s.map_commit(&id, &commit)?;
-            s.set_ref("main", &id)?;
-            s.set_ref("branch", branch)?;
-            Ok(id)
-        })
+        store
+            .tx(|s| {
+                let mut id = s.put_changeset(&root)?;
+                s.map_commit(&id, &commit)?;
+                for (c, mut cs) in log {
+                    cs.parents = vec![id];
+                    id = s.put_changeset(&cs)?;
+                    s.map_commit(&id, &c)?;
+                }
+                s.set_ref("main", &id)?;
+                s.set_ref("branch", branch)?;
+                Ok(id)
+            })
+            .inspect(|_| {
+                let _ = fs::write(data.join(crate::config::FILE), crate::config::TEMPLATE);
+            })
     }
 
     pub fn open(data: &Path) -> Result<Self> {
@@ -107,20 +230,52 @@ impl Repo {
         }
         let store = Store::open(&db)?;
         let branch = store.get_ref("branch")?.context("no branch ref")?;
-        let mut inner = Inner { store, odb: Odb::open(&git_dir)?, branch, manifests: HashMap::new() };
+        let cfg = Config::load(data)?;
+        let (drivers, mergiraf) = (cfg.drivers()?, cfg.mergiraf()?);
+        let mut inner = Inner {
+            store,
+            odb: Odb::open(&git_dir)?,
+            branch,
+            cfg,
+            drivers,
+            mergiraf,
+            data: data.to_path_buf(),
+            manifests: ManifestCache::default(),
+            heights: HashMap::new(),
+            parents: HashMap::new(),
+            seen_collisions: HashMap::new(),
+            outbox: Vec::new(),
+            search: Default::default(),
+            symbol_done: HashSet::new(),
+        };
         // Heals a crash between the metadata commit and the git ref write.
         let main = inner.main()?;
         let commit = inner.commit_for(&main)?;
         inner.odb.update_ref(&format!("refs/heads/{}", inner.branch), &commit)?;
-        Ok(Self { inner: Mutex::new(inner) })
+        let auth = crate::auth::Auth::open(&db)?;
+        Ok(Self { inner: Mutex::new(inner), git_dir, events: Events::default(), auth })
+    }
+
+    /// The export repo (bare git dir). Read it without the lock; write only through `Inner`.
+    pub fn git_dir(&self) -> &Path {
+        &self.git_dir
     }
 
     pub fn lock(&self) -> MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    /// Runs `f` under the repo lock, then publishes the events it produced (none if it failed).
     pub fn with<R>(&self, f: impl FnOnce(&mut Inner) -> Result<R>) -> Result<R> {
-        f(&mut self.lock())
+        let (out, events) = {
+            let mut g = self.lock();
+            let out = f(&mut g);
+            (out, std::mem::take(&mut g.outbox))
+        };
+        if out.is_ok() {
+            self.events.publish(events);
+        }
+        out
     }
 }
 
@@ -131,19 +286,12 @@ impl Blobs for Inner {
     fn write_blob(&mut self, data: &[u8]) -> Result<String> {
         self.put_blob(data)
     }
-}
-
-fn check_path(path: &str) -> Result<()> {
-    let bad = path.is_empty()
-        || path.contains('\0')
-        || path.split('/').any(|c| c.is_empty() || c == "." || c == ".." || c.eq_ignore_ascii_case(".git"));
-    if bad {
-        bail!("invalid path {path:?}: use a relative path like src/main.rs");
+    fn merge_text(&mut self, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
+        crate::merge::git_merge_file(&self.scratch(), base, ours, theirs)
     }
-    Ok(())
 }
 
-fn as_text(data: &[u8]) -> Option<String> {
+pub(crate) fn as_text(data: &[u8]) -> Option<String> {
     if data.iter().take(8000).any(|b| *b == 0) {
         return None;
     }
@@ -209,7 +357,7 @@ impl Inner {
         let mut cur = id.to_string();
         let mut m = loop {
             if let Some(m) = self.manifests.get(&cur) {
-                break m.clone();
+                break m;
             }
             let cs = self.changeset(&cur)?;
             let parent = cs.parents.first().cloned();
@@ -255,7 +403,7 @@ impl Inner {
         if ch.head == ch.base { Ok(None) } else { Ok(self.changeset(&ch.head)?.meta.message) }
     }
 
-    fn own_changes(&self, ch: &Change) -> Result<Changes> {
+    pub(crate) fn own_changes(&self, ch: &Change) -> Result<Changes> {
         if ch.head == ch.base { Ok(Changes::new()) } else { Ok(self.changeset(&ch.head)?.changes) }
     }
 
@@ -281,6 +429,20 @@ impl Inner {
         session: Option<String>,
         base: Option<&str>,
     ) -> Result<Change> {
+        self.open_change_with(agent, intent, model, session, base, Intent::default())
+    }
+
+    /// Opens a change with declared paths (globs) and symbols; see `intent_overlaps`.
+    pub fn open_change_with(
+        &mut self,
+        agent: &str,
+        intent: &str,
+        model: Option<String>,
+        session: Option<String>,
+        base: Option<&str>,
+        declared: Intent,
+    ) -> Result<Change> {
+        crate::config::globs(&declared.paths)?;
         if agent.trim().is_empty() || intent.trim().is_empty() {
             bail!("open_change needs a non-empty agent and intent");
         }
@@ -299,7 +461,24 @@ impl Inner {
             conflicts: vec![],
             landed_as: None,
             created: now(),
+            declared,
+            view: None,
         };
+        self.store.put_change(&ch)?;
+        self.emit(
+            "opened",
+            &[&ch.id],
+            &[&ch.agent],
+            json!({"change": ch.id, "intent": ch.intent, "declared": ch.declared}),
+        );
+        Ok(ch)
+    }
+
+    /// Replaces the declared paths and symbols of an open change.
+    pub fn declare(&mut self, id: &str, declared: Intent) -> Result<Change> {
+        crate::config::globs(&declared.paths)?;
+        let mut ch = self.open_change_mut(id)?;
+        ch.declared = declared;
         self.store.put_change(&ch)?;
         Ok(ch)
     }
@@ -350,10 +529,11 @@ impl Inner {
             }
             return Ok(None);
         }
-        let mode = match e.executable {
-            Some(true) => MODE_EXEC,
-            Some(false) => MODE_FILE,
-            None => cur.map_or(MODE_FILE, |c| c.mode),
+        let mode = match (e.symlink, e.executable) {
+            (Some(true), _) => MODE_LINK,
+            (_, Some(true)) => MODE_EXEC,
+            (_, Some(false)) => MODE_FILE,
+            _ => cur.map_or(MODE_FILE, |c| c.mode),
         };
         let data = if let Some(c) = &e.content {
             c.clone().into_bytes()
@@ -378,17 +558,85 @@ impl Inner {
             let cur = cur.with_context(|| format!("cannot change the mode of {}: no such file", e.path))?;
             return Ok(Some(Entry { blob: cur.blob.clone(), mode }));
         };
+        if data.len() > safety::MAX_FILE {
+            bail!(
+                "{} is {} bytes; the API takes files up to {} bytes (push big files with git)",
+                e.path,
+                data.len(),
+                safety::MAX_FILE
+            );
+        }
         Ok(Some(Entry { blob: self.put_blob(&data)?, mode }))
     }
 
     pub fn apply(&mut self, id: &str, edits: &[Edit], message: Option<String>) -> Result<Change> {
+        self.apply_seen(id, edits, message, None)
+    }
+
+    /// `apply` where whole-file writes are relative to `seen` (a revision the client read), or,
+    /// when not given, to the head before the server last rebased the change on its own. Paths
+    /// that moved since then get a 3-way merge instead of an overwrite, so continuous rebase never
+    /// loses main's edits. `seen` equal to the current head clears that memory.
+    pub fn apply_seen(
+        &mut self,
+        id: &str,
+        edits: &[Edit],
+        message: Option<String>,
+        seen: Option<&str>,
+    ) -> Result<Change> {
+        if edits.len() > safety::MAX_EDITS {
+            bail!("apply takes at most {} edits per call, not {}", safety::MAX_EDITS, edits.len());
+        }
         let mut ch = self.open_change_mut(id)?;
         let mut work = self.manifest(&ch.head)?;
+        let explicit = seen.is_some();
+        let seen = match seen {
+            Some(s) => Some(self.resolve_at(Some(s))?),
+            None => ch.view.clone(),
+        };
+        let up_to_date = seen.as_deref() == Some(ch.head.as_str());
+        // Main changesets the stale writer did not see start after the base its view sat on.
+        let since = match &seen {
+            Some(v) => {
+                let cs = self.changeset(v)?;
+                if cs.meta.change.as_deref() == Some(id) {
+                    cs.parents.first().cloned().unwrap_or_default()
+                } else {
+                    v.clone()
+                }
+            }
+            None => String::new(),
+        };
+        let view = match &seen {
+            Some(v) if *v != ch.head => Some(self.manifest(v)?),
+            _ => None,
+        };
+        let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
             check_path(&e.path)?;
             let cur = work.get(&e.path).cloned();
-            let new = self.edit_entry(e, cur.as_ref())?;
+            let mut new = self.edit_entry(e, cur.as_ref())?;
+            if let Some(v) = &view
+                && e.replace.is_none()
+                && v.get(&e.path) != cur.as_ref()
+            {
+                let old = v.get(&e.path).cloned();
+                match merge3(self, old.as_ref(), new.as_ref(), cur.as_ref())? {
+                    Merged::Clean(m) => new = m,
+                    Merged::Conflict { kind, materialized } => {
+                        late_conflicts.push(Conflict {
+                            path: e.path.clone(),
+                            kind,
+                            base: old,
+                            ours: new.clone(),
+                            theirs: cur.clone(),
+                            theirs_by: self.touches(&since, &ch.base, &e.path)?,
+                        });
+                        new = materialized;
+                    }
+                }
+            }
             match &new {
                 Some(n) => {
                     if cur.is_none() {
@@ -403,6 +651,20 @@ impl Inner {
             out.push((e.path.clone(), new));
         }
         self.set_entries(&mut ch, out, message)?;
+        if explicit && up_to_date {
+            ch.view = None;
+        }
+        if !late_conflicts.is_empty() {
+            let paths: Vec<String> = late_conflicts.iter().map(|c| c.path.clone()).collect();
+            ch.conflicts.extend(late_conflicts);
+            self.emit(
+                "conflict",
+                &[&ch.id],
+                &[&ch.agent],
+                json!({"change": ch.id, "paths": paths, "cause": "stale_write"}),
+            );
+        }
+        self.store.put_change(&ch)?;
         Ok(ch)
     }
 
@@ -435,7 +697,10 @@ impl Inner {
         let time: i64 = lines.next().unwrap_or("0").parse()?;
         let author = lines.next().unwrap_or("").to_string();
         let subject = lines.next().unwrap_or("").to_string();
-        let changes = git::diff_tree(&gd, &parent, commit)?.into_iter().collect();
+        let changes: Changes = git::diff_tree(&gd, &parent, commit)?.into_iter().collect();
+        for p in changes.keys() {
+            check_path(p).with_context(|| format!("importing {commit}"))?;
+        }
         let cs = Changeset {
             parents: vec![parent_cs],
             changes,
@@ -466,6 +731,9 @@ impl Inner {
         let mut ch = self.open_change_mut(id)?;
         ch.state = ChangeState::Abandoned;
         self.store.put_change(&ch)?;
+        self.store.dequeue(id)?;
+        self.forget(id);
+        self.emit("abandoned", &[id], &[&ch.agent], json!({"change": id}));
         Ok(ch)
     }
 
@@ -491,9 +759,72 @@ impl Inner {
         Ok(out)
     }
 
-    fn rebase_onto(&mut self, ch: &mut Change, onto: &str) -> Result<()> {
+    /// A merge driver for a path whose line merge conflicted, from `[merge]` in rootstock.toml.
+    fn drive(&mut self, path: &str, b: Option<&Entry>, o: &Entry, t: &Entry) -> Result<Option<Driven>> {
+        let text = |s: &mut Self, e: Option<&Entry>| -> Result<Option<String>> {
+            match e {
+                None => Ok(Some(String::new())),
+                Some(e) => Ok(as_text(&s.blob(&e.blob)?)),
+            }
+        };
+        let (Some(bt), Some(ot), Some(tt)) = (text(self, b)?, text(self, Some(o))?, text(self, Some(t))?) else {
+            return Ok(None);
+        };
+        let mode = o.mode;
+        if let Some(rule) = self.drivers.rule(path).cloned() {
+            let merged = match rule.driver.as_str() {
+                "union" => Some((drivers::union(&bt, &ot, &tt), "union")),
+                "cargo-lock" => drivers::cargo_lock(&bt, &ot, &tt).map(|m| (m, "cargo-lock")),
+                "ours" => Some((ot.clone(), "ours")),
+                "theirs" => Some((tt.clone(), "theirs")),
+                _ => None,
+            };
+            match (merged, &rule.command) {
+                (Some((m, _)), Some(_)) => {
+                    let start = Entry { blob: self.put_blob(m.as_bytes())?, mode };
+                    return Ok(Some(Driven::Later(rule, Some(start))));
+                }
+                (Some((m, name)), None) => {
+                    return Ok(Some(Driven::Clean(Entry { blob: self.put_blob(m.as_bytes())?, mode }, name)));
+                }
+                (None, Some(_)) if rule.driver == "regenerate" => return Ok(Some(Driven::Later(rule, None))),
+                _ => {}
+            }
+        }
+        if let Some(bin) = self.mergiraf.clone()
+            && let Some(m) = drivers::mergiraf(&bin, path, &bt, &ot, &tt)?
+        {
+            return Ok(Some(Driven::Clean(Entry { blob: self.put_blob(m.as_bytes())?, mode }, "mergiraf")));
+        }
+        Ok(None)
+    }
+
+    /// Scratch space for test runs and regeneration (inside the data directory).
+    pub fn scratch(&self) -> PathBuf {
+        self.data.join("tmp")
+    }
+
+    /// Runs a regenerate command in a temp copy of `tree` and reads `path` back.
+    fn regenerate(&mut self, tree: &Manifest, path: &str, rule: &DriverRule) -> Result<Vec<u8>> {
+        let cmd = rule.command.as_deref().context("regenerate needs a command")?;
+        let dir = landing::scratch_dir(&self.scratch(), "regen")?;
+        let res = (|| {
+            landing::materialize(self, tree, &dir)?;
+            let timeout = std::time::Duration::from_secs(rule.timeout_s.unwrap_or(300));
+            let out = landing::run_cmd(cmd, &dir, timeout, &[("ROOTSTOCK_PATH", path)])?;
+            if !out.ok {
+                bail!("{cmd:?} failed: {}", out.output.trim());
+            }
+            fs::read(dir.join(path)).with_context(|| format!("{cmd:?} did not leave {path}"))
+        })();
+        let _ = fs::remove_dir_all(&dir);
+        res
+    }
+
+    pub(crate) fn rebase_onto(&mut self, ch: &mut Change, onto: &str) -> Result<RebaseReport> {
+        let mut report = RebaseReport::default();
         if ch.base == onto {
-            return Ok(());
+            return Ok(report);
         }
         if !ch.conflicts.is_empty() {
             bail!("change {} has unresolved conflicts; resolve them before rebasing", ch.id);
@@ -502,9 +833,31 @@ impl Inner {
         let theirs_m = self.manifest(onto)?;
         let mut changes = Changes::new();
         let mut conflicts = Vec::new();
+        let mut later = Vec::new();
+        // Drivers resolve conflicts silently, so they run only on a true merge base. When the
+        // base is not an ancestor of `onto` (a base holding work main lacks, as in replay),
+        // main seems to delete that work and a driver would apply the deletion.
+        let drivers_ok = self.is_ancestor(&ch.base, onto)?;
         for (path, ours) in self.own_changes(ch)? {
             let (b, t) = (base_m.get(&path), theirs_m.get(&path));
-            let (result, kind) = match merge3(self, b, ours.as_ref(), t)? {
+            let mut merged = merge3(self, b, ours.as_ref(), t)?;
+            if let (
+                true,
+                Merged::Conflict { kind: ConflictKind::Content | ConflictKind::AddAdd, .. },
+                Some(o),
+                Some(te),
+            ) = (drivers_ok, &merged, ours.as_ref(), t)
+            {
+                match self.drive(&path, b, o, te)? {
+                    Some(Driven::Clean(e, name)) => {
+                        report.drivers.push(json!({"path": path, "driver": name}));
+                        merged = Merged::Clean(Some(e));
+                    }
+                    Some(Driven::Later(rule, start)) => later.push((path.clone(), rule, start)),
+                    None => {}
+                }
+            }
+            let (result, kind) = match merged {
                 Merged::Clean(r) => (r, None),
                 Merged::Conflict { kind, materialized } => (materialized, Some(kind)),
             };
@@ -517,9 +870,48 @@ impl Inner {
                     theirs: t.cloned(),
                     theirs_by: self.touches(&ch.base, onto, &path)?,
                 });
+            } else if let Some((whole, hunks)) = self.absorbed(b, ours.as_ref(), t, result.as_ref())? {
+                report.absorbed.push(json!({
+                    "path": path, "whole_file": whole, "hunks": hunks,
+                    "theirs_by": self.touches(&ch.base, onto, &path)?,
+                }));
             }
             if result.as_ref() != t {
                 changes.insert(path, result);
+            }
+        }
+        if !later.is_empty() {
+            // Regenerate from the merged tree, with each regenerated path starting from the
+            // driver's merge or from main's version.
+            let mut tree = theirs_m.clone();
+            for (p, e) in &changes {
+                match e {
+                    Some(e) => tree.insert(p.clone(), e.clone()),
+                    None => tree.remove(p),
+                };
+            }
+            for (p, _, start) in &later {
+                if let Some(e) = start.clone().or_else(|| theirs_m.get(p).cloned()) {
+                    tree.insert(p.clone(), e);
+                }
+            }
+            for (path, rule, _) in later {
+                match self.regenerate(&tree, &path, &rule) {
+                    Ok(data) => {
+                        let mode = tree.get(&path).map_or(MODE_FILE, |e| e.mode);
+                        let e = Entry { blob: self.put_blob(&data)?, mode };
+                        conflicts.retain(|c| c.path != path);
+                        if theirs_m.get(&path) == Some(&e) {
+                            changes.remove(&path);
+                        } else {
+                            changes.insert(path.clone(), Some(e));
+                        }
+                        report.drivers.push(json!({"path": path, "driver": "regenerate"}));
+                    }
+                    Err(err) => {
+                        report.drivers.push(json!({"path": path, "driver": "regenerate", "error": format!("{err:#}")}))
+                    }
+                }
             }
         }
         let head = if changes.is_empty() {
@@ -528,28 +920,59 @@ impl Inner {
             let meta = Self::meta_for(ch, self.head_message(ch)?);
             self.store.put_changeset(&Changeset { parents: vec![onto.to_string()], changes, meta })?
         };
-        ch.predecessors.push(std::mem::replace(&mut ch.head, head));
+        // Predecessors are earlier heads with edits; an empty change only moves its base.
+        let old = std::mem::replace(&mut ch.head, head);
+        if old != ch.base {
+            ch.predecessors.push(old);
+        }
         ch.base = onto.to_string();
         ch.conflicts = conflicts;
-        Ok(())
+        Ok(report)
+    }
+
+    /// Turns the guard findings of a rebase into review tasks; returns their ids.
+    pub(crate) fn guard(&mut self, ch: &Change, report: &RebaseReport) -> Result<Vec<i64>> {
+        let mut ids = Vec::new();
+        for a in &report.absorbed {
+            ids.push(self.add_review(ch, "absorbed_edit", a.clone())?);
+        }
+        Ok(ids)
     }
 
     pub fn rebase(&mut self, id: &str) -> Result<Change> {
         let mut ch = self.open_change_mut(id)?;
         let main = self.main()?;
-        self.rebase_onto(&mut ch, &main)?;
+        let report = self.rebase_onto(&mut ch, &main)?;
         self.store.put_change(&ch)?;
+        self.guard(&ch, &report)?;
         Ok(ch)
+    }
+
+    /// Lands by the repo's landing mode: `direct` and `optimistic` move main now, `queue` enqueues.
+    pub fn land(&mut self, id: &str) -> Result<Value> {
+        // Landing twice answers like the first time, so a client may retry a land whose
+        // reply it lost (network error, server restart).
+        let ch = self.change(id)?;
+        if ch.state == ChangeState::Landed {
+            let cs = ch.landed_as.clone().context("landed change without landed_as")?;
+            let commit = self.commit_for(&cs)?;
+            let status = if ch.head == ch.base { "already_on_main" } else { "landed" };
+            return Ok(json!({"status": status, "change": id, "changeset": cs, "commit": commit, "repeated": true}));
+        }
+        match self.cfg.landing.mode {
+            Mode::Queue => self.enqueue(id),
+            _ => self.land_direct(id),
+        }
     }
 
     /// Rebases onto main when needed and moves main to the change's head. Conflicts come back
     /// as typed tasks and leave main untouched.
-    pub fn land(&mut self, id: &str) -> Result<Value> {
+    pub fn land_direct(&mut self, id: &str) -> Result<Value> {
         let mut ch = self.open_change_mut(id)?;
         if !ch.conflicts.is_empty() {
             return Ok(json!({"status": "conflict", "change": self.change_view(&ch)?}));
         }
-        if ch.head == ch.base {
+        if ch.head == ch.base && ch.predecessors.is_empty() {
             bail!("change {id} is empty: apply edits before landing");
         }
         // A change stacked on another change's head waits until that change lands; landing it
@@ -565,39 +988,123 @@ impl Inner {
         }
         let main = self.main()?;
         let mut merged_from = Value::Null;
+        let mut report = RebaseReport::default();
         if ch.base != main {
             merged_from = json!({
                 "base": self.commit_for(&ch.base)?,
                 "ours": self.commit_for(&ch.head)?,
                 "theirs": self.commit_for(&main)?,
             });
-            self.rebase_onto(&mut ch, &main)?;
+            report = self.rebase_onto(&mut ch, &main)?;
             self.store.put_change(&ch)?;
             if !ch.conflicts.is_empty() {
-                return Ok(json!({"status": "conflict", "merged_from": merged_from, "change": self.change_view(&ch)?}));
+                let paths: Vec<&String> = ch.conflicts.iter().map(|c| &c.path).collect();
+                self.emit("conflict", &[id], &[&ch.agent], json!({"change": id, "paths": paths, "cause": "land"}));
+                return Ok(
+                    json!({"status": "conflict", "merged_from": merged_from, "drivers": report.drivers, "change": self.change_view(&ch)?}),
+                );
             }
         }
+        let mut reviews = self.guard(&ch, &report)?;
         if ch.head == ch.base {
             // The rebase found every edit already on main: nothing new to commit.
             ch.state = ChangeState::Landed;
             ch.landed_as = Some(main.clone());
             self.store.put_change(&ch)?;
-            let commit = self.commit_for(&main)?;
-            return Ok(
-                json!({"status": "already_on_main", "change": ch.id, "changeset": main, "commit": commit, "merged_from": merged_from}),
+            reviews.push(self.add_review(&ch, "already_on_main", json!({"absorbed": report.absorbed}))?);
+            self.forget(id);
+            self.emit(
+                "landed",
+                &[id],
+                &[&ch.agent],
+                json!({"change": id, "status": "already_on_main", "changeset": main}),
             );
+            let commit = self.commit_for(&main)?;
+            return Ok(json!({
+                "status": "already_on_main", "change": ch.id, "changeset": main, "commit": commit,
+                "merged_from": merged_from, "drivers": report.drivers, "reviews": reviews,
+            }));
         }
+        crate::failpoint::hit("land:before-objects");
         let commit = self.commit_for(&ch.head)?;
+        crate::failpoint::hit("land:after-objects");
         ch.state = ChangeState::Landed;
         ch.landed_as = Some(ch.head.clone());
+        // Crash safety: git objects first, then one SQLite transaction (the point of truth),
+        // then the git ref. `Repo::open` rewrites the ref from SQLite, so a crash between the
+        // last two steps heals on restart; a crash before the transaction leaves the change open.
         self.store.tx(|s| {
             s.set_ref("main", &ch.head)?;
+            crate::failpoint::hit("land:in-tx");
             s.put_change(&ch)
         })?;
+        crate::failpoint::hit("land:after-db");
         self.odb.update_ref(&format!("refs/heads/{}", self.branch), &commit)?;
-        Ok(
-            json!({"status": "landed", "change": ch.id, "changeset": ch.head, "commit": commit, "merged_from": merged_from}),
-        )
+        crate::failpoint::hit("land:after-ref");
+        self.forget(id);
+        self.emit(
+            "landed",
+            &[id],
+            &[&ch.agent],
+            json!({"change": id, "status": "landed", "changeset": ch.head, "commit": commit}),
+        );
+        let rebased = self.continuous_rebase()?;
+        Ok(json!({
+            "status": "landed", "change": ch.id, "changeset": ch.head, "commit": commit, "merged_from": merged_from,
+            "drivers": report.drivers, "reviews": reviews, "rebased": rebased,
+        }))
+    }
+
+    /// Continuous rebase (`[coordination] continuous_rebase`): after main moved, rebase every
+    /// open change that is not stacked, queued or conflicted onto it, so conflicts show up
+    /// while they are small. The owner's later whole-file writes merge through `view`.
+    pub fn continuous_rebase(&mut self) -> Result<Vec<Value>> {
+        let mut out = Vec::new();
+        if !self.cfg.coordination.continuous_rebase {
+            return Ok(out);
+        }
+        let main = self.main()?;
+        let queued: BTreeSet<String> = self.store.queue()?.into_iter().collect();
+        for mut o in self.store.changes(Some("open"))? {
+            if o.base == main || !o.conflicts.is_empty() || queued.contains(&o.id) {
+                continue;
+            }
+            // A base that is not an ancestor of main holds work main lacks (replay's stale
+            // parents): a rebase now would record that work as deleted. It rebases at land.
+            if !self.is_ancestor(&o.base, &main)? {
+                continue;
+            }
+            if let Some(dep) = self.changeset(&o.base)?.meta.change.filter(|d| *d != o.id)
+                && self.change(&dep)?.state == ChangeState::Open
+            {
+                continue;
+            }
+            let (old_base, old_head) = (o.base.clone(), o.head.clone());
+            let report = self.rebase_onto(&mut o, &main)?;
+            o.view.get_or_insert(old_head.clone());
+            self.store.put_change(&o)?;
+            let reviews = self.guard(&o, &report)?;
+            let paths: Vec<String> = o.conflicts.iter().map(|c| c.path.clone()).collect();
+            self.emit(
+                "rebased",
+                &[&o.id],
+                &[&o.agent],
+                json!({"change": o.id, "onto": main, "conflicts": paths, "drivers": report.drivers}),
+            );
+            if !paths.is_empty() {
+                self.emit(
+                    "conflict",
+                    &[&o.id],
+                    &[&o.agent],
+                    json!({"change": o.id, "paths": paths, "cause": "continuous_rebase"}),
+                );
+            }
+            out.push(json!({
+                "change": o.id, "base": old_base, "ours": old_head, "theirs": main, "head": o.head,
+                "conflicts": paths, "drivers": report.drivers, "reviews": reviews,
+            }));
+        }
+        Ok(out)
     }
 
     /// Opens a change that undoes a main changeset and lands it.
@@ -610,7 +1117,114 @@ impl Inner {
         let mut ch = self.open_change(agent, &intent, None, None, Some(&target))?;
         let entries = cs.changes.keys().map(|p| (p.clone(), parent_m.get(p).cloned())).collect();
         self.set_entries(&mut ch, entries, None)?;
-        self.land(&ch.id)
+        // A revert never waits in the queue: it is the way back to a green main.
+        self.land_direct(&ch.id)
+    }
+
+    // ---- git push from people -------------------------------------------------------------
+
+    /// Lands commits a person pushed to the branch. `new` must contain main's exported commit
+    /// (fast-forward); each commit on the path from it to `new` becomes a change that goes
+    /// through `land`, so agents see the push at once. The pushed commits stay byte-identical.
+    /// An error is a rejection: its text goes back to the person.
+    pub fn land_push(&mut self, old: &str, new: &str) -> Result<Value> {
+        let main = self.main()?;
+        let cur = self.commit_for(&main)?;
+        let gd = self.odb.dir().to_path_buf();
+        let branch = self.branch.clone();
+        if new.bytes().all(|b| b == b'0') {
+            bail!("deleting {branch} is not allowed: main is shared with the agents");
+        }
+        if new == cur {
+            return Ok(json!({"status": "up_to_date", "commit": cur, "changes": []}));
+        }
+        if git::run(Some(&gd), &["rev-parse", "--verify", "--quiet", &format!("{new}^{{commit}}")]).is_err() {
+            bail!("{new} is not a commit");
+        }
+        if !git::is_ancestor(&gd, &cur, new)? {
+            let moved = if old == cur { String::new() } else { format!(" (main moved from {old})") };
+            bail!(
+                "non-fast-forward: your commit does not contain main {}{moved}; \
+                 run `git pull --rebase` and push again (Rootstock never rewrites main)",
+                &cur[..12]
+            );
+        }
+        // Same connectivity check as git receive-pack: every object reachable from `new` exists.
+        git::run(Some(&gd), &["rev-list", "--objects", "--quiet", new, "--not", &cur])
+            .context("the push is missing objects")?;
+        let chain = git::ancestry_chain(&gd, &cur, new)?;
+        let (mut prev_cs, mut prev) = (main, cur);
+        let mut landed = Vec::new();
+        for commit in &chain {
+            let info = git::run(Some(&gd), &["show", "-s", "--format=%ct%n%an%n%B", commit])?;
+            let mut lines = info.splitn(3, '\n');
+            let time: i64 = lines.next().unwrap_or("0").parse()?;
+            let author = one_line(lines.next().unwrap_or(""));
+            let message = lines.next().unwrap_or("").trim_end().to_string();
+            let subject = message.lines().next().unwrap_or("").trim().to_string();
+            let intent = if subject.is_empty() { format!("git push {}", &commit[..12]) } else { subject };
+            let id = format!("ch_{:012x}", rand::thread_rng().r#gen::<u64>() & 0xffff_ffff_ffff);
+            let changes: Changes = git::diff_tree(&gd, &prev, commit)?.into_iter().collect();
+            self.check_pushed(&prev_cs, &changes).with_context(|| format!("refusing commit {}", &commit[..12]))?;
+            let meta = Meta {
+                change: Some(id.clone()),
+                agent: format!("git:{author}"),
+                intent: intent.clone(),
+                message: Some(message),
+                time,
+                ..Meta::default()
+            };
+            let cs = Changeset { parents: vec![prev_cs.clone()], changes, meta };
+            let head = self.store.tx(|s| {
+                let head = s.put_changeset(&cs)?;
+                s.map_commit(&head, commit)?;
+                Ok(head)
+            })?;
+            let ch = Change {
+                id: id.clone(),
+                state: ChangeState::Open,
+                agent: format!("git:{author}"),
+                model: None,
+                session: Some("git push".into()),
+                intent,
+                base: prev_cs.clone(),
+                head: head.clone(),
+                predecessors: vec![],
+                conflicts: vec![],
+                landed_as: None,
+                created: now(),
+                declared: Intent::default(),
+                view: None,
+            };
+            self.store.put_change(&ch)?;
+            let out = self.land_direct(&id)?;
+            if out["status"] != "landed" || out["commit"] != commit.as_str() {
+                bail!("internal: pushed commit {commit} did not land as itself: {out}");
+            }
+            landed.push(json!({"change": id, "changeset": head, "commit": commit}));
+            (prev_cs, prev) = (head, commit.clone());
+        }
+        Ok(json!({"status": "landed", "commit": new, "changes": landed}))
+    }
+
+    /// Pushed paths must be safe to write on disk (no `..`, no .git, no file over a directory).
+    fn check_pushed(&mut self, prev: &str, changes: &Changes) -> Result<()> {
+        let mut m = self.manifest(prev)?;
+        for (p, e) in changes {
+            check_path(p)?;
+            match e {
+                Some(e) => m.insert(p.clone(), e.clone()),
+                None => m.remove(p),
+            };
+        }
+        for (p, e) in changes {
+            if let Some(e) = e {
+                m.remove(p);
+                check_no_collision(&m, p)?;
+                m.insert(p.clone(), e.clone());
+            }
+        }
+        Ok(())
     }
 
     // ---- git export ----------------------------------------------------------------------
@@ -627,8 +1241,18 @@ impl Inner {
                 self.odb.write("blob", &data)?;
             }
         }
-        let manifest = self.manifest(id)?;
-        let tree = git::write_tree(&mut self.odb, &manifest)?;
+        // Incremental export: only the directories on the changed paths are written again;
+        // the root changeset (no parent) writes the whole tree once.
+        let tree = match parents.first() {
+            Some(pc) => {
+                let parent_tree = git::commit_tree(&mut self.odb, pc)?;
+                git::write_tree_changed(&mut self.odb, &parent_tree, &cs.changes)?
+            }
+            None => {
+                let manifest = self.manifest(id)?;
+                git::write_tree(&mut self.odb, &manifest)?
+            }
+        };
         let m = &cs.meta;
         let slug: String =
             m.agent.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '.' { c } else { '-' }).collect();
@@ -639,6 +1263,19 @@ impl Inner {
         let commit = self.odb.write("commit", &bytes)?;
         self.store.map_commit(id, &commit)?;
         Ok(commit)
+    }
+
+    /// Checks the exported tree of a changeset against a full write of its manifest (the
+    /// incremental export must give the same tree). Returns the tree id.
+    pub fn verify_export(&mut self, id: &str) -> Result<String> {
+        let commit = self.commit_for(id)?;
+        let exported = git::commit_tree(&mut self.odb, &commit)?;
+        let manifest = self.manifest(id)?;
+        let full = git::write_tree(&mut self.odb, &manifest)?;
+        if exported != full {
+            bail!("export of {id}: commit {commit} has tree {exported}, the manifest gives {full}");
+        }
+        Ok(full)
     }
 
     pub fn export_change(&mut self, id: &str) -> Result<Value> {
@@ -682,7 +1319,8 @@ impl Inner {
         Ok(json!({
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
-            "landed_as": ch.landed_as, "created": ch.created,
+            "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
+            "declared": ch.declared, "view": ch.view,
         }))
     }
 
@@ -712,6 +1350,7 @@ impl Inner {
         let files = self.manifest(&main)?.len();
         Ok(json!({
             "main": main, "commit": commit, "branch": self.branch, "files": files,
+            "cache": {"manifests": self.manifests.len(), "objects": self.odb.cached()},
             "open_changes": open.iter().map(|c| json!({"id": c.id, "agent": c.agent, "intent": c.intent, "conflicts": c.conflicts.len()})).collect::<Vec<_>>(),
         }))
     }
@@ -724,6 +1363,13 @@ impl Inner {
             return Ok(json!({"path": path, "at": cs, "mode": "160000", "submodule": e.blob}));
         }
         let data = self.blob(&e.blob)?;
+        if data.len() > safety::MAX_READ {
+            bail!(
+                "{path} is {} bytes; read returns files up to {} bytes (use blobs or git clone)",
+                data.len(),
+                safety::MAX_READ
+            );
+        }
         let mut v =
             json!({"path": path, "at": cs, "blob": e.blob, "mode": format!("{:o}", e.mode), "size": data.len()});
         match as_text(&data) {
@@ -731,6 +1377,32 @@ impl Inner {
             None => v["content_b64"] = Value::String(B64.encode(&data)),
         }
         Ok(v)
+    }
+
+    /// The whole tree of a revision as `[path, mode, blob]` rows (for a node daemon).
+    pub fn tree(&mut self, at: Option<&str>) -> Result<Value> {
+        let cs = self.resolve_at(at)?;
+        let m = self.manifest(&cs)?;
+        let entries: Vec<Value> = m.iter().map(|(p, e)| json!([p, e.mode, e.blob])).collect();
+        Ok(json!({"at": cs, "commit": self.store.commit_of(&cs)?, "files": entries.len(), "entries": entries}))
+    }
+
+    /// Blob contents (base64) for a node daemon, up to about `max_bytes` per call. Ids that did
+    /// not fit come back in `rest`; at least one blob is always returned.
+    pub fn blobs(&mut self, ids: &[String], max_bytes: usize) -> Result<Value> {
+        let mut out = serde_json::Map::new();
+        let mut size = 0;
+        let mut rest = Vec::new();
+        for id in ids {
+            if size >= max_bytes && !out.is_empty() {
+                rest.push(id.clone());
+                continue;
+            }
+            let data = self.blob(id)?;
+            size += data.len();
+            out.insert(id.clone(), Value::String(B64.encode(&data)));
+        }
+        Ok(json!({"blobs": out, "rest": rest}))
     }
 
     pub fn list(&mut self, dir: &str, at: Option<&str>) -> Result<Value> {
@@ -757,31 +1429,6 @@ impl Inner {
             bail!("no such directory {dir}");
         }
         Ok(json!({"at": cs, "path": dir, "entries": entries.into_values().collect::<Vec<_>>()}))
-    }
-
-    pub fn grep(&mut self, pattern: &str, at: Option<&str>, dir: Option<&str>, max: usize) -> Result<Value> {
-        let re = Regex::new(pattern).map_err(|e| anyhow!("bad pattern: {e}"))?;
-        let cs = self.resolve_at(at)?;
-        let m = self.manifest(&cs)?;
-        let prefix = dir.map(|d| d.trim_matches('/')).filter(|d| !d.is_empty()).map(|d| format!("{d}/"));
-        let mut matches = Vec::new();
-        let mut truncated = false;
-        'files: for (path, e) in m.iter() {
-            if prefix.as_ref().is_some_and(|p| !path.starts_with(p)) || e.mode == MODE_GITLINK {
-                continue;
-            }
-            let Some(text) = as_text(&self.blob(&e.blob)?) else { continue };
-            for (i, line) in text.lines().enumerate() {
-                if re.is_match(line) {
-                    if matches.len() == max {
-                        truncated = true;
-                        break 'files;
-                    }
-                    matches.push(json!({"path": path, "line": i + 1, "text": line}));
-                }
-            }
-        }
-        Ok(json!({"at": cs, "matches": matches, "truncated": truncated}))
     }
 
     pub fn diff(&mut self, from: &str, to: &str) -> Result<Value> {
@@ -813,30 +1460,37 @@ impl Inner {
         }
         Ok(json!({"from": from, "to": to, "files": files}))
     }
+}
 
-    pub fn log(&mut self, path: Option<&str>, limit: usize) -> Result<Value> {
-        let path = path.map(|p| p.trim_matches('/')).filter(|p| !p.is_empty());
-        let mut out = Vec::new();
-        let mut cur = Some(self.main()?);
-        while let Some(id) = cur {
-            if out.len() >= limit {
-                break;
-            }
-            let cs = self.changeset(&id)?;
-            let touched: Vec<&String> =
-                cs.changes.keys().filter(|k| path.is_none_or(|p| *k == p || k.starts_with(&format!("{p}/")))).collect();
-            if !touched.is_empty() || (path.is_none() && cs.parents.is_empty()) {
-                let m = &cs.meta;
-                out.push(json!({
-                    "changeset": id, "commit": self.store.commit_of(&id)?, "change": m.change,
-                    "agent": m.agent, "model": m.model, "intent": m.intent, "message": m.message, "time": m.time,
-                    "paths": touched.iter().take(50).collect::<Vec<_>>(), "path_count": touched.len(),
-                }));
-            }
-            cur = cs.parents.first().cloned();
+/// Makes the export repo: a bare clone of `src`. git copies a shallow repo through its pack
+/// transport (minutes and gigabytes of memory for a big repo), so a local shallow source gets
+/// its object directory cloned copy-on-write instead, with its `shallow` file and its refs.
+fn clone_bare(src: &Path, git_dir: &Path) -> Result<()> {
+    let (src_s, git_s) = (src.to_string_lossy(), git_dir.to_string_lossy());
+    let shallow = git::run(None, &["-C", &src_s, "rev-parse", "--is-shallow-repository"]).map(|s| s.trim() == "true");
+    if shallow.unwrap_or(false) {
+        let common = git::run(None, &["-C", &src_s, "rev-parse", "--path-format=absolute", "--git-common-dir"])?;
+        let common = PathBuf::from(common.trim());
+        git::run(None, &["init", "--bare", "--quiet", &git_s])?;
+        crate::cow::remove_tree(&git_dir.join("objects"))?;
+        crate::cow::clone_tree(&common.join("objects"), &git_dir.join("objects"), crate::cow::Strategy::Auto)?;
+        fs::copy(common.join("shallow"), git_dir.join("shallow"))?;
+        let refs = git::run(
+            None,
+            &["-C", &src_s, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads", "refs/tags"],
+        )?;
+        let mut lines: Vec<&str> = refs.lines().filter(|l| !l.is_empty()).collect();
+        lines.sort_by_key(|l| l.split_once(' ').map(|(_, r)| r).unwrap_or(""));
+        let mut packed = String::from("# pack-refs with: sorted \n");
+        for l in lines {
+            packed.push_str(l);
+            packed.push('\n');
         }
-        Ok(json!({"entries": out}))
+        fs::write(git_dir.join("packed-refs"), packed)?;
+        return Ok(());
     }
+    git::run(None, &["clone", "--bare", "--quiet", &src_s, &git_s])?;
+    Ok(())
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

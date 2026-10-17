@@ -21,9 +21,28 @@ impl Store {
              CREATE TABLE IF NOT EXISTS changes (id TEXT PRIMARY KEY, state TEXT NOT NULL, body TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS refs (name TEXT PRIMARY KEY, value TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS git_map (changeset TEXT PRIMARY KEY, git_commit TEXT NOT NULL);
-             CREATE INDEX IF NOT EXISTS git_map_commit ON git_map (git_commit);",
+             CREATE INDEX IF NOT EXISTS git_map_commit ON git_map (git_commit);
+             CREATE TABLE IF NOT EXISTS queue (seq INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT UNIQUE NOT NULL);
+             CREATE TABLE IF NOT EXISTS reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT NOT NULL,
+                 state TEXT NOT NULL, body TEXT NOT NULL);",
         )?;
+        // Derived data (history index, blame cache, search and symbol indexes) and IAM tables.
+        for schema in [
+            crate::history::SCHEMA,
+            crate::blame::SCHEMA,
+            crate::search::SCHEMA,
+            crate::symbols::SCHEMA,
+            crate::auth::SCHEMA,
+            crate::audit::SCHEMA,
+        ] {
+            conn.execute_batch(schema)?;
+        }
         Ok(Self { conn })
+    }
+
+    /// The connection, for the derived-data modules that own their own tables.
+    pub fn conn(&self) -> &Connection {
+        &self.conn
     }
 
     /// Runs `f` in one transaction; rolls back if it fails.
@@ -122,5 +141,50 @@ impl Store {
             params![changeset, commit],
         )?;
         Ok(())
+    }
+
+    // ---- landing queue and review tasks ----------------------------------------------------
+
+    pub fn enqueue(&self, change: &str) -> Result<usize> {
+        self.conn.execute("INSERT OR IGNORE INTO queue (change) VALUES (?1)", [change])?;
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM queue WHERE seq <= (SELECT seq FROM queue WHERE change = ?1)",
+            [change],
+            |r| r.get::<_, i64>(0),
+        )? as usize)
+    }
+
+    pub fn dequeue(&self, change: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM queue WHERE change = ?1", [change])?;
+        Ok(())
+    }
+
+    pub fn queue(&self) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare("SELECT change FROM queue ORDER BY seq")?;
+        let ids = stmt.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<Vec<String>>>()?;
+        Ok(ids)
+    }
+
+    pub fn add_review(&self, change: &str, body: &serde_json::Value) -> Result<i64> {
+        self.conn.execute(
+            "INSERT INTO reviews (change, state, body) VALUES (?1, 'open', ?2)",
+            params![change, body.to_string()],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Review tasks as (id, change, state, body), oldest first; `state` None = all.
+    pub fn reviews(&self, state: Option<&str>) -> Result<Vec<(i64, String, String, serde_json::Value)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, change, state, body FROM reviews WHERE ?1 IS NULL OR state = ?1 ORDER BY id")?;
+        let rows = stmt
+            .query_map([state], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, String>(3)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows.into_iter().map(|(i, c, s, b)| Ok((i, c, s, serde_json::from_str(&b)?))).collect()
+    }
+
+    pub fn close_review(&self, id: i64, state: &str) -> Result<bool> {
+        Ok(self.conn.execute("UPDATE reviews SET state = ?2 WHERE id = ?1", params![id, state])? == 1)
     }
 }

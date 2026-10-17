@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128" role="img" aria-label="TreeYard logo">
+  <style>
+    .track { stroke: #2f6b45; }
+    .node { fill: #1c2420; }
+    .land { fill: #d99a1e; }
+    @media (prefers-color-scheme: dark) {
+      .track { stroke: #7fc496; }
+      .node { fill: #e3e9e4; }
+    }
+  </style>
+  <g class="track" fill="none" stroke-linecap="round">
+    <path d="M8 9 C8 28 32 25 32 40" stroke-width="3.5"/>
+    <path d="M20 9 C20 26 32 28 32 40" stroke-width="3.5"/>
+    <path d="M32 9 L32 40" stroke-width="3.5"/>
+    <path d="M44 9 C44 26 32 28 32 40" stroke-width="3.5"/>
+    <path d="M56 9 C56 28 32 25 32 40" stroke-width="3.5"/>
+    <path d="M32 40 L32 57" stroke-width="7"/>
+  </g>
+  <circle class="node" cx="8" cy="8" r="4.5"/>
+  <circle class="node" cx="20" cy="8" r="4.5"/>
+  <circle class="land" cx="32" cy="8" r="4.5"/>
+  <circle class="node" cx="44" cy="8" r="4.5"/>
+  <circle class="node" cx="56" cy="8" r="4.5"/>
+</svg>

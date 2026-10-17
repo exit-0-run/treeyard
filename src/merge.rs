@@ -1,13 +1,55 @@
 //! Three-way merge of one path: entry level first, then line-level text merge.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::path::Path;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::model::{ConflictKind, Entry, MODE_GITLINK, MODE_LINK};
 
-/// Blob access the merge needs.
+/// Blob access the merge needs, and the line merge it uses.
 pub trait Blobs {
     fn read_blob(&mut self, id: &str) -> Result<Vec<u8>>;
     fn write_blob(&mut self, data: &[u8]) -> Result<String>;
+    /// Line merge of three texts: `Ok(merged)` when clean, `Err(text with markers)` otherwise.
+    /// The default is the fast built-in merge (`diffy`); the repo uses `git_merge_file`.
+    fn merge_text(&mut self, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
+        Ok(diffy::merge(base, ours, theirs))
+    }
+}
+
+/// The diff algorithm of git's own merges (merge-ort sets histogram for content merges).
+pub const GIT_MERGE_DIFF: &str = "histogram";
+
+/// Line merge by `git merge-file`, so a clean merge is exactly what git's merge gives. Main
+/// (`theirs`) goes first, like `git merge-tree <main> <change>`; markers name main and change.
+pub fn git_merge_file(dir: &Path, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
+    static N: AtomicU64 = AtomicU64::new(0);
+    std::fs::create_dir_all(dir)?;
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    let stem = dir.join(format!("merge-{}-{n}", std::process::id()));
+    let files = [stem.with_extension("main"), stem.with_extension("base"), stem.with_extension("change")];
+    let res = (|| {
+        for (f, body) in files.iter().zip([theirs, base, ours]) {
+            std::fs::write(f, body)?;
+        }
+        let out = Command::new("git")
+            .args(["merge-file", "-p", "--diff-algorithm", GIT_MERGE_DIFF, "-L", "main", "-L", "base", "-L", "change"])
+            .args(&files)
+            .stdin(Stdio::null())
+            .output()
+            .context("running git merge-file")?;
+        let text = String::from_utf8(out.stdout).context("git merge-file output is not UTF-8")?;
+        match out.status.code() {
+            Some(0) => Ok(Ok(text)),
+            Some(c) if (1..128).contains(&c) => Ok(Err(text)),
+            _ => anyhow::bail!("git merge-file failed: {}", String::from_utf8_lossy(&out.stderr).trim()),
+        }
+    })();
+    for f in &files {
+        let _ = std::fs::remove_file(f);
+    }
+    res
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -78,7 +120,7 @@ pub fn merge3(
         let (Some(bt), Some(ot), Some(tt)) = (text(&base_data), text(&od), text(&td)) else {
             return Ok(ours_conflict(ConflictKind::Binary));
         };
-        match diffy::merge(bt, ot, tt) {
+        match blobs.merge_text(bt, ot, tt)? {
             Ok(merged) => blobs.write_blob(merged.as_bytes())?,
             Err(with_markers) => {
                 let kind = if base.is_some() { ConflictKind::Content } else { ConflictKind::AddAdd };

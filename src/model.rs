@@ -121,4 +121,26 @@ pub struct Change {
     pub conflicts: Vec<Conflict>,
     pub landed_as: Option<String>,
     pub created: i64,
+    /// Paths (globs) and symbols the owner said it will touch (`open_change` or `declare`).
+    #[serde(default, skip_serializing_if = "Intent::is_empty")]
+    pub declared: Intent,
+    /// The head the owner's writes are relative to, set when the server rebased the change on
+    /// its own (continuous rebase). Whole-file writes are then merged onto the new head.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub view: Option<String>,
+}
+
+/// What an agent declares before it edits: path globs and symbol names (`name` or `path#name`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Intent {
+    #[serde(default)]
+    pub paths: Vec<String>,
+    #[serde(default)]
+    pub symbols: Vec<String>,
+}
+
+impl Intent {
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty() && self.symbols.is_empty()
+    }
 }

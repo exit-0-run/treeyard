@@ -1,12 +1,31 @@
 //! Rootstock: a version control server for agent swarms, with git underneath.
 
+pub mod audit;
+pub mod auth;
+pub mod bisect;
+pub mod blame;
 pub mod client;
+pub mod config;
+pub mod coord;
+pub mod cow;
+pub mod daemon;
+pub mod drivers;
+pub mod failpoint;
 pub mod git;
+pub mod githttp;
+pub mod history;
+pub mod indexer;
+pub mod landing;
 pub mod mcp;
 pub mod merge;
 pub mod model;
 pub mod replay;
 pub mod repo;
 pub mod rpc;
+pub mod safety;
+pub mod search;
 pub mod server;
 pub mod store;
+pub mod symbols;
+pub mod workspace;
+pub mod xdiff;

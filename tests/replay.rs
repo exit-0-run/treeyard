@@ -39,6 +39,9 @@ fn options(src: &std::path::Path, data: std::path::PathBuf, stacked: bool) -> Op
         data,
         check_git: true,
         stacked,
+        config: None,
+        intents: false,
+        wave_base: false,
     }
 }
 
@@ -53,6 +56,9 @@ fn stale_replay_merges_match_git() {
     assert_eq!(g["tree_differs"].as_array().unwrap().len(), 0, "{r}");
     assert_eq!(g["server_clean_git_conflict"].as_array().unwrap().len(), 0, "{r}");
     assert_eq!(r["fsck_ok"], true, "{r}");
+    // A stale-base conflict needs a second change on the same path, so overlaps flags every one.
+    assert!(r["first_conflicts"].as_u64().unwrap() > 0, "{r}");
+    assert_eq!(r["flagged_early"], r["first_conflicts"], "{r}");
 }
 
 #[test]
@@ -64,4 +70,22 @@ fn stacked_replay_reproduces_history() {
     assert_eq!(r["final_tree_equal"], true);
     assert!(r["waits"].as_u64().unwrap() > 0, "random landing order must hit the waiting rule: {r}");
     assert_eq!(r["conflicts"], 0);
+}
+
+#[test]
+fn intents_replay_throws_nothing_away_and_keeps_history() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = history(tmp.path());
+    let stale = run(&options(&src, tmp.path().join("stale"), false)).unwrap();
+    let o = Options { intents: true, ..options(&src, tmp.path().join("intents"), false) };
+    let r = run(&o).unwrap();
+    assert_eq!(r["conflicts"], 0, "{r}");
+    assert_eq!(r["forced"], 0);
+    assert_eq!(r["faithful_waves"], r["waves"], "{r}");
+    assert!(r["coordination"]["postponed"].as_u64().unwrap() > 0, "{r}");
+    assert_eq!(r["git_check"]["server_clean_git_conflict"].as_array().unwrap().len(), 0);
+    // Precision of the early warnings is reported next to their recall.
+    let w = &stale["warnings"];
+    assert!(w["flagged_by_overlaps"].as_u64().unwrap() >= w["flagged_and_conflicted"].as_u64().unwrap());
+    assert!(w["trial_merge_precision"].is_number(), "{stale}");
 }

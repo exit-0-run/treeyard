@@ -7,7 +7,8 @@ use std::io::{BufRead, Write};
 use crate::{client, rpc};
 
 const INSTRUCTIONS: &str = "Rootstock serves the repository as an API. Read with read/list/grep/log \
-without a checkout. To change code: open_change (agent + one-line intent), apply edits, then land. \
+without a checkout; ask blame (who changed a line, with intent), symbols/outline (definitions) and \
+bisect (first bad change) on the server. To change code: open_change (agent + one-line intent), apply edits, then land. \
 land rebases on the server; on status conflict, read the tasks in change.conflicts, write the final \
 content with apply (or resolve), and land again.";
 
@@ -44,8 +45,10 @@ pub fn run(url: &str, agent: Option<String>) -> Result<()> {
                     Value::Object(_) => msg["params"]["arguments"].clone(),
                     _ => json!({}),
                 };
+                // With a token the server names the agent itself (the token's name).
                 if matches!(name, "open_change" | "revert")
                     && args.get("agent").is_none()
+                    && std::env::var_os("ROOTSTOCK_TOKEN").is_none()
                     && let Some(a) = &agent
                 {
                     args["agent"] = json!(a);
