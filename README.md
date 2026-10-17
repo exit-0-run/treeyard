@@ -83,7 +83,7 @@ All operations, configuration and the data model: [docs/reference.md](docs/refer
 
 ## Benchmarks
 
-> **Measured results, not estimates.** One laptop (15-core ARM64, 48 GB RAM, SSD), October 2026, one run per
+> **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
 > go `dfc6f7db9bd7`, linux `58161ead29e5`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
 

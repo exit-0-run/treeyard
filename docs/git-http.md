@@ -56,7 +56,7 @@ The tests use a local bare repo only.
 
 ## Measured
 
-15-core ARM64, 48 GB RAM, macOS, git 2.54, release build, 2026-10-17. Command:
+15-core CPU, 48 GB RAM, macOS, git 2.54, release build, 2026-10-17. Command:
 
 ```sh
 TREEYARD_SCRATCH=/private/tmp/rootstock-harness/005/real \

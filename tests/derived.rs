@@ -371,7 +371,7 @@ fn bisect_finds_a_planted_bad_change_and_revert_removes_it() {
 #[test]
 #[ignore]
 fn blame_equals_git_blame_on_a_real_repo() {
-    let repo = std::env::var("TREEYARD_REAL_REPO").unwrap_or("/private/tmp/treeyard-harness/oss/ripgrep".into());
+    let repo = std::env::var("TREEYARD_REAL_REPO").unwrap_or("/private/tmp/rootstock-harness/oss/ripgrep".into());
     let src = Path::new(&repo);
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("data");

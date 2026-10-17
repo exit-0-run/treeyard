@@ -96,5 +96,5 @@ Version control server for agent swarms (Rust, single binary). Product docs, pla
   files and `dir/` keys. Bump `INDEX_VERSION` in history.rs when rows change meaning.
 - `rpc::call` runs as `Caller::internal()`; HTTP uses `call_as` with the token's caller. Writes and
   denials write an audit row inside the same `Repo::with`. Never put a token secret in a row or a log.
-- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware as "one laptop (cores, RAM, SSD)", no chip model or OS build.
+- README: hero of measured multipliers on top (Patryk: full hype), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM".
 - Never add `.github/workflows/` (no GitHub Actions on appnice repos). Commit author: 320388883+exit0-run@users.noreply.github.com.

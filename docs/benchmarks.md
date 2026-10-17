@@ -37,7 +37,7 @@ What this means for the plan:
 
 ## Phase 2: TreeYard workspaces vs plain worktrees (2026-10-17)
 
-Measured on the same Mac (15-core ARM64, 48 GB RAM, macOS, APFS), same pinned revisions (ripgrep `3fce3b5`,
+Measured on the same machine (15-core CPU, 48 GB RAM), same pinned revisions (ripgrep `3fce3b5`,
 astro `c75e897`), same warm caches (cargo registry, pnpm store), at most 8 workspaces made at once,
 in one session. TreeYard: `make release` on the task-#007 working tree. Other sessions used the Mac
 during the runs. Commands:
@@ -92,7 +92,7 @@ work. `spare-*` modes first run `treeyard workspace spare --count N` (the "pool 
 
 ## Phase 3: coordination replay
 
-Measured 2026-10-17 on the same Mac (15-core ARM64, 48 GB RAM, macOS, APFS), with `treeyard replay` on the last
+Measured 2026-10-17 on the same machine (15-core CPU, 48 GB RAM), with `treeyard replay` on the last
 500 first-parent commits of ripgrep (`3fce3b5`) and requests (`611c6162`), seed 1, at 16 and 50 agents.
 Binary: `make release` of the working tree at the end of task #009 (copy
 `/private/tmp/rootstock-harness/009/treeyard-009`, sha256 prefix `8d9a7e115aa85591`). Baseline: the
@@ -299,7 +299,7 @@ investigated). `init --history 10000` peaks at 1 051.5 MB RSS. The index holds 2
 
 | Item | Value |
 |---|---|
-| Machine | 15-core ARM64, 48 GB RAM, SSD, macOS, APFS |
+| Machine | 15-core CPU, 48 GB RAM, macOS, APFS |
 | Tools | git 2.54.0 (Apple Git-157), Python 3.15.0, rustc and cargo 1.99.1, node v26.11.1, pnpm 11.28.4 (astro's `packageManager`), uv 0.13.0, pip 26.2.1 |
 | ripgrep | https://github.com/BurntSushi/ripgrep at `3fce3b5bb0236da2df6d99672afb8a719642eca7` (2026-08-04), 237 files, 2215 first-parent commits |
 | requests | https://github.com/psf/requests at `611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60` (2026-09-21), 130 files, 2669 first-parent commits |

@@ -64,7 +64,7 @@ text{font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
 <text class="t val" x="312.0" y="531">2.3 ms*</text>
 <text class="big mul" x="810" y="524" text-anchor="middle">0</text>
 <text class="m mulsub" x="810" y="542" text-anchor="middle">queue wait*</text>
-<text class="m foot" x="36" y="576">Measured on one laptop: 15-core ARM64, 48 GB RAM, SSD. One run per configuration.</text>
+<text class="m foot" x="36" y="576">Measured on 15-core CPU, 48 GB RAM. One run per configuration.</text>
 <text class="m foot" x="36" y="597">Commands and raw data: docs/benchmarks.md.</text>
 <text class="m foot" x="36" y="618">* Land time excludes CI: tests run on main after land, or in a tested queue.</text>
 <text class="m foot" x="36" y="639">111→0 is an upper bound: the replay declares the exact paths of each change.</text>
