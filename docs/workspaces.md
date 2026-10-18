@@ -87,6 +87,23 @@ The record `meta/NAME.json` has a `state`. `workspace list` shows it with the ot
 (files cloned), `layers_restored`, `layers_saved`, `files_copied` and `seconds`. A sync of a workspace in
 `creating` is refused, and `remove` of such a workspace does not sync (it has no edits yet).
 
+## Sparse workspaces (`--paths`)
+
+`treeyard workspace create NAME --paths services/api/,libs/core/` makes a workspace with only these
+directories plus the files at the root, like git's sparse checkout in cone mode. The files directly in
+a parent of a listed directory (here `services/` and `libs/`) are there too. On a large monorepo this
+cuts the clone and the scans of every sync.
+
+- The paths are relative directories of the base tree, at most 200. They are kept in the record
+  (`paths`), and `workspace list` shows them.
+- The directories that are not there are never deletions: a sync compares only the files the workspace
+  holds. A file written outside the cone (for example a new `other/x`) is not sent either, so an agent can
+  not overwrite a file it never saw.
+- With `--git`, the `.git` is set to the same cone (`git sparse-checkout set --cone`), so `git status`
+  shows no deletions.
+- The node still keeps the whole base once (`bases/<changeset>/`); only the workspace is sparse.
+  `--paths` does not work with `--strategy overlay`, and a sparse create does not take a spare.
+
 ## Mirror: one fixed directory (`workspace mirror`)
 
 Some apps run only from one fixed path, with one port or one database. `treeyard workspace mirror NAME
@@ -204,7 +221,8 @@ git.cache/                bare git cache for --git
 
 - One way only: the workspace pushes edits to the server. A server-side rebase does not rewrite the
   workspace's files; `land` rebases on the server, and a conflict comes back as a task in `land`'s reply.
-- No partial or lazy checkout: the base holds the whole tree (a virtual file system is phase 5).
+- No lazy checkout: the base holds the whole tree, and a `--paths` workspace holds its whole cone (a
+  virtual file system is phase 5).
 - `overlay` needs mount rights. In a container that is `--privileged` or a user namespace with
   overlayfs; it was tested only as root in Docker.
 - Removing a workspace with a large `node_modules` clone takes seconds (APFS deletes each cloned inode).

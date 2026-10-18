@@ -337,3 +337,64 @@ fn mirror_keeps_one_directory_in_step_with_the_change() {
     assert!(r["written"].as_array().unwrap().contains(&json!("f00.txt")), "{r}");
     assert!(!into.join("new/x.txt").exists(), "b has no new/x.txt");
 }
+
+#[test]
+fn sparse_workspace_holds_only_its_cone_and_never_deletes_the_rest() {
+    let tmp = tempfile::tempdir().unwrap();
+    let files: &[(&str, &str)] = &[
+        ("a/x.txt", "x\n"),
+        ("a/deep/y.txt", "y\n"),
+        ("b/z.txt", "z\n"),
+        ("c/sub/v.txt", "v\n"),
+        ("p/top.txt", "top\n"),
+        ("p/q/mid.txt", "mid\n"),
+        ("p/q/r/s.txt", "s\n"),
+        ("p/other/no.txt", "no\n"),
+    ];
+    let url = server(tmp.path(), files);
+    let home = tmp.path().join("node");
+    let node = Node::new(&home, &url);
+    let (ws, _) = node.create(&CreateOptions { paths: vec!["a/".into(), "p/q/r/".into()], ..opts("s") }).unwrap();
+    assert_eq!(ws.paths, vec!["a", "p/q/r"]);
+    for f in ["f00.txt", "a/x.txt", "a/deep/y.txt", "p/top.txt", "p/q/mid.txt", "p/q/r/s.txt"] {
+        assert!(ws.dir.join(f).exists(), "{f} missing");
+    }
+    for f in ["b", "c", "p/other"] {
+        assert!(!ws.dir.join(f).exists(), "{f} must not be there");
+    }
+    assert_eq!(ws.counts["files"], 10, "{}", ws.counts);
+    let listed = serde_json::to_value(node.list().unwrap()).unwrap();
+    assert_eq!(listed[0]["paths"], json!(["a", "p/q/r"]));
+    // Missing directories are not deletions, and files written outside the cone are not edits.
+    fs::write(ws.dir.join("a/x.txt"), "x2\n").unwrap();
+    fs::create_dir_all(ws.dir.join("b")).unwrap();
+    fs::write(ws.dir.join("b/z.txt"), "blind overwrite\n").unwrap();
+    fs::write(ws.dir.join("root-new.txt"), "new\n").unwrap();
+    let s = node.sync("s").unwrap();
+    assert_eq!(s["paths"], json!(["a/x.txt", "root-new.txt"]), "{s}");
+    let landed = node.land("s").unwrap();
+    assert_eq!(landed["land"]["status"], "landed", "{landed}");
+    assert_eq!(read_at(&url, "main", "b/z.txt")["content"], "z\n");
+    assert_eq!(read_at(&url, "main", "c/sub/v.txt")["content"], "v\n");
+    assert_eq!(read_at(&url, "main", "a/x.txt")["content"], "x2\n");
+
+    let e = node.create(&CreateOptions { paths: vec!["nope/".into()], ..opts("bad") }).unwrap_err();
+    assert!(format!("{e:#}").contains("not a directory"), "{e:#}");
+
+    // Through the CLI, with git: git status shows no deletions for the missing directories.
+    let bin = env!("CARGO_BIN_EXE_treeyard");
+    let out = Command::new(bin)
+        .args(["workspace", "create", "g", "--git", "--paths", "b/,c/sub"])
+        .env("TREEYARD_HOME", &home)
+        .env("TREEYARD_URL", &url)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let g = node.get("g").unwrap();
+    assert_eq!(g.paths, vec!["b", "c/sub"]);
+    assert!(!g.dir.join("a").exists());
+    assert_eq!(common::git(&g.dir, &["status", "--porcelain"]), "");
+    fs::write(g.dir.join("b/z.txt"), "z2\n").unwrap();
+    assert_eq!(common::git(&g.dir, &["status", "--porcelain"]), " M b/z.txt\n");
+    assert_eq!(node.sync("g").unwrap()["paths"], json!(["b/z.txt"]));
+}

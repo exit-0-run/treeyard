@@ -230,6 +230,9 @@ enum WsCmd {
         /// Directory to copy gitignored files from (globs: `copy` in .treeyard/workspace.toml, .worktreeinclude).
         #[arg(long)]
         copy_from: Option<PathBuf>,
+        /// Sparse workspace: only these directories (comma-separated, like `src/,docs/`) plus root files.
+        #[arg(long, value_delimiter = ',')]
+        paths: Vec<String>,
     },
     /// Keep COUNT spare directories (base clone + layers) for current main; create takes one.
     Spare {
@@ -317,6 +320,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             run,
             ports,
             copy_from,
+            paths,
         } => {
             let layers = if no_layers {
                 Some(vec![])
@@ -338,6 +342,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
                 run,
                 ports,
                 copy_from,
+                paths,
             };
             let (ws, timing) = node.create(&o)?;
             let mut v = serde_json::to_value(&ws)?;

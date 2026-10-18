@@ -50,6 +50,8 @@ pub const REPO_CONFIG: &str = ".treeyard/workspace.toml";
 const WORKTREE_INCLUDE: &str = ".worktreeinclude";
 /// The file in a mirror directory that lists what the mirror wrote (and marks it as one).
 pub const MIRROR_MARK: &str = ".treeyard-mirror.json";
+/// Most directories of a sparse workspace (`--paths`).
+pub const MAX_SPARSE_PATHS: usize = 200;
 /// Directories that `copy` never walks into in the source directory.
 const COPY_SKIP: &[&str] = &[".git", PRIVATE, "target", "node_modules", ".venv"];
 
@@ -206,6 +208,9 @@ pub struct Workspace {
     /// A stable directory that every sync updates with the change's files (`workspace mirror`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror: Option<PathBuf>,
+    /// Sparse workspace: the directories it holds (plus root files). Empty = the whole tree.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<String>,
 }
 
 impl Workspace {
@@ -250,6 +255,8 @@ pub struct CreateOptions {
     pub ports: Option<u16>,
     /// Where the `copy` globs (and `.worktreeinclude`) find gitignored files; overrides `copy_from`.
     pub copy_from: Option<PathBuf>,
+    /// Sparse workspace: only these directories plus root files (git's cone mode). Empty = all.
+    pub paths: Vec<String>,
 }
 
 impl Default for CreateOptions {
@@ -267,6 +274,7 @@ impl Default for CreateOptions {
             run: None,
             ports: None,
             copy_from: None,
+            paths: vec![],
         }
     }
 }
@@ -730,6 +738,7 @@ impl Node {
             counts: Value::Null,
             synced: 0,
             mirror: None,
+            paths: vec![],
         };
         let mut log = StepLog::open(&self.home.join("logs").join(format!("{}.create.log", o.name)))?;
         ws.create_log = Some(log.path.clone());
@@ -760,6 +769,13 @@ impl Node {
         if o.git {
             self.git_base(&base)?;
         }
+        ws.paths = sparse_paths(&o.paths, &base_dir)?;
+        if !ws.paths.is_empty() && o.strategy == Strategy::Overlay {
+            bail!("--paths does not work with --strategy overlay (an overlay shows the whole base)");
+        }
+        // What the workspace holds; the base (and `state`) is always the whole tree.
+        let ws_state: State =
+            state.iter().filter(|(p, _)| in_cone(&ws.paths, p)).map(|(p, f)| (p.clone(), f.clone())).collect();
         let t_base = t0.elapsed().as_secs_f64();
         log.line(&format!("base ready: {} files", state.len()));
         // CLI options, then the node's workspace.toml, then the repo's .treeyard/workspace.toml.
@@ -770,7 +786,7 @@ impl Node {
             (None, None) => auto_layers(&state.keys().cloned().collect()),
         };
         let keys = specs.iter().map(|s| Ok((s.clone(), self.layer_key(&base_dir, s)?))).collect::<Result<Vec<_>>>()?;
-        let spare = if matches!(o.strategy, Strategy::Auto | Strategy::Clone) {
+        let spare = if matches!(o.strategy, Strategy::Auto | Strategy::Clone) && ws.paths.is_empty() {
             self.take_spare(&base, &keys, o.git, &dir)?
         } else {
             None
@@ -784,10 +800,14 @@ impl Node {
             if o.strategy == Strategy::Hardlink {
                 cow::make_read_only(&base_dir)?;
             }
-            cow::clone_tree(&base_dir, &dir, o.strategy)?
+            if ws.paths.is_empty() {
+                cow::clone_tree(&base_dir, &dir, o.strategy)?
+            } else {
+                clone_sparse(&base_dir, &dir, &ws.paths, &ws_state, o.strategy, o.git)?
+            }
         };
         let t_clone = t0.elapsed().as_secs_f64() - t_base;
-        log.line(&format!("cloned {} files ({}, spare: {})", state.len(), ws.strategy.as_str(), spare.is_some()));
+        log.line(&format!("cloned {} files ({}, spare: {})", ws_state.len(), ws.strategy.as_str(), spare.is_some()));
         ws.teardown = o.teardown.clone().or(cfg.teardown.clone());
         ws.run = o.run.clone().or(cfg.run.clone());
         {
@@ -795,7 +815,7 @@ impl Node {
             let n = o.ports.or(cfg.ports).unwrap_or(self.port_block);
             let (slot, lo) = self.free_ports(n)?;
             (ws.slot, ws.ports) = (slot, (lo, lo + n - 1));
-            write_json(&self.state_path(&o.name), &state)?;
+            write_json(&self.state_path(&o.name), &ws_state)?;
             write_json(&self.meta_path(&o.name), &*ws)?;
         }
         log.line(&format!("ports {}-{}", ws.ports.0, ws.ports.1));
@@ -850,7 +870,7 @@ impl Node {
         let total = round(t0.elapsed().as_secs_f64());
         let restored = layers.iter().filter(|l| l.2).count();
         ws.counts = json!({
-            "files": state.len(), "layers_restored": restored, "layers_saved": saved, "files_copied": n_copied,
+            "files": ws_state.len(), "layers_restored": restored, "layers_saved": saved, "files_copied": n_copied,
             "seconds": total,
         });
         ws.state = WsState::Ready;
@@ -1176,7 +1196,7 @@ impl Node {
         let mut state: State = read_json(&self.state_path(name))?;
         let layer_dirs: BTreeSet<String> =
             ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();
-        let found = scan(&ws.dir, &state, &layer_dirs)?;
+        let found = scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?;
         let mut edits = Vec::new();
         let mut next: Vec<(String, Option<FileState>)> = Vec::new();
         for (path, f) in found.diffs {
@@ -1375,7 +1395,7 @@ impl Node {
         }
         let layer_dirs: BTreeSet<String> =
             ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();
-        Ok(scan(&ws.dir, &state, &layer_dirs)?.diffs.len())
+        Ok(scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?.diffs.len())
     }
 
     /// Syncs, then lands the change on main.
@@ -1440,6 +1460,79 @@ fn write_mirror(name: &str, ws_dir: &Path, state: &State, into: &Path) -> Result
     prune_empty_dirs(into, gone.iter())?;
     write_json(&mark, &json!({"workspace": name, "files": files}))?;
     Ok(json!({"into": into, "written": written, "deleted": gone, "kept": kept}))
+}
+
+/// Checks and normalises `--paths`: relative directories of the base, at most `MAX_SPARSE_PATHS`,
+/// sorted, without one inside another.
+fn sparse_paths(paths: &[String], base: &Path) -> Result<Vec<String>> {
+    let mut out: Vec<String> = Vec::new();
+    for p in paths {
+        let p = p.trim().trim_matches('/');
+        if p.is_empty() {
+            continue;
+        }
+        check_rel(p).map_err(|_| anyhow!("bad --paths entry {p:?}: give relative directories like src/,docs/"))?;
+        if !fs::symlink_metadata(base.join(p)).is_ok_and(|m| m.is_dir()) {
+            bail!("--paths entry {p:?} is not a directory of the base tree");
+        }
+        out.push(p.to_string());
+    }
+    out.sort();
+    out.dedup();
+    let all = out.clone();
+    out.retain(|p| !all.iter().any(|q| p.starts_with(&format!("{q}/"))));
+    if out.len() > MAX_SPARSE_PATHS {
+        bail!("--paths has {} directories; at most {MAX_SPARSE_PATHS}", out.len());
+    }
+    Ok(out)
+}
+
+/// Whether file `rel` is in the cone of `paths` (git's cone mode): every root file, every file
+/// under a listed directory, and the files directly in a parent of a listed directory.
+pub fn in_cone(paths: &[String], rel: &str) -> bool {
+    match rel.rsplit_once('/') {
+        None => true,
+        Some(_) if paths.is_empty() || rel == REPO_CONFIG => true,
+        Some((parent, _)) => paths
+            .iter()
+            .any(|p| p == parent || p.starts_with(&format!("{parent}/")) || parent.starts_with(&format!("{p}/"))),
+    }
+}
+
+/// Whether directory `rel` holds files of the cone (it is a listed directory, inside one, or above one).
+fn dir_in_cone(paths: &[String], rel: &str) -> bool {
+    paths.is_empty()
+        || rel == PRIVATE
+        || paths.iter().any(|p| p == rel || p.starts_with(&format!("{rel}/")) || rel.starts_with(&format!("{p}/")))
+}
+
+/// Makes a sparse workspace: each listed directory is one clone, and the other files of the cone
+/// (root files, files in parents of listed directories) are cloned one by one. With `git`, the
+/// `.git` is cloned too and set to the same sparse cone, so `git status` shows no deletions.
+fn clone_sparse(base: &Path, dir: &Path, paths: &[String], cone: &State, s: Strategy, git: bool) -> Result<Strategy> {
+    fs::create_dir_all(dir)?;
+    let mut used = s;
+    let mut one = |rel: &str| -> Result<()> {
+        let dst = crate::safety::dest(dir, rel)?;
+        used = cow::clone_tree(&base.join(rel), &dst, if used == Strategy::Auto { s } else { used })?;
+        Ok(())
+    };
+    for p in paths {
+        one(p)?;
+    }
+    for rel in cone.keys().filter(|r| !paths.iter().any(|p| r.starts_with(&format!("{p}/")))) {
+        one(rel)?;
+    }
+    if git && base.join(".git").is_dir() {
+        cow::clone_tree(&base.join(".git"), &dir.join(".git"), Strategy::Auto)?;
+        let mut args = vec!["sparse-checkout", "set", "--cone"];
+        args.extend(paths.iter().map(String::as_str));
+        let out = std::process::Command::new("git").arg("-C").arg(dir).args(&args).output().context("run git")?;
+        if !out.status.success() {
+            bail!("git sparse-checkout in {}: {}", dir.display(), String::from_utf8_lossy(&out.stderr).trim());
+        }
+    }
+    Ok(used)
 }
 
 /// Files in a git dir that mean a git operation is in progress in that checkout.
@@ -1593,6 +1686,12 @@ pub struct Scan {
 /// Compares the workspace with `state`. Tracked files are always checked; untracked files only
 /// when no `.gitignore` excludes them (like git). Layer directories and `.treeyard` are skipped.
 pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result<Scan> {
+    scan_cone(root, state, layer_dirs, &[])
+}
+
+/// `scan` of a sparse workspace: new files count only inside the cone of `paths` (empty = all).
+/// Paths outside it are not in the workspace, so they are neither edits nor deletions.
+pub fn scan_cone(root: &Path, state: &State, layer_dirs: &BTreeSet<String>, paths: &[String]) -> Result<Scan> {
     let mut out = Scan::default();
     for (path, st) in state {
         let p = root.join(path);
@@ -1616,6 +1715,7 @@ pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result
         }
     }
     let skip = layer_dirs.clone();
+    let (cone, base) = (paths.to_vec(), root.to_path_buf());
     let walker = ignore::WalkBuilder::new(root)
         .hidden(false)
         .ignore(false)
@@ -1625,9 +1725,12 @@ pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result
         .require_git(false)
         .filter_entry(move |e| {
             let n = e.file_name().to_string_lossy();
-            !(e.depth() > 0
-                && e.file_type().is_some_and(|t| t.is_dir())
-                && (n == ".git" || n == PRIVATE || skip.contains(n.as_ref())))
+            let is_dir = e.file_type().is_some_and(|t| t.is_dir());
+            if e.depth() > 0 && is_dir && (n == ".git" || n == PRIVATE || skip.contains(n.as_ref())) {
+                return false;
+            }
+            let rel = e.path().strip_prefix(&base).map(|r| r.to_string_lossy().into_owned()).unwrap_or_default();
+            e.depth() == 0 || if is_dir { dir_in_cone(&cone, &rel) } else { in_cone(&cone, &rel) }
         })
         .build();
     for e in walker {
@@ -1705,6 +1808,26 @@ mod tests {
         fs::write(wt.join(".git"), format!("gitdir: {}\n", dir.join(".git").display())).unwrap();
         fs::write(dir.join(".git/MERGE_HEAD"), "x").unwrap();
         assert!(git_busy(&wt).unwrap().contains("MERGE_HEAD"));
+    }
+
+    #[test]
+    fn sparse_cone_is_git_cone_mode() {
+        let paths = vec!["a".to_string(), "p/q".to_string()];
+        for (rel, want) in [
+            ("README.md", true),
+            ("a/x", true),
+            ("a/b/c", true),
+            ("p/top", true),
+            ("p/q/x", true),
+            ("p/other/x", false),
+            ("b/x", false),
+            ("ab/x", false),
+            (REPO_CONFIG, true),
+        ] {
+            assert_eq!(in_cone(&paths, rel), want, "{rel}");
+        }
+        assert!(dir_in_cone(&paths, "p") && dir_in_cone(&paths, "a/b") && !dir_in_cone(&paths, "p/other"));
+        assert!(in_cone(&[], "any/path"));
     }
 
     #[test]
