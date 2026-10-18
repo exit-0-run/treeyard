@@ -87,6 +87,22 @@ The record `meta/NAME.json` has a `state`. `workspace list` shows it with the ot
 (files cloned), `layers_restored`, `layers_saved`, `files_copied` and `seconds`. A sync of a workspace in
 `creating` is refused, and `remove` of such a workspace does not sync (it has no edits yet).
 
+## Mirror: one fixed directory (`workspace mirror`)
+
+Some apps run only from one fixed path, with one port or one database. `treeyard workspace mirror NAME
+--into DIR` writes the files of NAME's change into DIR now and after every sync of NAME (by hand, after
+`exec`, `land`, or from the daemon). Run the app in DIR; edit in the workspace.
+
+- Only files that differ from the last mirror write are written. Unchanged files keep their mtimes, so
+  file watchers and build tools see only real changes. Files that the change no longer has are deleted.
+- DIR holds `.treeyard-mirror.json`, the list of files the mirror wrote. Files that the mirror never
+  wrote (a local `.env`, build output) are left alone.
+- DIR must not be under `<home>/ws`, and it must be new, empty, or an earlier mirror. One DIR serves one
+  workspace at a time. `treeyard workspace mirror NAME --off` stops it and leaves DIR as it is.
+- Only synced files reach DIR: gitignored files and layer directories do not.
+- The sync reply has a `mirror` field (`written`, `deleted`, `kept`, or `error`). A mirror that cannot be
+  written does not fail the sync.
+
 ## Limits and gc (`workspace gc`)
 
 `treeyard workspace gc [--max 25] [--max-gb 50] [--dry-run]` removes workspaces until at most `--max` are

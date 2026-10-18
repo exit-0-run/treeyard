@@ -260,6 +260,15 @@ enum WsCmd {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
+    /// After every sync of NAME, write the change's files into DIR (only files that differ), for
+    /// apps that need one fixed path or port. --off stops it.
+    Mirror {
+        name: String,
+        #[arg(long, required_unless_present = "off", conflicts_with = "off")]
+        into: Option<PathBuf>,
+        #[arg(long)]
+        off: bool,
+    },
     /// Remove old workspaces until at most --max are left and they use at most --max-gb: landed or
     /// abandoned first, then the least recently synced. Never one younger than 10 minutes, one
     /// being created, or one with edits not synced yet.
@@ -373,6 +382,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             eprintln!("{}", serde_json::to_string(&sync)?);
             std::process::exit(status.code().unwrap_or(1));
         }
+        WsCmd::Mirror { name, into, off: _ } => print(&node.mirror(&name, into.as_deref())?)?,
         WsCmd::Gc { max, max_gb, dry_run } => print(&node.gc(&GcOptions {
             max: Some(max),
             max_bytes: Some(gb(max_gb)),

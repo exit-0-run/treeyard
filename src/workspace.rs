@@ -48,6 +48,8 @@ pub const DEFAULT_PORT_BLOCK: u16 = 10;
 pub const REPO_CONFIG: &str = ".treeyard/workspace.toml";
 /// Lines of this root file name more gitignored files to copy in (like `copy`).
 const WORKTREE_INCLUDE: &str = ".worktreeinclude";
+/// The file in a mirror directory that lists what the mirror wrote (and marks it as one).
+pub const MIRROR_MARK: &str = ".treeyard-mirror.json";
 /// Directories that `copy` never walks into in the source directory.
 const COPY_SKIP: &[&str] = &[".git", PRIVATE, "target", "node_modules", ".venv"];
 
@@ -201,6 +203,9 @@ pub struct Workspace {
     /// Unix time of the last sync that sent a changeset (0 = none yet).
     #[serde(default)]
     pub synced: i64,
+    /// A stable directory that every sync updates with the change's files (`workspace mirror`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mirror: Option<PathBuf>,
 }
 
 impl Workspace {
@@ -724,6 +729,7 @@ impl Node {
             setup_log: None,
             counts: Value::Null,
             synced: 0,
+            mirror: None,
         };
         let mut log = StepLog::open(&self.home.join("logs").join(format!("{}.create.log", o.name)))?;
         ws.create_log = Some(log.path.clone());
@@ -1235,10 +1241,56 @@ impl Node {
         if !overlaps.is_empty() {
             fs::write(ws.dir.join(PRIVATE).join("overlaps.json"), serde_json::to_vec_pretty(&overlaps)?)?;
         }
+        let mut mirror = Value::Null;
+        if let Some(into) = ws.mirror.as_deref().filter(|_| changesets > 0) {
+            // A mirror that cannot be written never fails the sync: the edits are on the server.
+            mirror = write_mirror(name, &ws.dir, &state, into).unwrap_or_else(|e| json!({"error": format!("{e:#}")}));
+        }
         Ok(json!({
             "workspace": name, "change": ws.change, "paths": paths, "changesets": changesets, "head": head,
-            "overlaps": overlaps, "seconds": round(t0.elapsed().as_secs_f64()),
+            "overlaps": overlaps, "seconds": round(t0.elapsed().as_secs_f64()), "mirror": mirror,
         }))
+    }
+
+    /// Starts (`into` = a directory) or stops (`None`) the mirror of a workspace: after every sync
+    /// the change's files are written into that one stable directory, for apps that need a fixed
+    /// path. The directory must not be under `<home>/ws` and must be empty or an earlier mirror.
+    pub fn mirror(&self, name: &str, into: Option<&Path>) -> Result<Value> {
+        let mut ws = self.get(name)?;
+        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        let Some(into) = into else {
+            let was = ws.mirror.take();
+            write_json(&self.meta_path(name), &ws)?;
+            return Ok(json!({"workspace": name, "mirror": null, "was": was}));
+        };
+        let dir = std::path::absolute(into)?;
+        if dir.exists() {
+            let empty = fs::read_dir(&dir).with_context(|| format!("read {}", dir.display()))?.next().is_none();
+            if !empty && !dir.join(MIRROR_MARK).exists() {
+                bail!(
+                    "{} is not empty and not a mirror (no {MIRROR_MARK}); give an empty or new directory",
+                    dir.display()
+                );
+            }
+        }
+        fs::create_dir_all(&dir)?;
+        let ws_root = self.home.join("ws");
+        fs::create_dir_all(&ws_root)?;
+        let (real, root) = (dir.canonicalize()?, ws_root.canonicalize()?);
+        if real.starts_with(&root) || root.starts_with(&real) {
+            bail!("a mirror must be outside {}: {} is not", root.display(), real.display());
+        }
+        if let Ok(mark) = read_json::<Value>(&real.join(MIRROR_MARK))
+            && let Some(other) = mark["workspace"].as_str().filter(|o| *o != name)
+            && self.get(other).is_ok_and(|w| w.mirror.as_deref() == Some(dir.as_path()))
+        {
+            bail!("{} is the mirror of workspace {other:?}; stop it there first (--off)", dir.display());
+        }
+        let state: State = read_json(&self.state_path(name))?;
+        let out = write_mirror(name, &ws.dir, &state, &dir)?;
+        ws.mirror = Some(dir);
+        write_json(&self.meta_path(name), &ws)?;
+        Ok(out)
     }
 
     /// Removes workspaces until the node is within `max` workspaces and `max_bytes`. Workspaces
@@ -1337,6 +1389,57 @@ impl Node {
 
 fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
+}
+
+/// Writes the synced files of workspace `name` (`state`, bytes from `ws_dir`) into the mirror
+/// `into`. Only files that differ from what the mirror wrote last time are written, so unchanged
+/// files keep their mtimes; files the mirror wrote that the change no longer has are deleted.
+/// Files the mirror never wrote (a local `.env`) are left alone.
+fn write_mirror(name: &str, ws_dir: &Path, state: &State, into: &Path) -> Result<Value> {
+    let mark = into.join(MIRROR_MARK);
+    let old: BTreeMap<String, (u32, String)> = match read_json::<Value>(&mark) {
+        Ok(v) => serde_json::from_value(v["files"].clone()).unwrap_or_default(),
+        Err(_) => BTreeMap::new(),
+    };
+    let mut files = BTreeMap::new();
+    let (mut written, mut kept) = (Vec::new(), 0);
+    for (path, f) in state {
+        check_rel(path)?;
+        let dst = into.join(path);
+        let now = (f.mode, f.blob.clone());
+        if old.get(path) == Some(&now) && fs::symlink_metadata(&dst).is_ok() {
+            kept += 1;
+            files.insert(path.clone(), now);
+            continue;
+        }
+        let dst = crate::safety::dest(into, path)?;
+        if let Some(p) = dst.parent() {
+            fs::create_dir_all(p)?;
+        }
+        if fs::symlink_metadata(&dst).is_ok_and(|m| m.is_dir()) {
+            cow::remove_tree(&dst)?;
+        } else {
+            let _ = fs::remove_file(&dst);
+        }
+        let src = ws_dir.join(path);
+        if f.mode == MODE_LINK {
+            std::os::unix::fs::symlink(fs::read_link(&src)?, &dst)?;
+        } else {
+            fs::copy(&src, &dst).with_context(|| format!("mirror {path}"))?;
+            fs::set_permissions(&dst, fs::Permissions::from_mode(if f.mode == MODE_EXEC { 0o755 } else { 0o644 }))?;
+        }
+        written.push(path.clone());
+        files.insert(path.clone(), now);
+    }
+    let gone: Vec<String> = old.keys().filter(|p| !files.contains_key(*p)).cloned().collect();
+    for p in &gone {
+        if check_rel(p).is_ok() {
+            let _ = fs::remove_file(into.join(p));
+        }
+    }
+    prune_empty_dirs(into, gone.iter())?;
+    write_json(&mark, &json!({"workspace": name, "files": files}))?;
+    Ok(json!({"into": into, "written": written, "deleted": gone, "kept": kept}))
 }
 
 /// Files in a git dir that mean a git operation is in progress in that checkout.

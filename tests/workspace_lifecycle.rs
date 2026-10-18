@@ -274,3 +274,66 @@ fn daemon_waits_while_git_is_busy_in_a_workspace() {
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
     daemon.join().unwrap();
 }
+
+#[test]
+fn mirror_keeps_one_directory_in_step_with_the_change() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[("bin/run.sh", "#!/bin/sh\necho run\n")]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (a, _) = node.create(&opts("a")).unwrap();
+    let into = tmp.path().join("app");
+    let r = node.mirror("a", Some(&into)).unwrap();
+    assert_eq!(r["written"].as_array().unwrap().len(), 6, "{r}");
+    assert_eq!(fs::read_to_string(into.join("f00.txt")).unwrap(), fs::read_to_string(a.dir.join("f00.txt")).unwrap());
+    assert!(into.join(treeyard::workspace::MIRROR_MARK).exists());
+    // Mark an unchanged file with an old mtime, and leave a local file the mirror never wrote.
+    let old = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+    fs::File::options().write(true).open(into.join("f01.txt")).unwrap().set_modified(old).unwrap();
+    fs::write(into.join("local.env"), "mine\n").unwrap();
+
+    fs::write(a.dir.join("f00.txt"), "edited\n").unwrap();
+    fs::remove_file(a.dir.join("f02.txt")).unwrap();
+    fs::create_dir_all(a.dir.join("new")).unwrap();
+    fs::write(a.dir.join("new/x.txt"), "x\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(a.dir.join("bin/run.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+    let s = node.sync("a").unwrap();
+    assert_eq!(s["mirror"]["written"], json!(["bin/run.sh", "f00.txt", "new/x.txt"]), "{s}");
+    assert_eq!(s["mirror"]["deleted"], json!(["f02.txt"]), "{s}");
+    assert_eq!(fs::read_to_string(into.join("f00.txt")).unwrap(), "edited\n");
+    assert!(!into.join("f02.txt").exists());
+    assert_eq!(fs::metadata(into.join("f01.txt")).unwrap().modified().unwrap(), old, "unchanged file was touched");
+    assert_eq!(fs::read_to_string(into.join("local.env")).unwrap(), "mine\n");
+    assert_ne!(fs::metadata(into.join("bin/run.sh")).unwrap().permissions().mode() & 0o111, 0);
+
+    // A directory under ws/, or a non-empty directory that is not a mirror, is refused.
+    let e = node.mirror("a", Some(&node.ws_dir("a").join("sub"))).unwrap_err().to_string();
+    assert!(e.contains("outside"), "{e}");
+    let busy = tmp.path().join("busy");
+    fs::create_dir_all(&busy).unwrap();
+    fs::write(busy.join("x"), "").unwrap();
+    assert!(node.mirror("a", Some(&busy)).unwrap_err().to_string().contains("not empty"));
+    // Another workspace cannot take a live mirror; after --off it can.
+    node.create(&opts("b")).unwrap();
+    assert!(node.mirror("b", Some(&into)).unwrap_err().to_string().contains("mirror of workspace \"a\""));
+
+    // exec syncs, so it updates the mirror too.
+    let bin = env!("CARGO_BIN_EXE_treeyard");
+    let home = tmp.path().join("node");
+    let out = Command::new(bin)
+        .args(["workspace", "exec", "a", "--", "sh", "-c", "echo via-exec > f03.txt"])
+        .env("TREEYARD_HOME", &home)
+        .env("TREEYARD_URL", &url)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(fs::read_to_string(into.join("f03.txt")).unwrap(), "via-exec\n");
+
+    node.mirror("a", None).unwrap();
+    fs::write(a.dir.join("f00.txt"), "after off\n").unwrap();
+    assert!(node.sync("a").unwrap()["mirror"].is_null());
+    assert_eq!(fs::read_to_string(into.join("f00.txt")).unwrap(), "edited\n");
+    let r = node.mirror("b", Some(&into)).unwrap();
+    assert!(r["written"].as_array().unwrap().contains(&json!("f00.txt")), "{r}");
+    assert!(!into.join("new/x.txt").exists(), "b has no new/x.txt");
+}

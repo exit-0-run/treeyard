@@ -43,7 +43,8 @@ A repo file `.treeyard/workspace.toml` (node override `<home>/workspace.toml`) s
 [--max-gb G] [--dry-run]` removes landed or abandoned workspaces first, then the least recently synced, but
 never one younger than 10 minutes or one with unsynced edits; `treeyard daemon --gc-every HOURS` runs it. The daemon
 does not sync a `--git` workspace during a merge, rebase, cherry-pick or with a fresh `index.lock`; it
-retries after 1 s, 5 s, 30 s, 120 s. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
+retries after 1 s, 5 s, 30 s, 120 s. `workspace mirror NAME --into DIR` (`--off` stops it) writes the change's files into
+one fixed directory after every sync, touching only files that differ. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against
