@@ -73,6 +73,22 @@ What hurts when many agents work on one repository with `git worktree` (sources:
 - **Ask the server.** `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`,
   tree-sitter `symbols`, server-side `bisect`.
 
+## Live run: 8 Claude Code agents fix 8 real bugs
+
+8 Claude Code agents fix 8 real bugs from the history of more-itertools at once, from the same base
+commit. Hidden checks, which the agents never see, test every fix on the final main.
+
+| | git worktrees + merge queue | TreeYard |
+|---|---|---|
+| All 8 fixes landed after | 74.3 s | **48.2 s** |
+| Fixes that work on main (hidden checks) | 8 / 8 | 8 / 8 |
+| A change that failed a test | caught by the queue before the merge | reverted about 1 s after the land; the agent got the verdict and landed its fix |
+| Agent turns, API-equivalent cost | 66, $0.45 | 66, $0.46 |
+
+The earlier runs of this demo found three bugs in TreeYard; all are fixed and tested. All runs, and how
+to repeat them: [docs/benchmarks.md](docs/benchmarks.md#live-agents-8-claude-code-agents-fix-8-real-bugs-2026-10-18),
+`examples/live-agents/`.
+
 ## See it: 50 scripted agents, git worktrees vs TreeYard
 
 `examples/swarm-demo.sh` gives N scripted agents the same work twice. Each agent adds a file and

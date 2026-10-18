@@ -611,3 +611,40 @@ What the demo does not show:
 - The edit step at 50 agents costs TreeYard 2.1 s: each `apply` runs a trial merge against every open
   change on `shared.txt` (all 50 here), so the work grows with the square of the agents on one file.
 - Both sides see the same 5 conflicts. TreeYard reports them at `apply`, before any land.
+
+## Live agents: 8 Claude Code agents fix 8 real bugs (2026-10-18)
+
+Method and scripts: `examples/live-agents/` (`demo.py`, `land.py`, `probes.py`). 8 `claude -p` sessions
+(model Sonnet) per arm, more-itertools base `2fe1b2e`, 8 bug reports from the real history, 8 hidden
+behaviour checks on the final main. Cost is the API-equivalent figure that `claude -p` reports (the runs
+used a subscription). 15-core CPU, 48 GB RAM.
+
+| Run | Arm | All landed after | Hidden checks on main | Main tests | Agent turns | Cost |
+|---|---|---|---|---|---|---|
+| a | git worktrees + merge queue | 74.3 s | 8 / 8 | green | 63 | $0.70 |
+| a | TreeYard, optimistic | 46.2 s | 7 / 8 | green | 68 | $0.77 |
+| b | git worktrees + merge queue | 74.3 s | 8 / 8 | green | 66 | $0.45 |
+| b | TreeYard, optimistic | 46.2 s | 2 / 8 | green | 64 | $0.72 |
+| c | TreeYard, optimistic | 48.2 s | 8 / 8 | green | 66 | $0.46 |
+
+In every run one agent landed a change with a failing test. The git queue caught it before the merge;
+TreeYard reverted it about one second after the land. What the runs found in TreeYard, and the fixes:
+
+- Run a: the agent was told "landed" before the revert and never learned about it; its workspace was bound
+  to a closed change, so it could not land the fix. Fix: `land_status` and `workspace land` waits for the
+  verdict; a closed change is followed by a new change (2fd074e).
+- Run b: that follow-up started from main and sent the workspace's stale copy of `more.py` whole, which
+  overwrote six fixes other agents had landed meanwhile (the main tests stayed green because their tests
+  went too; only the hidden checks saw it). Fix: the follow-up starts from the workspace's own base and
+  the land merges it 3-way (ddee581), with a regression test that fails on the old code.
+- Run c (after both fixes): 8 / 8, 35 % sooner than the queue, same turns and cost.
+
+An earlier run with 6 agents adding new functions (no overlap; two of the functions already existed)
+showed no difference and found that a workspace stayed on its old base after a land conflict
+(`workspace update`, 259d923).
+
+Read it fairly: 8 agents on independent bug fixes never conflicted in git either; the gain here is the
+queue wait. Optimistic landing leaves main red for about a second before the revert; the queue keeps it
+green but makes changes wait (here up to 34 s; with 50 agents and the repository's own CI, 4 to 60 min,
+see the phase-0 baseline above).
+
