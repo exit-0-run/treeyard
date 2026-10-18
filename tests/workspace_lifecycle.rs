@@ -551,3 +551,39 @@ fn workspaces_see_collisions_with_reasons_and_status_is_fresh() {
     assert!(!b.dir.join(".treeyard/collisions.json").exists());
     assert_eq!(node.status("a").unwrap()["collisions"], json!([]));
 }
+
+#[test]
+fn stacking_moves_the_conflict_from_land_time_to_now() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (a, _) = node.create(&opts("a")).unwrap();
+    let (b, _) = node.create(&opts("b")).unwrap();
+    let base = fs::read_to_string(a.dir.join("f00.txt")).unwrap();
+    let edit = |new: &str| -> String {
+        base.lines().enumerate().map(|(i, l)| if i == 4 { format!("{new}\n") } else { format!("{l}\n") }).collect()
+    };
+    fs::write(a.dir.join("f00.txt"), edit("A")).unwrap();
+    node.sync("a").unwrap();
+    fs::write(b.dir.join("f00.txt"), edit("B")).unwrap();
+    let s = node.sync("b").unwrap();
+    // The warning tells b on which change to build.
+    assert_eq!(s["collisions"][0]["files"][0]["advice"]["stack_on"], a.change.as_str(), "{s}");
+
+    // b stacks on a: the meeting point shows up in b's directory now, not at land.
+    let r = node.stack("b", &a.change).unwrap();
+    assert_eq!(r["conflicts"], json!(["f00.txt"]), "{r}");
+    assert!(fs::read_to_string(b.dir.join("f00.txt")).unwrap().contains("<<<<<<<"));
+    fs::write(b.dir.join("f00.txt"), edit("A then B")).unwrap();
+    // Two changes cannot stack on each other.
+    assert!(node.stack("a", &b.change).is_err());
+
+    // b's land waits for a; once a has landed, b lands on top of it with no conflict.
+    let (home, u) = (tmp.path().join("node"), url.clone());
+    let waiter = std::thread::spawn(move || Node::new(home, &u).land_with("b", Duration::from_secs(30)).unwrap());
+    std::thread::sleep(Duration::from_millis(1500));
+    assert_eq!(node.land("a").unwrap()["land"]["status"], "landed");
+    let r = waiter.join().unwrap();
+    assert_eq!(r["land"]["status"], "landed", "{r}");
+    assert_eq!(read_at(&url, "main", "f00.txt")["content"], edit("A then B"));
+}

@@ -1522,6 +1522,21 @@ impl Node {
         Ok(scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?.diffs.len())
     }
 
+    /// Stacks the workspace's change on another agent's open change (after a `landing_order`
+    /// collision): syncs, rebases onto that change's head, and writes the result here, so the
+    /// agent sees both edits now (with markers where they meet) instead of at land. `land` then
+    /// waits until the other change has landed.
+    pub fn stack(&self, name: &str, on: &str) -> Result<Value> {
+        let sync = self.sync(name)?;
+        let ws = self.get(name)?;
+        let rebased = self.call("rebase", json!({"change": ws.change, "onto": on}))?;
+        let update = self.update(name)?;
+        Ok(json!({
+            "workspace": name, "change": ws.change, "stacked_on": on, "conflicts": update["conflicts"],
+            "written": update["written"], "sync": sync, "rebase_paths": rebased["paths"],
+        }))
+    }
+
     /// Syncs, then asks the server for the change's collisions with every other open change now
     /// (other agents' edits since this workspace's last sync count too) and its land status.
     pub fn status(&self, name: &str) -> Result<Value> {
@@ -1561,7 +1576,13 @@ impl Node {
         let reopened = if before["state"] != "open" { self.reopen(name)? } else { Value::Null };
         let sync = self.sync(name)?;
         let ws = self.get(name)?;
-        let land = self.call("land", json!({"change": ws.change}))?;
+        let mut land = self.call("land", json!({"change": ws.change}))?;
+        // Stacked on another agent's change: wait for it to land, then land on top of it.
+        let t_wait = Instant::now();
+        while land["status"] == "waiting" && !wait.is_zero() && t_wait.elapsed() < wait {
+            std::thread::sleep(Duration::from_secs(1));
+            land = self.call("land", json!({"change": ws.change}))?;
+        }
         let update = if land["status"] == "conflict" { self.update(name)? } else { Value::Null };
         let mut verdict = Value::Null;
         if matches!(land["status"].as_str(), Some("landed" | "queued" | "already_on_main")) && !wait.is_zero() {

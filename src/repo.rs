@@ -984,8 +984,30 @@ impl Inner {
     }
 
     pub fn rebase(&mut self, id: &str) -> Result<Change> {
+        self.rebase_to(id, None)
+    }
+
+    /// Rebases onto main, or with `onto` = another open change, stacks on that change's head: its
+    /// edits show up in this change now, and `land` waits until it has landed. Two changes cannot
+    /// stack on each other.
+    pub fn rebase_to(&mut self, id: &str, onto: Option<&str>) -> Result<Change> {
         let mut ch = self.open_change_mut(id)?;
-        let main = self.main()?;
+        let main = match onto {
+            None => self.main()?,
+            Some(other) => {
+                let o = self.change(other)?;
+                if o.id == ch.id {
+                    bail!("a change cannot stack on itself");
+                }
+                if o.state != ChangeState::Open {
+                    bail!("change {other} is {}; rebase onto main instead", o.state.as_str());
+                }
+                if self.changeset(&o.base)?.meta.change.as_deref() == Some(ch.id.as_str()) {
+                    bail!("change {other} is stacked on {id}; two changes cannot stack on each other");
+                }
+                o.head
+            }
+        };
         let report = self.rebase_onto(&mut ch, &main)?;
         self.store.put_change(&ch)?;
         self.guard(&ch, &report)?;

@@ -268,11 +268,12 @@ treeyard call resolve '{"change": "ch_...", "path": "README.md", "take": "ours"}
 
 ### rebase
 
-Rebase a change onto current main on the server. Conflicts come back as typed tasks.
+Rebase a change onto current main, or with onto = another open change, stack on it (land then waits for that change). Conflicts come back as typed tasks.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
+| `onto` | string | no |  |
 
 ```sh
 treeyard call rebase '{"change": "ch_..."}'

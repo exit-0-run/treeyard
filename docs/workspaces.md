@@ -34,7 +34,10 @@ treeyard workspace remove fix-1
    `collisions` (each pair landed on today's main in both orders: `conflict` with a `reason`, or a
    near `overlap`), written to `.treeyard/collisions.json`. An empty answer removes the file.
    `treeyard workspace status NAME` syncs and asks the server again, so it also shows collisions
-   that other agents' edits caused since this workspace's last sync.
+   that other agents' edits caused since this workspace's last sync. A `landing_order` conflict carries
+   `advice.stack_on`: `treeyard workspace stack NAME --on CHANGE` builds this change on that one, writes
+   both edits here now (with markers where they meet) so the agent settles the conflict before it lands,
+   and `land` then waits until the other change has landed.
 7. `land` syncs, lands, and in `queue` or `optimistic` mode waits (default 600 s, `--wait-s N`) for the
    verdict of the tests (`land_status`): `passed`, `rejected` (the queue's tests failed; fix and land
    again) or `reverted` (optimistic landing found the change broke main and reverted it; the reply has

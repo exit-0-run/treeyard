@@ -491,7 +491,9 @@ impl Inner {
                 if kind == "overlap" && !mh.is_empty() && !th.is_empty() && !regions_near(&mh, &th, NEAR) {
                     continue;
                 }
+                let advice = if kind == "conflict" { json!({"stack_on": other.id}) } else { Value::Null };
                 files.push(json!({
+                    "advice": advice,
                     "path": path, "kind": kind, "hunks": {"mine": mh, "theirs": th},
                     "reason": reason, "if_you_land_second": me_second, "if_they_land_second": they_second,
                 }));

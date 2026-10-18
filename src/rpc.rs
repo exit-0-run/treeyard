@@ -203,6 +203,13 @@ struct ChangeId {
 }
 
 #[derive(Deserialize)]
+struct RebaseArgs {
+    change: String,
+    /// Another open change to stack on (default: main).
+    onto: Option<String>,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CheckpointP {
     change: String,
@@ -684,9 +691,9 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             r.change_view(&ch)
         }
         "rebase" => {
-            let a: ChangeId = params(p)?;
+            let a: RebaseArgs = params(p)?;
             owned(r, c, &a.change)?;
-            let ch = r.rebase(&a.change)?;
+            let ch = r.rebase_to(&a.change, a.onto.as_deref())?;
             let mut v = r.change_view(&ch)?;
             filter_change(&mut v, c);
             Ok(v)
@@ -1086,8 +1093,8 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "rebase",
-            "Rebase a change onto current main on the server. Conflicts come back as typed tasks.",
-            json!({"change": change}),
+            "Rebase a change onto current main, or with onto = another open change, stack on it (land then waits for that change). Conflicts come back as typed tasks.",
+            json!({"change": change, "onto": {"type": "string"}}),
             &["change"],
         ),
         tool(

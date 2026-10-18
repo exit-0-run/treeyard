@@ -310,6 +310,13 @@ enum WsCmd {
     },
     /// Sync, then show this change's collisions with other agents' open changes and its land status.
     Status { name: String },
+    /// Build on another agent's open change (after a landing_order collision): its edits appear
+    /// here now, merged with yours; land waits until it has landed.
+    Stack {
+        name: String,
+        #[arg(long)]
+        on: String,
+    },
     /// Write the change as the server holds it now into the workspace (after a land that hit a
     /// conflict, or a continuous rebase): the work that landed first plus conflict markers.
     Update { name: String },
@@ -474,6 +481,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         })?)?,
         WsCmd::Update { name } => print(&node.update(&name)?)?,
         WsCmd::Status { name } => print(&node.status(&name)?)?,
+        WsCmd::Stack { name, on } => print(&node.stack(&name, &on)?)?,
         WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())
