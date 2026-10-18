@@ -17,7 +17,11 @@
 <h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
 
 <p align="center">
-  <img src="assets/hero/treeyard-race.gif" alt="TreeYard vs plain git worktrees: 50 workspaces 57x faster, 161x less disk, blame 43x faster, thrown-away changes 111 to 0" width="900">
+  <a href="#benchmarks"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
+  <a href="#benchmarks"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
+  <a href="#benchmarks"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
+  <a href="#benchmarks"><img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640"></a>
+  <a href="#benchmarks"><img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640"></a>
 </p>
 
 <p align="center"><b>Also:</b> land a change in 3 ms with no merge queue* · 99–100% of conflicts reported before land · 8× faster grep · 1 binary, git underneath</p>
@@ -71,18 +75,14 @@ What hurts when many agents work on one repository with `git worktree` (sources:
 
 ## See it: 50 scripted agents, git worktrees vs TreeYard
 
-<p align="center"><img src="assets/demo.svg" alt="Terminal: swarm-demo.sh with 50 agents, git worktrees against TreeYard" width="760"></p>
-
 `examples/swarm-demo.sh` gives N scripted agents the same work twice. Each agent adds a file and
 edits its own line of a shared file; 5 pairs edit the same line (a real conflict). First every
 agent gets a `git worktree`, commits, and a serial queue lands each branch (`git rebase` +
 `git merge --ff-only`, no CI). Then every agent opens a change on TreeYard, applies the same edits,
 and calls `land` at the same time. A conflicted agent redoes its edit on the new main on both sides.
-The run below is the one in the image (15-core CPU, 48 GB RAM):
+Run on 15-core CPU, 48 GB RAM: `examples/swarm-demo.sh --agents 50 --pairs 5` (50 agents, 2 000 files,
+5 same-line pairs).
 
-```text
-$ examples/swarm-demo.sh --agents 50 --pairs 5
-swarm-demo: 50 agents, 2000 files, 5 same-line pairs
 | Step                                      | git worktrees       | TreeYard           |
 |-------------------------------------------|---------------------|--------------------|
 | Give 50 agents a place to work (s)        | 8.06                | 1.22               |
@@ -93,7 +93,6 @@ swarm-demo: 50 agents, 2000 files, 5 same-line pairs
 | Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |
 | Conflicts at land (agent redoes the edit) | 5                   | 5                  |
 | Edits missing from main                   | 0 of 50             | 0 of 50            |
-```
 
 Read it fairly: the same 5 conflicts happen on both sides. The difference is that TreeYard warns
 about all 5 before anyone lands, and nobody waits for a queue. The TreeYard agents have no
@@ -101,14 +100,6 @@ directory (API only); for agents that need one, see the workspace numbers below.
 the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-git-worktrees-vs-treeyard-task-015-2026-10-18).
 
 ## Benchmarks
-
-<p align="center">
-  <img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640">
-  <img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640">
-  <img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640">
-  <img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640">
-  <img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640">
-</p>
 
 > **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
 > configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
@@ -203,9 +194,15 @@ use TreeYard workspaces: [docs/mcp.md](docs/mcp.md).
 ## Status and not yet
 
 v0.1: one node, one binary, macOS and Linux. There is no TLS and no token expiry yet: keep the
-server on loopback or behind a TLS proxy with tokens ([SECURITY.md](SECURITY.md)). Not built yet:
-two-way workspace sync, a virtual file system, persistent events, blame of moved lines, symbol
-references, Postgres and S3 storage.
+server on loopback or behind a TLS proxy with tokens ([SECURITY.md](SECURITY.md)).
+
+Not built yet:
+- continuous two-way workspace sync: a workspace gets the server's version on request
+  (`workspace update`, and on its own after a land that hits a conflict), not live;
+- a virtual file system (a workspace holds its whole tree, or its `--paths` cone);
+- persistent events (the event log is in memory);
+- blame of moved or copied lines, and symbol references (only definitions);
+- Postgres and S3 storage, and more than one node.
 
 ## Licence
 
