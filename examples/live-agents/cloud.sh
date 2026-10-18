@@ -26,7 +26,11 @@ claude -p "Reply with the single word ok." --output-format json --max-turns 1 > 
 export TREEYARD_BIN="$ROOT/target/release/treeyard"
 sh "$ROOT/examples/live-agents/setup.sh"
 for arm in ${ARMS:-git treeyard}; do
+  echo "before $arm: $(uptime)" >> "$OUT/env.txt"
+  ( while sleep 60; do echo "$(date -u +%H:%M) $(cut -d" " -f1-3 /proc/loadavg 2>/dev/null)"; done ) > "$OUT/$arm-load.txt" &
+  LOADMON=$!
   python3 "$ROOT/examples/live-agents/demo.py" "$arm" 2>&1 | tee "$OUT/$arm.log"
+  kill "$LOADMON" 2>/dev/null || true
   cp "$DEMO_DIR"/results/*.json "$OUT/"
   cp "$DEMO_DIR"/results/*.log "$OUT/" 2>/dev/null || true
   mkdir -p "$OUT/agents" && cp "$DEMO_DIR"/agents/*.json "$OUT/agents/" 2>/dev/null || true
