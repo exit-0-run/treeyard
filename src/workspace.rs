@@ -198,6 +198,9 @@ pub struct Workspace {
     /// Files cloned, layers restored and saved, files copied, seconds.
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub counts: Value,
+    /// Unix time of the last sync that sent a changeset (0 = none yet).
+    #[serde(default)]
+    pub synced: i64,
 }
 
 impl Workspace {
@@ -259,6 +262,30 @@ impl Default for CreateOptions {
             run: None,
             ports: None,
             copy_from: None,
+        }
+    }
+}
+
+/// Options for `gc`. A limit of `None` is no limit.
+#[derive(Clone, Debug)]
+pub struct GcOptions {
+    /// Keep at most this many workspaces.
+    pub max: Option<usize>,
+    /// Keep at most this many bytes in workspace directories (apparent size: clones count in full).
+    pub max_bytes: Option<u64>,
+    /// Report what would go, remove nothing.
+    pub dry_run: bool,
+    /// Never remove a workspace younger than this (default 10 minutes).
+    pub min_age: std::time::Duration,
+}
+
+impl Default for GcOptions {
+    fn default() -> Self {
+        GcOptions {
+            max: Some(25),
+            max_bytes: Some(50 << 30),
+            dry_run: false,
+            min_age: std::time::Duration::from_secs(600),
         }
     }
 }
@@ -696,6 +723,7 @@ impl Node {
             create_log: None,
             setup_log: None,
             counts: Value::Null,
+            synced: 0,
         };
         let mut log = StepLog::open(&self.home.join("logs").join(format!("{}.create.log", o.name)))?;
         ws.create_log = Some(log.path.clone());
@@ -1198,6 +1226,12 @@ impl Node {
         if changesets > 0 || refreshed > 0 {
             write_json(&self.state_path(name), &state)?;
         }
+        if changesets > 0
+            && let Ok(mut rec) = self.get(name)
+        {
+            rec.synced = crate::repo::now();
+            write_json(&self.meta_path(name), &rec)?;
+        }
         if !overlaps.is_empty() {
             fs::write(ws.dir.join(PRIVATE).join("overlaps.json"), serde_json::to_vec_pretty(&overlaps)?)?;
         }
@@ -1205,6 +1239,90 @@ impl Node {
             "workspace": name, "change": ws.change, "paths": paths, "changesets": changesets, "head": head,
             "overlaps": overlaps, "seconds": round(t0.elapsed().as_secs_f64()),
         }))
+    }
+
+    /// Removes workspaces until the node is within `max` workspaces and `max_bytes`. Workspaces
+    /// whose change landed or was abandoned (or whose create failed) go first, then the least
+    /// recently synced. Never removed: one younger than `min_age`, one being created, set up or
+    /// removed, and one with edits not synced yet (the same scan as `sync`). Removal goes through
+    /// `remove`, which syncs first. One gc at a time per node (`gc.lock`).
+    pub fn gc(&self, o: &GcOptions) -> Result<Value> {
+        let lock_path = self.home.join("gc.lock");
+        fs::create_dir_all(&self.home)?;
+        let f = fs::File::options().create(true).truncate(false).write(true).open(&lock_path)?;
+        // A child forked by another thread holds a copy of the lock until it execs, so retry a little.
+        let t = Instant::now();
+        while f.try_lock().is_err() {
+            if t.elapsed() > std::time::Duration::from_secs(2) {
+                bail!("another gc runs on {} ({} is locked)", self.home.display(), lock_path.display());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let all = self.list()?;
+        let mut count = all.len();
+        let mut bytes = 0u64;
+        let mut skipped = Vec::new();
+        let mut candidates = Vec::new();
+        let now = crate::repo::now();
+        for ws in all {
+            let size = dir_bytes(&ws.dir);
+            bytes += size;
+            let why = match ws.state {
+                WsState::Creating | WsState::SettingUp => Some("being created".to_string()),
+                WsState::Removing => Some("being removed".to_string()),
+                _ if now - ws.created < o.min_age.as_secs() as i64 => {
+                    Some(format!("younger than {} minutes", o.min_age.as_secs() / 60))
+                }
+                _ => match self.unsynced(&ws) {
+                    Ok(0) => None,
+                    Ok(n) => Some(format!("{n} edited files not synced yet")),
+                    Err(e) => Some(format!("cannot scan: {e:#}")),
+                },
+            };
+            if let Some(why) = why {
+                skipped.push(json!({"workspace": ws.name, "why": why}));
+                continue;
+            }
+            let change = match self.call("change", json!({"change": ws.change})) {
+                Ok(c) => c["state"].as_str().unwrap_or("unknown").to_string(),
+                Err(_) => "unknown".to_string(),
+            };
+            let done = matches!(change.as_str(), "landed" | "abandoned") || ws.state == WsState::Failed;
+            candidates.push((!done, ws.synced.max(ws.created), ws, size, change));
+        }
+        candidates.sort_by(|a, b| (a.0, a.1, &a.2.name).cmp(&(b.0, b.1, &b.2.name)));
+        let (mut removed, mut freed) = (Vec::new(), 0u64);
+        for (_, _, ws, size, change) in candidates {
+            let over = o.max.is_some_and(|m| count > m) || o.max_bytes.is_some_and(|m| bytes > m);
+            if !over {
+                break;
+            }
+            if !o.dry_run
+                && let Err(e) = self.remove(&ws.name, false, false)
+            {
+                skipped.push(json!({"workspace": ws.name, "why": format!("remove failed: {e:#}")}));
+                continue;
+            }
+            count -= 1;
+            bytes = bytes.saturating_sub(size);
+            freed += size;
+            removed.push(json!({"workspace": ws.name, "change": change, "bytes": size}));
+        }
+        Ok(json!({
+            "removed": removed, "skipped": skipped, "freed_bytes": freed, "workspaces": count, "bytes": bytes,
+            "dry_run": o.dry_run,
+        }))
+    }
+
+    /// How many files of a workspace differ from its last sync (0 when it has no stat cache).
+    fn unsynced(&self, ws: &Workspace) -> Result<usize> {
+        let Ok(state) = read_json::<State>(&self.state_path(&ws.name)) else { return Ok(0) };
+        if !ws.dir.exists() {
+            return Ok(0);
+        }
+        let layer_dirs: BTreeSet<String> =
+            ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();
+        Ok(scan(&ws.dir, &state, &layer_dirs)?.diffs.len())
     }
 
     /// Syncs, then lands the change on main.
@@ -1218,6 +1336,23 @@ impl Node {
 
 fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
+}
+
+/// Bytes on disk under `dir` (allocated blocks, not following symlinks; 0 when it is missing).
+fn dir_bytes(dir: &Path) -> u64 {
+    let mut total = 0;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(rd) = fs::read_dir(&d) else { continue };
+        for e in rd.flatten() {
+            let Ok(md) = e.path().symlink_metadata() else { continue };
+            total += md.blocks() * 512;
+            if md.is_dir() {
+                stack.push(e.path());
+            }
+        }
+    }
+    total
 }
 
 /// `~/x` -> `$HOME/x`; other paths as they are.

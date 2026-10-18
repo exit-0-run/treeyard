@@ -9,8 +9,10 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::time::Duration;
 use treeyard::repo::Repo;
-use treeyard::workspace::{CreateOptions, Node, WsState};
+use treeyard::workspace::{CreateOptions, GcOptions, Node, WsState};
 
 fn server(root: &Path, extra: &[(&str, &str)]) -> String {
     let src = fixture_repo(root, 5, 20, extra);
@@ -167,4 +169,68 @@ fn create_records_state_counts_and_logs() {
     let r = node.remove("c", false, false).unwrap();
     assert!(r["synced"].is_null(), "{r}");
     assert!(read_at(&url, &c.change, "f00.txt")["content"].is_string(), "no deletion was sent");
+}
+
+fn gc_opts(max: usize) -> GcOptions {
+    GcOptions { max: Some(max), max_bytes: None, min_age: Duration::ZERO, dry_run: false }
+}
+
+#[test]
+fn gc_removes_finished_then_oldest_and_never_unsynced_work() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    for n in ["old", "landed", "dirty", "fresh"] {
+        node.create(&opts(n)).unwrap();
+    }
+    // `landed` lands; `dirty` has an edit no sync has sent; `fresh` synced last.
+    fs::write(node.ws_dir("landed").join("f00.txt"), "landed edit\n").unwrap();
+    node.land("landed").unwrap();
+    fs::write(node.ws_dir("dirty").join("f01.txt"), "unsent\n").unwrap();
+    fs::write(node.ws_dir("fresh").join("f02.txt"), "sent\n").unwrap();
+    node.sync("fresh").unwrap();
+    // Young workspaces are protected by default.
+    let r = node.gc(&GcOptions { max: Some(0), ..GcOptions::default() }).unwrap();
+    assert_eq!(r["removed"], json!([]), "{r}");
+    assert!(r["skipped"].to_string().contains("younger than 10 minutes"), "{r}");
+
+    let meta = tmp.path().join("node/meta/old.json");
+    let mut rec: Value = serde_json::from_slice(&fs::read(&meta).unwrap()).unwrap();
+    rec["created"] = json!(1);
+    fs::write(&meta, rec.to_string()).unwrap();
+
+    // A dry run reports and removes nothing.
+    let r = node.gc(&GcOptions { dry_run: true, ..gc_opts(2) }).unwrap();
+    let names = |r: &Value| -> Vec<String> {
+        r["removed"].as_array().unwrap().iter().map(|w| w["workspace"].as_str().unwrap().to_string()).collect()
+    };
+    assert_eq!(names(&r), vec!["landed", "old"], "{r}");
+    assert_eq!(node.list().unwrap().len(), 4);
+
+    let r = node.gc(&gc_opts(2)).unwrap();
+    assert_eq!(names(&r), vec!["landed", "old"], "{r}");
+    assert_eq!(r["removed"][0]["change"], "landed");
+    assert!(r["freed_bytes"].as_u64().unwrap() > 0, "{r}");
+    assert!(r["skipped"].to_string().contains("1 edited files not synced yet"), "{r}");
+    // Down to zero: the dirty workspace stays, the others go.
+    let r = node.gc(&gc_opts(0)).unwrap();
+    assert_eq!(names(&r), vec!["fresh"], "{r}");
+    let left: Vec<String> = node.list().unwrap().into_iter().map(|w| w.name).collect();
+    assert_eq!(left, vec!["dirty"]);
+    assert_eq!(fs::read_to_string(node.ws_dir("dirty").join("f01.txt")).unwrap(), "unsent\n");
+
+    // One gc at a time.
+    let f = fs::File::options().write(true).open(tmp.path().join("node/gc.lock")).unwrap();
+    f.lock().unwrap();
+    assert!(node.gc(&gc_opts(0)).unwrap_err().to_string().contains("another gc"));
+    drop(f);
+
+    // The daemon runs gc at start when --gc-every is set.
+    node.sync("dirty").unwrap();
+    let stop = Arc::new(AtomicBool::new(true));
+    let mut lines = Vec::new();
+    let o = treeyard::daemon::Options { gc: Some((Duration::from_secs(3600), gc_opts(0))), ..Default::default() };
+    treeyard::daemon::run(&node, &o, stop, &mut |l| lines.push(l)).unwrap();
+    assert!(lines.iter().any(|l| l.contains("\"gc\"") && l.contains("dirty")), "{lines:?}");
+    assert!(node.list().unwrap().is_empty());
 }

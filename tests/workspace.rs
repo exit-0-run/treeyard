@@ -235,7 +235,11 @@ fn daemon_streams_edits_as_changesets() {
     let lines2 = lines.clone();
     let daemon = std::thread::spawn(move || {
         let node = Node::new(home2, url2);
-        let o = treeyard::daemon::Options { debounce: Duration::from_millis(200), rescan: Duration::ZERO, spares: 0 };
+        let o = treeyard::daemon::Options {
+            debounce: Duration::from_millis(200),
+            rescan: Duration::ZERO,
+            ..Default::default()
+        };
         treeyard::daemon::run(&node, &o, stop2, &mut |l| lines2.lock().unwrap().push(l)).unwrap();
     });
     std::thread::sleep(Duration::from_millis(300));

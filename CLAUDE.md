@@ -5,7 +5,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 ## Commands
 
 - `make check`: `cargo fmt --check`, `clippy -D warnings`, `cargo test`, `make bench-test`. Run before every commit. `make release`.
-- Benchmarks: `make bench-quick` (minutes) or `make bench` (about 3 h, ~70 GB scratch peak), both
+- Benchmarks: `make bench-cow`, `make bench-quick` (minutes) or `make bench` (about 3 h, ~70 GB scratch peak), both
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
@@ -13,7 +13,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`.
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
-  `remove [--abandon]`; repo config `.treeyard/workspace.toml`; `treeyard daemon` syncs after edits settle. `make bench-cow`.
+  `remove [--abandon]`, `gc`; repo config `.treeyard/workspace.toml`; `treeyard daemon [--gc-every H]` syncs after edits settle.
 - Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
   `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.

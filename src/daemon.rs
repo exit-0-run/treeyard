@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::workspace::{Node, PRIVATE, WsState};
+use crate::workspace::{GcOptions, Node, PRIVATE, WsState};
 
 pub struct Options {
     /// Quiet time after the last event before a workspace syncs.
@@ -20,6 +20,14 @@ pub struct Options {
     pub rescan: Duration,
     /// Spare directories to keep ready for current main (see `Node::fill_spares`); zero = none.
     pub spares: usize,
+    /// Run `Node::gc` at start and then this often; `None` = never.
+    pub gc: Option<(Duration, GcOptions)>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options { debounce: Duration::from_millis(300), rescan: Duration::from_secs(30), spares: 0, gc: None }
+    }
 }
 
 /// Directory names whose events never trigger a sync (build output, layers, VCS data).
@@ -37,6 +45,15 @@ fn workspace_of(ws_root: &Path, path: &Path) -> Option<String> {
         return None;
     }
     Some(name)
+}
+
+/// One gc pass; logs what it removed, or its error.
+fn run_gc(node: &Node, gc: &GcOptions, log: &mut dyn FnMut(String)) {
+    match node.gc(gc) {
+        Ok(v) if v["removed"].as_array().is_some_and(|r| !r.is_empty()) => log(json!({"gc": v}).to_string()),
+        Ok(_) => {}
+        Err(e) => log(json!({"gc": "error", "error": format!("{e:#}")}).to_string()),
+    }
 }
 
 /// Runs until `stop` is set. `log` receives one JSON line per sync.
@@ -80,7 +97,17 @@ pub fn run(node: &Node, o: &Options, stop: Arc<AtomicBool>, log: &mut dyn FnMut(
     });
     let mut dirty: BTreeMap<String, Instant> = BTreeMap::new();
     let mut last_rescan = Instant::now();
+    let mut last_gc = Instant::now();
+    if let Some((_, gc)) = &o.gc {
+        run_gc(node, gc, log);
+    }
     while !stop.load(Ordering::Relaxed) {
+        if let Some((every, gc)) = &o.gc
+            && last_gc.elapsed() >= *every
+        {
+            last_gc = Instant::now();
+            run_gc(node, gc, log);
+        }
         match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(p) => {
                 if let Some(name) = workspace_of(&ws_root, &p) {

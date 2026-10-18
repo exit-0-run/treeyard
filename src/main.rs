@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use treeyard::audit::Record;
 use treeyard::cow::Strategy;
-use treeyard::workspace::{CreateOptions, LayerSpec, Node};
+use treeyard::workspace::{CreateOptions, GcOptions, LayerSpec, Node};
 use treeyard::{client, daemon, githttp, mcp, replay, repo::Repo, server};
 
 const DEFAULT_URL: &str = "http://127.0.0.1:7420";
@@ -129,6 +129,15 @@ enum Cmd {
         /// Keep this many spare directories for current main (a warm pool for `workspace create`).
         #[arg(long, default_value_t = 0)]
         spares: usize,
+        /// Run `workspace gc` at start and then every HOURS hours (0 = never).
+        #[arg(long, default_value_t = 0.0)]
+        gc_every: f64,
+        /// `gc --max` for --gc-every.
+        #[arg(long, default_value_t = 25)]
+        gc_max: usize,
+        /// `gc --max-gb` for --gc-every.
+        #[arg(long, default_value_t = 50.0)]
+        gc_max_gb: f64,
     },
     /// Print the API reference (Markdown, docs/api.md) generated from the operation table.
     ApiDoc {
@@ -251,6 +260,18 @@ enum WsCmd {
         #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
+    /// Remove old workspaces until at most --max are left and they use at most --max-gb: landed or
+    /// abandoned first, then the least recently synced. Never one younger than 10 minutes, one
+    /// being created, or one with edits not synced yet.
+    Gc {
+        #[arg(long, default_value_t = 25)]
+        max: usize,
+        #[arg(long, default_value_t = 50.0)]
+        max_gb: f64,
+        /// Print what would be removed; remove nothing.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Send the last edits to the change, then delete the workspace directory. With --abandon the
     /// open change is dropped instead. Refuses when the edits cannot be sent, unless --force.
     Remove {
@@ -260,6 +281,10 @@ enum WsCmd {
         #[arg(long)]
         force: bool,
     },
+}
+
+fn gb(g: f64) -> u64 {
+    (g.max(0.0) * (1u64 << 30) as f64) as u64
 }
 
 fn print(v: &Value) -> Result<()> {
@@ -348,6 +373,12 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             eprintln!("{}", serde_json::to_string(&sync)?);
             std::process::exit(status.code().unwrap_or(1));
         }
+        WsCmd::Gc { max, max_gb, dry_run } => print(&node.gc(&GcOptions {
+            max: Some(max),
+            max_bytes: Some(gb(max_gb)),
+            dry_run,
+            ..Default::default()
+        })?)?,
         WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())
@@ -428,11 +459,13 @@ fn main() -> Result<()> {
         }
         Cmd::Mcp { url, agent } => mcp::run(&url, agent)?,
         Cmd::Workspace { node, cmd } => workspace(node.node(), cmd)?,
-        Cmd::Daemon { node, debounce_ms, rescan_s, spares } => {
+        Cmd::Daemon { node, debounce_ms, rescan_s, spares, gc_every, gc_max, gc_max_gb } => {
+            let gc = GcOptions { max: Some(gc_max), max_bytes: Some(gb(gc_max_gb)), ..Default::default() };
             let o = daemon::Options {
                 debounce: std::time::Duration::from_millis(debounce_ms),
                 rescan: std::time::Duration::from_secs(rescan_s),
                 spares,
+                gc: (gc_every > 0.0).then(|| (std::time::Duration::from_secs_f64(gc_every * 3600.0), gc)),
             };
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             daemon::run(&node.node(), &o, stop, &mut |line| println!("{line}"))?;

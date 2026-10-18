@@ -87,6 +87,24 @@ The record `meta/NAME.json` has a `state`. `workspace list` shows it with the ot
 (files cloned), `layers_restored`, `layers_saved`, `files_copied` and `seconds`. A sync of a workspace in
 `creating` is refused, and `remove` of such a workspace does not sync (it has no edits yet).
 
+## Limits and gc (`workspace gc`)
+
+`treeyard workspace gc [--max 25] [--max-gb 50] [--dry-run]` removes workspaces until at most `--max` are
+left and their directories use at most `--max-gb`. The order:
+
+1. workspaces whose change landed or was abandoned, and workspaces whose create failed;
+2. then the least recently synced (the last sync that sent a changeset, else the create time).
+
+gc never removes a workspace that is younger than 10 minutes, that is in state `creating`, `setting_up`
+or `removing`, or whose directory has edits that no sync sent yet (the same scan as `sync`). It removes
+through `remove`, so the last edits are sent and `teardown` runs. Only one gc runs at a time on a node
+(`<home>/gc.lock`); a second one stops with an error. The reply lists `removed` (with the change state and
+the bytes), `skipped` (with the reason) and `freed_bytes`. Sizes are allocated blocks: on APFS a clone
+counts in full, so the real disk cost is lower than the number.
+
+`treeyard daemon --gc-every HOURS` runs gc at start and then every HOURS hours (default 0 = never), with
+`--gc-max 25` and `--gc-max-gb 50`. Each gc that removed something is one JSON line.
+
 ## Clone strategies (`--strategy`)
 
 | Strategy | Platform | How | Tested |
@@ -134,7 +152,7 @@ copies it, so `git status`, `git diff`, `git log` and even local commits work. T
 
 ## Daemon
 
-`treeyard daemon [--debounce-ms 300] [--rescan-s 30] [--spares N]` watches `ws/` (FSEvents on macOS,
+`treeyard daemon [--debounce-ms 300] [--rescan-s 30] [--spares N] [--gc-every HOURS]` watches `ws/` (FSEvents on macOS,
 inotify on Linux, through the `notify` crate). A workspace syncs when no event came for the debounce time.
 Events under `target`, `node_modules`, `.venv`, `.git`, `__pycache__`, `.pytest_cache` and `.treeyard`
 are ignored; a rescan every 30 s catches anything missed. Each sync that sent something is one JSON line
@@ -151,6 +169,7 @@ ws/<name>/                the workspace; ws/<name>/.treeyard/env
 meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
 logs/<name>.<step>.log    create (steps), setup and teardown output
 workspace.toml            node config; overrides the repo's .treeyard/workspace.toml
+gc.lock                   held while a gc runs
 git.cache/                bare git cache for --git
 ```
 
