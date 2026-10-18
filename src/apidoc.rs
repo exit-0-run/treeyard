@@ -11,7 +11,7 @@ pub const GROUPS: &[(&str, &[&str])] = &[
     ("Changes", &["open_change", "declare", "apply", "resolve", "rebase", "land", "abandon", "revert"]),
     ("Best of N", &["group", "land_one_of"]),
     ("Checkpoints and attachments", &["checkpoint", "checkpoints", "restore_change", "attach", "attachments"]),
-    ("Inspect changes", &["change", "changes", "export_change"]),
+    ("Inspect changes", &["change", "changes", "land_status", "export_change"]),
     ("Coordination", &["events", "reviews", "review_close", "queue", "queue_run", "test_main", "config"]),
     ("Shared directories", &["assign", "claim", "apply_assigned"]),
     ("Access and audit", &["whoami", "token_create", "token_list", "token_revoke", "audit"]),

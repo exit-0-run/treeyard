@@ -184,6 +184,11 @@ timeout_s = 600
   changesets since the last green one, reverts the first failing changeset through the normal `revert`
   operation, and opens a `reverted_by_bisect` review task for its owner. Test `e_optimistic…`.
 
+`land_status {change}` tells an agent what happened after `land`: `verdict` = `passed`, `pending`,
+`queued`, `rejected` (with the failing `output`), `reverted` (with the `output` that made bisect revert it),
+`not_tested` (direct mode), `open` or `abandoned`. `treeyard workspace land` polls it, so an agent that
+lands in optimistic mode learns about a revert before it stops.
+
 `treeyard serve` starts a worker thread for `queue` and `optimistic`. The `queue_run` and `test_main`
 operations run one step by hand (tests and CLI). Tests run outside the repo lock: agents keep reading
 and applying during a test. Before the queue lands a batch it checks that main and each change are

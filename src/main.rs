@@ -263,7 +263,12 @@ enum WsCmd {
     /// Send the workspace's edits to the server now.
     Sync { name: String },
     /// Sync, then land the change on main.
-    Land { name: String },
+    Land {
+        name: String,
+        /// Seconds to wait for the tests of queue or optimistic landing (0 = do not wait).
+        #[arg(long, default_value_t = 600)]
+        wait_s: u64,
+    },
     /// Sync, restore the change to a checkpoint, and rewrite only the files that differ.
     Restore {
         name: String,
@@ -431,7 +436,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         }
         WsCmd::List => print(&serde_json::to_value(node.list()?)?)?,
         WsCmd::Sync { name } => print(&node.sync(&name)?)?,
-        WsCmd::Land { name } => print(&node.land(&name)?)?,
+        WsCmd::Land { name, wait_s } => print(&node.land_with(&name, std::time::Duration::from_secs(wait_s))?)?,
         WsCmd::Restore { name, to } => print(&node.restore(&name, &to)?)?,
         WsCmd::Env { name } => {
             for (k, v) in node.get(&name)?.env() {

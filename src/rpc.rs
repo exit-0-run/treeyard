@@ -765,6 +765,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             }
             r.attachments(&a.change)
         }
+        "land_status" => {
+            let a: ChangeId = params(p)?;
+            r.land_status(&a.change)
+        }
         "change" => {
             let a: ChangeId = params(p)?;
             let ch = r.change(&a.change)?;
@@ -1152,6 +1156,12 @@ pub fn tools() -> Vec<Value> {
             "Undo a landed changeset: opens a change with the inverse and lands it.",
             json!({"changeset": at, "agent": {"type": "string"}}),
             &["changeset"],
+        ),
+        tool(
+            "land_status",
+            "What happened to a change after land: verdict passed, pending, queued, rejected, reverted, not_tested; test output when it failed.",
+            json!({"change": change}),
+            &["change"],
         ),
         tool(
             "export_change",

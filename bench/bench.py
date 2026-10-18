@@ -31,6 +31,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import threading
 from pathlib import Path
 
 # Git's automatic maintenance starts a detached `git repack` after commands on a big repository; many
@@ -189,9 +190,15 @@ def run_step(step, ws, seed_dir):
         sh(step, cwd=ws)
 
 
+# `git worktree add` is not safe to run in parallel on one repository (one add can read another's
+# half-written .git/worktrees entry), so adds take turns; the wait counts in the measured time.
+WORKTREE_ADD = threading.Lock()
+
+
 def make_workspace(src, rev, ws, steps, seed_dir):
     t0 = time.monotonic()
-    git(src, "worktree", "add", "-q", "--detach", str(ws), rev)
+    with WORKTREE_ADD:
+        git(src, "worktree", "add", "-q", "--detach", str(ws), rev)
     t1 = time.monotonic()
     for step in steps:
         run_step(step, ws, seed_dir)

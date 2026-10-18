@@ -23,7 +23,7 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
 - Best of N: [`group`](#group), [`land_one_of`](#land_one_of)
 - Checkpoints and attachments: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change), [`attach`](#attach), [`attachments`](#attachments)
-- Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
+- Inspect changes: [`change`](#change), [`changes`](#changes), [`land_status`](#land_status), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
 - Shared directories: [`assign`](#assign), [`claim`](#claim), [`apply_assigned`](#apply_assigned)
 - Access and audit: [`whoami`](#whoami), [`token_create`](#token_create), [`token_list`](#token_list), [`token_revoke`](#token_revoke), [`audit`](#audit)
@@ -432,6 +432,18 @@ List changes by state (open by default).
 
 ```sh
 treeyard call changes '{}'
+```
+
+### land_status
+
+What happened to a change after land: verdict passed, pending, queued, rejected, reverted, not_tested; test output when it failed.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+
+```sh
+treeyard call land_status '{"change": "ch_..."}'
 ```
 
 ### export_change

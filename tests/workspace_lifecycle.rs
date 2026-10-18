@@ -476,3 +476,39 @@ fn land_conflict_updates_the_workspace_to_the_rebased_change() {
     // A second update finds nothing to write.
     assert_eq!(node.update("b").unwrap()["written"], json!([]));
 }
+
+#[test]
+fn optimistic_revert_reaches_the_agent_and_the_workspace_carries_on() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 3, 10, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    // Main is red while f00.txt holds the word "broken".
+    fs::write(
+        data.join("treeyard.toml"),
+        "[landing]\nmode = \"optimistic\"\ntest = \"! grep -q broken f00.txt\"\ntimeout_s = 60\n",
+    )
+    .unwrap();
+    let repo = Arc::new(Repo::open(&data).unwrap());
+    treeyard::landing::spawn_worker(repo.clone()).unwrap();
+    let url = common::spawn_server(repo);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (w, _) = node.create(&opts("w")).unwrap();
+
+    // The first land breaks main: the verdict says so, with the failing test's exit.
+    fs::write(w.dir.join("f00.txt"), "broken\n").unwrap();
+    fs::write(w.dir.join("new.txt"), "kept\n").unwrap();
+    let r = node.land_with("w", Duration::from_secs(60)).unwrap();
+    assert_eq!(r["land"]["status"], "landed", "{r}");
+    assert_eq!(r["verdict"]["verdict"], "reverted", "{r}");
+    assert!(read_at(&url, "main", "new.txt").is_null(), "the revert took the whole change out");
+
+    // The agent fixes the file and lands again from the same workspace: a follow-up change on
+    // today's main carries all of its work, not only the last edit.
+    fs::write(w.dir.join("f00.txt"), "fixed\n").unwrap();
+    let r = node.land_with("w", Duration::from_secs(60)).unwrap();
+    assert_eq!(r["reopened"]["reopened"], true, "{r}");
+    assert_eq!(r["verdict"]["verdict"], "passed", "{r}");
+    assert_eq!(read_at(&url, "main", "f00.txt")["content"], "fixed\n");
+    assert_eq!(read_at(&url, "main", "new.txt")["content"], "kept\n");
+}

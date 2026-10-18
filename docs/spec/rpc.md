@@ -103,6 +103,7 @@ whole-file contents are based on; the server merges if the change moved since.
 | `events` | events after `since`; long poll with `wait_ms` |
 | `reviews`, `review_close` | review tasks: edits a rebase made vanish, changes already on main, failed tests, reverts |
 | `queue`, `queue_run`, `test_main`, `config` | landing modes and the settings in effect |
+| `land_status` | what happened to a change after `land`: `passed`, `pending`, `queued`, `rejected`, `reverted` (with the failing output), `not_tested` |
 
 Collision rule: on every `apply`, the server compares the change with every other open change that
 touches a shared path. It runs a trial 3-way merge and reports `kind` `conflict` or `overlap` per

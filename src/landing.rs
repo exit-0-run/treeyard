@@ -118,6 +118,48 @@ struct Speculation {
 }
 
 impl Inner {
+    /// What happened to a change after `land`, for an agent that waits on it. `verdict` is
+    /// `passed` (the tests of the landing mode covered it), `pending` (not tested yet), `queued`,
+    /// `rejected` (the queue's tests failed; it is still open), `reverted` (optimistic mode: bisect
+    /// found it broke main and reverted it), `not_tested` (direct mode), `open` or `abandoned`.
+    /// `output` holds the failing test output for `rejected` and `reverted`.
+    pub fn land_status(&mut self, id: &str) -> Result<Value> {
+        let ch = self.change(id)?;
+        let reviews = self.reviews_view(None, Some(id))?["reviews"].as_array().cloned().unwrap_or_default();
+        let last_of = |kinds: &[&str]| {
+            reviews.iter().rev().find(|r| kinds.contains(&r["kind"].as_str().unwrap_or_default())).cloned()
+        };
+        let mode = self.cfg.landing.mode;
+        let (verdict, review) = match ch.state {
+            ChangeState::Abandoned => ("abandoned", None),
+            ChangeState::Open if self.store.queue()?.iter().any(|q| q == id) => ("queued", None),
+            ChangeState::Open => match last_of(&["tests_failed"]) {
+                Some(r) => ("rejected", Some(r)),
+                None => ("open", None),
+            },
+            ChangeState::Landed => match last_of(&["reverted_by_bisect", "revert_failed"]) {
+                Some(r) => ("reverted", Some(r)),
+                None => match mode {
+                    Mode::Direct => ("not_tested", None),
+                    Mode::Queue => ("passed", None),
+                    Mode::Optimistic => {
+                        let landed = ch.landed_as.clone().context("landed change without landed_as")?;
+                        let green = self.store.get_ref("green")?;
+                        match green {
+                            Some(g) if g == landed || self.is_ancestor(&landed, &g)? => ("passed", None),
+                            _ => ("pending", None),
+                        }
+                    }
+                },
+            },
+        };
+        let output = review.as_ref().map(|r| r["detail"]["output"].clone()).unwrap_or(Value::Null);
+        Ok(json!({
+            "change": id, "state": ch.state.as_str(), "mode": mode, "verdict": verdict,
+            "landed_as": ch.landed_as, "output": output, "review": review.map(|r| r["id"].clone()),
+        }))
+    }
+
     /// Queue mode: validates the change and appends it to the landing queue.
     pub fn enqueue(&mut self, id: &str) -> Result<Value> {
         let ch = self.change(id)?;

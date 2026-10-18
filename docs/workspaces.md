@@ -31,7 +31,13 @@ treeyard workspace remove fix-1
 6. `sync` (by hand, after `exec`, or from the daemon) sends every file that differs from the last sync as
    one new changeset of the same change. The server sees each agent's work live, and `apply` returns the
    `overlaps` with other open changes (also written to `.treeyard/overlaps.json`).
-7. `remove` syncs first, under the workspace lock, so an edit that the daemon has not sent yet still
+7. `land` syncs, lands, and in `queue` or `optimistic` mode waits (default 600 s, `--wait-s N`) for the
+   verdict of the tests (`land_status`): `passed`, `rejected` (the queue's tests failed; fix and land
+   again) or `reverted` (optimistic landing found the change broke main and reverted it; the reply has
+   the failing output). When the workspace's change has already landed or was reverted, the next `land`
+   first opens a follow-up change on today's main and sends every file that differs from main, so the
+   whole work in the directory lands, not only the last edit.
+8. `remove` syncs first, under the workspace lock, so an edit that the daemon has not sent yet still
    reaches the change. When that sync fails (for example the server is down), nothing is deleted unless
    `--force`. `--abandon` drops the change instead. The record is marked `removing` before the directory
    goes; `treeyard daemon` finishes such a remove at start. Only a directory under `ws/` is deleted.

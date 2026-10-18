@@ -32,7 +32,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::client;
 use crate::cow::{self, Strategy};
@@ -1512,14 +1512,76 @@ impl Node {
         Ok(scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?.diffs.len())
     }
 
-    /// Syncs, then lands the change on main. When the land hits a conflict, the workspace is
-    /// updated to the rebased change, so the agent sees the markers and the work that landed first.
+    /// `land_with` and up to 10 minutes for the tests of the landing mode.
     pub fn land(&self, name: &str) -> Result<Value> {
+        self.land_with(name, Duration::from_secs(600))
+    }
+
+    /// Syncs, then lands the change on main.
+    /// - A change that has already landed or was dropped (for example reverted by optimistic
+    ///   landing) is followed by a new change on today's main first (`reopen`).
+    /// - When the land hits a conflict, the workspace is updated to the rebased change, so the
+    ///   agent sees the markers and the work that landed first.
+    /// - In queue and optimistic mode it waits up to `wait` for the verdict of the tests
+    ///   (`land_status`): passed, rejected or reverted, with the failing output.
+    pub fn land_with(&self, name: &str, wait: Duration) -> Result<Value> {
+        let ws = self.get(name)?;
+        let before = self.call("land_status", json!({"change": ws.change}))?;
+        let reopened = if before["state"] != "open" { self.reopen(name)? } else { Value::Null };
         let sync = self.sync(name)?;
         let ws = self.get(name)?;
         let land = self.call("land", json!({"change": ws.change}))?;
         let update = if land["status"] == "conflict" { self.update(name)? } else { Value::Null };
-        Ok(json!({"sync": sync, "land": land, "update": update}))
+        let mut verdict = Value::Null;
+        if matches!(land["status"].as_str(), Some("landed" | "queued" | "already_on_main")) && !wait.is_zero() {
+            let t0 = Instant::now();
+            loop {
+                let st = self.call("land_status", json!({"change": ws.change}))?;
+                let done = !matches!(st["verdict"].as_str(), Some("pending" | "queued"));
+                if done || t0.elapsed() >= wait {
+                    verdict = st;
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(500));
+            }
+        }
+        Ok(json!({"sync": sync, "land": land, "update": update, "verdict": verdict, "reopened": reopened}))
+    }
+
+    /// Binds the workspace to a new change on today's main when its change has landed or was
+    /// dropped. The sync state is reset to main's tree, so the next sync sends every file that
+    /// differs from main: the work in the directory stays whole even after a revert.
+    pub fn reopen(&self, name: &str) -> Result<Value> {
+        let mut ws = self.get(name)?;
+        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        let old = self.call("land_status", json!({"change": ws.change}))?;
+        if old["state"] == "open" {
+            return Ok(json!({"reopened": false, "change": ws.change}));
+        }
+        let opened = self.call(
+            "open_change",
+            json!({"agent": ws.agent, "intent": format!("follow-up of {} ({})", ws.change, old["verdict"].as_str().unwrap_or("closed"))}),
+        )?;
+        let id = opened["id"].as_str().context("open_change reply has no id")?.to_string();
+        let base = opened["base"].as_str().context("open_change reply has no base")?.to_string();
+        let tree = self.call("tree", json!({"at": base}))?;
+        let mut state = State::new();
+        for row in tree["entries"].as_array().context("tree has no entries")? {
+            let (Some(path), Some(mode), Some(blob)) = (row[0].as_str(), row[1].as_u64(), row[2].as_str()) else {
+                bail!("bad tree row {row}");
+            };
+            // Size and mtime that never match make the next scan hash the file and compare it.
+            state.insert(
+                path.to_string(),
+                FileState { mode: mode as u32, blob: blob.to_string(), size: u64::MAX, mtime_ns: 0 },
+            );
+        }
+        let from = std::mem::replace(&mut ws.change, id.clone());
+        ws.base = base;
+        write_json(&self.state_path(name), &state)?;
+        write_json(&self.meta_path(name), &ws)?;
+        let sync = self.sync_locked(name, &ws)?;
+        Ok(json!({"reopened": true, "change": id, "from": from, "was": old["verdict"], "sync": sync}))
     }
 }
 
