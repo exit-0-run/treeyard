@@ -466,6 +466,7 @@ fn main() -> Result<()> {
                 rescan: std::time::Duration::from_secs(rescan_s),
                 spares,
                 gc: (gc_every > 0.0).then(|| (std::time::Duration::from_secs_f64(gc_every * 3600.0), gc)),
+                ..Default::default()
             };
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             daemon::run(&node.node(), &o, stop, &mut |line| println!("{line}"))?;

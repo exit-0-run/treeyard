@@ -234,3 +234,43 @@ fn gc_removes_finished_then_oldest_and_never_unsynced_work() {
     assert!(lines.iter().any(|l| l.contains("\"gc\"") && l.contains("dirty")), "{lines:?}");
     assert!(node.list().unwrap().is_empty());
 }
+
+#[test]
+fn daemon_waits_while_git_is_busy_in_a_workspace() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let home = tmp.path().join("node");
+    let node = Node::new(&home, &url);
+    let (ws, _) = node.create(&CreateOptions { git: true, ..opts("g") }).unwrap();
+    // A merge stopped half way: the daemon must not send its files.
+    fs::write(ws.dir.join(".git/MERGE_HEAD"), "0000000000000000000000000000000000000000\n").unwrap();
+    fs::write(ws.dir.join("f00.txt"), "<<<<<<< HEAD\nmid-merge\n").unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let lines = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let (stop2, lines2, home2, url2) = (stop.clone(), lines.clone(), home.clone(), url.clone());
+    let daemon = std::thread::spawn(move || {
+        let o = treeyard::daemon::Options {
+            debounce: Duration::from_millis(50),
+            rescan: Duration::from_millis(100),
+            git_backoff: vec![Duration::from_millis(50)],
+            ..Default::default()
+        };
+        treeyard::daemon::run(&Node::new(home2, url2), &o, stop2, &mut |l| lines2.lock().unwrap().push(l)).unwrap();
+    });
+    let wait = |what: &str, done: &dyn Fn() -> bool| {
+        let t = std::time::Instant::now();
+        while !done() {
+            assert!(t.elapsed() < Duration::from_secs(20), "{what}; log: {:?}", lines.lock().unwrap());
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    };
+    let skips = || lines.lock().unwrap().iter().filter(|l| l.contains("MERGE_HEAD")).count();
+    wait("two skipped tries", &|| skips() >= 2);
+    assert!(read_at(&url, &ws.change, "f00.txt")["content"].as_str().unwrap().starts_with("file 0"));
+    // The merge ends: the next try sends the result.
+    fs::write(ws.dir.join("f00.txt"), "merged\n").unwrap();
+    fs::remove_file(ws.dir.join(".git/MERGE_HEAD")).unwrap();
+    wait("sync after the merge", &|| read_at(&url, &ws.change, "f00.txt")["content"] == "merged\n");
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    daemon.join().unwrap();
+}

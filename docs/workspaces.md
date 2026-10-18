@@ -150,6 +150,17 @@ alternate to a bare cache in the node home (`git.cache`, fetched from the server
 copies it, so `git status`, `git diff`, `git log` and even local commits work. The sync never sends
 `.git`; the server gets files. `core.checkStat=minimal` keeps a fresh clone clean (new inodes and ctimes).
 
+The node is polite to the agent's own git:
+
+- The daemon does not sync a workspace while a git operation runs in it: `.git/MERGE_HEAD`,
+  `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD` or `REVERT_HEAD` exists, or `.git/index.lock` is younger
+  than 30 s (an older lock is stale and does not count). Such a sync would send half-applied files and
+  conflict markers. The daemon tries again after 1 s, 5 s, 30 s and then every 120 s, and logs each skip
+  as one JSON line (`skipped`, `retry_s`). `sync`, `exec` and `remove` by hand do not wait.
+- `gc` skips such a workspace too.
+- Git status probes that the node runs in a checkout (`workspace::git_probe`) set `GIT_OPTIONAL_LOCKS=0`, so
+  they never take `index.lock` and never block a git command of the agent.
+
 ## Daemon
 
 `treeyard daemon [--debounce-ms 300] [--rescan-s 30] [--spares N] [--gc-every HOURS]` watches `ws/` (FSEvents on macOS,

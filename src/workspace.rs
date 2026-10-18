@@ -1273,6 +1273,7 @@ impl Node {
                 _ if now - ws.created < o.min_age.as_secs() as i64 => {
                     Some(format!("younger than {} minutes", o.min_age.as_secs() / 60))
                 }
+                _ if git_busy(&ws.dir).is_some() => git_busy(&ws.dir),
                 _ => match self.unsynced(&ws) {
                     Ok(0) => None,
                     Ok(n) => Some(format!("{n} edited files not synced yet")),
@@ -1336,6 +1337,45 @@ impl Node {
 
 fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
+}
+
+/// Files in a git dir that mean a git operation is in progress in that checkout.
+const GIT_BUSY: &[&str] = &["MERGE_HEAD", "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+/// An `index.lock` younger than this belongs to a running git command; an older one is stale.
+const INDEX_LOCK_FRESH: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Why a sync should wait for git in checkout `dir` (a merge, rebase, cherry-pick or revert in
+/// progress, or a fresh `index.lock`), or `None`. A sync in the middle of a rebase would send
+/// half-applied files and conflict markers.
+pub fn git_busy(dir: &Path) -> Option<String> {
+    let dot = dir.join(".git");
+    // A linked worktree has a `.git` file: `gitdir: <path>`.
+    let gd = match fs::read_to_string(&dot) {
+        Ok(t) => PathBuf::from(t.strip_prefix("gitdir:")?.trim()),
+        Err(_) if dot.is_dir() => dot,
+        Err(_) => return None,
+    };
+    if let Some(f) = GIT_BUSY.iter().find(|f| gd.join(f).exists()) {
+        return Some(format!("git operation in progress ({f})"));
+    }
+    let age = fs::metadata(gd.join("index.lock")).and_then(|m| m.modified()).ok()?.elapsed().unwrap_or_default();
+    (age < INDEX_LOCK_FRESH).then(|| "git holds index.lock".to_string())
+}
+
+/// Runs a read-only git command (a status probe) in checkout `dir`. `GIT_OPTIONAL_LOCKS=0` keeps
+/// it from taking `index.lock` to refresh the index, so it never blocks the agent's own git.
+pub fn git_probe(dir: &Path, args: &[&str]) -> Result<Vec<u8>> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .context("run git")?;
+    if !out.status.success() {
+        bail!("git {} in {}: {}", args.join(" "), dir.display(), String::from_utf8_lossy(&out.stderr).trim());
+    }
+    Ok(out.stdout)
 }
 
 /// Bytes on disk under `dir` (allocated blocks, not following symlinks; 0 when it is missing).
@@ -1540,6 +1580,28 @@ mod tests {
             assert!(check_rel(p).is_err(), "{p}");
         }
         check_rel("src/main.rs").unwrap();
+    }
+
+    #[test]
+    fn git_busy_sees_operations_and_fresh_index_locks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        assert_eq!(git_busy(dir), None, "no .git");
+        fs::create_dir_all(dir.join(".git/rebase-merge")).unwrap();
+        assert!(git_busy(dir).unwrap().contains("rebase-merge"));
+        fs::remove_dir(dir.join(".git/rebase-merge")).unwrap();
+        let lock = dir.join(".git/index.lock");
+        fs::write(&lock, "").unwrap();
+        assert!(git_busy(dir).unwrap().contains("index.lock"));
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        fs::File::options().write(true).open(&lock).unwrap().set_modified(old).unwrap();
+        assert_eq!(git_busy(dir), None, "a stale index.lock does not block");
+        // A linked worktree points at its git dir with a .git file.
+        let wt = dir.join("wt");
+        fs::create_dir_all(&wt).unwrap();
+        fs::write(wt.join(".git"), format!("gitdir: {}\n", dir.join(".git").display())).unwrap();
+        fs::write(dir.join(".git/MERGE_HEAD"), "x").unwrap();
+        assert!(git_busy(&wt).unwrap().contains("MERGE_HEAD"));
     }
 
     #[test]
