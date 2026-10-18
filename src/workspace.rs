@@ -13,7 +13,13 @@
 //! layers/<name>-<key>/      dependency dirs at their workspace-relative paths (+ .json)
 //! ws/<name>/                the workspace; ws/<name>/.treeyard/env holds its environment
 //! meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
+//! logs/<name>.<step>.log    output of the teardown command
+//! workspace.toml            node-local workspace config (overrides the repo's)
 //! ```
+//!
+//! A repo can describe its workspaces in `.treeyard/workspace.toml` (setup and teardown commands,
+//! layers, gitignored files to copy in, port block size, default `exec` command). The file is
+//! read from the base tree, the node file overrides it key by key, and CLI flags override both.
 
 use anyhow::{Context, Result, anyhow, bail};
 use base64::Engine as _;
@@ -38,6 +44,12 @@ pub const PRIVATE: &str = ".treeyard";
 const BATCH_BYTES: usize = 8 << 20;
 pub const DEFAULT_PORT_BASE: u16 = 20000;
 pub const DEFAULT_PORT_BLOCK: u16 = 10;
+/// The repo's workspace config, read from the base tree. The only repo path under `.treeyard/`.
+pub const REPO_CONFIG: &str = ".treeyard/workspace.toml";
+/// Lines of this root file name more gitignored files to copy in (like `copy`).
+const WORKTREE_INCLUDE: &str = ".worktreeinclude";
+/// Directories that `copy` never walks into in the source directory.
+const COPY_SKIP: &[&str] = &[".git", PRIVATE, "target", "node_modules", ".venv"];
 
 /// What the node knows about one file: git mode and blob, plus the stat that produced them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -96,6 +108,50 @@ pub fn auto_layers(paths: &BTreeSet<String>) -> Vec<LayerSpec> {
     out
 }
 
+/// `.treeyard/workspace.toml` (repo) or `<home>/workspace.toml` (node). Every key is optional.
+/// The repo file runs commands on the node that creates the workspace, so it is trusted like a
+/// Makefile; commands that the server runs stay in `<data>/treeyard.toml`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WsConfig {
+    /// Shell command run in a new workspace (like `--setup`).
+    pub setup: Option<String>,
+    /// Shell command run by `remove` before the directory goes; a failure is reported only.
+    pub teardown: Option<String>,
+    /// Dependency layers, `DIR=LOCKFILE[,LOCKFILE]` each (like `--layer`).
+    pub layers: Option<Vec<String>>,
+    /// Globs of gitignored files (`.env*`, certificates) to copy from `copy_from` (or `--copy-from`).
+    pub copy: Option<Vec<String>>,
+    pub copy_from: Option<String>,
+    /// Ports per workspace (default 10).
+    pub ports: Option<u16>,
+    /// Default command of `workspace exec NAME` with no command.
+    pub run: Option<String>,
+}
+
+impl WsConfig {
+    pub fn parse(text: &str, origin: &str) -> Result<Self> {
+        toml::from_str(text).with_context(|| format!("parse {origin}"))
+    }
+
+    /// `self` with every key it lacks taken from `under`.
+    pub fn over(self, under: WsConfig) -> WsConfig {
+        WsConfig {
+            setup: self.setup.or(under.setup),
+            teardown: self.teardown.or(under.teardown),
+            layers: self.layers.or(under.layers),
+            copy: self.copy.or(under.copy),
+            copy_from: self.copy_from.or(under.copy_from),
+            ports: self.ports.or(under.ports),
+            run: self.run.or(under.run),
+        }
+    }
+
+    fn layer_specs(&self) -> Result<Option<Vec<LayerSpec>>> {
+        self.layers.as_ref().map(|l| l.iter().map(|s| s.parse()).collect()).transpose()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Workspace {
     pub name: String,
@@ -109,6 +165,12 @@ pub struct Workspace {
     pub ports: (u16, u16),
     pub layers: Vec<Value>,
     pub created: i64,
+    /// Run by `remove` before the directory goes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub teardown: Option<String>,
+    /// Default command of `exec`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run: Option<String>,
 }
 
 impl Workspace {
@@ -145,6 +207,33 @@ pub struct CreateOptions {
     /// Put a `.git` in the workspace (HEAD = the base commit, history through the node's git
     /// cache), so `git status`, `git diff` and `git log` work. Edits still reach the server by sync.
     pub git: bool,
+    /// Overrides `teardown` of the config files.
+    pub teardown: Option<String>,
+    /// Overrides `run` of the config files.
+    pub run: Option<String>,
+    /// Ports in the workspace's block; overrides `ports` of the config files.
+    pub ports: Option<u16>,
+    /// Where the `copy` globs (and `.worktreeinclude`) find gitignored files; overrides `copy_from`.
+    pub copy_from: Option<PathBuf>,
+}
+
+impl Default for CreateOptions {
+    fn default() -> Self {
+        CreateOptions {
+            name: String::new(),
+            agent: "agent".into(),
+            intent: "work in a workspace".into(),
+            base: None,
+            strategy: Strategy::Auto,
+            layers: None,
+            setup: None,
+            git: false,
+            teardown: None,
+            run: None,
+            ports: None,
+            copy_from: None,
+        }
+    }
 }
 
 /// One node: a home directory and the server it talks to.
@@ -156,7 +245,8 @@ pub struct Node {
 }
 
 fn check_rel(path: &str) -> Result<()> {
-    let bad = crate::safety::check_path(path).is_err() || path.split('/').any(|c| c == PRIVATE);
+    let private = path != REPO_CONFIG && path.split('/').any(|c| c == PRIVATE);
+    let bad = crate::safety::check_path(path).is_err() || private;
     if bad {
         bail!("refusing unsafe path {path:?} from the server");
     }
@@ -481,20 +571,39 @@ impl Node {
 
     // ---- workspaces ----------------------------------------------------------------------
 
-    fn free_slot(&self) -> Result<u16> {
-        let used: BTreeSet<u16> = self.list()?.iter().map(|w| w.slot).collect();
+    /// The workspace config for a tree at `root`: the repo file there, under the node file.
+    pub fn config(&self, root: &Path) -> Result<WsConfig> {
+        let read = |p: PathBuf| -> Result<WsConfig> {
+            match fs::read_to_string(&p) {
+                Ok(t) => WsConfig::parse(&t, &p.display().to_string()),
+                Err(_) => Ok(WsConfig::default()),
+            }
+        };
+        Ok(read(self.home.join("workspace.toml"))?.over(read(root.join(REPO_CONFIG))?))
+    }
+
+    /// A free block of `n` ports: (slot, first port). Slots are `port_block` apart; a bigger
+    /// block takes several slots. A block whose first port another process holds is skipped.
+    fn free_ports(&self, n: u16) -> Result<(u16, u16)> {
+        if n == 0 {
+            bail!("a workspace needs at least one port");
+        }
+        let used: Vec<(u16, u16)> = self.list()?.iter().map(|w| w.ports).collect();
         let max_slot = (u16::MAX - self.port_base) / self.port_block;
         for slot in 0..max_slot {
-            if used.contains(&slot) {
+            let lo = self.port_base as u32 + slot as u32 * self.port_block as u32;
+            let hi = lo + n as u32 - 1;
+            if hi > u16::MAX as u32 {
+                break;
+            }
+            if used.iter().any(|(a, b)| lo <= *b as u32 && *a as u32 <= hi) {
                 continue;
             }
-            // Skip a block whose first port another process already holds.
-            let port = self.port_base + slot * self.port_block;
-            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
-                return Ok(slot);
+            if std::net::TcpListener::bind(("127.0.0.1", lo as u16)).is_ok() {
+                return Ok((slot, lo as u16));
             }
         }
-        bail!("no free port block")
+        bail!("no free block of {n} ports")
     }
 
     pub fn create(&self, o: &CreateOptions) -> Result<(Workspace, Value)> {
@@ -521,9 +630,12 @@ impl Node {
             self.git_base(&base)?;
         }
         let t_base = t0.elapsed().as_secs_f64();
-        let specs = match &o.layers {
-            Some(l) => l.clone(),
-            None => auto_layers(&state.keys().cloned().collect()),
+        // CLI options, then the node's workspace.toml, then the repo's .treeyard/workspace.toml.
+        let cfg = self.config(&base_dir)?;
+        let setup = o.setup.clone().or(cfg.setup.clone());
+        let specs = match (o.layers.clone(), cfg.layer_specs()?) {
+            (Some(l), _) | (None, Some(l)) => l,
+            (None, None) => auto_layers(&state.keys().cloned().collect()),
         };
         let keys = specs.iter().map(|s| Ok((s.clone(), self.layer_key(&base_dir, s)?))).collect::<Result<Vec<_>>>()?;
         let spare = if matches!(o.strategy, Strategy::Auto | Strategy::Clone) {
@@ -545,8 +657,8 @@ impl Node {
         let t_clone = t0.elapsed().as_secs_f64() - t_base;
         let mut ws = {
             let _l = lock(&self.home.join("node.lock"))?;
-            let slot = self.free_slot()?;
-            let lo = self.port_base + slot * self.port_block;
+            let n = o.ports.or(cfg.ports).unwrap_or(self.port_block);
+            let (slot, lo) = self.free_ports(n)?;
             let ws = Workspace {
                 name: o.name.clone(),
                 url: self.url.clone(),
@@ -556,9 +668,11 @@ impl Node {
                 dir: dir.clone(),
                 strategy,
                 slot,
-                ports: (lo, lo + self.port_block - 1),
+                ports: (lo, lo + n - 1),
                 layers: vec![],
                 created: crate::repo::now(),
+                teardown: o.teardown.clone().or(cfg.teardown.clone()),
+                run: o.run.clone().or(cfg.run.clone()),
             };
             fs::create_dir_all(self.home.join("meta"))?;
             write_json(&self.state_path(&o.name), &state)?;
@@ -569,6 +683,10 @@ impl Node {
         let env: String = ws.env().iter().map(|(k, v)| format!("{k}={v}\n")).collect();
         fs::write(dir.join(PRIVATE).join("env"), env)?;
 
+        // Gitignored files (`.env`, certificates) from a source directory, before the setup needs them.
+        let from = o.copy_from.clone().or(cfg.copy_from.as_deref().map(expand_home));
+        let copied = self.copy_in(from.as_deref(), cfg.copy.as_deref().unwrap_or_default(), &dir, &state)?;
+
         // Dependency layers: restore what exists (a spare has them), run the setup, save what was missing.
         let mut layers = Vec::new();
         for (spec, key) in keys {
@@ -578,7 +696,7 @@ impl Node {
         }
         let t_layers = t0.elapsed().as_secs_f64() - t_base - t_clone;
         let mut setup_s = 0.0;
-        if let Some(cmd) = &o.setup {
+        if let Some(cmd) = &setup {
             let t = Instant::now();
             let out = std::process::Command::new("sh")
                 .args(["-c", cmd])
@@ -596,7 +714,7 @@ impl Node {
             }
         }
         for (spec, key, restored) in &layers {
-            let paths = if *restored || o.setup.is_none() {
+            let paths = if *restored || setup.is_none() {
                 vec![]
             } else {
                 let _l = lock(&self.home.join("node.lock"))?;
@@ -608,9 +726,93 @@ impl Node {
         write_json(&self.meta_path(&o.name), &ws)?;
         let timing = json!({
             "base_s": round(t_base), "clone_s": round(t_clone), "layers_s": round(t_layers), "setup_s": round(setup_s),
-            "total_s": round(t0.elapsed().as_secs_f64()), "spare": spare.is_some(),
+            "total_s": round(t0.elapsed().as_secs_f64()), "spare": spare.is_some(), "copy": copied,
         });
         Ok((ws, timing))
+    }
+
+    /// Copies gitignored files that match `globs` or the lines of `.worktreeinclude` from `from`
+    /// into the workspace. A file that is tracked, already there, or not ignored by the
+    /// workspace's `.gitignore` (so a sync would send it to the server) is skipped with a reason.
+    fn copy_in(&self, from: Option<&Path>, globs: &[String], ws: &Path, tracked: &State) -> Result<Value> {
+        let mut patterns = globs.to_vec();
+        for root in [Some(ws), from].into_iter().flatten() {
+            if let Ok(t) = fs::read_to_string(root.join(WORKTREE_INCLUDE)) {
+                let lines = t.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with(['#', '!']));
+                patterns.extend(lines.map(String::from));
+            }
+        }
+        if patterns.is_empty() {
+            return Ok(Value::Null);
+        }
+        let Some(from) = from else {
+            return Ok(json!({"error": "copy globs are set, but no source: pass --copy-from DIR or set copy_from"}));
+        };
+        let set = crate::config::globs(&patterns)?;
+        let (mut copied, mut skipped) = (Vec::new(), Vec::new());
+        let mut stack = vec![String::new()];
+        while let Some(rel) = stack.pop() {
+            let rd = fs::read_dir(from.join(&rel)).with_context(|| format!("read {}", from.join(&rel).display()))?;
+            for e in rd {
+                let e = e?;
+                let name = e.file_name().to_string_lossy().into_owned();
+                let child = if rel.is_empty() { name.clone() } else { format!("{rel}/{name}") };
+                let ft = e.file_type()?;
+                if ft.is_dir() {
+                    if !COPY_SKIP.contains(&name.as_str()) {
+                        stack.push(child);
+                    }
+                    continue;
+                }
+                if !set.is_match(&child) || check_rel(&child).is_err() {
+                    continue;
+                }
+                let why = if tracked.contains_key(&child) {
+                    Some("tracked")
+                } else if fs::symlink_metadata(ws.join(&child)).is_ok() {
+                    Some("already in the workspace")
+                } else if !ignored(ws, &child) {
+                    Some("not ignored by .gitignore, so a sync would send it")
+                } else {
+                    None
+                };
+                if let Some(why) = why {
+                    skipped.push(json!({"path": child, "why": why}));
+                    continue;
+                }
+                let dst = crate::safety::dest(ws, &child)?;
+                if let Some(p) = dst.parent() {
+                    fs::create_dir_all(p)?;
+                }
+                if ft.is_symlink() {
+                    std::os::unix::fs::symlink(fs::read_link(e.path())?, &dst)?;
+                } else {
+                    fs::copy(e.path(), &dst)?;
+                    fs::File::options().write(true).open(&dst)?.set_modified(e.metadata()?.modified()?)?;
+                }
+                copied.push(child);
+            }
+        }
+        copied.sort();
+        Ok(json!({"from": from, "copied": copied, "skipped": skipped}))
+    }
+
+    /// Runs a workspace command (setup, teardown) with the workspace environment; its output
+    /// goes to `<home>/logs/<name>.<step>.log`. Returns whether it succeeded and the log path.
+    fn run_logged(&self, ws: &Workspace, step: &str, cmd: &str) -> Result<(bool, PathBuf)> {
+        let logs = self.home.join("logs");
+        fs::create_dir_all(&logs)?;
+        let path = logs.join(format!("{}.{step}.log", ws.name));
+        let log = fs::File::create(&path)?;
+        let status = std::process::Command::new("sh")
+            .args(["-c", cmd])
+            .current_dir(&ws.dir)
+            .envs(ws.env())
+            .stdout(log.try_clone()?)
+            .stderr(log)
+            .status()
+            .with_context(|| format!("run {step}"))?;
+        Ok((status.success(), path))
     }
 
     // ---- spares: a warm pool of ready directories ---------------------------------------
@@ -620,9 +822,10 @@ impl Node {
     pub fn make_spare(&self, base: &str, layers: Option<&[LayerSpec]>, git: bool) -> Result<Value> {
         let t0 = Instant::now();
         let (base_dir, state) = self.base(base)?;
-        let specs = match layers {
-            Some(l) => l.to_vec(),
-            None => auto_layers(&state.keys().cloned().collect()),
+        let specs = match (layers, self.config(&base_dir)?.layer_specs()?) {
+            (Some(l), _) => l.to_vec(),
+            (None, Some(l)) => l,
+            (None, None) => auto_layers(&state.keys().cloned().collect()),
         };
         let root = self.home.join("spares");
         fs::create_dir_all(&root)?;
@@ -756,6 +959,14 @@ impl Node {
                 ),
             }
         }
+        // The repo's teardown (stop services, drop the database): a failure is reported, not fatal.
+        let mut teardown = Value::Null;
+        if let Some(cmd) = ws.teardown.as_deref().filter(|_| ws.dir.exists()) {
+            teardown = match self.run_logged(&ws, "teardown", cmd) {
+                Ok((ok, log)) => json!({"ok": ok, "log": log}),
+                Err(e) => json!({"ok": false, "error": format!("{e:#}")}),
+            };
+        }
         fs::write(self.removing_path(name), b"")?;
         self.delete_files(&ws)?;
         let mut abandoned = false;
@@ -767,7 +978,9 @@ impl Node {
             }
         }
         self.forget(name)?;
-        Ok(json!({"removed": name, "change": ws.change, "abandoned": abandoned, "synced": synced}))
+        Ok(
+            json!({"removed": name, "change": ws.change, "abandoned": abandoned, "synced": synced, "teardown": teardown}),
+        )
     }
 
     fn removing_path(&self, name: &str) -> PathBuf {
@@ -898,6 +1111,38 @@ fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
 }
 
+/// `~/x` -> `$HOME/x`; other paths as they are.
+fn expand_home(p: &str) -> PathBuf {
+    match (p.strip_prefix("~/"), std::env::var_os("HOME")) {
+        (Some(rest), Some(h)) => PathBuf::from(h).join(rest),
+        _ => PathBuf::from(p),
+    }
+}
+
+/// Whether the `.gitignore` files of `root` (at every level, deeper ones win) ignore file `rel`.
+fn ignored(root: &Path, rel: &str) -> bool {
+    let parts: Vec<&str> = rel.split('/').collect();
+    let full = root.join(rel);
+    let mut dir = root.to_path_buf();
+    let mut verdict = false;
+    for (i, part) in parts.iter().enumerate() {
+        let gi = dir.join(".gitignore");
+        if gi.is_file() {
+            let (g, _) = ignore::gitignore::Gitignore::new(&gi);
+            let m = g.matched_path_or_any_parents(&full, false);
+            if m.is_ignore() {
+                verdict = true;
+            } else if m.is_whitelist() {
+                verdict = false;
+            }
+        }
+        if i + 1 < parts.len() {
+            dir = dir.join(part);
+        }
+    }
+    verdict
+}
+
 /// Removes now-empty parent directories of deleted paths, deepest first.
 fn prune_empty_dirs<'a>(root: &Path, deleted: impl Iterator<Item = &'a String>) -> Result<()> {
     let mut dirs: BTreeSet<String> = BTreeSet::new();
@@ -1010,6 +1255,16 @@ pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result
         let md = fs::symlink_metadata(e.path())?;
         let (mode, blob, data) = hash_file(e.path(), &md)?;
         out.diffs.push((rel, Some((FileState { mode, blob, size: md.len(), mtime_ns: mtime_ns(&md) }, data))));
+    }
+    // The walk skips `.treeyard/`, but the repo's workspace config there is a repo file.
+    let cfg = root.join(REPO_CONFIG);
+    if !state.contains_key(REPO_CONFIG)
+        && let Ok(md) = fs::symlink_metadata(&cfg)
+        && md.is_file()
+    {
+        let (mode, blob, data) = hash_file(&cfg, &md)?;
+        let f = FileState { mode, blob, size: md.len(), mtime_ns: mtime_ns(&md) };
+        out.diffs.push((REPO_CONFIG.to_string(), Some((f, data))));
     }
     out.diffs.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(out)

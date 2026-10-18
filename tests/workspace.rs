@@ -32,6 +32,7 @@ fn opts(name: &str) -> CreateOptions {
         layers: Some(vec![]),
         setup: None,
         git: false,
+        ..CreateOptions::default()
     }
 }
 

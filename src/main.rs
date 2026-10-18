@@ -209,6 +209,18 @@ enum WsCmd {
         /// Add a `.git` (HEAD = base commit) so git status, diff and log work in the workspace.
         #[arg(long)]
         git: bool,
+        /// Shell command `remove` runs before it deletes the directory (a failure is reported only).
+        #[arg(long)]
+        teardown: Option<String>,
+        /// Default command of `workspace exec NAME` with no command.
+        #[arg(long)]
+        run: Option<String>,
+        /// Ports in the workspace's block (default 10).
+        #[arg(long)]
+        ports: Option<u16>,
+        /// Directory to copy gitignored files from (globs: `copy` in .treeyard/workspace.toml, .worktreeinclude).
+        #[arg(long)]
+        copy_from: Option<PathBuf>,
     },
     /// Keep COUNT spare directories (base clone + layers) for current main; create takes one.
     Spare {
@@ -232,10 +244,11 @@ enum WsCmd {
     Env { name: String },
     /// Print the workspace directory.
     Path { name: String },
-    /// Run a command in the workspace with its environment, then sync.
+    /// Run a command in the workspace with its environment, then sync. No command: the `run`
+    /// command of the workspace config.
     Exec {
         name: String,
-        #[arg(trailing_var_arg = true, required = true)]
+        #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
     },
     /// Send the last edits to the change, then delete the workspace directory. With --abandon the
@@ -256,7 +269,21 @@ fn print(v: &Value) -> Result<()> {
 
 fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
     match cmd {
-        WsCmd::Create { name, agent, intent, base, strategy, layers, no_layers, setup, git } => {
+        WsCmd::Create {
+            name,
+            agent,
+            intent,
+            base,
+            strategy,
+            layers,
+            no_layers,
+            setup,
+            git,
+            teardown,
+            run,
+            ports,
+            copy_from,
+        } => {
             let layers = if no_layers {
                 Some(vec![])
             } else if layers.is_empty() {
@@ -264,8 +291,21 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             } else {
                 Some(layers)
             };
-            let (ws, timing) =
-                node.create(&CreateOptions { name, agent, intent, base, strategy, layers, setup, git })?;
+            let o = CreateOptions {
+                name,
+                agent,
+                intent,
+                base,
+                strategy,
+                layers,
+                setup,
+                git,
+                teardown,
+                run,
+                ports,
+                copy_from,
+            };
+            let (ws, timing) = node.create(&o)?;
             let mut v = serde_json::to_value(&ws)?;
             v["timing"] = timing;
             print(&v)?;
@@ -291,6 +331,13 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         WsCmd::Path { name } => println!("{}", node.get(&name)?.dir.display()),
         WsCmd::Exec { name, cmd } => {
             let ws = node.get(&name)?;
+            let cmd = match (cmd.is_empty(), &ws.run) {
+                (false, _) => cmd,
+                (true, Some(run)) => vec!["sh".into(), "-c".into(), run.clone()],
+                (true, None) => anyhow::bail!(
+                    "no command: write one after `--`, or set `run` in .treeyard/workspace.toml (or create --run)"
+                ),
+            };
             let status = std::process::Command::new(&cmd[0])
                 .args(&cmd[1..])
                 .current_dir(&ws.dir)

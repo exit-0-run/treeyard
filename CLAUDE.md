@@ -11,9 +11,9 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
 - Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`,
   `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`.
-- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`): `treeyard workspace create NAME
-  [--setup CMD] [--layer DIR=LOCK]`, `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`, `remove
-  [--abandon]`; `treeyard daemon` syncs every workspace after edits settle. `make bench-cow`.
+- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
+  [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
+  `remove [--abandon]`; repo config `.treeyard/workspace.toml`; `treeyard daemon` syncs after edits settle. `make bench-cow`.
 - Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
   `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.
@@ -54,7 +54,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `tests/swarm.rs`, `tests/replay.rs` | phase-1 gate: 50 agents, merges = `git merge-tree`; synthetic replay (stale, stacked, intents) |
 | `tests/coordination.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
-| `tests/workspace.rs` | create/sync/remove, every clone strategy, layer reuse, ports, daemon, CLI shell flow; overlay (Linux, root) |
+| `tests/workspace.rs`, `tests/workspace_lifecycle.rs` | create/sync/remove, clone strategies, layers, ports, daemon, CLI; overlay (Linux, root); repo config |
 | `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff |
 | `tests/hardening.rs`, `tests/fuzz_history.rs` | kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
 | `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py` | phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |
