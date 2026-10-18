@@ -49,13 +49,13 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/replay.rs` | `treeyard replay`: real history in waves of N agents, stale or stacked, checked against git |
 | `src/history.rs`, `src/blame.rs`, `src/xdiff.rs` | mainline + changed-path index, `log`; blame cached per (changeset, path); git's Myers diff port |
 | `src/search.rs`, `src/symbols.rs`, `src/indexer.rs` | trigram grep index; tree-sitter symbols; eager background indexing |
-| `src/bisect.rs`, `src/auth.rs`, `src/audit.rs` | server-side bisect; API tokens with path globs; audit log |
+| `src/bisect.rs`, `src/auth.rs`, `src/audit.rs`, `src/attach.rs` | server-side bisect; API tokens with path globs; audit log; attachments (redacted) → git notes on land |
 | `src/apidoc.rs` | docs/api.md from `rpc::tools()`; `GROUPS` must list every operation once |
 | `tests/swarm.rs`, `tests/replay.rs` | phase-1 gate: 50 agents, merges = `git merge-tree`; synthetic replay (stale, stacked, intents) |
 | `tests/coordination.rs`, `tests/conflicts.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard; `keep_conflicted` |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
 | `tests/workspace.rs`, `tests/checkpoints.rs` | create/sync/remove, every clone strategy, layer reuse, ports, daemon, CLI shell flow; overlay (Linux, root); checkpoints, `restore_change`, `workspace restore` |
-| `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff |
+| `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/attachments.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; notes |
 | `tests/hardening.rs`, `tests/fuzz_history.rs` | kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
 | `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py` | phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |
 | `tests/docs.rs`, `tests/swarm_demo.rs`, `tests/claude_hooks.rs` | api.md, spec, links, demo SVG, README demo table; demo end to end; Claude Code worktree and checkpoint hooks |

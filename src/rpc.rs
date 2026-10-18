@@ -211,6 +211,14 @@ struct RestoreP {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct AttachP {
+    change: String,
+    kind: String,
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Changes {
     state: Option<String>,
 }
@@ -253,6 +261,7 @@ const AUDITED: &[&str] = &[
     "abandon",
     "checkpoint",
     "restore_change",
+    "attach",
     "revert",
     "export_change",
     "review_close",
@@ -638,6 +647,18 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             filter_change(&mut v["change"], c);
             Ok(v)
         }
+        "attach" => {
+            let a: AttachP = params(p)?;
+            owned(r, c, &a.change)?;
+            r.attach(&a.change, &a.kind, &a.text)
+        }
+        "attachments" => {
+            let a: ChangeId = params(p)?;
+            if !c.reads_all() {
+                owned(r, c, &a.change)?;
+            }
+            r.attachments(&a.change)
+        }
         "change" => {
             let a: ChangeId = params(p)?;
             let ch = r.change(&a.change)?;
@@ -969,6 +990,18 @@ pub fn tools() -> Vec<Value> {
             "checkpoint",
             "Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).",
             json!({"change": change, "label": {"type": "string", "description": "a short note, e.g. the turn or the step"}}),
+            &["change"],
+        ),
+        tool(
+            "attach",
+            "Store a transcript, summary or note with an open change (up to 256 KiB each), so a later agent can read why the code changed. Lines that look like secrets (sk-, ghp_, github_pat_, AKIA, xox tokens, key = value secrets, private key blocks) are dropped; the reply says how many. On land it becomes a git note on the landed commit (refs/notes/treeyard).",
+            json!({"change": change, "kind": {"type": "string", "enum": ["transcript", "summary", "note"]}, "text": {"type": "string"}}),
+            &["change", "kind", "text"],
+        ),
+        tool(
+            "attachments",
+            "The attachments of a change, oldest first, and for a landed change the git note that holds them (git notes --ref=treeyard show <commit>).",
+            json!({"change": change}),
             &["change"],
         ),
         tool(

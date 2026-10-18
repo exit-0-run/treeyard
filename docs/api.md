@@ -21,7 +21,7 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Read without a checkout: [`status`](#status), [`read`](#read), [`list`](#list), [`tree`](#tree), [`blobs`](#blobs), [`grep`](#grep), [`diff`](#diff)
 - History and code intelligence: [`log`](#log), [`blame`](#blame), [`symbols`](#symbols), [`outline`](#outline), [`bisect`](#bisect)
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
-- Checkpoints: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change)
+- Checkpoints and attachments: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change), [`attach`](#attach), [`attachments`](#attachments)
 - Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
 - Access and audit: [`whoami`](#whoami), [`token_create`](#token_create), [`token_list`](#token_list), [`token_revoke`](#token_revoke), [`audit`](#audit)
@@ -312,7 +312,7 @@ Undo a landed changeset: opens a change with the inverse and lands it.
 treeyard call revert '{"changeset": "<changeset id>"}'
 ```
 
-## Checkpoints
+## Checkpoints and attachments
 
 ### checkpoint
 
@@ -350,6 +350,32 @@ Undo inside an open change: make a new head whose tree equals an earlier state. 
 
 ```sh
 treeyard call restore_change '{"change": "ch_...", "to": 2}'
+```
+
+### attach
+
+Store a transcript, summary or note with an open change (up to 256 KiB each), so a later agent can read why the code changed. Lines that look like secrets (sk-, ghp_, github_pat_, AKIA, xox tokens, key = value secrets, private key blocks) are dropped; the reply says how many. On land it becomes a git note on the landed commit (refs/notes/treeyard).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `kind` | one of `transcript`, `summary`, `note` | yes |  |
+| `text` | string | yes |  |
+
+```sh
+treeyard call attach '{"change": "ch_...", "kind": "summary", "text": "why: the parser dropped a trailing comma"}'
+```
+
+### attachments
+
+The attachments of a change, oldest first, and for a landed change the git note that holds them (git notes --ref=treeyard show <commit>).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+
+```sh
+treeyard call attachments '{"change": "ch_..."}'
 ```
 
 ## Inspect changes

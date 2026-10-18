@@ -36,6 +36,7 @@ impl Store {
             crate::symbols::SCHEMA,
             crate::auth::SCHEMA,
             crate::audit::SCHEMA,
+            crate::attach::SCHEMA,
         ] {
             conn.execute_batch(schema)?;
         }

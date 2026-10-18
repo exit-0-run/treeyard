@@ -261,6 +261,9 @@ impl Repo {
         let main = inner.main()?;
         let commit = inner.commit_for(&main)?;
         inner.odb.update_ref(&format!("refs/heads/{}", inner.branch), &commit)?;
+        if let Some(notes) = inner.store.get_ref("notes")? {
+            inner.odb.update_ref(crate::attach::NOTES_REF, &notes)?;
+        }
         let auth = crate::auth::Auth::open(&db)?;
         Ok(Self { inner: Mutex::new(inner), git_dir, events: Events::default(), auth })
     }
@@ -1081,6 +1084,7 @@ impl Inner {
         crate::failpoint::hit("land:after-db");
         self.odb.update_ref(&format!("refs/heads/{}", self.branch), &commit)?;
         crate::failpoint::hit("land:after-ref");
+        let notes = self.notes_after_land(id, &ch.head, &commit);
         self.forget(id);
         self.emit(
             "landed",
@@ -1091,7 +1095,7 @@ impl Inner {
         let rebased = self.continuous_rebase()?;
         Ok(json!({
             "status": "landed", "change": ch.id, "changeset": ch.head, "commit": commit, "merged_from": merged_from,
-            "drivers": report.drivers, "reviews": reviews, "rebased": rebased,
+            "drivers": report.drivers, "reviews": reviews, "rebased": rebased, "notes": notes,
         }))
     }
 

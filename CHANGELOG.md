@@ -14,6 +14,8 @@ version; the rename comes in a later version.
   marks one checkpoint per turn (`examples/claude-code/checkpoint.sh`).
 - `[coordination] keep_conflicted = true`: a conflicted change keeps rebasing and taking edits;
   `land` waits until its conflicts are resolved. Default off (the old rule).
+- Agent transcripts per change: `attach` (transcript, summary or note; lines that look like secrets
+  are dropped) and `attachments`; on land they become a git note under `refs/notes/treeyard`.
 
 ## [0.1.0] - not released yet
 
