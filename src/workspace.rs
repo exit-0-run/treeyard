@@ -152,6 +152,19 @@ impl WsConfig {
     }
 }
 
+/// Where a workspace is in its life. `create` goes creating -> setting_up -> ready, or ends in
+/// failed (the record and the logs stay); `remove` marks it removing before the directory goes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WsState {
+    Creating,
+    SettingUp,
+    #[default]
+    Ready,
+    Removing,
+    Failed,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Workspace {
     pub name: String,
@@ -171,6 +184,20 @@ pub struct Workspace {
     /// Default command of `exec`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run: Option<String>,
+    #[serde(default)]
+    pub state: WsState,
+    /// What a failed create or setup said.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    /// `<home>/logs/<name>.create.log`: one line per create step with its time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub create_log: Option<PathBuf>,
+    /// `<home>/logs/<name>.setup.log`: output of the setup command.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup_log: Option<PathBuf>,
+    /// Files cloned, layers restored and saved, files copied, seconds.
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub counts: Value,
 }
 
 impl Workspace {
@@ -301,6 +328,28 @@ fn lock(path: &Path) -> Result<Lock> {
     let f = fs::File::options().create(true).truncate(false).write(true).open(path)?;
     f.lock().with_context(|| format!("lock {}", path.display()))?;
     Ok(Lock(f))
+}
+
+/// A step log: one line per step, with the seconds since it was opened.
+struct StepLog {
+    path: PathBuf,
+    file: fs::File,
+    t0: Instant,
+}
+
+impl StepLog {
+    fn open(path: &Path) -> Result<Self> {
+        if let Some(p) = path.parent() {
+            fs::create_dir_all(p)?;
+        }
+        let file = fs::File::create(path).with_context(|| format!("create {}", path.display()))?;
+        Ok(StepLog { path: path.to_path_buf(), file, t0: Instant::now() })
+    }
+
+    fn line(&mut self, text: &str) {
+        use std::io::Write;
+        let _ = writeln!(self.file, "{:8.3} s  {text}", self.t0.elapsed().as_secs_f64());
+    }
 }
 
 impl Node {
@@ -606,6 +655,9 @@ impl Node {
         bail!("no free block of {n} ports")
     }
 
+    /// Opens a change and makes its workspace. The record is written first (state `creating`),
+    /// so `list` shows a create in progress; a failed step leaves state `failed`, the error and
+    /// `create_log`, and `remove` cleans up.
     pub fn create(&self, o: &CreateOptions) -> Result<(Workspace, Value)> {
         let t0 = Instant::now();
         check_rel(&o.name).map_err(|_| anyhow!("bad workspace name {:?}", o.name))?;
@@ -625,11 +677,57 @@ impl Node {
         )?;
         let change = ch["id"].as_str().context("open_change reply")?.to_string();
         let base = ch["base"].as_str().context("open_change reply")?.to_string();
+        let mut ws = Workspace {
+            name: o.name.clone(),
+            url: self.url.clone(),
+            agent: o.agent.clone(),
+            change: change.clone(),
+            base: base.clone(),
+            dir: dir.clone(),
+            strategy: o.strategy,
+            slot: 0,
+            ports: (0, 0),
+            layers: vec![],
+            created: crate::repo::now(),
+            teardown: None,
+            run: None,
+            state: WsState::Creating,
+            error: None,
+            create_log: None,
+            setup_log: None,
+            counts: Value::Null,
+        };
+        let mut log = StepLog::open(&self.home.join("logs").join(format!("{}.create.log", o.name)))?;
+        ws.create_log = Some(log.path.clone());
+        {
+            let _l = lock(&self.home.join("node.lock"))?;
+            if self.meta_path(&o.name).exists() {
+                bail!("workspace {} already exists", o.name);
+            }
+            fs::create_dir_all(self.home.join("meta"))?;
+            write_json(&self.meta_path(&o.name), &ws)?;
+        }
+        log.line(&format!("change {change} on base {base}"));
+        match self.create_steps(o, &mut ws, &mut log, t0) {
+            Ok(timing) => Ok((ws, timing)),
+            Err(e) => {
+                log.line(&format!("failed: {e:#}"));
+                ws.state = WsState::Failed;
+                ws.error = Some(format!("{e:#}"));
+                let _ = write_json(&self.meta_path(&o.name), &ws);
+                Err(e.context(format!("workspace {} failed (log: {})", o.name, log.path.display())))
+            }
+        }
+    }
+
+    fn create_steps(&self, o: &CreateOptions, ws: &mut Workspace, log: &mut StepLog, t0: Instant) -> Result<Value> {
+        let (base, dir) = (ws.base.clone(), ws.dir.clone());
         let (base_dir, state) = self.base(&base)?;
         if o.git {
             self.git_base(&base)?;
         }
         let t_base = t0.elapsed().as_secs_f64();
+        log.line(&format!("base ready: {} files", state.len()));
         // CLI options, then the node's workspace.toml, then the repo's .treeyard/workspace.toml.
         let cfg = self.config(&base_dir)?;
         let setup = o.setup.clone().or(cfg.setup.clone());
@@ -643,7 +741,7 @@ impl Node {
         } else {
             None
         };
-        let strategy = if let Some(s) = spare {
+        ws.strategy = if let Some(s) = spare {
             s
         } else if o.strategy == Strategy::Overlay {
             cow::overlay_mount(&base_dir, &dir)?;
@@ -655,30 +753,18 @@ impl Node {
             cow::clone_tree(&base_dir, &dir, o.strategy)?
         };
         let t_clone = t0.elapsed().as_secs_f64() - t_base;
-        let mut ws = {
+        log.line(&format!("cloned {} files ({}, spare: {})", state.len(), ws.strategy.as_str(), spare.is_some()));
+        ws.teardown = o.teardown.clone().or(cfg.teardown.clone());
+        ws.run = o.run.clone().or(cfg.run.clone());
+        {
             let _l = lock(&self.home.join("node.lock"))?;
             let n = o.ports.or(cfg.ports).unwrap_or(self.port_block);
             let (slot, lo) = self.free_ports(n)?;
-            let ws = Workspace {
-                name: o.name.clone(),
-                url: self.url.clone(),
-                agent: o.agent.clone(),
-                change: change.clone(),
-                base: base.clone(),
-                dir: dir.clone(),
-                strategy,
-                slot,
-                ports: (lo, lo + n - 1),
-                layers: vec![],
-                created: crate::repo::now(),
-                teardown: o.teardown.clone().or(cfg.teardown.clone()),
-                run: o.run.clone().or(cfg.run.clone()),
-            };
-            fs::create_dir_all(self.home.join("meta"))?;
+            (ws.slot, ws.ports) = (slot, (lo, lo + n - 1));
             write_json(&self.state_path(&o.name), &state)?;
-            write_json(&self.meta_path(&o.name), &ws)?;
-            ws
-        };
+            write_json(&self.meta_path(&o.name), &*ws)?;
+        }
+        log.line(&format!("ports {}-{}", ws.ports.0, ws.ports.1));
         fs::create_dir_all(dir.join(PRIVATE))?;
         let env: String = ws.env().iter().map(|(k, v)| format!("{k}={v}\n")).collect();
         fs::write(dir.join(PRIVATE).join("env"), env)?;
@@ -686,33 +772,36 @@ impl Node {
         // Gitignored files (`.env`, certificates) from a source directory, before the setup needs them.
         let from = o.copy_from.clone().or(cfg.copy_from.as_deref().map(expand_home));
         let copied = self.copy_in(from.as_deref(), cfg.copy.as_deref().unwrap_or_default(), &dir, &state)?;
+        let n_copied = copied["copied"].as_array().map_or(0, Vec::len);
+        if !copied.is_null() {
+            log.line(&format!("copied {n_copied} gitignored files"));
+        }
 
         // Dependency layers: restore what exists (a spare has them), run the setup, save what was missing.
+        ws.state = WsState::SettingUp;
+        write_json(&self.meta_path(&o.name), &*ws)?;
         let mut layers = Vec::new();
         for (spec, key) in keys {
             // A saved layer is immutable (written to a temp dir, then renamed), so no lock.
             let restored = spare.is_some() || self.restore_layer(&dir, &spec, &key)?;
+            log.line(&format!("layer {} {key}: {}", spec.dir, if restored { "restored" } else { "missing" }));
             layers.push((spec, key, restored));
         }
         let t_layers = t0.elapsed().as_secs_f64() - t_base - t_clone;
         let mut setup_s = 0.0;
         if let Some(cmd) = &setup {
             let t = Instant::now();
-            let out = std::process::Command::new("sh")
-                .args(["-c", cmd])
-                .current_dir(&dir)
-                .envs(ws.env())
-                .output()
-                .context("run setup")?;
+            let (ok, path) = self.run_logged(ws, "setup", cmd)?;
             setup_s = t.elapsed().as_secs_f64();
-            if !out.status.success() {
-                bail!(
-                    "setup {cmd:?} failed in {}: {}",
-                    dir.display(),
-                    String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("")
-                );
+            ws.setup_log = Some(path.clone());
+            log.line(&format!("setup {cmd:?}: {} in {setup_s:.3} s", if ok { "ok" } else { "failed" }));
+            if !ok {
+                let text = fs::read_to_string(&path).unwrap_or_default();
+                let last = text.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("");
+                bail!("setup {cmd:?} failed in {}: {last} (output: {})", dir.display(), path.display());
             }
         }
+        let mut saved = 0;
         for (spec, key, restored) in &layers {
             let paths = if *restored || setup.is_none() {
                 vec![]
@@ -720,15 +809,23 @@ impl Node {
                 let _l = lock(&self.home.join("node.lock"))?;
                 self.save_layer(&dir, spec, key, &state)?
             };
+            saved += usize::from(!paths.is_empty());
             ws.layers
                 .push(json!({"dir": spec.dir, "keys": spec.keys, "key": key, "restored": restored, "saved": paths}));
         }
-        write_json(&self.meta_path(&o.name), &ws)?;
-        let timing = json!({
-            "base_s": round(t_base), "clone_s": round(t_clone), "layers_s": round(t_layers), "setup_s": round(setup_s),
-            "total_s": round(t0.elapsed().as_secs_f64()), "spare": spare.is_some(), "copy": copied,
+        let total = round(t0.elapsed().as_secs_f64());
+        let restored = layers.iter().filter(|l| l.2).count();
+        ws.counts = json!({
+            "files": state.len(), "layers_restored": restored, "layers_saved": saved, "files_copied": n_copied,
+            "seconds": total,
         });
-        Ok((ws, timing))
+        ws.state = WsState::Ready;
+        write_json(&self.meta_path(&o.name), &*ws)?;
+        log.line(&format!("ready in {total} s"));
+        Ok(json!({
+            "base_s": round(t_base), "clone_s": round(t_clone), "layers_s": round(t_layers), "setup_s": round(setup_s),
+            "total_s": total, "spare": spare.is_some(), "copy": copied,
+        }))
     }
 
     /// Copies gitignored files that match `globs` or the lines of `.worktreeinclude` from `from`
@@ -949,7 +1046,9 @@ impl Node {
         }
         let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
         let mut synced = Value::Null;
-        if !abandon && ws.dir.exists() {
+        // A create cut short in `creating` has no edits yet (and maybe no stat cache to compare).
+        let has_edits = ws.dir.exists() && ws.state != WsState::Creating && self.state_path(name).exists();
+        if !abandon && has_edits {
             match self.sync_locked(name, &ws) {
                 Ok(s) => synced = s,
                 Err(e) if force => synced = json!({"error": format!("{e:#}")}),
@@ -968,6 +1067,9 @@ impl Node {
             };
         }
         fs::write(self.removing_path(name), b"")?;
+        let mut ws = ws;
+        ws.state = WsState::Removing;
+        write_json(&self.meta_path(name), &ws)?;
         self.delete_files(&ws)?;
         let mut abandoned = false;
         if abandon {
@@ -988,7 +1090,11 @@ impl Node {
     }
 
     fn delete_files(&self, ws: &Workspace) -> Result<()> {
-        if ws.strategy == Strategy::Overlay { cow::overlay_unmount(&ws.dir) } else { cow::remove_tree(&ws.dir) }
+        if ws.strategy == Strategy::Overlay && ws.dir.exists() {
+            cow::overlay_unmount(&ws.dir)
+        } else {
+            cow::remove_tree(&ws.dir)
+        }
     }
 
     fn forget(&self, name: &str) -> Result<()> {
@@ -1030,6 +1136,9 @@ impl Node {
     /// `sync` for a caller that holds the workspace lock.
     fn sync_locked(&self, name: &str, ws: &Workspace) -> Result<Value> {
         let t0 = Instant::now();
+        if ws.state == WsState::Creating {
+            bail!("workspace {name:?} is still being created; sync it when `list` shows it ready");
+        }
         let mut state: State = read_json(&self.state_path(name))?;
         let layer_dirs: BTreeSet<String> =
             ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();

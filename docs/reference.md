@@ -38,7 +38,8 @@ so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME
 `spare`, `remove [--abandon] [--force]` (sends the last edits first; refuses without `--force` when it cannot).
 A repo file `.treeyard/workspace.toml` (node override `<home>/workspace.toml`) sets `setup`, `teardown`,
 `layers`, `copy` and `copy_from` (gitignored files such as `.env`), `ports` and `run`; the flags
-`--setup`, `--teardown`, `--run`, `--ports N`, `--copy-from DIR` override it. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
+`--setup`, `--teardown`, `--run`, `--ports N`, `--copy-from DIR` override it. Each record has a `state` (`creating`,
+`setting_up`, `ready`, `removing`, `failed`), `create_log`, `setup_log` and `counts`. Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against

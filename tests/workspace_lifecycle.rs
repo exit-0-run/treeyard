@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use treeyard::repo::Repo;
-use treeyard::workspace::{CreateOptions, Node};
+use treeyard::workspace::{CreateOptions, Node, WsState};
 
 fn server(root: &Path, extra: &[(&str, &str)]) -> String {
     let src = fixture_repo(root, 5, 20, extra);
@@ -125,4 +125,46 @@ fn copy_without_a_source_is_reported() {
     let node = Node::new(tmp.path().join("node2"), &url);
     let e = format!("{:#}", node.create(&opts("b")).unwrap_err());
     assert!(e.contains("workspace.toml") && e.contains("setpu"), "{e}");
+}
+
+#[test]
+fn create_records_state_counts_and_logs() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[(".gitignore", "*.out\n")]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (ws, _) =
+        node.create(&CreateOptions { setup: Some("echo hello; echo x > x.out".into()), ..opts("a") }).unwrap();
+    assert_eq!(ws.state, WsState::Ready);
+    assert_eq!(ws.counts["files"], 6, "{}", ws.counts);
+    let listed = serde_json::to_value(node.list().unwrap()).unwrap();
+    assert_eq!(listed[0]["state"], "ready", "{listed}");
+    let create_log = fs::read_to_string(ws.create_log.as_ref().unwrap()).unwrap();
+    for step in ["base ready", "cloned 6 files", "setup", "ready in"] {
+        assert!(create_log.contains(step), "{step:?} missing in {create_log}");
+    }
+    assert_eq!(fs::read_to_string(ws.setup_log.as_ref().unwrap()).unwrap(), "hello\n");
+
+    // A failed setup leaves state failed, the error and a readable log; remove still cleans up.
+    let bad = CreateOptions { setup: Some("echo step one; echo boom >&2; exit 2".into()), ..opts("b") };
+    let e = format!("{:#}", node.create(&bad).unwrap_err());
+    assert!(e.contains("boom") && e.contains("b.setup.log"), "{e}");
+    let b = node.get("b").unwrap();
+    assert_eq!(b.state, WsState::Failed);
+    assert!(b.error.as_deref().unwrap().contains("boom"));
+    assert_eq!(fs::read_to_string(b.setup_log.as_ref().unwrap()).unwrap(), "step one\nboom\n");
+    assert!(fs::read_to_string(b.create_log.as_ref().unwrap()).unwrap().contains("failed: setup"));
+    node.remove("b", true, false).unwrap();
+    assert!(!b.dir.exists());
+
+    // A create cut short in `creating` never syncs (its files are not edits); remove cleans it up.
+    let (c, _) = node.create(&opts("c")).unwrap();
+    let meta = tmp.path().join("node/meta/c.json");
+    let mut rec: Value = serde_json::from_slice(&fs::read(&meta).unwrap()).unwrap();
+    rec["state"] = json!("creating");
+    fs::write(&meta, rec.to_string()).unwrap();
+    fs::remove_file(c.dir.join("f00.txt")).unwrap();
+    assert!(node.sync("c").unwrap_err().to_string().contains("still being created"));
+    let r = node.remove("c", false, false).unwrap();
+    assert!(r["synced"].is_null(), "{r}");
+    assert!(read_at(&url, &c.change, "f00.txt")["content"].is_string(), "no deletion was sent");
 }

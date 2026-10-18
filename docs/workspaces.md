@@ -70,6 +70,23 @@ run `make`. Create workspaces only from repos whose main you trust. Commands tha
 of the landing queue, regenerate drivers) are never read from the repo: they stay in
 `<data>/treeyard.toml` ([docs/coordination.md](coordination.md)).
 
+## States and logs
+
+The record `meta/NAME.json` has a `state`. `workspace list` shows it with the other fields.
+
+| State | Meaning |
+|---|---|
+| `creating` | the change is open; the base, the clone, the ports and the copied files are in progress |
+| `setting_up` | layers are restored and the setup command runs |
+| `ready` | done; only a ready workspace is synced by the daemon |
+| `removing` | `remove` sent the last edits and deletes the directory |
+| `failed` | a step failed: `error` holds the message; the record and the directory stay until `remove` |
+
+`create_log` (`<home>/logs/NAME.create.log`) has one line per step with the seconds since the start.
+`setup_log` (`<home>/logs/NAME.setup.log`) has the output of the setup command. `counts` has `files`
+(files cloned), `layers_restored`, `layers_saved`, `files_copied` and `seconds`. A sync of a workspace in
+`creating` is refused, and `remove` of such a workspace does not sync (it has no edits yet).
+
 ## Clone strategies (`--strategy`)
 
 | Strategy | Platform | How | Tested |
@@ -132,7 +149,7 @@ layers/<dir>-<key>/       dependency dirs at their workspace paths; <dir>-<key>.
 spares/<id>/              warm pool; <id>.json = base, layer keys, git
 ws/<name>/                the workspace; ws/<name>/.treeyard/env
 meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
-logs/<name>.<step>.log    output of teardown
+logs/<name>.<step>.log    create (steps), setup and teardown output
 workspace.toml            node config; overrides the repo's .treeyard/workspace.toml
 git.cache/                bare git cache for --git
 ```

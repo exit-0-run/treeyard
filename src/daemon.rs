@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::workspace::{Node, PRIVATE};
+use crate::workspace::{Node, PRIVATE, WsState};
 
 pub struct Options {
     /// Quiet time after the last event before a workspace syncs.
@@ -101,7 +101,8 @@ pub fn run(node: &Node, o: &Options, stop: Arc<AtomicBool>, log: &mut dyn FnMut(
             dirty.iter().filter(|(_, t)| t.elapsed() >= o.debounce).map(|(n, _)| n.clone()).collect();
         for name in ready {
             dirty.remove(&name);
-            if node.get(&name).is_err() {
+            // Only ready workspaces: a create or setup in progress writes files that are not edits yet.
+            if node.get(&name).map_or(true, |w| w.state != WsState::Ready) {
                 continue;
             }
             match node.sync(&name) {
