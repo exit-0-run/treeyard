@@ -135,6 +135,11 @@ impl Store {
         Ok(())
     }
 
+    pub fn delete_ref(&self, name: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM refs WHERE name = ?1", [name])?;
+        Ok(())
+    }
+
     pub fn commit_of(&self, changeset: &str) -> Result<Option<String>> {
         Ok(self
             .conn

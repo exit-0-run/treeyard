@@ -1,0 +1,219 @@
+[git] agent 3 (intersperse_trailing) exited 0 after 75 s
+[git] agent 8 (argmax_default) exited 0 after 93 s
+[git] agent 7 (one_default) exited 0 after 111 s
+[git] agent 1 (chunked_as_tuples) exited 0 after 140 s
+[git] agent 4 (lstrip_value) exited 0 after 160 s
+[git] agent 2 (intersperse_leading) exited 0 after 188 s
+[git] agent 10 (iterate_times) exited 0 after 207 s
+[git] agent 0 (chunked_fillvalue) exited 0 after 227 s
+[git] agent 13 (last_too_short) exited 0 after 249 s
+[git] agent 6 (one_pred) exited 0 after 273 s
+[git] agent 9 (argmax_last) exited 0 after 296 s
+[git] agent 5 (lstrip_limit) exited 0 after 318 s
+[git] agent 14 (split_into_fillvalue) exited 0 after 340 s
+[git] agent 11 (iterate_until) exited 0 after 364 s
+[git] agent 16 (powerset_min_size) exited 0 after 389 s
+[git] agent 18 (tabulate_step) exited 0 after 421 s
+[git] agent 20 (interleave_longest_fillvalue) exited 0 after 442 s
+[git] agent 21 (locate_value) exited 0 after 474 s
+[git] agent 22 (replace_negative_count) exited 0 after 496 s
+[git] agent 15 (split_into_rest) exited 0 after 527 s
+[git] agent 12 (last_pred) exited 0 after 549 s
+[git] agent 17 (powerset_max_size) exited 0 after 586 s
+[git] agent 23 (side_effect_chunk_size) exited 0 after 611 s
+[git] agent 24 (collapse_negative_levels) exited 0 after 635 s
+[git] agent 19 (tabulate_stop) exited 0 after 662 s
+[git] agent 25 (peekable_length_hint) exited 0 after 723 s
+[git] agent 27 (distinct_permutations_negative_r) exited 0 after 738 s
+[git] agent 26 (sample_weights_length) exited 0 after 788 s
+[git] agent 28 (interleave_evenly_negative_lengths) exited 0 after 805 s
+[git] agent 30 (substrings_reverse) exited 0 after 839 s
+[git] agent 31 (unique_to_each_key) exited 0 after 861 s
+[git] agent 32 (count_cycle_start) exited 0 after 887 s
+[git] agent 33 (nth_or_last_negative_n) exited 0 after 910 s
+[git] agent 34 (run_length_decode_negative) exited 0 after 926 s
+[git] agent 35 (map_if_pred_none) exited 0 after 969 s
+[git] agent 36 (consecutive_groups_step) exited 0 after 981 s
+[git] agent 37 (only_pred) exited 0 after 1001 s
+[git] agent 29 (duplicates_everseen_once) exited 0 after 1025 s
+[git] agent 38 (stagger_offsets_iterator) exited 0 after 1043 s
+[git] agent 39 (zip_offset_offsets_iterator) exited 0 after 1072 s
+[git] agent 40 (iequals_key) exited 0 after 1092 s
+[git] agent 41 (unzip_fillvalue) exited 0 after 1114 s
+[git] agent 42 (extract_default) exited 0 after 1142 s
+[git] agent 43 (partitions_k) exited 0 after 1188 s
+[git] agent 44 (tail_negative_n) exited 0 after 1245 s
+[git] agent 45 (grouper_validate_n) exited 0 after 1291 s
+[git] agent 46 (dotproduct_length_mismatch) exited 0 after 1331 s
+[git] agent 47 (totient_validate_n) exited 0 after 1407 s
+[git] agent 48 (quantify_pred_none) exited 0 after 1447 s
+[git] agent 49 (iter_index_negative_start) exited 0 after 1503 s
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 1.66,
+  "agents_wall_s": 1505.4,
+  "land_attempts": 62,
+  "landed": 50,
+  "conflicts": [
+    {
+      "branch": "task-intersperse_leading",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 11.4,
+      "t": 1792315709.756806
+    },
+    {
+      "branch": "task-chunked_fillvalue",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 62.27,
+      "t": 1792315770.1509218
+    },
+    {
+      "branch": "task-lstrip_limit",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 84.23,
+      "t": 1792315800.9549847
+    },
+    {
+      "branch": "task-argmax_last",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 83.97,
+      "t": 1792315801.4626443
+    },
+    {
+      "branch": "task-iterate_until",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 57.65,
+      "t": 1792315843.2892168
+    },
+    {
+      "branch": "task-last_pred",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 123.64,
+      "t": 1792315981.72607
+    },
+    {
+      "branch": "task-split_into_rest",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 113.9,
+      "t": 1792315982.1478503
+    },
+    {
+      "branch": "task-powerset_max_size",
+      "result": "conflict",
+      "files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi",
+        "tests/test_recipes.py"
+      ],
+      "waited_s": 118.77,
+      "t": 1792316022.510158
+    },
+    {
+      "branch": "task-tabulate_stop",
+      "result": "conflict",
+      "files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi",
+        "tests/test_recipes.py"
+      ],
+      "waited_s": 104.28,
+      "t": 1792316054.0863717
+    }
+  ],
+  "tests_failed_in_queue": 3,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "833 passed, 21249 subtests passed in 23.29s"
+    ],
+    "hidden_checks_passed": 60,
+    "hidden_checks": {
+      "chunked_fillvalue": true,
+      "chunked_as_tuples": true,
+      "chunked_both": true,
+      "intersperse_leading": true,
+      "intersperse_trailing": true,
+      "intersperse_both": true,
+      "lstrip_value": true,
+      "lstrip_limit": true,
+      "lstrip_both": true,
+      "one_pred": true,
+      "one_default": true,
+      "one_both": true,
+      "argmax_default": true,
+      "argmax_last": true,
+      "argmax_both": true,
+      "iterate_times": true,
+      "iterate_until": true,
+      "iterate_both": true,
+      "last_pred": true,
+      "last_too_short": true,
+      "last_both": true,
+      "split_into_fillvalue": true,
+      "split_into_rest": true,
+      "split_into_both": true,
+      "powerset_min_size": true,
+      "powerset_max_size": true,
+      "powerset_both": true,
+      "tabulate_step": true,
+      "tabulate_stop": true,
+      "tabulate_both": true,
+      "interleave_longest_fillvalue": true,
+      "locate_value": true,
+      "replace_negative_count": true,
+      "side_effect_chunk_size": true,
+      "collapse_negative_levels": true,
+      "peekable_length_hint": true,
+      "sample_weights_length": true,
+      "distinct_permutations_negative_r": true,
+      "interleave_evenly_negative_lengths": true,
+      "duplicates_everseen_once": true,
+      "substrings_reverse": true,
+      "unique_to_each_key": true,
+      "count_cycle_start": true,
+      "nth_or_last_negative_n": true,
+      "run_length_decode_negative": true,
+      "map_if_pred_none": true,
+      "consecutive_groups_step": true,
+      "only_pred": true,
+      "stagger_offsets_iterator": true,
+      "zip_offset_offsets_iterator": true,
+      "iequals_key": true,
+      "unzip_fillvalue": true,
+      "extract_default": true,
+      "partitions_k": true,
+      "tail_negative_n": true,
+      "grouper_validate_n": true,
+      "dotproduct_length_mismatch": true,
+      "totient_validate_n": true,
+      "quantify_pred_none": true,
+      "iter_index_negative_start": true
+    }
+  },
+  "model": "sonnet"
+}

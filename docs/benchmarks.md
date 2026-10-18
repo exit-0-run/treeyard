@@ -693,3 +693,22 @@ fixed above by reporting conflicts with main once.
 The first pilot found a bug: every land that needed a line merge failed, because `git merge-file
 --diff-algorithm` needs git 2.44 and the VM has 2.43. 0.1.1 falls back to merge-file's default diff
 (`tests/old_git.rs`). With 0.1.1 both arms fixed all 8 bugs, and the TreeYard agents were done 37 % sooner.
+
+### 50 agents, wide set, cloud (2026-10-18)
+
+`DEMO_SET=wide DEMO_POOL=10 sh examples/live-agents/cloud.sh wide50`: 50 tasks (`tasks_wide.py`: 10 pairs on
+one function each, 30 single tasks), 10 `claude -p` at a time, 60 hidden checks (`probes_wide.py`), same
+cloud VM as above. Results: `bench/results/live-agents/wide50/`.
+
+| Arm | All agents done after | Hidden checks | Final suite on main | Agent turns | Cost |
+|---|---|---|---|---|---|
+| git worktrees + merge queue | 1 505 s | 60 / 60 | passes | 483 | $6.62 |
+| TreeYard 0.1.1, optimistic | 4 393 s | 60 / 60 | 1 test fails | 516 | $6.16 |
+
+TreeYard lost this run, and the run found why. 16 of 17 failing test rounds found a culprit whose revert
+conflicted, because later changes had edited the same lines. Main stayed red; every step bisected again
+and found the same culprit; and every later change waited for a verdict until its agent's 600 s wait ran
+out, landed again and waited again (91 changes opened for 50 agents). Fixed after the run: a culprit that
+cannot be reverted stays on main as `red`, its owner gets `broke_main` and fixes forward, later changes get
+`main_red` at once, and a red main costs one test per step (`e_optimistic_mode_waits_for_a_fix_…`,
+docs/coordination.md).

@@ -26,6 +26,7 @@ sh "$ROOT/examples/live-agents/setup.sh"
 for arm in ${ARMS:-git treeyard}; do
   python3 "$ROOT/examples/live-agents/demo.py" "$arm" 2>&1 | tee "$OUT/$arm.log"
   cp "$DEMO_DIR"/results/*.json "$OUT/"
+  cp "$DEMO_DIR"/results/*.log "$OUT/" 2>/dev/null || true
   mkdir -p "$OUT/agents" && cp "$DEMO_DIR"/agents/*.json "$OUT/agents/" 2>/dev/null || true
   if [ -n "${PUSH_BRANCH:-}" ]; then  # push after each arm, so a reclaimed VM keeps the finished arm
     git -C "$ROOT" checkout -q -B "$PUSH_BRANCH"

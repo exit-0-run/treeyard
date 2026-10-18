@@ -186,9 +186,15 @@ timeout_s = 600
 - `optimistic`: `land` moves main at once. A step tests main. When it fails, it bisects the main
   changesets since the last green one, reverts the first failing changeset through the normal `revert`
   operation, and opens a `reverted_by_bisect` review task for its owner. Test `e_optimistic…`.
+  When that revert conflicts (later changes edited the same lines), the culprit stays on main as `red`
+  and its owner gets a `revert_failed` task: fix forward. While main is red, a step runs one test of main
+  and no bisect; when the owner's newest changeset passes, main is green there again and the next step
+  bisects only what landed after it. (The wide50 cloud run without this: every step bisected again, and
+  later changes waited for a verdict until their agents gave up.)
 
 `land_status {change}` tells an agent what happened after `land`: `verdict` = `passed`, `pending`,
 `queued`, `rejected` (with the failing `output`), `reverted` (with the `output` that made bisect revert it),
+`broke_main` (the same, but the revert conflicted), `main_red` (tested, but main is red from `red_change`),
 `not_tested` (direct mode), `open` or `abandoned`. `treeyard workspace land` polls it, so an agent that
 lands in optimistic mode learns about a revert before it stops.
 

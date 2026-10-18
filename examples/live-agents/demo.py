@@ -100,7 +100,8 @@ WHERE = ("more_itertools/more.py (and its type stub in more_itertools/more.pyi w
          "tests/test_more.py") if SET != "wide" else (
          "the module that defines the function, more_itertools/more.py or recipes.py (and its type\nstub, more.pyi or "
          "recipes.pyi, when the signature changes)", "tests/test_more.py or tests/test_recipes.py")
-ONLY = " -k NAME` (NAME: the function you changed; landing runs the whole suite)" if len(TASKS) > 16 else "`"
+ONLY = (" -k NAME` (NAME: the function you changed without underscores, for example mapif for map_if, since the\n"
+        "test classes are named like MapIfTests; landing runs the whole suite)") if len(TASKS) > 16 else "`"
 
 COMMON = """You are one of {n} coding agents that work on the more-itertools library at the same time, in the
 same repository. Your task: {title}.
@@ -127,10 +128,11 @@ read it with `treeyard call diff '{{"change": "<their change id>"}}'` and make y
 When the tests pass, run `treeyard workspace land {ws}`. If the reply has "status": "conflict", the
 conflicted files in this directory now hold conflict markers plus the work other agents already landed:
 resolve the markers (keep both sides' intent), run the tests, and run `treeyard workspace land {ws}`
-again. After a land the reply waits for the server's tests and has a "verdict": if it is "reverted" or
-"rejected", read its "output", fix your work here, run the tests, and run `treeyard workspace land {ws}`
-again (the workspace carries on by itself). You are done when the land status is "landed" and the
-verdict is "passed".
+again. After a land the reply waits for the server's tests and has a "verdict": if it is "reverted",
+"rejected" or "broke_main", read its "output", fix your work here, run the tests, and run `treeyard workspace
+land {ws}` again (the workspace carries on by itself). You are done when the land status is "landed" and the
+verdict is "passed", or "main_red" (your change is on main, and main's tests fail because of another
+agent's change, "red_change", which that agent is fixing).
 """
 
 ALLOWED = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git:*)", "Bash(python3:*)", f"Bash({PY}:*)",
@@ -192,6 +194,7 @@ def final_tests(repo):
     if SET == "bugs":  # one check per task: keep the checks of the tasks that ran (DEMO_N)
         probes = {k: v for k, v in probes.items() if k in {t[0] for t in TASKS} or k == "error"}
     return {"pytest_exit": r.returncode, "pytest_tail": r.stdout.strip().splitlines()[-1:],
+            "pytest_failed": [l for l in r.stdout.splitlines() if l.startswith(("FAILED", "ERROR"))][:20],
             "hidden_checks_passed": sum(v is True for v in probes.values()), "hidden_checks": probes}
 
 
@@ -278,7 +281,8 @@ def arm_treeyard():
               "events": {k: sum(e["kind"] == k for e in ev) for k in sorted({e["kind"] for e in ev})},
               "collision_pairs_warned": len({tuple(sorted(e.get("changes", []))) for e in ev if e["kind"] == "collision"}),
               "final": final_tests(final_dir)}
-    json.dump(ev, open(os.path.join(T, "events.json"), "w"), indent=1)
+    json.dump(ev, open(os.path.join(D, "results", f"{SET}-treeyard-events.json"), "w"), indent=1)
+    shutil.copy(os.path.join(T, "serve.log"), os.path.join(D, "results", f"{SET}-treeyard-serve.log"))
     daemon.terminate()
     serve.terminate()
     return result

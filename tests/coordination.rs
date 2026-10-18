@@ -421,6 +421,49 @@ fn e_optimistic_mode_bisects_and_reverts_through_the_api() {
 }
 
 #[test]
+fn e_optimistic_mode_waits_for_a_fix_when_the_culprit_cannot_be_reverted() {
+    // The wide50 cloud run: a culprit whose revert conflicts kept main red, every step bisected again,
+    // and every later change stayed "pending" until its agent gave up waiting.
+    let tmp = tempfile::tempdir().unwrap();
+    let (_repo, url) = setup(tmp.path(), &NOT_BROKEN.replace("{mode}", "optimistic"), &[]);
+    let land = |agent: &str, path: &str, body: &str| {
+        let ch = id(&open(&url, agent, json!({})));
+        write(&url, &ch, path, body);
+        let r = call(&url, "land", json!({"change": ch}));
+        assert_eq!(r["status"], "landed", "{r}");
+        (ch, r["changeset"].as_str().unwrap().to_string())
+    };
+    let (c1, cs1) = land("a", "f01.txt", "BROKEN\n");
+    land("b", "f01.txt", "BROKEN too\n"); // the same line: the revert of c1 conflicts
+    let (c3, _) = land("c", "f02.txt", "fine\n");
+    let step = call(&url, "test_main", json!({}));
+    assert_eq!((step["status"].as_str(), step["culprit"].as_str()), (Some("red"), Some(cs1.as_str())), "{step}");
+    assert_ne!(step["revert"]["status"], "landed", "{step}");
+    let st = call(&url, "land_status", json!({"change": c1}));
+    assert_eq!(st["verdict"], "broke_main", "{st}");
+    let st = call(&url, "land_status", json!({"change": c3}));
+    assert_eq!((st["verdict"].as_str(), st["red_change"].as_str()), (Some("main_red"), Some(c1.as_str())), "{st}");
+
+    // While red, a new main costs one test and no bisect.
+    let (c4, _) = land("d", "f03.txt", "ok\n");
+    let step = call(&url, "test_main", json!({}));
+    assert_eq!((step["status"].as_str(), step["known"].as_bool()), (Some("red"), Some(true)), "{step}");
+    assert_eq!(step["tests"].as_array().unwrap().len(), 1, "{step}");
+    assert_eq!(call(&url, "land_status", json!({"change": c4}))["verdict"], "main_red");
+
+    // The culprit's agent fixes forward while another agent breaks a different file.
+    land("a", "f01.txt", "fixed\n");
+    let (_c6, cs6) = land("e", "f00.txt", "BROKEN\n");
+    assert_eq!(call(&url, "test_main", json!({}))["status"], "fixed");
+    assert_eq!(call(&url, "land_status", json!({"change": c1}))["verdict"], "passed");
+    let step = call(&url, "test_main", json!({}));
+    assert_eq!((step["status"].as_str(), step["culprit"].as_str()), (Some("red"), Some(cs6.as_str())), "{step}");
+    assert_eq!(step["revert"]["status"], "landed", "{step}");
+    assert_eq!(call(&url, "test_main", json!({}))["status"], "green");
+    assert_eq!(call(&url, "land_status", json!({"change": c3}))["verdict"], "passed");
+}
+
+#[test]
 fn f_guard_flags_an_edit_that_a_rebase_makes_vanish() {
     // History: c1 adds a stray dbg! line, c2 removes it. An agent does c2 on top of c1 while
     // main is still before c1, the replay finding: its fix lands first and becomes a no-op.

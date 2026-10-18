@@ -437,7 +437,7 @@ treeyard call changes '{}'
 
 ### land_status
 
-What happened to a change after land: verdict passed, pending, queued, rejected, reverted, not_tested; test output when it failed.
+What happened to a change after land: verdict passed, pending, queued, rejected, reverted, broke_main (its revert conflicted: fix forward), main_red (tested, but main is red from red_change), not_tested; test output when it failed.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
