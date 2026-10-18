@@ -96,14 +96,17 @@ POOL = int(os.environ.get("DEMO_POOL", len(TASKS)))
 LIMIT_S = 2400 if len(TASKS) <= 16 else 5400  # one agent's wall-clock limit
 # With many agents on few cores, each agent runs only the tests of its function; the merge queue and
 # TreeYard's landing still run the whole suite.
+WHERE = ("more_itertools/more.py (and its type stub in more_itertools/more.pyi when the\nsignature changes)",
+         "tests/test_more.py") if SET != "wide" else (
+         "the module that defines the function, more_itertools/more.py or recipes.py (and its type\nstub, more.pyi or "
+         "recipes.pyi, when the signature changes)", "tests/test_more.py or tests/test_recipes.py")
 ONLY = " -k NAME` (NAME: the function you changed; landing runs the whole suite)" if len(TASKS) > 16 else "`"
 
 COMMON = """You are one of {n} coding agents that work on the more-itertools library at the same time, in the
 same repository. Your task: {title}.
 {desc}
-Make the change in more_itertools/more.py (and its type stub in more_itertools/more.pyi when the
-signature changes) with the smallest clean change, update the docstring, and add tests in
-tests/test_more.py next to the existing tests of that function. Follow the existing style. Run the tests
+Make the change in {where[0]} with the smallest clean change, update the docstring, and add tests in
+{where[1]} next to the existing tests of that function. Follow the existing style. Run the tests
 with `{py} -m pytest -q -x tests{only}. Do not change anything else.
 """
 
@@ -207,7 +210,7 @@ def arm_git():
         dirs.append(wt)
     setup_s = round(time.time() - t0, 2)
     base_env = {**os.environ, "DEMO_PY": PY}
-    prompts = [COMMON.format(n=len(TASKS), title=t, desc=d, py=PY, only=ONLY) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
+    prompts = [COMMON.format(n=len(TASKS), title=t, desc=d, py=PY, only=ONLY, where=WHERE) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
     agents, wall = run_agents("git", dirs, prompts, [base_env] * len(TASKS))
     log = [json.loads(l) for l in open(os.path.join(G, "land.log"))] if os.path.exists(os.path.join(G, "land.log")) else []
     t_landed = [r["t"] for r in log if r["result"] == "landed"]
@@ -254,7 +257,7 @@ def arm_treeyard():
         w = json.loads(open(os.path.join(home, "meta", f"{ws}.json")).read())
         dirs.append(w["dir"])
         envs.append({**env, "TREEYARD_WORKSPACE": ws, "TREEYARD_AGENT": ws})
-        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY) + TY_FINISH.format(ws=ws, change=w["change"]))
+        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY, where=WHERE) + TY_FINISH.format(ws=ws, change=w["change"]))
     setup_s = round(time.time() - t0, 2)
     agents, wall = run_agents("treeyard", dirs, prompts, envs)
     # Optimistic landing tests main after the lands: wait for the worker to settle.
