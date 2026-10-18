@@ -1,0 +1,29 @@
+[git] agent 1 (numeric_range_reversed) exited 0 after 46 s
+[git] agent 2 (seekable_zero_cache_peek) exited 0 after 58 s
+[git] agent 4 (zip_broadcast_iter_once) exited 0 after 84 s
+[git] agent 0 (numeric_range_consistent) exited 0 after 116 s
+[git] agent 3 (bucket_no_phantom_key) exited 0 after 140 s
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 0.21,
+  "agents_wall_s": 142.2,
+  "land_attempts": 6,
+  "landed": 5,
+  "conflicts": [],
+  "tests_failed_in_queue": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "741 passed, 21039 subtests passed in 70.40s (0:01:10)"
+    ],
+    "hidden_checks_passed": 5,
+    "hidden_checks": {
+      "numeric_range_consistent": true,
+      "numeric_range_reversed": true,
+      "seekable_zero_cache_peek": true,
+      "bucket_no_phantom_key": true,
+      "zip_broadcast_iter_once": true
+    }
+  },
+  "model": "sonnet"
+}

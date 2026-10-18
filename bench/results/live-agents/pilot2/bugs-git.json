@@ -1,0 +1,109 @@
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 0.41,
+  "agents_wall_s": 166.4,
+  "agents": [
+    {
+      "task": "numeric_range_consistent",
+      "exit": 0,
+      "wall_s": 112.4,
+      "turns": 9,
+      "cost_usd": 0.1321695,
+      "duration_ms": 108310,
+      "is_error": false,
+      "last": "sts/test_more.py` next to the `len` test checks length, membership and index against the yielded items for four float ranges.\n\nI didn't touch the type stub, since the signature hasn't changed.\n\nMy first test run used a `--doctest-modules` flag I had added, and it failed on the existing `IterOnlyRange` helper class. I dropped the flag and the normal run was clean, so I didn't dig into that failure."
+    },
+    {
+      "task": "numeric_range_reversed",
+      "exit": 0,
+      "wall_s": 94.4,
+      "turns": 8,
+      "cost_usd": 0.10804429999999998,
+      "duration_ms": 89220,
+      "is_error": false,
+      "last": "`more.pyi`. The signature didn't change, and the docstring doesn't mention reversal, so I left it alone even though the task said to update it. Say if you want a note added.\n- **Length mismatch:** The new code takes its item count from `len()`, while forward iteration stops when a value passes `stop`. I didn't check whether those two can disagree for some float inputs. The three cases above match."
+    },
+    {
+      "task": "seekable_zero_cache_peek",
+      "exit": 0,
+      "wall_s": 164.4,
+      "turns": 7,
+      "cost_usd": 0.11351539999999999,
+      "duration_ms": 159287,
+      "is_error": false,
+      "last": "e. `more_itertools/more.py` also has a short note in the docstring.\n\n**Test.** I added `test_maxlen_zero_peek_bool` next to `test_maxlen_zero` in `tests/test_more.py`. It checks:\n- repeated peeks\n- `bool()` before and after `next()`\n- the rest of the items\n- the `default` on an exhausted iterator\n\nThe full suite passed before I committed (737 passed), and `land.py` re-ran the tests before merging."
+    },
+    {
+      "task": "bucket_no_phantom_key",
+      "exit": 0,
+      "wall_s": 150.4,
+      "turns": 13,
+      "cost_usd": 0.1315411,
+      "duration_ms": 145631,
+      "is_error": false,
+      "last": " it.\n- **Docstring and test:** the `bucket` docstring has a short example of a failed lookup leaving the keys unchanged. I added `test_failed_lookup_no_phantom_key` in `BucketTests` in `tests/test_more.py`.\n- **Commits:** there are two commits on the branch: the first fix, then the follow-up that restores the key for items found.\n- **Stub:** the signature didn't change, so I left `more.pyi` alone."
+    },
+    {
+      "task": "zip_broadcast_iter_once",
+      "exit": 0,
+      "wall_s": 80.3,
+      "turns": 4,
+      "cost_usd": 0.0779845,
+      "duration_ms": 75214,
+      "is_error": false,
+      "last": " `more.pyi` is unchanged because the signature didn't change.\n- **Docstring:** I added a sentence saying each non-scalar object is passed to `iter()` only once.\n- **Test:** `test_iter_called_once` sits next to the existing `zip_broadcast` tests in `tests/test_more.py`. It uses an object whose `__iter__` counts its calls and checks that the count is 1.\n\nI didn't hit any conflicts during the rebase."
+    },
+    {
+      "task": "constrained_batches_max_count",
+      "exit": 0,
+      "wall_s": 68.3,
+      "turns": 7,
+      "cost_usd": 0.0830977,
+      "duration_ms": 62478,
+      "is_error": false,
+      "last": "o'`. `max_count=None` still means no limit. The signature didn't change, so I left `more.pyi` alone.\n- **Docstring:** I added a line saying `ValueError` is also raised when `max_size` or `max_count` is `<= 0`.\n- **Tests:** `test_bad_max_count` in `tests/test_more.py` sits next to `test_bad_max` and checks `max_count` of 0 and -1.\n- **Test run:** the full suite passed (737 tests) before the commit."
+    },
+    {
+      "task": "split_maxsplit_zero_empty",
+      "exit": 0,
+      "wall_s": 102.4,
+      "turns": 7,
+      "cost_usd": 0.11472089999999999,
+      "duration_ms": 97807,
+      "is_error": false,
+      "last": " same.\n- **Docstrings:** each of the three now says that with `maxsplit=0` no splits are done and an empty iterable yields nothing. I added a sentence rather than a doctest example.\n- **Tests:** I added `test_max_split_zero_empty` to each function's test class in `tests/test_more.py`.\n\nThe commit message is `Fix split_maxsplit_zero_empty`, with the Co-Authored-By and Claude-Session lines appended."
+    },
+    {
+      "task": "value_chain_keeps_type_error",
+      "exit": 0,
+      "wall_s": 56.3,
+      "turns": 7,
+      "cost_usd": 0.07907810000000001,
+      "duration_ms": 50686,
+      "is_error": false,
+      "last": " then runs `yield from` outside it. I added a docstring paragraph with a doctest showing the propagating `TypeError`. The signature didn't change, so `more.pyi` is untouched.\n\nI added `test_type_error_propagates` to `ValueChainTests` in `tests/test_more.py`. It checks that `map(len, ['ab', 'cde', 5])` yields 2 and 3 and then raises `TypeError`. The full suite passed before I committed (737 tests)."
+    }
+  ],
+  "land_attempts": 9,
+  "landed": 8,
+  "conflicts": [],
+  "tests_failed_in_queue": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "746 passed, 21044 subtests passed in 10.05s"
+    ],
+    "hidden_checks_passed": 8,
+    "hidden_checks": {
+      "numeric_range_consistent": true,
+      "numeric_range_reversed": true,
+      "seekable_zero_cache_peek": true,
+      "bucket_no_phantom_key": true,
+      "zip_broadcast_iter_once": true,
+      "constrained_batches_max_count": true,
+      "split_maxsplit_zero_empty": true,
+      "value_chain_keeps_type_error": true
+    }
+  },
+  "model": "sonnet"
+}

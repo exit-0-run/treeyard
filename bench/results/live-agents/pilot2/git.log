@@ -1,0 +1,35 @@
+[git] agent 7 (value_chain_keeps_type_error) exited 0 after 56 s
+[git] agent 5 (constrained_batches_max_count) exited 0 after 68 s
+[git] agent 4 (zip_broadcast_iter_once) exited 0 after 80 s
+[git] agent 1 (numeric_range_reversed) exited 0 after 94 s
+[git] agent 6 (split_maxsplit_zero_empty) exited 0 after 102 s
+[git] agent 0 (numeric_range_consistent) exited 0 after 112 s
+[git] agent 3 (bucket_no_phantom_key) exited 0 after 150 s
+[git] agent 2 (seekable_zero_cache_peek) exited 0 after 164 s
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 0.41,
+  "agents_wall_s": 166.4,
+  "land_attempts": 9,
+  "landed": 8,
+  "conflicts": [],
+  "tests_failed_in_queue": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "746 passed, 21044 subtests passed in 10.05s"
+    ],
+    "hidden_checks_passed": 8,
+    "hidden_checks": {
+      "numeric_range_consistent": true,
+      "numeric_range_reversed": true,
+      "seekable_zero_cache_peek": true,
+      "bucket_no_phantom_key": true,
+      "zip_broadcast_iter_once": true,
+      "constrained_batches_max_count": true,
+      "split_maxsplit_zero_empty": true,
+      "value_chain_keeps_type_error": true
+    }
+  },
+  "model": "sonnet"
+}

@@ -1,0 +1,36 @@
+[treeyard] agent 2 (seekable_zero_cache_peek) exited 0 after 42 s
+[treeyard] agent 1 (numeric_range_reversed) exited 0 after 46 s
+[treeyard] agent 3 (bucket_no_phantom_key) exited 0 after 50 s
+[treeyard] agent 4 (zip_broadcast_iter_once) exited 0 after 50 s
+[treeyard] agent 0 (numeric_range_consistent) exited 0 after 106 s
+{
+  "arm": "TreeYard workspaces + optimistic landing",
+  "setup_s": 0.3,
+  "agents_wall_s": 108.1,
+  "settle_after_agents_s": 0.0,
+  "events": {
+    "collision": 1,
+    "landed": 3,
+    "opened": 7,
+    "reverted": 1,
+    "review": 1,
+    "test_failed": 1,
+    "test_passed": 2
+  },
+  "collision_pairs_warned": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "737 passed, 21039 subtests passed in 58.28s"
+    ],
+    "hidden_checks_passed": 1,
+    "hidden_checks": {
+      "numeric_range_consistent": false,
+      "numeric_range_reversed": false,
+      "seekable_zero_cache_peek": false,
+      "bucket_no_phantom_key": false,
+      "zip_broadcast_iter_once": true
+    }
+  },
+  "model": "sonnet"
+}

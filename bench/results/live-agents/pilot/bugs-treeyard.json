@@ -1,0 +1,83 @@
+{
+  "arm": "TreeYard workspaces + optimistic landing",
+  "setup_s": 0.3,
+  "agents_wall_s": 108.1,
+  "settle_after_agents_s": 0.0,
+  "agents": [
+    {
+      "task": "numeric_range_consistent",
+      "exit": 0,
+      "wall_s": 106.1,
+      "turns": 14,
+      "cost_usd": 0.1901381,
+      "duration_ms": 103088,
+      "is_error": false,
+      "last": " my test, so I'm not duplicating their fix. Before that, `reversed(numeric_range(0.0, 1.0, 0.1))` came out one item too long, which agent-1's change should address. The docstring edit may still need merging by hand when both changes land.\n\n**Next step**\nSomeone needs to fix the git/treeyard version mismatch, or land from a machine with a newer git. Then run `treeyard workspace land agent-0` again."
+    },
+    {
+      "task": "numeric_range_reversed",
+      "exit": 0,
+      "wall_s": 46.0,
+      "turns": 13,
+      "cost_usd": 0.1478866,
+      "duration_ms": 42454,
+      "is_error": false,
+      "last": "d. The server advises stacking on their change.\n\n**What I need from you:** which should win? I'd suggest letting agent-0's change land first and then dropping my `__reversed__` edit, keeping my test. Their `_len` fix is the more thorough one, and their test already checks `len(reversed(r))`. The merge-file error probably also needs fixing by whoever runs the TreeYard server before anyone can land."
+    },
+    {
+      "task": "seekable_zero_cache_peek",
+      "exit": 0,
+      "wall_s": 42.0,
+      "turns": 9,
+      "cost_usd": 0.1254255,
+      "duration_ms": 38475,
+      "is_error": false,
+      "last": "wn option 'diff-algorithm'`.\n- **Not a conflict:** `treeyard workspace status agent-2` shows no collisions or conflicts, and the change (`ch_7b43a2f8c92d`) is still open.\n- **Next step:** I can't fix this from the workspace, and I haven't worked around it. Landing needs the server's git upgraded, or the land run somewhere with a newer git. Once that's done, rerun `treeyard workspace land agent-2`."
+    },
+    {
+      "task": "bucket_no_phantom_key",
+      "exit": 0,
+      "wall_s": 50.1,
+      "turns": 13,
+      "cost_usd": 0.1433355,
+      "duration_ms": 46973,
+      "is_error": false,
+      "last": "est run, so it went through even though `test_list` had failed. The server reverted it (verdict \"reverted\"). I then fixed the code and re-ran the tests, which is where the merge error started. The workspace status shows the change as open, with no collisions.\n\nTo finish, someone needs to fix the `git` version or the `treeyard` merge call on this host. Then re-run `treeyard workspace land agent-3`."
+    },
+    {
+      "task": "zip_broadcast_iter_once",
+      "exit": 0,
+      "wall_s": 50.1,
+      "turns": 10,
+      "cost_usd": 0.1019372,
+      "duration_ms": 45807,
+      "is_error": false,
+      "last": "directly instead of calling `iter()` again.\n- **Docstring:** I added one line saying `iter()` is called once on each non-scalar argument.\n- **Test:** `test_iter_called_once` in `tests/test_more.py` uses an object whose `__iter__` counts its calls and checks the count is 1.\n- **Stub:** no change was needed, since the signature is the same.\n\nNo other agent's changes overlapped or collided with mine."
+    }
+  ],
+  "events": {
+    "collision": 1,
+    "landed": 3,
+    "opened": 7,
+    "reverted": 1,
+    "review": 1,
+    "test_failed": 1,
+    "test_passed": 2
+  },
+  "collision_pairs_warned": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "737 passed, 21039 subtests passed in 58.28s"
+    ],
+    "hidden_checks_passed": 1,
+    "hidden_checks": {
+      "numeric_range_consistent": false,
+      "numeric_range_reversed": false,
+      "seekable_zero_cache_peek": false,
+      "bucket_no_phantom_key": false,
+      "zip_broadcast_iter_once": true
+    }
+  },
+  "model": "sonnet"
+}

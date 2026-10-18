@@ -677,3 +677,19 @@ conflict however early you know it, and no agent chose to wait and build on the 
 the queue wait (32 % sooner). The run also showed noisy warnings (31 conflict warnings for 4 real pairs),
 fixed above by reporting conflicts with main once.
 
+
+### Cloud runs: a Claude Code cloud session, 4 vCPU, 16 GB, git 2.43 (2026-10-18)
+
+`DEMO_N=N DEMO_POOL=N sh examples/live-agents/cloud.sh TAG` in a Claude Code cloud session (Ubuntu 24.04,
+`claude` 2.1.302, Sonnet). Results: `bench/results/live-agents/pilot/` and `pilot2/`.
+
+| Run | Arm | All agents done after | Hidden checks | Agent turns | Cost |
+|---|---|---|---|---|---|
+| pilot, 5 bugs, 0.1.0 | git worktrees + merge queue | 142.2 s | 5 / 5 | 42 | $0.58 |
+| pilot, 5 bugs, 0.1.0 | TreeYard, optimistic | 108.1 s | 1 / 5 | 59 | $0.71 |
+| pilot2, 8 bugs, 0.1.1 | git worktrees + merge queue | 166.4 s | 8 / 8 | 62 | $0.84 |
+| pilot2, 8 bugs, 0.1.1 | TreeYard, optimistic | 104.2 s | 8 / 8 | 68 | $0.88 |
+
+The first pilot found a bug: every land that needed a line merge failed, because `git merge-file
+--diff-algorithm` needs git 2.44 and the VM has 2.43. 0.1.1 falls back to merge-file's default diff
+(`tests/old_git.rs`). With 0.1.1 both arms fixed all 8 bugs, and the TreeYard agents were done 37 % sooner.

@@ -1,8 +1,9 @@
 #!/bin/sh
 # Runs both arms of demo.py inside a Claude Code cloud session (or any Linux box with the `claude` CLI):
 # builds treeyard from this checkout, prepares more-itertools, runs git then treeyard, and copies the results
-# to bench/results/live-agents/<tag>/ in this checkout.
+# to bench/results/live-agents/<tag>/ in this checkout (with PUSH_BRANCH=B: committed and pushed to B after each arm).
 #   DEMO_N=5 DEMO_POOL=5 sh examples/live-agents/cloud.sh pilot
+#   DEMO_SET=wide DEMO_POOL=10 ARMS="git treeyard" sh examples/live-agents/cloud.sh wide50
 set -eu
 TAG=${1:-run}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -22,9 +23,14 @@ claude -p "Reply with the single word ok." --output-format json --max-turns 1 > 
 (cd "$ROOT" && cargo build --release -q)
 export TREEYARD_BIN="$ROOT/target/release/treeyard"
 sh "$ROOT/examples/live-agents/setup.sh"
-for arm in git treeyard; do
+for arm in ${ARMS:-git treeyard}; do
   python3 "$ROOT/examples/live-agents/demo.py" "$arm" 2>&1 | tee "$OUT/$arm.log"
+  cp "$DEMO_DIR"/results/*.json "$OUT/"
+  mkdir -p "$OUT/agents" && cp "$DEMO_DIR"/agents/*.json "$OUT/agents/" 2>/dev/null || true
+  if [ -n "${PUSH_BRANCH:-}" ]; then  # push after each arm, so a reclaimed VM keeps the finished arm
+    git -C "$ROOT" checkout -q -B "$PUSH_BRANCH"
+    git -C "$ROOT" add "bench/results/live-agents/$TAG"
+    git -C "$ROOT" commit -q -m "Live agents $TAG: $arm arm" && git -C "$ROOT" push -q -f origin "$PUSH_BRANCH"
+  fi
 done
-cp "$DEMO_DIR"/results/*.json "$OUT/"
-mkdir -p "$OUT/agents" && cp "$DEMO_DIR"/agents/*.json "$OUT/agents/" 2>/dev/null || true
 echo "results: $OUT"

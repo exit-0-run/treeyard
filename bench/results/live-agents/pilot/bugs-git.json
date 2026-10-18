@@ -1,0 +1,76 @@
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 0.21,
+  "agents_wall_s": 142.2,
+  "agents": [
+    {
+      "task": "numeric_range_consistent",
+      "exit": 0,
+      "wall_s": 116.2,
+      "turns": 6,
+      "cost_usd": 0.12672250000000002,
+      "duration_ms": 110164,
+      "is_error": false,
+      "last": "urs, returning the one whose item equals the value.\n- **`in`:** it now just calls `index()`.\n- **Docstring:** I added a short `numeric_range(0.0, 1.0, 0.1)` example showing the three agree.\n\nI added `test_float_consistency` to `NumericRangeTests` in `tests/test_more.py`. It covers `(0.0, 1.0, 0.1)`, `(1.0, 0.0, -0.1)` and `(0.0, 0.7, 0.1)`. No `.pyi` change was needed, since no signatures changed."
+    },
+    {
+      "task": "numeric_range_reversed",
+      "exit": 0,
+      "wall_s": 46.0,
+      "turns": 7,
+      "cost_usd": 0.10326660000000001,
+      "duration_ms": 40627,
+      "is_error": false,
+      "last": "/more.py`. The signature didn't change, so I left the stub alone.\n\nI added a one-line note to the docstring saying reversing yields the forward items in reverse. I also added `test_float_reversed` next to `test_empty_reversed` in `tests/test_more.py`. It checks that reversing matches the forward list reversed for three float ranges, including a negative step.\n\nThere were no conflicts when landing."
+    },
+    {
+      "task": "seekable_zero_cache_peek",
+      "exit": 0,
+      "wall_s": 58.1,
+      "turns": 6,
+      "cost_usd": 0.1042716,
+      "duration_ms": 53273,
+      "is_error": false,
+      "last": "g:** I added a short note that `maxlen=0` caches nothing but still doesn't lose items.\n- **Test:** `test_maxlen_zero_peek` in `tests/test_more.py`, next to `test_maxlen_zero`. It checks `peek()`, `bool()`, the following `next()` and the default after exhaustion.\n\nI detect the zero-size cache with `getattr(self._cache, 'maxlen', None) == 0`, because the default list cache has no `maxlen` attribute."
+    },
+    {
+      "task": "bucket_no_phantom_key",
+      "exit": 0,
+      "wall_s": 140.2,
+      "turns": 13,
+      "cost_usd": 0.12492840000000001,
+      "duration_ms": 136080,
+      "is_error": false,
+      "last": "&` and `tail` hid the failure. The `.get()` change alone dropped keys for buckets that did have items. I fixed that by adding the key when a match is found, then amended the commit. The full suite passed (737 tests) before landing.\n\nExisting behavior is unchanged: a key whose items have all been consumed stays listed in `list(b)`. The task was about keys that never had items, so I left that alone."
+    },
+    {
+      "task": "zip_broadcast_iter_once",
+      "exit": 0,
+      "wall_s": 84.1,
+      "turns": 10,
+      "cost_usd": 0.12490170000000002,
+      "duration_ms": 79561,
+      "is_error": false,
+      "last": "e originals.\n- **Docstring:** added one line saying `iter()` is called only once per non-scalar argument.\n- **Test:** `test_iter_called_once` in `ZipBroadcastTests` uses an object that counts its `__iter__` calls and checks it is called exactly once.\n- **Stub:** the signature didn't change, so `more.pyi` is untouched.\n\nThe commit is \"Fix zip_broadcast_iter_once\". There were no conflicts on rebase."
+    }
+  ],
+  "land_attempts": 6,
+  "landed": 5,
+  "conflicts": [],
+  "tests_failed_in_queue": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "741 passed, 21039 subtests passed in 70.40s (0:01:10)"
+    ],
+    "hidden_checks_passed": 5,
+    "hidden_checks": {
+      "numeric_range_consistent": true,
+      "numeric_range_reversed": true,
+      "seekable_zero_cache_peek": true,
+      "bucket_no_phantom_key": true,
+      "zip_broadcast_iter_once": true
+    }
+  },
+  "model": "sonnet"
+}

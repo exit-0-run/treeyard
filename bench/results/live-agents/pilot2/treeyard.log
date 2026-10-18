@@ -1,0 +1,43 @@
+[treeyard] agent 1 (numeric_range_reversed) exited 0 after 62 s
+[treeyard] agent 3 (bucket_no_phantom_key) exited 0 after 62 s
+[treeyard] agent 4 (zip_broadcast_iter_once) exited 0 after 62 s
+[treeyard] agent 5 (constrained_batches_max_count) exited 0 after 62 s
+[treeyard] agent 6 (split_maxsplit_zero_empty) exited 0 after 62 s
+[treeyard] agent 7 (value_chain_keeps_type_error) exited 0 after 64 s
+[treeyard] agent 2 (seekable_zero_cache_peek) exited 0 after 66 s
+[treeyard] agent 0 (numeric_range_consistent) exited 0 after 102 s
+{
+  "arm": "TreeYard workspaces + optimistic landing",
+  "setup_s": 0.49,
+  "agents_wall_s": 104.2,
+  "settle_after_agents_s": 0.0,
+  "events": {
+    "collision": 1,
+    "conflict": 1,
+    "landed": 10,
+    "opened": 10,
+    "reverted": 1,
+    "review": 1,
+    "test_failed": 1,
+    "test_passed": 3
+  },
+  "collision_pairs_warned": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "745 passed, 21057 subtests passed in 84.24s (0:01:24)"
+    ],
+    "hidden_checks_passed": 8,
+    "hidden_checks": {
+      "numeric_range_consistent": true,
+      "numeric_range_reversed": true,
+      "seekable_zero_cache_peek": true,
+      "bucket_no_phantom_key": true,
+      "zip_broadcast_iter_once": true,
+      "constrained_batches_max_count": true,
+      "split_maxsplit_zero_empty": true,
+      "value_chain_keeps_type_error": true
+    }
+  },
+  "model": "sonnet"
+}
