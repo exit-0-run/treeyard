@@ -140,6 +140,7 @@ fn workspace_restore_rewrites_only_differing_files() {
         layers: Some(vec![]),
         setup: None,
         git: false,
+        ..Default::default()
     };
     let (ws, _) = node.create(&opts).unwrap();
     std::fs::write(ws.dir.join("f00.txt"), "turn 1\n").unwrap();

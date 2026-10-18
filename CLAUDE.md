@@ -5,15 +5,15 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 ## Commands
 
 - `make check`: `cargo fmt --check`, `clippy -D warnings`, `cargo test`, `make bench-test`. Run before every commit. `make release`.
-- Benchmarks: `make bench-quick` (minutes) or `make bench` (about 3 h, ~70 GB scratch peak), both
+- Benchmarks: `make bench-cow`, `make bench-quick` (minutes) or `make bench` (about 3 h, ~70 GB scratch peak), both
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
 - Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`,
   `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`.
-- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`): `treeyard workspace create NAME
-  [--setup CMD] [--layer DIR=LOCK]`, `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`, `remove
-  [--abandon]`, `restore NAME --to N` (checkpoint); `treeyard daemon` syncs every workspace after edits settle. `make bench-cow`.
+- Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
+  [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
+  `remove [--abandon]`, `restore NAME --to N`, `gc`, `mirror NAME --into DIR`; repo config `.treeyard/workspace.toml`; `treeyard daemon [--gc-every H]`.
 - Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
   `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.
@@ -54,7 +54,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `tests/swarm.rs`, `tests/replay.rs`, `tests/best_of_n.rs` | phase-1 gate: 50 agents, merges = `git merge-tree`; synthetic replay (stale, stacked, intents); `group`, `land_one_of` |
 | `tests/coordination.rs`, `tests/conflicts.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard; `keep_conflicted` |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
-| `tests/workspace.rs`, `tests/checkpoints.rs` | create/sync/remove, every clone strategy, layer reuse, ports, daemon, CLI shell flow; overlay (Linux, root); checkpoints, `restore_change`, `workspace restore` |
+| `tests/workspace.rs`, `tests/workspace_lifecycle.rs`, `tests/checkpoints.rs` | create/sync/remove, clone strategies, layers, ports, daemon, CLI; overlay (Linux, root); repo config, gc, mirror, sparse; checkpoints and restore |
 | `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/attachments.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; notes |
 | `tests/hardening.rs`, `tests/fuzz_history.rs` | kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
 | `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py` | phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |

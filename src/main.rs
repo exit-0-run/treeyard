@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use treeyard::audit::Record;
 use treeyard::cow::Strategy;
-use treeyard::workspace::{CreateOptions, LayerSpec, Node};
+use treeyard::workspace::{CreateOptions, GcOptions, LayerSpec, Node};
 use treeyard::{client, daemon, githttp, mcp, replay, repo::Repo, server};
 
 const DEFAULT_URL: &str = "http://127.0.0.1:7420";
@@ -129,6 +129,15 @@ enum Cmd {
         /// Keep this many spare directories for current main (a warm pool for `workspace create`).
         #[arg(long, default_value_t = 0)]
         spares: usize,
+        /// Run `workspace gc` at start and then every HOURS hours (0 = never).
+        #[arg(long, default_value_t = 0.0)]
+        gc_every: f64,
+        /// `gc --max` for --gc-every.
+        #[arg(long, default_value_t = 25)]
+        gc_max: usize,
+        /// `gc --max-gb` for --gc-every.
+        #[arg(long, default_value_t = 50.0)]
+        gc_max_gb: f64,
     },
     /// Agents that edit one shared directory (no workspaces): each hunk goes to one agent's change.
     Share {
@@ -189,6 +198,8 @@ impl NodeArgs {
     }
 }
 
+// Parsed once per run, so the size of `Create` does not matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum WsCmd {
     /// Open a change and make its workspace directory.
@@ -216,6 +227,24 @@ enum WsCmd {
         /// Add a `.git` (HEAD = base commit) so git status, diff and log work in the workspace.
         #[arg(long)]
         git: bool,
+        /// Shell command `remove` runs before it deletes the directory (a failure is reported only).
+        #[arg(long)]
+        teardown: Option<String>,
+        /// Default command of `workspace exec NAME` with no command.
+        #[arg(long)]
+        run: Option<String>,
+        /// Ports in the workspace's block (default 10).
+        #[arg(long)]
+        ports: Option<u16>,
+        /// Directory to copy gitignored files from (globs: `copy` in .treeyard/workspace.toml, .worktreeinclude).
+        #[arg(long)]
+        copy_from: Option<PathBuf>,
+        /// Sparse workspace: only these directories (comma-separated, like `src/,docs/`) plus root files.
+        #[arg(long, value_delimiter = ',')]
+        paths: Vec<String>,
+        /// Seed the change with the uncommitted edits of the git checkout at PATH (first changeset).
+        #[arg(long, value_name = "PATH")]
+        from_dir: Option<PathBuf>,
     },
     /// Keep COUNT spare directories (base clone + layers) for current main; create takes one.
     Spare {
@@ -246,11 +275,33 @@ enum WsCmd {
     Env { name: String },
     /// Print the workspace directory.
     Path { name: String },
-    /// Run a command in the workspace with its environment, then sync.
+    /// Run a command in the workspace with its environment, then sync. No command: the `run`
+    /// command of the workspace config.
     Exec {
         name: String,
-        #[arg(trailing_var_arg = true, required = true)]
+        #[arg(trailing_var_arg = true)]
         cmd: Vec<String>,
+    },
+    /// After every sync of NAME, write the change's files into DIR (only files that differ), for
+    /// apps that need one fixed path or port. --off stops it.
+    Mirror {
+        name: String,
+        #[arg(long, required_unless_present = "off", conflicts_with = "off")]
+        into: Option<PathBuf>,
+        #[arg(long)]
+        off: bool,
+    },
+    /// Remove old workspaces until at most --max are left and they use at most --max-gb: landed or
+    /// abandoned first, then the least recently synced. Never one younger than 10 minutes, one
+    /// being created, or one with edits not synced yet.
+    Gc {
+        #[arg(long, default_value_t = 25)]
+        max: usize,
+        #[arg(long, default_value_t = 50.0)]
+        max_gb: f64,
+        /// Print what would be removed; remove nothing.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Send the last edits to the change, then delete the workspace directory. With --abandon the
     /// open change is dropped instead. Refuses when the edits cannot be sent, unless --force.
@@ -309,6 +360,10 @@ fn share(url: &str, cmd: ShareCmd) -> Result<Value> {
     }
 }
 
+fn gb(g: f64) -> u64 {
+    (g.max(0.0) * (1u64 << 30) as f64) as u64
+}
+
 fn print(v: &Value) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(v)?);
     Ok(())
@@ -316,7 +371,23 @@ fn print(v: &Value) -> Result<()> {
 
 fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
     match cmd {
-        WsCmd::Create { name, agent, intent, base, strategy, layers, no_layers, setup, git } => {
+        WsCmd::Create {
+            name,
+            agent,
+            intent,
+            base,
+            strategy,
+            layers,
+            no_layers,
+            setup,
+            git,
+            teardown,
+            run,
+            ports,
+            copy_from,
+            paths,
+            from_dir,
+        } => {
             let layers = if no_layers {
                 Some(vec![])
             } else if layers.is_empty() {
@@ -324,8 +395,23 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             } else {
                 Some(layers)
             };
-            let (ws, timing) =
-                node.create(&CreateOptions { name, agent, intent, base, strategy, layers, setup, git })?;
+            let o = CreateOptions {
+                name,
+                agent,
+                intent,
+                base,
+                strategy,
+                layers,
+                setup,
+                git,
+                teardown,
+                run,
+                ports,
+                copy_from,
+                paths,
+                from_dir,
+            };
+            let (ws, timing) = node.create(&o)?;
             let mut v = serde_json::to_value(&ws)?;
             v["timing"] = timing;
             print(&v)?;
@@ -352,6 +438,13 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         WsCmd::Path { name } => println!("{}", node.get(&name)?.dir.display()),
         WsCmd::Exec { name, cmd } => {
             let ws = node.get(&name)?;
+            let cmd = match (cmd.is_empty(), &ws.run) {
+                (false, _) => cmd,
+                (true, Some(run)) => vec!["sh".into(), "-c".into(), run.clone()],
+                (true, None) => anyhow::bail!(
+                    "no command: write one after `--`, or set `run` in .treeyard/workspace.toml (or create --run)"
+                ),
+            };
             let status = std::process::Command::new(&cmd[0])
                 .args(&cmd[1..])
                 .current_dir(&ws.dir)
@@ -362,6 +455,13 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             eprintln!("{}", serde_json::to_string(&sync)?);
             std::process::exit(status.code().unwrap_or(1));
         }
+        WsCmd::Mirror { name, into, off: _ } => print(&node.mirror(&name, into.as_deref())?)?,
+        WsCmd::Gc { max, max_gb, dry_run } => print(&node.gc(&GcOptions {
+            max: Some(max),
+            max_bytes: Some(gb(max_gb)),
+            dry_run,
+            ..Default::default()
+        })?)?,
         WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())
@@ -442,11 +542,14 @@ fn main() -> Result<()> {
         }
         Cmd::Mcp { url, agent } => mcp::run(&url, agent)?,
         Cmd::Workspace { node, cmd } => workspace(node.node(), cmd)?,
-        Cmd::Daemon { node, debounce_ms, rescan_s, spares } => {
+        Cmd::Daemon { node, debounce_ms, rescan_s, spares, gc_every, gc_max, gc_max_gb } => {
+            let gc = GcOptions { max: Some(gc_max), max_bytes: Some(gb(gc_max_gb)), ..Default::default() };
             let o = daemon::Options {
                 debounce: std::time::Duration::from_millis(debounce_ms),
                 rescan: std::time::Duration::from_secs(rescan_s),
                 spares,
+                gc: (gc_every > 0.0).then(|| (std::time::Duration::from_secs_f64(gc_every * 3600.0), gc)),
+                ..Default::default()
             };
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             daemon::run(&node.node(), &o, stop, &mut |line| println!("{line}"))?;

@@ -43,8 +43,19 @@ directories are layers keyed by a hash of their lockfiles, built once and cloned
 `.treeyard/env` gives each workspace `PORT` and a block of 10 ports. `treeyard daemon` watches every
 workspace and syncs after edits settle (300 ms): each sync is one new changeset of the workspace's change,
 so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`,
-`spare`, `remove [--abandon] [--force]` (sends the last edits first; refuses without `--force` when it cannot), `restore NAME --to N`
-(back to checkpoint `N` of the change; rewrites only the files that differ). Details and limits: [docs/workspaces.md](workspaces.md). Tests:
+`spare`, `remove [--abandon] [--force]` (sends the last edits first; refuses without `--force` when it cannot).
+A repo file `.treeyard/workspace.toml` (node override `<home>/workspace.toml`) sets `setup`, `teardown`,
+`layers`, `copy` and `copy_from` (gitignored files such as `.env`), `ports` and `run`; the flags
+`--setup`, `--teardown`, `--run`, `--ports N`, `--copy-from DIR` override it. Each record has a `state` (`creating`,
+`setting_up`, `ready`, `removing`, `failed`), `create_log`, `setup_log` and `counts`. `workspace gc [--max N]
+[--max-gb G] [--dry-run]` removes landed or abandoned workspaces first, then the least recently synced, but
+never one younger than 10 minutes or one with unsynced edits; `treeyard daemon --gc-every HOURS` runs it. The daemon
+does not sync a `--git` workspace during a merge, rebase, cherry-pick or with a fresh `index.lock`; it
+retries after 1 s, 5 s, 30 s, 120 s. `workspace mirror NAME --into DIR` (`--off` stops it) writes the change's files into
+one fixed directory after every sync, touching only files that differ. `create --paths a/,b/` makes a sparse
+workspace (these directories plus root files, git cone mode); sync never treats the rest as deleted. `create
+--from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ.
+Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against

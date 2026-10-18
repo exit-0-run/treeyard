@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::workspace::{Node, PRIVATE};
+use crate::workspace::{GcOptions, Node, PRIVATE, WsState, git_busy};
 
 pub struct Options {
     /// Quiet time after the last event before a workspace syncs.
@@ -20,6 +20,25 @@ pub struct Options {
     pub rescan: Duration,
     /// Spare directories to keep ready for current main (see `Node::fill_spares`); zero = none.
     pub spares: usize,
+    /// Run `Node::gc` at start and then this often; `None` = never.
+    pub gc: Option<(Duration, GcOptions)>,
+    /// Waits before the next try when git is busy in a workspace (the last one repeats).
+    pub git_backoff: Vec<Duration>,
+}
+
+/// Default waits while git is busy in a workspace: 1 s, 5 s, 30 s, then every 120 s.
+pub const GIT_BACKOFF_S: [u64; 4] = [1, 5, 30, 120];
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            debounce: Duration::from_millis(300),
+            rescan: Duration::from_secs(30),
+            spares: 0,
+            gc: None,
+            git_backoff: GIT_BACKOFF_S.iter().map(|s| Duration::from_secs(*s)).collect(),
+        }
+    }
 }
 
 /// Directory names whose events never trigger a sync (build output, layers, VCS data).
@@ -37,6 +56,15 @@ fn workspace_of(ws_root: &Path, path: &Path) -> Option<String> {
         return None;
     }
     Some(name)
+}
+
+/// One gc pass; logs what it removed, or its error.
+fn run_gc(node: &Node, gc: &GcOptions, log: &mut dyn FnMut(String)) {
+    match node.gc(gc) {
+        Ok(v) if v["removed"].as_array().is_some_and(|r| !r.is_empty()) => log(json!({"gc": v}).to_string()),
+        Ok(_) => {}
+        Err(e) => log(json!({"gc": "error", "error": format!("{e:#}")}).to_string()),
+    }
 }
 
 /// Runs until `stop` is set. `log` receives one JSON line per sync.
@@ -79,8 +107,20 @@ pub fn run(node: &Node, o: &Options, stop: Arc<AtomicBool>, log: &mut dyn FnMut(
         })
     });
     let mut dirty: BTreeMap<String, Instant> = BTreeMap::new();
+    // Workspaces whose sync waits for git: (tries so far, next try).
+    let mut busy: BTreeMap<String, (usize, Instant)> = BTreeMap::new();
     let mut last_rescan = Instant::now();
+    let mut last_gc = Instant::now();
+    if let Some((_, gc)) = &o.gc {
+        run_gc(node, gc, log);
+    }
     while !stop.load(Ordering::Relaxed) {
+        if let Some((every, gc)) = &o.gc
+            && last_gc.elapsed() >= *every
+        {
+            last_gc = Instant::now();
+            run_gc(node, gc, log);
+        }
         match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(p) => {
                 if let Some(name) = workspace_of(&ws_root, &p) {
@@ -97,13 +137,30 @@ pub fn run(node: &Node, o: &Options, stop: Arc<AtomicBool>, log: &mut dyn FnMut(
             }
             last_rescan = Instant::now();
         }
+        let now = Instant::now();
+        for (name, (_, due)) in &busy {
+            if *due <= now {
+                dirty.entry(name.clone()).or_insert(now - o.debounce);
+            }
+        }
         let ready: Vec<String> =
             dirty.iter().filter(|(_, t)| t.elapsed() >= o.debounce).map(|(n, _)| n.clone()).collect();
         for name in ready {
             dirty.remove(&name);
-            if node.get(&name).is_err() {
+            // Only ready workspaces: a create or setup in progress writes files that are not edits yet.
+            let Some(ws) = node.get(&name).ok().filter(|w| w.state == WsState::Ready) else {
+                busy.remove(&name);
+                continue;
+            };
+            // A merge or rebase in the workspace's git: wait, with backoff, instead of sending its middle.
+            if let Some(why) = git_busy(&ws.dir) {
+                let tries = busy.get(&name).map_or(0, |b| b.0);
+                let wait = o.git_backoff.get(tries).or(o.git_backoff.last()).copied().unwrap_or(Duration::from_secs(1));
+                busy.insert(name.clone(), (tries + 1, Instant::now() + wait));
+                log(json!({"workspace": name, "skipped": why, "retry_s": wait.as_secs_f64()}).to_string());
                 continue;
             }
+            busy.remove(&name);
             match node.sync(&name) {
                 Ok(v) if v["changesets"].as_u64() == Some(0) => {}
                 Ok(v) => log(v.to_string()),
