@@ -729,3 +729,20 @@ failure bisects main with the full suite, one run at a time, and from 763 s to 2
 green, so every agent of the first 20 tasks waited in `workspace land` and held its pool slot. The git
 queue tests each change before it merges, so a broken change never reaches main. For many agents with a
 slow suite, `queue` mode (batches tested before they land) fits better; run 3 measures it.
+
+Run 3 (`wide50c`, TreeYard in `queue` mode, batch 8; results `bench/results/live-agents/wide50c/`, with the
+load average once a minute):
+
+| Arm | All agents done after | Hidden checks | Final suite on main | Agent turns | Cost | Mean load (4 cores) |
+|---|---|---|---|---|---|---|
+| git worktrees + merge queue | 2 243 s | 60 / 60 | passes | 472 | $5.56 | 14.2 |
+| TreeYard, queue | 4 949 s | 60 / 60 | passes | 446 | $5.74 | 17.6 |
+
+TreeYard lost again, 2.2x. Changes landed in 21 batch steps, about one every 235 s, while the git queue
+ran 63 rebase-and-test rounds in 2 243 s. The suite itself is not slower in TreeYard's copy of the tree (7.1 s
+in a clone and 6.7 s in a copied tree, on the 15-core machine); what TreeYard's steps spent their time on is
+not in this run's data. Since this run, every landing test emits a `test_run` event with its seconds, the
+result records the CPU time of `serve` and the daemon, and `land.py` logs its test time.
+
+Across the three runs, TreeYard was never faster than a plain git merge queue with 50 Claude Code agents on a
+4-core VM: 2.9x, 1.17x and 2.2x the git time.

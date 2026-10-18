@@ -99,8 +99,18 @@ fn test(repo: &Repo, cs: &str) -> Result<Outcome> {
         materialize(r, &m, &dir)?;
         Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s)))
     })?;
+    let started = std::time::Instant::now();
     let out = run_cmd(&cmd, &dir, timeout, &[("TREEYARD_CHANGESET", cs)]);
     let _ = std::fs::remove_dir_all(&dir);
+    // One event per test run, so a slow landing loop shows where its time goes.
+    let (ok, seconds) = match &out {
+        Ok(o) => (Some(o.ok), o.seconds),
+        Err(_) => (None, started.elapsed().as_secs_f64()),
+    };
+    let _ = repo.with(|r| {
+        r.emit("test_run", &[], &[], json!({"changeset": cs, "ok": ok, "seconds": (seconds * 10.0).round() / 10.0}));
+        Ok(())
+    });
     out
 }
 

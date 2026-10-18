@@ -12,7 +12,7 @@ the server runs: an agent's change must never change them.
 | (b) Live collisions | `apply` reply `collisions`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events` |
 | (c) Continuous rebase | `land` reply `rebased`; events `rebased`, `conflict`; `apply` `seen` | `src/repo.rs` | `c_continuous_rebase_…` |
 | (d) Merge drivers | `land` reply `drivers` | `src/drivers.rs`, `src/repo.rs` | `d_merge_drivers_…`, unit tests in `src/drivers.rs` |
-| (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed` | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
+| (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed`, `test_run` (one per test run, with `seconds`) | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
 | (f) Semantic guard | `reviews`, `review_close`; `land` reply `reviews`; event `review` | `src/coord.rs`, `src/repo.rs` | `f_guard_…`, `tests/replay.rs` |
 | (g) Shared directories | `assign`, `claim`, `apply_assigned`; `treeyard share` | `src/hunks.rs`, `src/share.rs` | `tests/share.rs` |
 

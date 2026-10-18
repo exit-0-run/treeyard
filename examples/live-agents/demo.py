@@ -187,6 +187,18 @@ def run_agents(arm, dirs, prompts, env):
     return agents, round(time.time() - t0, 1)
 
 
+def cpu_s(pid):
+    """CPU seconds (user + system) a process has used so far, from `ps` (Linux and macOS)."""
+    out = subprocess.run(["ps", "-o", "time=", "-p", str(pid)], capture_output=True, text=True).stdout.strip()
+    if not out:
+        return None
+    days, _, hms = out.rpartition("-")
+    parts = [float(x) for x in hms.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0.0)
+    return round((int(days) if days else 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2], 1)
+
+
 def final_tests(repo):
     r = subprocess.run([PY, "-m", "pytest", "-q", "tests"], cwd=repo, capture_output=True, text=True)
     p = subprocess.run([PY, os.path.join(HERE, PROBES), repo], capture_output=True, text=True)
@@ -219,6 +231,7 @@ def arm_git():
     prompts = [COMMON.format(n=len(TASKS), title=t, desc=d, py=PY, only=ONLY, where=WHERE) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
     agents, wall = run_agents("git", dirs, prompts, [base_env] * len(TASKS))
     log = [json.loads(l) for l in open(os.path.join(G, "land.log"))] if os.path.exists(os.path.join(G, "land.log")) else []
+    json.dump(log, open(os.path.join(D, "results", f"{SET}-git-land-log.json"), "w"), indent=1)
     t_landed = [r["t"] for r in log if r["result"] == "landed"]
     return {"arm": "git worktrees + merge queue", "setup_s": setup_s, "agents_wall_s": wall, "agents": agents,
             "land_attempts": len(log), "landed": len(t_landed),
@@ -289,6 +302,9 @@ def arm_treeyard():
               "events": {k: sum(e["kind"] == k for e in ev) for k in sorted({e["kind"] for e in ev})},
               "collision_pairs_warned": len({tuple(sorted(e.get("changes", []))) for e in ev if e["kind"] == "collision"}),
               "final": final_tests(final_dir)}
+    result["cpu_s"] = {"serve": cpu_s(serve.pid), "daemon": cpu_s(daemon.pid)}
+    runs = [e for e in ev if e["kind"] == "test_run"]
+    result["test_runs"] = {"count": len(runs), "seconds": round(sum(float(e.get("seconds") or 0) for e in runs), 1)}
     json.dump(ev, open(os.path.join(D, "results", f"{SET}-treeyard-events.json"), "w"), indent=1)
     shutil.copy(os.path.join(T, "serve.log"), os.path.join(D, "results", f"{SET}-treeyard-serve.log"))
     daemon.terminate()

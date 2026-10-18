@@ -43,9 +43,11 @@ def main():
             print("Resolve the conflict markers in these files (keep both sides' additions), then:")
             print("  git add <files> && git rebase --continue   # then run the tests, then: python3 ../land.py")
             return 1
+        t_test = time.time()
         tests = subprocess.run([PY, "-m", "pytest", "-q", "-x", "tests"], capture_output=True, text=True)
+        test_s = round(time.time() - t_test, 2)
         if tests.returncode != 0:
-            log({"branch": branch, "result": "tests_failed", "waited_s": round(waited, 2)})
+            log({"branch": branch, "result": "tests_failed", "waited_s": round(waited, 2), "test_s": test_s})
             print("TESTS FAILED after rebase on master:\n" + tests.stdout[-3000:])
             return 1
         m = git("merge", "--ff-only", branch, cwd=REPO)
@@ -53,7 +55,8 @@ def main():
             log({"branch": branch, "result": "ff_failed", "error": m.stderr[-500:]})
             print("could not fast-forward master: " + m.stderr)
             return 1
-        log({"branch": branch, "result": "landed", "waited_s": round(waited, 2), "seconds": round(time.time() - t0, 2)})
+        log({"branch": branch, "result": "landed", "waited_s": round(waited, 2), "test_s": test_s,
+             "seconds": round(time.time() - t0, 2)})
         print("LANDED on master")
         return 0
 

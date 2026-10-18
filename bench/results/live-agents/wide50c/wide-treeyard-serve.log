@@ -1,0 +1,26 @@
+treeyard listening on http://127.0.0.1:7431 (API /api/<op>, events /api/events, git clone http://127.0.0.1:7431/git)
+treeyard landing worker started
+treeyard: no API tokens yet, so the server is open; `treeyard token create` turns auth on
+treeyard landing: "done"
+treeyard: this git has no `merge-file --diff-algorithm` (git 2.44+); line merges use Myers, so a rare clean merge can differ from git merge's
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "stale"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
+treeyard landing: "done"
