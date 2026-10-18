@@ -24,7 +24,7 @@ if [ -z "${DIST_TARGETS:-}" ]; then
     fi
 fi
 
-mkdir -p dist
+mkdir -p dist && rm -f dist/treeyard-*.tar.gz  # SHA256SUMS lists only this version
 for t in $DIST_TARGETS; do
     if [ "$t" = "$host" ]; then
         "$CARGO" build --release --locked --target "$t"

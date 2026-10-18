@@ -17,16 +17,16 @@ A release is a directory (or URL) with one archive per platform, `SHA256SUMS` an
 ```text
 curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh   # newest GitHub release
 sh dist/install.sh --from dist                 # a local release directory
-sh install.sh --from https://HOST/PATH/v0.1.0  # any URL that serves the same files
+sh install.sh --from https://HOST/PATH/v0.1.1  # any URL that serves the same files
 ```
 
 | Archive | Platform | Built with |
 |---|---|---|
-| `treeyard-0.1.0-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
-| `treeyard-0.1.0-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
-| `treeyard-0.1.0-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.1-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
+| `treeyard-0.1.1-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.1-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
 
-No release is published yet. Build one with the next section.
+Published releases: https://github.com/exit-0-run/treeyard/releases. To build one yourself, see the next section.
 
 ## Build the release directory
 
@@ -71,3 +71,6 @@ clippy and all tests.
 - In `alpine:3` containers (Docker on the same machine), `install.sh` installed the arm64 archive
   (native) and the x86_64 archive (emulated). Then `scripts/check-quickstart.sh docs/quickstart.md`
   passed on both, with git 2.54.0 from Alpine.
+- 0.1.1: in an `ubuntu:24.04` container (git 2.43.0), `install.sh` installed the arm64 archive, and
+  `scripts/check-quickstart.sh docs/quickstart.md` and `examples/swarm-demo.sh --agents 10 --pairs 2`
+  passed. 0.1.0 failed the same demo there (`unknown option 'diff-algorithm'`).

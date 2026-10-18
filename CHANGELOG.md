@@ -5,6 +5,21 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-18
+
+### Fixed
+- Lands that need a line merge work with git older than 2.44 (Ubuntu 24.04 ships 2.43). Before, they failed
+  with `unknown option 'diff-algorithm'`; now `git merge-file` falls back to its default diff and the
+  server says so once.
+
+### Added
+- Stacking: when a landing-order conflict is warned, `advice.stack_on` names the change to build on;
+  `rebase {change, onto}` and `treeyard workspace stack NAME --on CHANGE` move the conflict from land time
+  to now, and a stacked change waits to land until the one below it lands.
+- Collisions: a conflict with main is reported once as `"change": "main"`; workspaces keep the server's
+  collisions in `.treeyard/collisions.json`, and `treeyard workspace status` asks again.
+- Live-agent demo: `DEMO_N`, `DEMO_POOL` and `examples/live-agents/cloud.sh` for a Claude Code cloud session.
+
 ## [0.1.0] - 2026-10-18
 
 The first version that is complete end to end on one node.
