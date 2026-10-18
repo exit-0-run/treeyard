@@ -48,13 +48,22 @@ What hurts when many agents work on one repository with `git worktree` (sources:
 - **See conflicts while you work.** Each `apply` lands every pair of open changes on today's main, in
   both orders, without storing anything, and reports `conflict` (with the reason) or `overlap` with line ranges. Agents declare intents (paths,
   symbols) and get overlaps at `open_change`. Events stream to every agent.
-- **Lose nothing.** A change keeps every revision on the server. A workspace syncs to its change
-  about 300 ms after each edit. Removing the directory keeps the change.
+- **Lose nothing, undo anything.** A change keeps every revision on the server. A workspace syncs to
+  its change about 300 ms after each edit, and `remove` sends the last edits before it deletes anything.
+  `checkpoint` marks a point (a Claude Code hook marks one per turn); `restore_change` goes back to it
+  and can itself be undone.
+- **Many agents in one checkout.** Agents that share one directory still get one change each: every hunk
+  has a stable id and one owner (`treeyard share`).
 - **Start in about a second.** Agents that only edit need no checkout: they use the API. Agents that
   build get a copy-on-write clone of a built base, with `target/` or `node_modules` shared as a layer.
 - **Land without a lock.** The server rebases and merges on `land`. A conflict comes back as a task
   with the base, both sides and who changed the path. Optional modes test before (`queue`) or after
   (`optimistic`) the land, with bisect and revert.
+- **Workspaces that clean up after themselves.** A repo file `.treeyard/workspace.toml` sets setup,
+  teardown, layers, `.env` files to copy and ports. `workspace gc` keeps count and disk under a limit and
+  never deletes unsynced work. Sparse workspaces (`--paths`) and a mirror into one fixed directory.
+- **Best of N, notes that travel.** Run several agents on one task (`group`) and land one; attach the
+  agent's transcript to its change, and it becomes a git note on the landed commit.
 - **Keep git.** Every land is one deterministic git commit. People clone, pull and push over HTTP;
   `treeyard mirror` pushes `main` to GitHub.
 - **Ask the server.** `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`,
