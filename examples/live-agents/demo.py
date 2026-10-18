@@ -6,7 +6,8 @@ DEMO_SET=hard: 4 pairs of feature requests, two agents per function).
     python3 demo.py git        # arm 1: git worktrees + a serial merge queue (land.py)
     python3 demo.py treeyard   # arm 2: TreeYard workspaces + daemon + optimistic landing
 
-Env: DEMO_DIR (work dir, default ~/.cache/treeyard-live-agents), TREEYARD_BIN, DEMO_MODEL (sonnet).
+Env: DEMO_DIR (work dir, default ~/.cache/treeyard-live-agents), TREEYARD_BIN, DEMO_MODEL (sonnet),
+DEMO_N (use the first N tasks), DEMO_POOL (at most this many claude -p at once; default all).
 Needs the `claude` CLI (Claude Code); each run starts 8 `claude -p` sessions.
 
 Same model, tasks and task text in both arms; only the way work reaches master differs.
@@ -87,8 +88,10 @@ TASKS_HARD = [
 ]
 if SET == "hard":
     TASKS = TASKS_HARD
+TASKS = TASKS[:int(os.environ.get("DEMO_N", len(TASKS)))]
+POOL = int(os.environ.get("DEMO_POOL", len(TASKS)))
 
-COMMON = """You are one of 8 coding agents that work on the more-itertools library at the same time, in the
+COMMON = """You are one of {n} coding agents that work on the more-itertools library at the same time, in the
 same repository. Your task: {title}.
 {desc}
 Make the change in more_itertools/more.py (and its type stub in more_itertools/more.pyi when the
@@ -133,22 +136,27 @@ def run_agents(arm, dirs, prompts, env):
     os.makedirs(os.path.join(D, "agents"), exist_ok=True)
     procs = []
     t0 = time.time()
-    for i, (cwd, prompt) in enumerate(zip(dirs, prompts)):
+
+    def start(i):
         out = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.json"), "w")
         err = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.err"), "w")
-        cmd = ["claude", "-p", prompt, "--output-format", "json", "--model", MODEL, "--max-turns", "80",
+        cmd = ["claude", "-p", prompts[i], "--output-format", "json", "--model", MODEL, "--max-turns", "80",
                "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED,
                "--mcp-config", '{"mcpServers":{}}', "--strict-mcp-config"]
-        procs.append((i, subprocess.Popen(cmd, cwd=cwd, env=env[i], stdout=out, stderr=err), time.time()))
-    ends = {}
-    while len(ends) < len(procs):
-        for i, p, _ in procs:
+        procs.append((i, subprocess.Popen(cmd, cwd=dirs[i], env=env[i], stdout=out, stderr=err), time.time()))
+
+    ends, waiting = {}, list(range(len(dirs)))
+    while len(ends) < len(dirs):
+        while waiting and len(procs) - len(ends) < POOL:  # a pool: start the next agent when one exits
+            start(waiting.pop(0))
+        for i, p, started in procs:
             if i not in ends and p.poll() is not None:
                 ends[i] = time.time() - t0
                 print(f"[{arm}] agent {i} ({TASKS[i][0]}) exited {p.returncode} after {ends[i]:.0f} s", flush=True)
-            elif i not in ends and time.time() - t0 > 2400:
+            elif i not in ends and time.time() - started > 2400:
                 p.kill()
         time.sleep(2)
+    procs.sort()
     agents = []
     for i, p, _ in procs:
         try:
@@ -169,6 +177,8 @@ def final_tests(repo):
         probes = json.loads(p.stdout)
     except ValueError:
         probes = {"error": p.stderr[-500:]}
+    if SET == "bugs":  # one check per task: keep the checks of the tasks that ran (DEMO_N)
+        probes = {k: v for k, v in probes.items() if k in {t[0] for t in TASKS} or k == "error"}
     return {"pytest_exit": r.returncode, "pytest_tail": r.stdout.strip().splitlines()[-1:],
             "hidden_checks_passed": sum(v is True for v in probes.values()), "hidden_checks": probes}
 
@@ -188,7 +198,7 @@ def arm_git():
         dirs.append(wt)
     setup_s = round(time.time() - t0, 2)
     base_env = {**os.environ, "DEMO_PY": PY}
-    prompts = [COMMON.format(title=t, desc=d, py=PY) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
+    prompts = [COMMON.format(n=len(TASKS), title=t, desc=d, py=PY) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
     agents, wall = run_agents("git", dirs, prompts, [base_env] * len(TASKS))
     log = [json.loads(l) for l in open(os.path.join(G, "land.log"))] if os.path.exists(os.path.join(G, "land.log")) else []
     t_landed = [r["t"] for r in log if r["result"] == "landed"]
@@ -235,7 +245,7 @@ def arm_treeyard():
         w = json.loads(open(os.path.join(home, "meta", f"{ws}.json")).read())
         dirs.append(w["dir"])
         envs.append({**env, "TREEYARD_WORKSPACE": ws, "TREEYARD_AGENT": ws})
-        prompts.append(COMMON.format(title=title, desc=desc, py=PY) + TY_FINISH.format(ws=ws, change=w["change"]))
+        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY) + TY_FINISH.format(ws=ws, change=w["change"]))
     setup_s = round(time.time() - t0, 2)
     agents, wall = run_agents("treeyard", dirs, prompts, envs)
     # Optimistic landing tests main after the lands: wait for the worker to settle.

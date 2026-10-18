@@ -22,3 +22,7 @@ python3 demo.py treeyard
 
 Results go to `$DEMO_DIR/results/<arm>.json` (default `~/.cache/treeyard-live-agents`). The agents get
 an allow-list of tools (file edits, `git`, `python`, `treeyard`, `cat`, `ls`, `grep`, ...), no MCP servers.
+
+`DEMO_N=5` runs only the first 5 tasks and `DEMO_POOL=4` keeps at most 4 `claude -p` running at once.
+`cloud.sh TAG` builds treeyard, runs both arms and copies the results to `bench/results/live-agents/TAG/`
+(made for a Claude Code cloud session: it stops first if the `claude` CLI is missing or `claude -p` fails).
