@@ -30,7 +30,11 @@ treeyard workspace remove fix-1
    config's `run`).
 6. `sync` (by hand, after `exec`, or from the daemon) sends every file that differs from the last sync as
    one new changeset of the same change. The server sees each agent's work live, and `apply` returns the
-   `overlaps` with other open changes (also written to `.treeyard/overlaps.json`).
+   `overlaps` with other open changes (also written to `.treeyard/overlaps.json`) and the stronger
+   `collisions` (each pair landed on today's main in both orders: `conflict` with a `reason`, or a
+   near `overlap`), written to `.treeyard/collisions.json`. An empty answer removes the file.
+   `treeyard workspace status NAME` syncs and asks the server again, so it also shows collisions
+   that other agents' edits caused since this workspace's last sync.
 7. `land` syncs, lands, and in `queue` or `optimistic` mode waits (default 600 s, `--wait-s N`) for the
    verdict of the tests (`land_status`): `passed`, `rejected` (the queue's tests failed; fix and land
    again) or `reverted` (optimistic landing found the change broke main and reverted it; the reply has

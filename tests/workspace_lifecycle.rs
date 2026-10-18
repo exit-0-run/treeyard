@@ -519,3 +519,35 @@ fn optimistic_revert_reaches_the_agent_and_the_workspace_carries_on() {
     // The follow-up merged onto main: x's work is still there (w's stale f01.txt did not win).
     assert_eq!(read_at(&url, "main", "f01.txt")["content"], "from x\n");
 }
+
+#[test]
+fn workspaces_see_collisions_with_reasons_and_status_is_fresh() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (a, _) = node.create(&opts("a")).unwrap();
+    let (b, _) = node.create(&opts("b")).unwrap();
+    let base = fs::read_to_string(a.dir.join("f00.txt")).unwrap();
+    let edit = |text: &str, new: &str| -> String {
+        text.lines().enumerate().map(|(i, l)| if i == 4 { format!("{new}\n") } else { format!("{l}\n") }).collect()
+    };
+    fs::write(a.dir.join("f00.txt"), edit(&base, "A")).unwrap();
+    node.sync("a").unwrap();
+    fs::write(b.dir.join("f00.txt"), edit(&base, "B")).unwrap();
+    node.sync("b").unwrap();
+
+    // b's sync wrote the server's answer: a conflict with a, and why.
+    let mine: Value = serde_json::from_slice(&fs::read(b.dir.join(".treeyard/collisions.json")).unwrap()).unwrap();
+    assert_eq!(mine[0]["kind"], "conflict", "{mine}");
+    assert_eq!(mine[0]["files"][0]["reason"], "landing_order", "{mine}");
+    // a has not synced since, yet status asks the server and sees b.
+    let st = node.status("a").unwrap();
+    assert_eq!(st["collisions"][0]["agent"], "agent-b", "{st}");
+    assert!(a.dir.join(".treeyard/collisions.json").exists());
+
+    // b steps back: its next sync clears the file.
+    fs::write(b.dir.join("f00.txt"), &base).unwrap();
+    node.sync("b").unwrap();
+    assert!(!b.dir.join(".treeyard/collisions.json").exists());
+    assert_eq!(node.status("a").unwrap()["collisions"], json!([]));
+}

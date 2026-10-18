@@ -1244,6 +1244,7 @@ impl Node {
         state.extend(found.touched);
         let mut head = Value::Null;
         let mut overlaps = Vec::new();
+        let mut collisions = Vec::new();
         let mut changesets = 0;
         let paths: Vec<String> = next.iter().map(|(p, _)| p.clone()).collect();
         let mut batch = Vec::new();
@@ -1255,6 +1256,7 @@ impl Node {
             let r = self.call("apply", json!({"change": ws.change, "edits": std::mem::take(batch)}))?;
             head = r["head"].clone();
             overlaps = r["overlaps"].as_array().cloned().unwrap_or_default();
+            collisions = r["collisions"].as_array().cloned().unwrap_or_default();
             changesets += 1;
             Ok(())
         };
@@ -1282,8 +1284,16 @@ impl Node {
             rec.synced = crate::repo::now();
             write_json(&self.meta_path(name), &rec)?;
         }
-        if !overlaps.is_empty() {
-            fs::write(ws.dir.join(PRIVATE).join("overlaps.json"), serde_json::to_vec_pretty(&overlaps)?)?;
+        if changesets > 0 {
+            // What the server said about this change's last edits; an empty answer clears the file.
+            for (file, list) in [("overlaps.json", &overlaps), ("collisions.json", &collisions)] {
+                let path = ws.dir.join(PRIVATE).join(file);
+                if list.is_empty() {
+                    let _ = fs::remove_file(&path);
+                } else {
+                    fs::write(&path, serde_json::to_vec_pretty(list)?)?;
+                }
+            }
         }
         let mut mirror = Value::Null;
         if let Some(into) = ws.mirror.as_deref().filter(|_| changesets > 0) {
@@ -1292,7 +1302,7 @@ impl Node {
         }
         Ok(json!({
             "workspace": name, "change": ws.change, "paths": paths, "changesets": changesets, "head": head,
-            "overlaps": overlaps, "seconds": round(t0.elapsed().as_secs_f64()), "mirror": mirror,
+            "overlaps": overlaps, "collisions": collisions, "seconds": round(t0.elapsed().as_secs_f64()), "mirror": mirror,
         }))
     }
 
@@ -1510,6 +1520,27 @@ impl Node {
         let layer_dirs: BTreeSet<String> =
             ws.layers.iter().filter_map(|l| l["dir"].as_str().map(String::from)).collect();
         Ok(scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?.diffs.len())
+    }
+
+    /// Syncs, then asks the server for the change's collisions with every other open change now
+    /// (other agents' edits since this workspace's last sync count too) and its land status.
+    pub fn status(&self, name: &str) -> Result<Value> {
+        let sync = self.sync(name)?;
+        let ws = self.get(name)?;
+        let ch = self.call("change", json!({"change": ws.change}))?;
+        let land = self.call("land_status", json!({"change": ws.change}))?;
+        let collisions = ch["collisions"].clone();
+        let path = ws.dir.join(PRIVATE).join("collisions.json");
+        match collisions.as_array() {
+            Some(list) if !list.is_empty() => fs::write(&path, serde_json::to_vec_pretty(list)?)?,
+            _ => {
+                let _ = fs::remove_file(&path);
+            }
+        }
+        Ok(json!({
+            "workspace": name, "change": ws.change, "collisions": collisions, "conflicts": ch["conflicts"],
+            "land": land, "synced": sync["changesets"],
+        }))
     }
 
     /// `land_with` and up to 10 minutes for the tests of the landing mode.

@@ -308,6 +308,8 @@ enum WsCmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Sync, then show this change's collisions with other agents' open changes and its land status.
+    Status { name: String },
     /// Write the change as the server holds it now into the workspace (after a land that hit a
     /// conflict, or a continuous rebase): the work that landed first plus conflict markers.
     Update { name: String },
@@ -471,6 +473,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             ..Default::default()
         })?)?,
         WsCmd::Update { name } => print(&node.update(&name)?)?,
+        WsCmd::Status { name } => print(&node.status(&name)?)?,
         WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())
