@@ -630,6 +630,13 @@ impl Inner {
             Some(v) if *v != ch.head => Some(self.manifest(v)?),
             _ => None,
         };
+        // With kept conflicts, a write to a conflicted path is its resolution: no merge with the
+        // stale view (that would nest conflict markers).
+        let kept: BTreeSet<String> = if self.cfg.coordination.keep_conflicted {
+            ch.conflicts.iter().map(|c| c.path.clone()).collect()
+        } else {
+            BTreeSet::new()
+        };
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
@@ -638,6 +645,7 @@ impl Inner {
             let mut new = self.edit_entry(e, cur.as_ref())?;
             if let Some(v) = &view
                 && e.replace.is_none()
+                && !kept.contains(&e.path)
                 && v.get(&e.path) != cur.as_ref()
             {
                 let old = v.get(&e.path).cloned();
@@ -845,9 +853,12 @@ impl Inner {
         if ch.base == onto {
             return Ok(report);
         }
-        if !ch.conflicts.is_empty() {
+        if !ch.conflicts.is_empty() && !self.cfg.coordination.keep_conflicted {
             bail!("change {} has unresolved conflicts; resolve them before rebasing", ch.id);
         }
+        // A kept conflict merges again from its own base and our side, never from the text
+        // with markers, so main's later edits to the path join the same conflict.
+        let kept: HashMap<String, Conflict> = ch.conflicts.drain(..).map(|c| (c.path.clone(), c)).collect();
         let base_m = self.manifest(&ch.base)?;
         let theirs_m = self.manifest(onto)?;
         let mut changes = Changes::new();
@@ -857,8 +868,16 @@ impl Inner {
         // base is not an ancestor of `onto` (a base holding work main lacks, as in replay),
         // main seems to delete that work and a driver would apply the deletion.
         let drivers_ok = self.is_ancestor(&ch.base, onto)?;
-        for (path, ours) in self.own_changes(ch)? {
-            let (b, t) = (base_m.get(&path), theirs_m.get(&path));
+        let mut own = self.own_changes(ch)?;
+        for (p, c) in &kept {
+            own.entry(p.clone()).or_insert_with(|| c.ours.clone());
+        }
+        for (path, mut ours) in own {
+            let (mut b, t) = (base_m.get(&path), theirs_m.get(&path));
+            let old = kept.get(&path);
+            if let Some(c) = old {
+                (b, ours) = (c.base.as_ref(), c.ours.clone());
+            }
             let mut merged = merge3(self, b, ours.as_ref(), t)?;
             if let (
                 true,
@@ -881,13 +900,15 @@ impl Inner {
                 Merged::Conflict { kind, materialized } => (materialized, Some(kind)),
             };
             if let Some(kind) = kind {
+                let mut theirs_by = self.touches(&ch.base, onto, &path)?;
+                theirs_by.extend(old.map(|c| c.theirs_by.clone()).unwrap_or_default());
                 conflicts.push(Conflict {
                     path: path.clone(),
                     kind,
                     base: b.cloned(),
                     ours: ours.clone(),
                     theirs: t.cloned(),
-                    theirs_by: self.touches(&ch.base, onto, &path)?,
+                    theirs_by,
                 });
             } else if let Some((whole, hunks)) = self.absorbed(b, ours.as_ref(), t, result.as_ref())? {
                 report.absorbed.push(json!({
@@ -1075,8 +1096,9 @@ impl Inner {
     }
 
     /// Continuous rebase (`[coordination] continuous_rebase`): after main moved, rebase every
-    /// open change that is not stacked, queued or conflicted onto it, so conflicts show up
-    /// while they are small. The owner's later whole-file writes merge through `view`.
+    /// open change that is not stacked, queued or conflicted (unless `keep_conflicted`) onto it,
+    /// so conflicts show up while they are small. The owner's later whole-file writes merge
+    /// through `view`.
     pub fn continuous_rebase(&mut self) -> Result<Vec<Value>> {
         let mut out = Vec::new();
         if !self.cfg.coordination.continuous_rebase {
@@ -1085,7 +1107,8 @@ impl Inner {
         let main = self.main()?;
         let queued: BTreeSet<String> = self.store.queue()?.into_iter().collect();
         for mut o in self.store.changes(Some("open"))? {
-            if o.base == main || !o.conflicts.is_empty() || queued.contains(&o.id) {
+            let conflicted = !o.conflicts.is_empty() && !self.cfg.coordination.keep_conflicted;
+            if o.base == main || conflicted || queued.contains(&o.id) {
                 continue;
             }
             // A base that is not an ancestor of main holds work main lacks (replay's stale
@@ -1482,7 +1505,7 @@ impl Inner {
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
-            "declared": ch.declared, "view": ch.view,
+            "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(),
         }))
     }
 

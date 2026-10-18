@@ -55,6 +55,7 @@ output and limits: [docs/coordination.md](coordination.md). Tests: `tests/coordi
 ```toml
 [coordination]
 continuous_rebase = true          # rebase open changes after every land; conflicts show up at once
+keep_conflicted = true            # a conflicted change still rebases and takes edits; land waits for it
 [merge]
 syntax = "auto"                   # mergiraf on the remaining conflicts, when installed
 [[merge.driver]]

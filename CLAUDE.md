@@ -52,7 +52,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/bisect.rs`, `src/auth.rs`, `src/audit.rs` | server-side bisect; API tokens with path globs; audit log |
 | `src/apidoc.rs` | docs/api.md from `rpc::tools()`; `GROUPS` must list every operation once |
 | `tests/swarm.rs`, `tests/replay.rs` | phase-1 gate: 50 agents, merges = `git merge-tree`; synthetic replay (stale, stacked, intents) |
-| `tests/coordination.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard |
+| `tests/coordination.rs`, `tests/conflicts.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard; `keep_conflicted` |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
 | `tests/workspace.rs`, `tests/checkpoints.rs` | create/sync/remove, every clone strategy, layer reuse, ports, daemon, CLI shell flow; overlay (Linux, root); checkpoints, `restore_change`, `workspace restore` |
 | `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff |

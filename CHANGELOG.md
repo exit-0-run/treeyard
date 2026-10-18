@@ -12,6 +12,8 @@ version; the rename comes in a later version.
 - Checkpoints inside an open change: `checkpoint`, `checkpoints`, `restore_change` (undo that keeps
   history), `treeyard workspace restore NAME --to N`, and a Claude Code `UserPromptSubmit` hook that
   marks one checkpoint per turn (`examples/claude-code/checkpoint.sh`).
+- `[coordination] keep_conflicted = true`: a conflicted change keeps rebasing and taking edits;
+  `land` waits until its conflicts are resolved. Default off (the old rule).
 
 ## [0.1.0] - not released yet
 

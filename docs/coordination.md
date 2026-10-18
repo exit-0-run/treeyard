@@ -102,6 +102,22 @@ work on the current text and need no merge. A client that read the current head 
 that write goes in as is and clears `view`. Test `c_…` checks that a stale whole-file write keeps both
 edits.
 
+### Conflicts that do not block
+
+By default a conflicted change stays on its base: continuous rebase skips it and `rebase` refuses
+until every conflict is resolved. With `[coordination] keep_conflicted = true` it keeps moving:
+
+- The rebase stores the conflict per path (`base`, `ours`, `theirs` entries) and the text with markers
+  as the change's content of that path. The change shows `conflicted: true`.
+- The agent keeps applying edits on top. Continuous rebase (and `rebase`) moves the change with main:
+  each kept conflict is merged again from its own base and our side onto the new main, never from the
+  text with markers. Main's later edits to the path join the conflict (`theirs`, `theirs_by`); a main
+  that settles the path clears the conflict.
+- `land` answers `status: conflict` until every conflict is resolved. Writing the path with `apply`
+  (taken as is, not merged with the stale `view`) or calling `resolve` clears it.
+
+Tests: `tests/conflicts.rs` (both modes).
+
 ## (d) Merge drivers
 
 Drivers run only where the line merge conflicts (content or add/add), so a clean merge is the same as
