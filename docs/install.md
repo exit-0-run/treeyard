@@ -1,10 +1,12 @@
 # Install
 
-`treeyard` is one binary (static on Linux). It needs `git` 2.44 or newer on the server and on
-nodes: the server reads objects with `git cat-file` and merges lines with
-`git merge-file --diff-algorithm`, which git 2.44 added
+`treeyard` is one binary (static on Linux). It needs `git` on the server and on nodes: the server
+reads objects with `git cat-file` and merges lines with `git merge-file`. With git 2.44 or newer it
+passes `--diff-algorithm histogram`, the diff of git's own merges
 ([release notes](https://raw.githubusercontent.com/git/git/master/Documentation/RelNotes/2.44.0.adoc),
-opened 2026-10-18).
+opened 2026-10-18). Older git (Ubuntu 24.04 ships 2.43) works too: the server says once that it uses
+merge-file's default diff, so in rare cases a merge can come out clean where `git merge` conflicts, or
+the other way round.
 
 ## From a release directory
 

@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use crate::model::{ConflictKind, Entry, MODE_GITLINK, MODE_LINK};
 
@@ -21,8 +21,12 @@ pub trait Blobs {
 /// The diff algorithm of git's own merges (merge-ort sets histogram for content merges).
 pub const GIT_MERGE_DIFF: &str = "histogram";
 
+/// Set once git rejects `merge-file --diff-algorithm` (added in git 2.44; Ubuntu 24.04 ships 2.43).
+static NO_DIFF_ALGORITHM: AtomicBool = AtomicBool::new(false);
+
 /// Line merge by `git merge-file`, so a clean merge is exactly what git's merge gives. Main
 /// (`theirs`) goes first, like `git merge-tree <main> <change>`; markers name main and change.
+/// Before git 2.44 it falls back to merge-file's default diff (Myers) and says so once.
 pub fn git_merge_file(dir: &Path, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
     static N: AtomicU64 = AtomicU64::new(0);
     std::fs::create_dir_all(dir)?;
@@ -33,12 +37,25 @@ pub fn git_merge_file(dir: &Path, base: &str, ours: &str, theirs: &str) -> Resul
         for (f, body) in files.iter().zip([theirs, base, ours]) {
             std::fs::write(f, body)?;
         }
-        let out = crate::git::cmd()
-            .args(["merge-file", "-p", "--diff-algorithm", GIT_MERGE_DIFF, "-L", "main", "-L", "base", "-L", "change"])
-            .args(&files)
-            .stdin(Stdio::null())
-            .output()
-            .context("running git merge-file")?;
+        let run = |algo: bool| {
+            let mut c = crate::git::cmd();
+            c.args(["merge-file", "-p"]);
+            if algo {
+                c.args(["--diff-algorithm", GIT_MERGE_DIFF]);
+            }
+            c.args(["-L", "main", "-L", "base", "-L", "change"]).args(&files).stdin(Stdio::null());
+            c.output().context("running git merge-file")
+        };
+        let mut out = run(!NO_DIFF_ALGORITHM.load(Ordering::Relaxed))?;
+        if out.status.code() == Some(129) && String::from_utf8_lossy(&out.stderr).contains("diff-algorithm") {
+            if !NO_DIFF_ALGORITHM.swap(true, Ordering::Relaxed) {
+                eprintln!(
+                    "treeyard: this git has no `merge-file --diff-algorithm` (git 2.44+); line merges use Myers, \
+                     so a rare clean merge can differ from git merge's"
+                );
+            }
+            out = run(false)?;
+        }
         let text = String::from_utf8(out.stdout).context("git merge-file output is not UTF-8")?;
         match out.status.code() {
             Some(0) => Ok(Ok(text)),

@@ -5,7 +5,7 @@ tagged `sh` on this page runs as is: `sh scripts/check-quickstart.sh docs/quicks
 in a new empty directory and stops at the first error. The transcript of the last run is at the end
 of this page.
 
-You need `git` (2.44 or newer), `python3` and a `treeyard` binary on `PATH`. Install one with
+You need `git` (2.44 or newer is best; older works, see [install](install.md)), `python3` and a `treeyard` binary on `PATH`. Install one with
 [install.md](install.md), or build it from source with `make release`.
 
 ## 1. A repository to serve
