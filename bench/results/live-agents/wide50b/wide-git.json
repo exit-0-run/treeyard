@@ -1,0 +1,682 @@
+{
+  "arm": "git worktrees + merge queue",
+  "setup_s": 2.44,
+  "agents_wall_s": 3800.3,
+  "agents": [
+    {
+      "task": "chunked_fillvalue",
+      "exit": 0,
+      "wall_s": 99.4,
+      "turns": 6,
+      "cost_usd": 0.08603750000000002,
+      "duration_ms": 80077,
+      "is_error": false,
+      "last": "`more_itertools/more.pyi` (the signature) and `tests/test_more.py`. The new `test_fillvalue` sits next to the existing chunked tests. It checks padding, an evenly divisible input, and `n=None`.\n\n`fillvalue` combined with `strict=True` wasn't specified. Because the last list is padded before the strict check, `strict` never raises when `fillvalue` is given. I didn't add a test for that combination."
+    },
+    {
+      "task": "chunked_as_tuples",
+      "exit": 0,
+      "wall_s": 460.8,
+      "turns": 22,
+      "cost_usd": 0.1903945,
+      "duration_ms": 444230,
+      "is_error": false,
+      "last": "` and `test_more.py`. I kept both parameters and both tests.\n- **My own bug:** my first version made the strict-mode helper iterate over itself, which failed the new test. I fixed it by passing the chunks in as an argument.\n- **Return type:** the stub's return type is now `Iterator[Any]`, because the result is lists or tuples depending on the flag. That is looser than the old `Iterator[list[_T]]`."
+    },
+    {
+      "task": "intersperse_leading",
+      "exit": 0,
+      "wall_s": 359.5,
+      "turns": 13,
+      "cost_usd": 0.17964600000000003,
+      "duration_ms": 343020,
+      "is_error": false,
+      "last": ":** another agent had added a `trailing` parameter to the same function, so the rebase conflicted in `more.pyi` and `test_more.py`. I kept both sides.\n- **Combined case:** I added code and a test for `leading=True` with `trailing=True`, giving `['x', 1, 'x', 2, 'x']` for `[1, 2]`. Using both flags checks the first item of the result as soon as `intersperse` is called, not when you start iterating."
+    },
+    {
+      "task": "intersperse_trailing",
+      "exit": 0,
+      "wall_s": 69.0,
+      "turns": 4,
+      "cost_usd": 0.0870978,
+      "duration_ms": 52425,
+      "is_error": false,
+      "last": ", 'x', 2, 'x']`. `[1, 2, 3]` with `n=2` gives `[1, 2, 'x', 3, 'x']`. An empty iterable still yields nothing.\n- **Code:** I added a `trailing` branch in `more_itertools/more.py` and updated the docstring and `more.pyi`.\n- **Tests:** I added `test_trailing` to `IntersperseTest` in `tests/test_more.py`. The 7 intersperse tests pass. I didn't run the full suite myself; `land.py` ran it before merging."
+    },
+    {
+      "task": "lstrip_value",
+      "exit": 0,
+      "wall_s": 396.9,
+      "turns": 15,
+      "cost_usd": 0.16239240000000002,
+      "duration_ms": 381447,
+      "is_error": false,
+      "last": "t both changes, and the value check runs before the `limit` handling, so a value works with `limit` too. After the rebase, the strip tests passed (5 passed) and `land.py` ran the full suite before merging.\n- **`strip` and `rstrip`:** I left both alone, as asked. `strip` passes `pred` straight through to `rstrip`, so it still needs a callable. Passing a plain value to `strip` or `rstrip` will fail."
+    },
+    {
+      "task": "lstrip_limit",
+      "exit": 0,
+      "wall_s": 168.7,
+      "turns": 7,
+      "cost_usd": 0.09162990000000001,
+      "duration_ms": 149620,
+      "is_error": false,
+      "last": " I added `test_lstrip_limit` to `StripFunctionTests` in `tests/test_more.py`. It covers `limit=2`, `limit=5`, `limit=0` (nothing stripped) and `limit=None`.\n- **Tests:** I only ran the strip tests (`-k StripFunction`, 4 passed). The full suite ran inside `land.py` as part of landing, but I didn't see its output beyond the `LANDED` line.\n\nThe commit message was \"Fix lstrip_limit\", as you specified."
+    },
+    {
+      "task": "one_pred",
+      "exit": 0,
+      "wall_s": 297.9,
+      "turns": 16,
+      "cost_usd": 0.16551690000000002,
+      "duration_ms": 269089,
+      "is_error": false,
+      "last": "` (signature) and `tests/test_more.py` (a `test_pred` in `OneTests`).\n- **Conflicts:** another agent had added a `default` parameter to `one()`, so the rebase conflicted in `more.pyi`. I kept both parameters in the stub. The rebase also left two `def one(...)` lines in `more.py`, which I merged into one signature with both `default` and `pred`.\n\nI didn't add a test combining `default` with `pred`."
+    },
+    {
+      "task": "one_default",
+      "exit": 0,
+      "wall_s": 121.5,
+      "turns": 6,
+      "cost_usd": 0.0966406,
+      "duration_ms": 103302,
+      "is_error": false,
+      "last": "unts as \"given\".\n- **Files changed:** `more_itertools/more.py` for the function and docstring, `more_itertools/more.pyi` for the signature, and `tests/test_more.py` for a new `test_default` in `OneTests`.\n- **Tests:** the `-k one` run passed (36 tests). I didn't run the full suite myself; `land.py` ran it before merging.\n\nIn the stub, the return type is `_T | _U` and `default` is typed `_U = ...`."
+    },
+    {
+      "task": "argmax_default",
+      "exit": 0,
+      "wall_s": 436.2,
+      "turns": 21,
+      "cost_usd": 0.1836013,
+      "duration_ms": 418020,
+      "is_error": false,
+      "last": "ameter to `argmax` at the same time. I merged the two, so the signature is now `argmax(iterable, *, key=None, last=False, default=_marker)`. Git's automatic merge had left the function body broken, so I rewrote it by hand and `last` and `default` work together.\n- **Tests:** the argmax tests passed after the merge (4 passed). I didn't run the whole suite myself; `land.py` ran it as part of landing."
+    },
+    {
+      "task": "argmax_last",
+      "exit": 0,
+      "wall_s": 226.6,
+      "turns": 10,
+      "cost_usd": 0.09738920000000001,
+      "duration_ms": 203258,
+      "is_error": false,
+      "last": "`, so ties go to the later index (`more_itertools/more.py`). The docstring has a new `last=True` example.\n- **Stub:** `more.pyi` has the new `last: bool = ...` parameter.\n- **Tests:** I added `test_last` to `ArgMinArgMaxTests`, covering both examples from your description.\n\nAfter the commit, the harness reported that `more.pyi` changed on disk from what I had read. I haven't looked at that change."
+    },
+    {
+      "task": "iterate_times",
+      "exit": 0,
+      "wall_s": 271.5,
+      "turns": 3,
+      "cost_usd": 0.0830091,
+      "duration_ms": 178092,
+      "is_error": false,
+      "last": "not a third time after the last item.\n- **Files:** I changed `more_itertools/more.py` (code and docstring, with a `times=4` example) and `more_itertools/more.pyi` (signature).\n- **Tests:** I added `test_times`, `test_times_zero` and `test_times_func_calls` to `IterateTests` in `tests/test_more.py`. The 5 tests selected by `-k iterate` passed. Landing ran the full suite, and it printed no CONFLICT."
+    },
+    {
+      "task": "iterate_until",
+      "exit": 0,
+      "wall_s": 571.3,
+      "turns": 17,
+      "cost_usd": 0.16639230000000002,
+      "duration_ms": 454255,
+      "is_error": false,
+      "last": "\nAnother agent had added a `times` parameter to the same function, so the rebase conflicted in `more.pyi`, `tests/test_more.py` and the `more.py` signature. I kept both: the signature is now `iterate(func, start, *, times=None, until=None)`, and both agents' tests stay.\n\nAfter the rebase the `-k iterate` tests passed (7 passed). I didn't run the full suite myself; `land.py` runs it before merging."
+    },
+    {
+      "task": "last_pred",
+      "exit": 0,
+      "wall_s": 324.5,
+      "turns": 5,
+      "cost_usd": 0.0892888,
+      "duration_ms": 189026,
+      "is_error": false,
+      "last": "ch.\n- **Plain iterators:** it filters, then keeps only the last matching item.\n- **No match:** it returns `default`, or raises `ValueError` when no default was given, the same as for an empty iterable.\n\nI changed `last` in `more_itertools/more.py`, its two overloads in `more_itertools/more.pyi`, and the docstring. I added `test_pred` and `test_pred_no_match` to `LastTests` in `tests/test_more.py`."
+    },
+    {
+      "task": "last_too_short",
+      "exit": 0,
+      "wall_s": 749.8,
+      "turns": 21,
+      "cost_usd": 0.19020110000000004,
+      "duration_ms": 509026,
+      "is_error": false,
+      "last": "g priority.\n- **Conflict:** another agent had added a `pred` parameter to `last()` in the meantime, so the rebase conflicted in `more.pyi`. `more.py` auto-merged into a broken signature and docstring. I kept both parameters in both files (`pred=None, too_short=None`).\n- **Tests:** the `-k last` tests passed (14) after the merge. I didn't run the full suite myself. `land.py` runs it before merging."
+    },
+    {
+      "task": "split_into_fillvalue",
+      "exit": 0,
+      "wall_s": 520.6,
+      "turns": 5,
+      "cost_usd": 0.09230659999999999,
+      "duration_ms": 225433,
+      "is_error": false,
+      "last": "he existing `_marker` sentinel from `more.py` to tell whether `fillvalue` was passed, so passing `fillvalue=None` pads with `None`.\n\nI also updated the docstring, the `more.pyi` stub, and added two tests in `tests/test_more.py` next to the existing `split_into` tests. The `split_into` tests passed (18 passed) with `-k splitinto`. I didn't run the full suite myself; `land.py` ran it before merging."
+    },
+    {
+      "task": "split_into_rest",
+      "exit": 0,
+      "wall_s": 992.9,
+      "turns": 23,
+      "cost_usd": 0.19949479999999994,
+      "duration_ms": 669349,
+      "is_error": false,
+      "last": "docstring updated and two tests added to `SplitIntoTests`. The `split_into` tests passed after the rebase (20 passed).\n\nThe first `land.py` run hit a conflict. Another agent had added a `fillvalue` parameter to `split_into`. I kept both parameters in the signature, the stub and the docstring. The merge had also dropped the `[[1], [2, 3]]` output line from the `fillvalue` doctest, so I put it back."
+    },
+    {
+      "task": "powerset_min_size",
+      "exit": 0,
+      "wall_s": 615.6,
+      "turns": 11,
+      "cost_usd": 0.0983846,
+      "duration_ms": 291984,
+      "is_error": false,
+      "last": " 2, 3)]`. The change is the `range` start in `more_itertools/recipes.py`, plus a docstring example and the signature in `recipes.pyi`.\n\nI added two tests next to the existing one in `tests/test_recipes.py`. One covers your example. The other checks that a `min_size` larger than the input gives an empty result. The `-k powerset` run passed (6 tests), and `land.py` ran the full suite before merging."
+    },
+    {
+      "task": "powerset_max_size",
+      "exit": 0,
+      "wall_s": 835.7,
+      "turns": 16,
+      "cost_usd": 0.1486932,
+      "duration_ms": 499114,
+      "is_error": false,
+      "last": "e is now `powerset(iterable, *, min_size=0, max_size=None)`. The two options work together.\n\nI changed the docstring, the stub and the tests in `tests/test_recipes.py` to match. I added `test_max_size`, which checks `max_size` of 0, 1, 2 and 5 on `[1, 2, 3]`. After resolving the conflict, the `powerset` tests passed (7 passed). I didn't run the whole suite myself; `land.py` runs it before merging."
+    },
+    {
+      "task": "tabulate_step",
+      "exit": 0,
+      "wall_s": 642.3,
+      "turns": 3,
+      "cost_usd": 0.0720948,
+      "duration_ms": 236702,
+      "is_error": false,
+      "last": "e full suite as part of landing.\n\n- **Code:** `tabulate` in `more_itertools/recipes.py` now passes `step` to `count`. I updated the docstring and added a doctest for the step case.\n- **Type stub:** `more_itertools/recipes.pyi` has the new `step` parameter.\n- **Test:** `test_step` in `TabulateTests` in `tests/test_recipes.py` checks the `[0, 4, 16, 36]` case.\n\nI committed it as \"Fix tabulate_step\"."
+    },
+    {
+      "task": "tabulate_stop",
+      "exit": 0,
+      "wall_s": 1180.0,
+      "turns": 24,
+      "cost_usd": 0.17841890000000005,
+      "duration_ms": 728172,
+      "is_error": false,
+      "last": "ulate(function, start=0, *, step=1, stop=None)`, and `step` applies in the bounded case too, via `range(start, stop, step)`. I merged the docstrings, the `recipes.pyi` stub and the tests the same way.\n\nI added `test_stop` and `test_stop_empty` next to the existing tabulate tests. The `-k tabulate` run after the merge passed (5 tests); I didn't run the whole suite myself beyond what `land.py` runs."
+    },
+    {
+      "task": "interleave_longest_fillvalue",
+      "exit": 0,
+      "wall_s": 806.1,
+      "turns": 10,
+      "cost_usd": 0.09913490000000001,
+      "duration_ms": 322334,
+      "is_error": false,
+      "last": "fill value.\n\n- **Code:** the change is in `more_itertools/more.py`, with the new parameter added to `more_itertools/more.pyi` and a docstring example.\n- **Tests:** I added `test_fillvalue` and `test_fillvalue_none` to `InterleaveLongestTests` in `tests/test_more.py`.\n- **Test runs:** the `interleavelongest` tests pass (5 passed). I didn't run the full suite myself; `land.py` ran it before merging."
+    },
+    {
+      "task": "locate_value",
+      "exit": 0,
+      "wall_s": 816.7,
+      "turns": 4,
+      "cost_usd": 0.0821305,
+      "duration_ms": 322564,
+      "is_error": false,
+      "last": "ing the new use.\n- **Stub:** in `more_itertools/more.pyi` I changed `pred` from `Callable[..., Any]` to `Any`, since it can now be a value.\n- **Tests:** I added `test_value` to `LocateTests` in `tests/test_more.py`. It checks `[0, 1, 0, 1]` with `1` and `'abcb'` with `'b'`.\n- **Results:** `pytest -k locate` passed (14 tests). I didn't run the full suite myself; `land.py` ran it during the landing."
+    },
+    {
+      "task": "replace_negative_count",
+      "exit": 0,
+      "wall_s": 895.0,
+      "turns": 7,
+      "cost_usd": 0.0828354,
+      "duration_ms": 297593,
+      "is_error": false,
+      "last": " or earlier\" wording.\n\nI added a docstring line saying `count` must not be negative, and two tests in `ReplaceTests`: `test_count_zero` and `test_count_negative`. The `replace` tests passed, and `land.py` printed `LANDED on master`, so the full suite passed on landing. No stub change was needed because the signature is unchanged.\n\nThe change is in `more_itertools/more.py` and `tests/test_more.py`."
+    },
+    {
+      "task": "side_effect_chunk_size",
+      "exit": 0,
+      "wall_s": 972.2,
+      "turns": 8,
+      "cost_usd": 0.0891393,
+      "duration_ms": 337527,
+      "is_error": false,
+      "last": " error is raised on the first `next()` rather than when you call it. The check runs before `before()` and `after()`, so neither is called when the size is bad.\n- **Docstring:** It now says `chunk_size` must be `None` or at least 1.\n- **Tests:** I added `test_bad_chunk_size` to `SideEffectTests` in `tests/test_more.py`, covering 0 and -1.\n\nNo stub change was needed, since the signature is the same."
+    },
+    {
+      "task": "collapse_negative_levels",
+      "exit": 0,
+      "wall_s": 1057.1,
+      "turns": 8,
+      "cost_usd": 0.08677879999999999,
+      "duration_ms": 320291,
+      "is_error": false,
+      "last": "` is a generator, the error is raised when you start iterating, not when you call it. `levels=0` still gives `[[1], [2]]` for `[[1], [2]]`.\n\nI added `test_negative_levels` and `test_zero_levels` to `TestCollapse` in `tests/test_more.py`. The collapse tests passed (8 passed). The full suite ran only inside `land.py`, and I didn't read its output beyond the LANDED line. There was no rebase conflict."
+    },
+    {
+      "task": "peekable_length_hint",
+      "exit": 0,
+      "wall_s": 1113.5,
+      "turns": 9,
+      "cost_usd": 0.1068944,
+      "duration_ms": 330579,
+      "is_error": false,
+      "last": "`operator` import. The stub has the matching line in `more_itertools/more.pyi`.\n- **Docstring:** the `peekable` docstring has a short example of `length_hint(p)` before and after `next(p)`.\n- **Test:** `test_length_hint` is in `PeekableTests` in `tests/test_more.py`. It checks your sequence for `peekable([1, 2, 3])`: 3 at the start and after `peek()`, 2 after `next(p)`, and 3 after `p.prepend(0)`."
+    },
+    {
+      "task": "sample_weights_length",
+      "exit": 0,
+      "wall_s": 1580.7,
+      "turns": 7,
+      "cost_usd": 0.1244631,
+      "duration_ms": 678848,
+      "is_error": false,
+      "last": "`tests/test_more.py`. The test covers weights that are too short and too long, and it also checks that matching lengths still work.\n\nI ran only the `sample` tests (13 passed) before committing. The full suite ran only inside `land.py`, which reported no failure.\n\nWhen `k` is 0, `sample` returns `[]` before looking at `weights`, so mismatched lengths don't raise in that case. I left that as it was."
+    },
+    {
+      "task": "distinct_permutations_negative_r",
+      "exit": 0,
+      "wall_s": 1500.9,
+      "turns": 5,
+      "cost_usd": 0.0862616,
+      "duration_ms": 615210,
+      "is_error": false,
+      "last": "th, in `more_itertools/more.py`. The function isn't a generator, so it raises on the call itself, not on first iteration. The signature didn't change, so `more.pyi` is untouched.\n- **Docstring:** I added a line saying a negative `r` raises `ValueError`.\n- **Test:** `test_negative_r` in `tests/test_more.py`, next to the existing `r` tests. It checks the error for `r=-1` and that `r=0` gives `[()]`."
+    },
+    {
+      "task": "interleave_evenly_negative_lengths",
+      "exit": 0,
+      "wall_s": 1273.6,
+      "turns": 8,
+      "cost_usd": 0.0861498,
+      "duration_ms": 399575,
+      "is_error": false,
+      "last": "s/more.py`, right after the existing length-mismatch check. The function is a generator, so the error appears when you iterate it, not at the call.\n- **Docstring:** I added a sentence saying a negative length raises `ValueError`.\n- **Test:** I added `test_negative_length_raises` to `InterleaveEvenlyTests` in `tests/test_more.py`.\n- **Stub:** the signature didn't change, so `more.pyi` is untouched."
+    },
+    {
+      "task": "duplicates_everseen_once",
+      "exit": 0,
+      "wall_s": 2088.8,
+      "turns": 8,
+      "cost_usd": 0.14994090000000002,
+      "duration_ms": 1102754,
+      "is_error": false,
+      "last": "once` test next to the existing ones in `tests/test_more.py`.\n- **Tests:** the `duplicateseverseen` tests pass (7 passed). Landing reported LANDED, but I only saw the last lines of its output and didn't read the full-suite result myself.\n\nMy first attempt reused `unique_everseen`, which fails on unhashable items. The first commit failed landing with that error, so I rewrote it and committed again."
+    },
+    {
+      "task": "substrings_reverse",
+      "exit": 0,
+      "wall_s": 1686.9,
+      "turns": 4,
+      "cost_usd": 0.0795445,
+      "duration_ms": 562330,
+      "is_error": false,
+      "last": "fore the commit (10 passed).\n\nI made the change in `more_itertools/more.py` and updated the docstring with a `reverse=True` example. I also changed the signature in `more_itertools/more.pyi` and added `test_reverse` to `SubstringsTests` in `tests/test_more.py`. `test_reverse` checks the `'abc'` example from your description.\n\nI didn't run the full suite myself; `land.py` ran it as part of landing."
+    },
+    {
+      "task": "unique_to_each_key",
+      "exit": 0,
+      "wall_s": 2073.8,
+      "turns": 5,
+      "cost_usd": 0.0907035,
+      "duration_ms": 955586,
+      "is_error": false,
+      "last": "paragraph with the `str.lower` example as a doctest.\n- **`more_itertools/more.pyi`:** the new signature, `key: Callable[[_T], Hashable] | None = ...`.\n- **`tests/test_more.py`:** a `test_key` case in `UniqueToEachTests` using your example.\n\nThe four `unique_to_each` tests passed with the targeted `-k uniquetoeach` run. `land.py` then ran the whole suite before merging, and there were no conflicts."
+    },
+    {
+      "task": "count_cycle_start",
+      "exit": 0,
+      "wall_s": 2073.8,
+      "turns": 4,
+      "cost_usd": 0.0801568,
+      "duration_ms": 859707,
+      "is_error": false,
+      "last": " unbounded case uses `count(start)`. The stub in `more_itertools/more.pyi` has the new signature, and the docstring has a `start=1` example.\n- **Tests:** I added `test_start` to the existing `count_cycle` tests in `tests/test_more.py`. It covers both examples above. The `count_cycle` tests passed (4 passed).\n\nI ran only the `count_cycle` tests myself; `land.py` runs the whole suite before merging."
+    },
+    {
+      "task": "nth_or_last_negative_n",
+      "exit": 0,
+      "wall_s": 2523.7,
+      "turns": 7,
+      "cost_usd": 0.0782949,
+      "duration_ms": 990567,
+      "is_error": false,
+      "last": "y` printed LANDED on master. I haven't run the full suite myself; landing ran it.\n\n- **Fix:** a guard at the top of `nth_or_last` in `more_itertools/more.py`, plus a line in the docstring. The type stub is unchanged because the signature didn't change.\n- **Tests:** a new `test_negative_n` in `NthOrLastTests` in `tests/test_more.py`. It checks `n = -1` and `n = -2`, each with and without a default."
+    },
+    {
+      "task": "run_length_decode_negative",
+      "exit": 0,
+      "wall_s": 2526.2,
+      "turns": 8,
+      "cost_usd": 0.08334249999999999,
+      "duration_ms": 831804,
+      "is_error": false,
+      "last": "length.decode([('a', 0), ('b', 1)]))` gives `['b']`.\n\nI added a sentence about both cases to the `run_length` docstring. The new tests, `test_decode_zero_count` and `test_decode_negative_count`, sit next to `test_decode` in `RunLengthTest` in `tests/test_more.py`.\n\nThe four `runlength` tests passed. I didn't run the whole suite myself; `land.py` ran it before merging and landed without a conflict."
+    },
+    {
+      "task": "map_if_pred_none",
+      "exit": 0,
+      "wall_s": 2648.5,
+      "turns": 4,
+      "cost_usd": 0.078071,
+      "duration_ms": 679732,
+      "is_error": false,
+      "last": "uite separately, but `land.py` ran it as part of landing.\n\n- **Code:** In `more_itertools/more.py` the function sets `pred = bool` when `pred is None`. The docstring has a one-line note and a doctest example for this.\n- **Type stub:** In `more_itertools/more.pyi`, `pred` is now `Callable[[Any], bool] | None`.\n- **Tests:** `test_pred_none` in `MapIfTests` covers `None` with and without `func_else`."
+    },
+    {
+      "task": "consecutive_groups_step",
+      "exit": 0,
+      "wall_s": 2723.6,
+      "turns": 5,
+      "cost_usd": 0.0894296,
+      "duration_ms": 625271,
+      "is_error": false,
+      "last": "example using your `[1, 3, 5, 8, 10]` case.\n- **Tests:** I added `test_step` and `test_step_ordering` to `ConsecutiveGroupsTest`. They cover `[1, 3, 5, 8, 10]` and `consecutive_groups('acez', ord, step=2)` with the outputs you gave. All 5 `consecutivegroups` tests passed.\n- **Not checked:** I didn't run the whole suite or the docstring doctests myself, apart from whatever `land.py` ran at landing."
+    },
+    {
+      "task": "only_pred",
+      "exit": 0,
+      "wall_s": 2526.2,
+      "turns": 4,
+      "cost_usd": 0.08803630000000001,
+      "duration_ms": 427350,
+      "is_error": false,
+      "last": "and stub:** the change is in `more_itertools/more.py` and both overloads in `more_itertools/more.pyi`.\n- **Docstring:** I added a short paragraph and two doctest examples.\n- **Tests:** `test_pred` in `OnlyTests` covers the match, the default, and both raise cases (default `ValueError` and a custom `too_long`).\n\nThe 9 `Only` tests passed. I didn't run the full suite myself; the landing step ran it."
+    },
+    {
+      "task": "stagger_offsets_iterator",
+      "exit": 0,
+      "wall_s": 2742.6,
+      "turns": 6,
+      "cost_usd": 0.07822050000000001,
+      "duration_ms": 653384,
+      "is_error": false,
+      "last": "ls/more.py`: `stagger` converts `offsets` to a tuple before calling `len()` on it. I added a docstring line saying `offsets` can be any iterable. The signature didn't change, so `more.pyi` is untouched. I also added `test_offsets_iterator` to `StaggerTest` in `tests/test_more.py`.\n\nThe four `stagger` tests passed. I only ran those before committing. `land.py` runs the whole suite before it merges."
+    },
+    {
+      "task": "zip_offset_offsets_iterator",
+      "exit": 0,
+      "wall_s": 2927.0,
+      "turns": 6,
+      "cost_usd": 0.1064434,
+      "duration_ms": 771230,
+      "is_error": false,
+      "last": "ets* may be any iterable of integers, including an iterator.\n- **Type stub:** in `more_itertools/more.pyi`, I changed `offsets` from `_SizedIterable[int]` to `Iterable[int]` in all six `zip_offset` overloads. `_SizedIterable` is still used by other functions, so I left its import alone.\n- **Test:** I added `test_offsets_iterator` to `ZipOffsetTest` in `tests/test_more.py`, using the example above."
+    },
+    {
+      "task": "iequals_key",
+      "exit": 0,
+      "wall_s": 3093.0,
+      "turns": 7,
+      "cost_usd": 0.08925380000000001,
+      "duration_ms": 679311,
+      "is_error": false,
+      "last": "h to the `all_equal` call it already makes on each group of elements.\n- **Other files:** I updated the docstring with a `key` example and the signature in `more.pyi`.\n- **Tests:** I added `test_key` next to the existing `iequals` tests in `tests/test_more.py`. It covers the two cases above plus iterables of different lengths. The `-k iequals` run passed (11 tests), and landing ran the whole suite."
+    },
+    {
+      "task": "unzip_fillvalue",
+      "exit": 0,
+      "wall_s": 2979.0,
+      "turns": 6,
+      "cost_usd": 0.105478,
+      "duration_ms": 534651,
+      "is_error": false,
+      "last": "\"not given\", so `fillvalue=None` works as a real fill value. The docstring has a new paragraph and doctest using your example.\n- **`more_itertools/more.pyi`:** The stub signature is updated to match.\n- **`tests/test_more.py`:** I added three tests to `UnzipTests`: your example, `fillvalue=None`, and an element longer than the first, which doesn't add outputs.\n\nI committed as \"Fix unzip_fillvalue\"."
+    },
+    {
+      "task": "extract_default",
+      "exit": 0,
+      "wall_s": 3165.3,
+      "turns": 10,
+      "cost_usd": 0.12140239999999998,
+      "duration_ms": 657566,
+      "is_error": false,
+      "last": "`.\n- **Docstring:** it now has the `['a', None, 'b']` example.\n- **Tests:** I added `test_default` to `tests/test_more.py`, next to the other `extract` tests. It checks both examples from your request, plus a repeated out-of-range index (`[5, 5, 2]`).\n\nI didn't confirm where the missing-value sentinel `_marker` is defined; my grep for it found nothing, but the module imported and the tests passed."
+    },
+    {
+      "task": "partitions_k",
+      "exit": 0,
+      "wall_s": 3630.8,
+      "turns": 10,
+      "cost_usd": 0.103538,
+      "duration_ms": 895576,
+      "is_error": false,
+      "last": "isting `partitions` tests in `tests/test_more.py`.\n- **Tests:** the `-k partitions` run passed (16 tests). Landing runs the whole suite, and I didn't open its output beyond that final line.\n- **Note:** after landing, the harness reported that `more.pyi` had changed on disk since I last read it. I didn't open it again, so I haven't checked what changed or whether it still matches my signature edit."
+    },
+    {
+      "task": "tail_negative_n",
+      "exit": 0,
+      "wall_s": 3207.0,
+      "turns": 6,
+      "cost_usd": 0.0816491,
+      "duration_ms": 423900,
+      "is_error": false,
+      "last": "py`, next to the other `TailTests`, I added `test_zero` and `test_negative_n`. `test_negative_n` covers a list and an iterator.\n- **Run:** the `-k tail` tests passed (8 passed). I didn't run the whole suite myself; `land.py` ran it as part of landing.\n\nAfter landing, the harness noted that `recipes.py` and `test_recipes.py` had changed on disk since I last read them. I didn't look at what changed."
+    },
+    {
+      "task": "grouper_validate_n",
+      "exit": 0,
+      "wall_s": 3246.8,
+      "turns": 5,
+      "cost_usd": 0.0835613,
+      "duration_ms": 501565,
+      "is_error": false,
+      "last": "more_itertools/recipes.py`, and the docstring now mentions it. The signature is unchanged, so I left `recipes.pyi` alone.\n- **Tests:** I added `test_invalid_n` in `GrouperTests` in `tests/test_recipes.py`. It tries `n = 0` and `n = -1` with `fill`, `strict` and `ignore`.\n- **Test runs:** the `-k grouper` run passed (7 tests). I didn't run the full suite myself; `land.py` ran it as part of landing."
+    },
+    {
+      "task": "dotproduct_length_mismatch",
+      "exit": 0,
+      "wall_s": 3459.2,
+      "turns": 7,
+      "cost_usd": 0.09235400000000002,
+      "duration_ms": 596603,
+      "is_error": false,
+      "last": "t to the existing `dotproduct` test. It covers the 11 case and both directions of mismatch. The two `dotproduct` tests passed. I didn't run the rest of the suite myself, but `land.py` ran it as part of landing and merged.\n\n`_sumprod` falls back to `dotproduct` on Python versions without `math.sumprod`, so on those versions code that goes through `_sumprod` will now raise on mismatched lengths too."
+    },
+    {
+      "task": "totient_validate_n",
+      "exit": 0,
+      "wall_s": 3289.5,
+      "turns": 6,
+      "cost_usd": 0.07937269999999999,
+      "duration_ms": 424465,
+      "is_error": false,
+      "last": "r. `land.py` printed `LANDED`.\n\nThe check is in `more_itertools/recipes.py`, and the docstring now says so. I added `test_non_positive` to `TotientTests` in `tests/test_recipes.py`; it checks 0, -1 and -5. `totient(1)` and `totient(9)` are unchanged. The `-k totient` run passed. The full suite was run by `land.py` as part of the landing.\n\nThe signature didn't change, so `recipes.pyi` is untouched."
+    },
+    {
+      "task": "quantify_pred_none",
+      "exit": 0,
+      "wall_s": 3363.4,
+      "turns": 8,
+      "cost_usd": 0.097647,
+      "duration_ms": 390061,
+      "is_error": false,
+      "last": "l suite for the merge.\n\n- **Code:** `more_itertools/recipes.py` falls back to `bool` when `pred` is `None`, the same way `partition` does.\n- **Docstring:** I added a sentence and a doctest showing the `None` case.\n- **Type stub:** in `more_itertools/recipes.pyi`, `pred` is now `Callable[[_T], bool] | None`.\n- **Test:** `test_pred_none` in `tests/test_recipes.py`, next to the other `QuantifyTests`."
+    },
+    {
+      "task": "iter_index_negative_start",
+      "exit": 0,
+      "wall_s": 3798.0,
+      "turns": 7,
+      "cost_usd": 0.0859917,
+      "duration_ms": 706517,
+      "is_error": false,
+      "last": " docstring now says negative values raise `ValueError`. The signature didn't change, so `recipes.pyi` is untouched.\n- **Tests:** `test_negative` in `tests/test_recipes.py` covers a string, a list and an iterator. Each gets a negative `start` and a negative `stop`.\n- **Not changed:** `start=None` was already broken before this change and still is. I left it alone because it wasn't part of the task."
+    }
+  ],
+  "land_attempts": 62,
+  "landed": 50,
+  "conflicts": [
+    {
+      "branch": "task-intersperse_leading",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 70.62,
+      "t": 1792323863.0814466
+    },
+    {
+      "branch": "task-one_pred",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 70.57,
+      "t": 1792323863.3329902
+    },
+    {
+      "branch": "task-chunked_as_tuples",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 144.7,
+      "t": 1792323952.6321661
+    },
+    {
+      "branch": "task-lstrip_value",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 145.03,
+      "t": 1792323952.9059558
+    },
+    {
+      "branch": "task-argmax_default",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 140.71,
+      "t": 1792323953.2656853
+    },
+    {
+      "branch": "task-iterate_until",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi",
+        "tests/test_more.py"
+      ],
+      "waited_s": 101.0,
+      "t": 1792323990.4112535
+    },
+    {
+      "branch": "task-last_too_short",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 58.8,
+      "t": 1792324090.2663758
+    },
+    {
+      "branch": "task-split_into_rest",
+      "result": "conflict",
+      "files": [
+        "more_itertools/more.pyi"
+      ],
+      "waited_s": 183.52,
+      "t": 1792324273.923013
+    },
+    {
+      "branch": "task-powerset_max_size",
+      "result": "conflict",
+      "files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi",
+        "tests/test_recipes.py"
+      ],
+      "waited_s": 179.89,
+      "t": 1792324331.049876
+    },
+    {
+      "branch": "task-tabulate_stop",
+      "result": "conflict",
+      "files": [
+        "more_itertools/recipes.py",
+        "more_itertools/recipes.pyi",
+        "tests/test_recipes.py"
+      ],
+      "waited_s": 198.32,
+      "t": 1792324400.450818
+    }
+  ],
+  "tests_failed_in_queue": 1,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "833 passed, 21238 subtests passed in 88.19s (0:01:28)"
+    ],
+    "pytest_failed": [],
+    "hidden_checks_passed": 60,
+    "hidden_checks": {
+      "chunked_fillvalue": true,
+      "chunked_as_tuples": true,
+      "chunked_both": true,
+      "intersperse_leading": true,
+      "intersperse_trailing": true,
+      "intersperse_both": true,
+      "lstrip_value": true,
+      "lstrip_limit": true,
+      "lstrip_both": true,
+      "one_pred": true,
+      "one_default": true,
+      "one_both": true,
+      "argmax_default": true,
+      "argmax_last": true,
+      "argmax_both": true,
+      "iterate_times": true,
+      "iterate_until": true,
+      "iterate_both": true,
+      "last_pred": true,
+      "last_too_short": true,
+      "last_both": true,
+      "split_into_fillvalue": true,
+      "split_into_rest": true,
+      "split_into_both": true,
+      "powerset_min_size": true,
+      "powerset_max_size": true,
+      "powerset_both": true,
+      "tabulate_step": true,
+      "tabulate_stop": true,
+      "tabulate_both": true,
+      "interleave_longest_fillvalue": true,
+      "locate_value": true,
+      "replace_negative_count": true,
+      "side_effect_chunk_size": true,
+      "collapse_negative_levels": true,
+      "peekable_length_hint": true,
+      "sample_weights_length": true,
+      "distinct_permutations_negative_r": true,
+      "interleave_evenly_negative_lengths": true,
+      "duplicates_everseen_once": true,
+      "substrings_reverse": true,
+      "unique_to_each_key": true,
+      "count_cycle_start": true,
+      "nth_or_last_negative_n": true,
+      "run_length_decode_negative": true,
+      "map_if_pred_none": true,
+      "consecutive_groups_step": true,
+      "only_pred": true,
+      "stagger_offsets_iterator": true,
+      "zip_offset_offsets_iterator": true,
+      "iequals_key": true,
+      "unzip_fillvalue": true,
+      "extract_default": true,
+      "partitions_k": true,
+      "tail_negative_n": true,
+      "grouper_validate_n": true,
+      "dotproduct_length_mismatch": true,
+      "totient_validate_n": true,
+      "quantify_pred_none": true,
+      "iter_index_negative_start": true
+    }
+  },
+  "model": "sonnet"
+}

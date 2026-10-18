@@ -712,3 +712,20 @@ out, landed again and waited again (91 changes opened for 50 agents). Fixed afte
 cannot be reverted stays on main as `red`, its owner gets `broke_main` and fixes forward, later changes get
 `main_red` at once, and a red main costs one test per step (`e_optimistic_mode_waits_for_a_fix_…`,
 docs/coordination.md).
+
+Run 2 (`wide50b`, main at 23ee974 with the fix; results `bench/results/live-agents/wide50b/`):
+
+| Arm | All agents done after | Hidden checks | Final suite on main | Agent turns | Cost |
+|---|---|---|---|---|---|
+| git worktrees + merge queue | 3 800 s | 60 / 60 | passes | 447 | $5.44 |
+| TreeYard, optimistic | 4 451 s | 60 / 60 | passes | 501 | $6.03 |
+
+The fix worked: main ended green and the last verdict came 0.4 s after the agents (600 s in run 1). TreeYard
+was still 17 % slower. The VM was busier than in run 1 (load 17 to 40 on 4 cores; the git arm alone took
+2.5x longer, and the same suite ran in 88 s instead of 23 s), so only the two arms of one run compare.
+Where the time went: model time was lower with TreeYard (5 704 s against 6 272 s summed over agents), but
+agents waited for verdicts. Agents ran only their own tests, so 6 of 16 test rounds on main failed; each
+failure bisects main with the full suite, one run at a time, and from 763 s to 2 877 s main was never
+green, so every agent of the first 20 tasks waited in `workspace land` and held its pool slot. The git
+queue tests each change before it merges, so a broken change never reaches main. For many agents with a
+slow suite, `queue` mode (batches tested before they land) fits better; run 3 measures it.

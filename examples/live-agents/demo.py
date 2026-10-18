@@ -7,11 +7,12 @@ DEMO_SET=hard: 4 pairs of feature requests, two agents per function).
     python3 demo.py treeyard   # arm 2: TreeYard workspaces + daemon + optimistic landing
 
 Env: DEMO_DIR (work dir, default ~/.cache/treeyard-live-agents), TREEYARD_BIN, DEMO_MODEL (sonnet),
-DEMO_N (use the first N tasks), DEMO_POOL (at most this many claude -p at once; default all).
+DEMO_N (use the first N tasks), DEMO_POOL (at most this many claude -p at once; default all),
+DEMO_LANDING (TreeYard landing mode: optimistic, the default, or queue: batches of 8 tested before they land).
 Needs the `claude` CLI (Claude Code); each run starts 8 `claude -p` sessions.
 
 Same model, tasks and task text in both arms; only the way work reaches master differs.
-Results: results/<arm>.json and agents/<arm>-<n>.json (the claude -p JSON output).
+Results: results/<set>-<arm>.json and agents/<arm>-<n>.json (the claude -p JSON output).
 """
 import json, os, shutil, subprocess, sys, time, urllib.request
 
@@ -93,6 +94,7 @@ if SET == "wide":  # 10 pairs on one function each and 30 single tasks (tasks_wi
     from tasks_wide import TASKS
 TASKS = TASKS[:int(os.environ.get("DEMO_N", len(TASKS)))]
 POOL = int(os.environ.get("DEMO_POOL", len(TASKS)))
+LANDING = os.environ.get("DEMO_LANDING", "optimistic")
 LIMIT_S = 2400 if len(TASKS) <= 16 else 5400  # one agent's wall-clock limit
 # With many agents on few cores, each agent runs only the tests of its function; the merge queue and
 # TreeYard's landing still run the whole suite.
@@ -132,7 +134,8 @@ again. After a land the reply waits for the server's tests and has a "verdict": 
 "rejected" or "broke_main", read its "output", fix your work here, run the tests, and run `treeyard workspace
 land {ws}` again (the workspace carries on by itself). You are done when the land status is "landed" and the
 verdict is "passed", or "main_red" (your change is on main, and main's tests fail because of another
-agent's change, "red_change", which that agent is fixing).
+agent's change, "red_change", which that agent is fixing). If the verdict is "open", run
+`treeyard workspace land {ws}` again: it shows a conflict found while your change waited to land.
 """
 
 ALLOWED = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git:*)", "Bash(python3:*)", f"Bash({PY}:*)",
@@ -241,7 +244,7 @@ def arm_treeyard():
     sh(["git", "checkout", "-q", "-B", "master", BASE], cwd=tmp)
     sh([TY, "init", "--data", data, "--from", tmp, "--branch", "master"])
     with open(os.path.join(data, "treeyard.toml"), "w") as f:
-        f.write(f'[landing]\nmode = "optimistic"\ntest = "{PY} -m pytest -q -x tests"\ntimeout_s = 300\n')
+        f.write(f'[landing]\nmode = "{LANDING}"\ntest = "{PY} -m pytest -q -x tests"\nbatch = 8\ntimeout_s = 300\n')
     env = {**os.environ, "TREEYARD_URL": URL, "TREEYARD_HOME": home, "PATH": os.path.dirname(TY) + ":" + os.environ["PATH"]}
     serve = subprocess.Popen([TY, "serve", "--data", data, "--addr", URL.split("//")[1]],
                              stdout=open(os.path.join(T, "serve.log"), "w"), stderr=subprocess.STDOUT)
@@ -266,6 +269,11 @@ def arm_treeyard():
     # Optimistic landing tests main after the lands: wait for the worker to settle.
     t_wait = time.time()
     while time.time() - t_wait < 600:
+        if LANDING == "queue":  # changes land only after their tests: done when the queue is empty
+            if not call("queue", {})["queue"]:
+                break
+            time.sleep(3)
+            continue
         ev = call("events", {"limit": 5000})["events"]
         kinds = [e["kind"] for e in ev]
         last_land = max([i for i, k in enumerate(kinds) if k == "landed"], default=-1)
@@ -276,7 +284,7 @@ def arm_treeyard():
     ev = call("events", {"limit": 5000})["events"]
     final_dir = os.path.join(T, "final")
     sh(["git", "clone", "-q", f"{URL}/git", final_dir])
-    result = {"arm": "TreeYard workspaces + optimistic landing", "setup_s": setup_s, "agents_wall_s": wall,
+    result = {"arm": f"TreeYard workspaces + {LANDING} landing", "setup_s": setup_s, "agents_wall_s": wall,
               "settle_after_agents_s": settle_s, "agents": agents,
               "events": {k: sum(e["kind"] == k for e in ev) for k in sorted({e["kind"] for e in ev})},
               "collision_pairs_warned": len({tuple(sorted(e.get("changes", []))) for e in ev if e["kind"] == "collision"}),

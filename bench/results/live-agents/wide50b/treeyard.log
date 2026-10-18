@@ -1,0 +1,138 @@
+[treeyard] agent 4 (lstrip_value) exited 0 after 840 s
+[treeyard] agent 7 (one_default) exited 0 after 840 s
+[treeyard] agent 9 (argmax_last) exited 0 after 840 s
+[treeyard] agent 0 (chunked_fillvalue) exited 0 after 842 s
+[treeyard] agent 3 (intersperse_trailing) exited 0 after 2764 s
+[treeyard] agent 2 (intersperse_leading) exited 0 after 2925 s
+[treeyard] agent 11 (iterate_until) exited 0 after 2926 s
+[treeyard] agent 13 (last_too_short) exited 0 after 2926 s
+[treeyard] agent 1 (chunked_as_tuples) exited 0 after 2934 s
+[treeyard] agent 12 (last_pred) exited 0 after 2944 s
+[treeyard] agent 5 (lstrip_limit) exited 0 after 2947 s
+[treeyard] agent 10 (iterate_times) exited 0 after 2969 s
+[treeyard] agent 8 (argmax_default) exited 0 after 3048 s
+[treeyard] agent 6 (one_pred) exited 0 after 3461 s
+[treeyard] agent 14 (split_into_fillvalue) exited 0 after 3628 s
+[treeyard] agent 17 (powerset_max_size) exited 0 after 3629 s
+[treeyard] agent 18 (tabulate_step) exited 0 after 3629 s
+[treeyard] agent 19 (tabulate_stop) exited 0 after 3629 s
+[treeyard] agent 20 (interleave_longest_fillvalue) exited 0 after 3629 s
+[treeyard] agent 21 (locate_value) exited 0 after 3629 s
+[treeyard] agent 15 (split_into_rest) exited 0 after 3631 s
+[treeyard] agent 16 (powerset_min_size) exited 0 after 3631 s
+[treeyard] agent 22 (replace_negative_count) exited 0 after 3631 s
+[treeyard] agent 23 (side_effect_chunk_size) exited 0 after 3895 s
+[treeyard] agent 28 (interleave_evenly_negative_lengths) exited 0 after 3987 s
+[treeyard] agent 27 (distinct_permutations_negative_r) exited 0 after 4098 s
+[treeyard] agent 30 (substrings_reverse) exited 0 after 4099 s
+[treeyard] agent 32 (count_cycle_start) exited 0 after 4099 s
+[treeyard] agent 24 (collapse_negative_levels) exited 0 after 4101 s
+[treeyard] agent 25 (peekable_length_hint) exited 0 after 4101 s
+[treeyard] agent 26 (sample_weights_length) exited 0 after 4101 s
+[treeyard] agent 31 (unique_to_each_key) exited 0 after 4101 s
+[treeyard] agent 33 (nth_or_last_negative_n) exited 0 after 4101 s
+[treeyard] agent 29 (duplicates_everseen_once) exited 0 after 4233 s
+[treeyard] agent 34 (run_length_decode_negative) exited 0 after 4233 s
+[treeyard] agent 35 (map_if_pred_none) exited 0 after 4302 s
+[treeyard] agent 36 (consecutive_groups_step) exited 0 after 4302 s
+[treeyard] agent 38 (stagger_offsets_iterator) exited 0 after 4302 s
+[treeyard] agent 40 (iequals_key) exited 0 after 4302 s
+[treeyard] agent 39 (zip_offset_offsets_iterator) exited 0 after 4304 s
+[treeyard] agent 41 (unzip_fillvalue) exited 0 after 4304 s
+[treeyard] agent 42 (extract_default) exited 0 after 4377 s
+[treeyard] agent 44 (tail_negative_n) exited 0 after 4377 s
+[treeyard] agent 43 (partitions_k) exited 0 after 4381 s
+[treeyard] agent 37 (only_pred) exited 0 after 4447 s
+[treeyard] agent 46 (dotproduct_length_mismatch) exited 0 after 4447 s
+[treeyard] agent 47 (totient_validate_n) exited 0 after 4447 s
+[treeyard] agent 48 (quantify_pred_none) exited 0 after 4447 s
+[treeyard] agent 45 (grouper_validate_n) exited 0 after 4449 s
+[treeyard] agent 49 (iter_index_negative_start) exited 0 after 4449 s
+{
+  "arm": "TreeYard workspaces + optimistic landing",
+  "setup_s": 4.64,
+  "agents_wall_s": 4451.2,
+  "settle_after_agents_s": 0.4,
+  "events": {
+    "collision": 95,
+    "conflict": 15,
+    "landed": 78,
+    "opened": 79,
+    "reverted": 5,
+    "review": 70,
+    "test_failed": 6,
+    "test_passed": 10
+  },
+  "collision_pairs_warned": 41,
+  "final": {
+    "pytest_exit": 0,
+    "pytest_tail": [
+      "837 passed, 21235 subtests passed in 75.55s (0:01:15)"
+    ],
+    "pytest_failed": [],
+    "hidden_checks_passed": 60,
+    "hidden_checks": {
+      "chunked_fillvalue": true,
+      "chunked_as_tuples": true,
+      "chunked_both": true,
+      "intersperse_leading": true,
+      "intersperse_trailing": true,
+      "intersperse_both": true,
+      "lstrip_value": true,
+      "lstrip_limit": true,
+      "lstrip_both": true,
+      "one_pred": true,
+      "one_default": true,
+      "one_both": true,
+      "argmax_default": true,
+      "argmax_last": true,
+      "argmax_both": true,
+      "iterate_times": true,
+      "iterate_until": true,
+      "iterate_both": true,
+      "last_pred": true,
+      "last_too_short": true,
+      "last_both": true,
+      "split_into_fillvalue": true,
+      "split_into_rest": true,
+      "split_into_both": true,
+      "powerset_min_size": true,
+      "powerset_max_size": true,
+      "powerset_both": true,
+      "tabulate_step": true,
+      "tabulate_stop": true,
+      "tabulate_both": true,
+      "interleave_longest_fillvalue": true,
+      "locate_value": true,
+      "replace_negative_count": true,
+      "side_effect_chunk_size": true,
+      "collapse_negative_levels": true,
+      "peekable_length_hint": true,
+      "sample_weights_length": true,
+      "distinct_permutations_negative_r": true,
+      "interleave_evenly_negative_lengths": true,
+      "duplicates_everseen_once": true,
+      "substrings_reverse": true,
+      "unique_to_each_key": true,
+      "count_cycle_start": true,
+      "nth_or_last_negative_n": true,
+      "run_length_decode_negative": true,
+      "map_if_pred_none": true,
+      "consecutive_groups_step": true,
+      "only_pred": true,
+      "stagger_offsets_iterator": true,
+      "zip_offset_offsets_iterator": true,
+      "iequals_key": true,
+      "unzip_fillvalue": true,
+      "extract_default": true,
+      "partitions_k": true,
+      "tail_negative_n": true,
+      "grouper_validate_n": true,
+      "dotproduct_length_mismatch": true,
+      "totient_validate_n": true,
+      "quantify_pred_none": true,
+      "iter_index_negative_start": true
+    }
+  },
+  "model": "sonnet"
+}
