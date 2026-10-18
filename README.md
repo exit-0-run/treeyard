@@ -2,6 +2,8 @@
   <img src="assets/wordmark.svg" alt="TreeYard" width="300">
 </p>
 
+<h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
+
 <p align="center">
   <img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-2f6b45">
   <img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-2f6b45">
@@ -14,112 +16,94 @@
   <img alt="Self-hosted" src="https://img.shields.io/badge/self--hosted-yes-2f6b45">
 </p>
 
-<h3 align="center">Git for agent swarms. One server for every agent. No merge hell.</h3>
+<p align="center"><b>Install</b> · macOS, Linux · arm64, x86_64 · checks the SHA-256</p>
+
+```bash
+curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh
+```
+
+<p align="center"><b>Connect Claude Code</b> · after <code>treeyard init --data rs --from . && treeyard serve --data rs</code></p>
+
+```bash
+claude mcp add --transport stdio treeyard -- treeyard mcp --agent claude-1
+```
+
+> [!TIP]
+> Codex: `codex mcp add treeyard -- treeyard mcp --agent codex-1`. OpenCode, `.mcp.json` and the Claude Code
+> worktree hooks: [docs/mcp.md](docs/mcp.md).
+
+**What it is.** A self-hosted version control server between 10 to 200 AI coding agents and one git
+repository.
+
+- **Conflicts while agents work, not at merge time.** The server trial-lands every pair of open changes.
+- **A workspace in about a second.** Copy-on-write clones share `target/` and `node_modules`.
+- **No merge queue; git stays the truth.** Every land is a normal git commit. People keep `git clone`, `pull`, `push`.
 
 <p align="center">
-  <a href="#benchmarks"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640"></a>
-  <a href="#benchmarks"><img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/astro.svg" alt="13x faster: 50 workspaces with node_modules on astro, git 353 s, TreeYard 26 s" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/thrown-away.svg" alt="Changes thrown away with 16 agents: git 111, TreeYard 0" width="640"></a>
 </p>
 
-<p align="center"><b>Also:</b> land a change in 3 ms with no merge queue* · 99–100% of conflicts reported before land · 8× faster grep · 1 binary, git underneath</p>
+> [!NOTE]
+> Measured on real repositories (ripgrep, astro, requests, go, linux) on a 15-core CPU with 48 GB RAM. Every
+> number has its command in [docs/benchmarks.md](docs/benchmarks.md).
 
-<p align="center"><sub>Measured on 15-core CPU, 48 GB RAM, one run per configuration. * Land time excludes CI: tests run on main
-after land, or in a tested queue. 111 → 0 is an upper bound: the replay declares the exact paths of each change.</sub></p>
+## Live run: 8 Claude Code agents, 8 real bugs
 
-Your agents are fast. Git makes them wait. TreeYard is a self-hosted version control server for 10
-to 200 AI coding agents on one repository. Agents get a workspace in about a second, see each
-other's edits while they work, and land in milliseconds. Git stays the source of truth, so people
-keep `git clone`, `git pull`, `git push` and GitHub.
-
-## The pains
-
-What hurts when many agents work on one repository with `git worktree` (sources:
-[docs/comparison.md](docs/comparison.md); our numbers: [docs/benchmarks.md](docs/benchmarks.md)):
-
-1. **Conflicts show up too late.** 27.67 % of 107K+ agent pull requests have a merge conflict
-   (arXiv 2604.03551). On 500 replayed commits, 26 % to 37 % of changes conflicted at merge time.
-2. **Work gets lost.** Worktree cleanup and one agent's `git stash` or `git clean` delete another's
-   work (Claude Code issues #46444, #75490, #102465).
-3. **Every agent sets up a full checkout.** 50 ripgrep worktrees ready to build: 69.66 s and 7 789 MB.
-4. **Landing is serial.** With each repo's own CI, a queue makes the 50th change wait 248 s to
-   3 614 s. Hosted merge queues on private repos need a paid plan.
-
-## What TreeYard does about them
-
-- **See conflicts while you work.** Each `apply` lands every pair of open changes on today's main, in
-  both orders, without storing anything, and reports `conflict` (with the reason) or `overlap` with line ranges. Agents declare intents (paths,
-  symbols) and get overlaps at `open_change`. Events stream to every agent.
-- **Lose nothing, undo anything.** A change keeps every revision on the server. A workspace syncs to
-  its change about 300 ms after each edit, and `remove` sends the last edits before it deletes anything.
-  `checkpoint` marks a point (a Claude Code hook marks one per turn); `restore_change` goes back to it
-  and can itself be undone.
-- **Many agents in one checkout.** Agents that share one directory still get one change each: every hunk
-  has a stable id and one owner (`treeyard share`).
-- **Start in about a second.** Agents that only edit need no checkout: they use the API. Agents that
-  build get a copy-on-write clone of a built base, with `target/` or `node_modules` shared as a layer.
-- **Land without a lock.** The server rebases and merges on `land`. A conflict comes back as a task
-  with the base, both sides and who changed the path. Optional modes test before (`queue`) or after
-  (`optimistic`) the land, with bisect and revert.
-- **Workspaces that clean up after themselves.** A repo file `.treeyard/workspace.toml` sets setup,
-  teardown, layers, `.env` files to copy and ports. `workspace gc` keeps count and disk under a limit and
-  never deletes unsynced work. Sparse workspaces (`--paths`) and a mirror into one fixed directory.
-- **Best of N, notes that travel.** Run several agents on one task (`group`) and land one; attach the
-  agent's transcript to its change, and it becomes a git note on the landed commit.
-- **Keep git.** Every land is one deterministic git commit. People clone, pull and push over HTTP;
-  `treeyard mirror` pushes `main` to GitHub.
-- **Ask the server.** `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`,
-  tree-sitter `symbols`, server-side `bisect`.
-
-## Live run: 8 Claude Code agents fix 8 real bugs
-
-8 Claude Code agents fix 8 real bugs from the history of more-itertools at once, from the same base
-commit. Hidden checks, which the agents never see, test every fix on the final main.
+Same model, same tasks (8 real bug reports from the more-itertools history), same base commit. Hidden
+checks test every fix on the final main.
 
 | | git worktrees + merge queue | TreeYard |
 |---|---|---|
 | All 8 fixes landed after | 74.3 s | **48.2 s** |
-| Fixes that work on main (hidden checks) | 8 / 8 | 8 / 8 |
+| Fixes that work on main | 8 / 8 | 8 / 8 |
 | A change that failed a test | caught by the queue before the merge | reverted about 1 s after the land; the agent got the verdict and landed its fix |
 | Agent turns, API-equivalent cost | 66, $0.45 | 66, $0.46 |
 
-The earlier runs of this demo found three bugs in TreeYard; all are fixed and tested. All runs, and how
-to repeat them: [docs/benchmarks.md](docs/benchmarks.md#live-agents-8-claude-code-agents-fix-8-real-bugs-2026-10-18),
-`examples/live-agents/`.
+> [!IMPORTANT]
+> The first runs of this demo found three bugs in TreeYard. All are fixed and covered by tests. Every run, and
+> how to repeat it: [docs/benchmarks.md](docs/benchmarks.md) and `examples/live-agents/`.
 
-## See it: 50 scripted agents, git worktrees vs TreeYard
+<details>
+<summary><b>Why: what hurts with git worktrees</b></summary>
 
-`examples/swarm-demo.sh` gives N scripted agents the same work twice. Each agent adds a file and
-edits its own line of a shared file; 5 pairs edit the same line (a real conflict). First every
-agent gets a `git worktree`, commits, and a serial queue lands each branch (`git rebase` +
-`git merge --ff-only`, no CI). Then every agent opens a change on TreeYard, applies the same edits,
-and calls `land` at the same time. A conflicted agent redoes its edit on the new main on both sides.
-Run on 15-core CPU, 48 GB RAM: `examples/swarm-demo.sh --agents 50 --pairs 5` (50 agents, 2 000 files,
-5 same-line pairs).
+<br>
 
-| Step                                      | git worktrees       | TreeYard           |
-|-------------------------------------------|---------------------|--------------------|
-| Give 50 agents a place to work (s)        | 8.06                | 1.22               |
-| Extra disk for 50 agents (MB)             | 391.2               | 6.8                |
-| Edit and commit, all agents at once (s)   | 2.85                | 2.07               |
-| Land every change (s)                     | 3.71 (serial queue) | 0.88 (all at once) |
-| Change is on main after, p50 / p95 (ms)   | 2021 / 3562         | 500 / 834          |
-| Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |
-| Conflicts at land (agent redoes the edit) | 5                   | 5                  |
-| Edits missing from main                   | 0 of 50             | 0 of 50            |
+1. **Conflicts show up too late.** 27.67 % of 107K+ agent pull requests have a merge conflict
+   (arXiv 2604.03551). On 500 replayed commits, 26 % to 37 % of changes conflicted at merge time.
+2. **Work gets lost.** Worktree cleanup and one agent's `git stash` or `git clean` delete another's work
+   (Claude Code issues #46444, #75490, #102465).
+3. **Every agent sets up a full checkout.** 50 ripgrep worktrees ready to build: 69.66 s and 7 789 MB.
+4. **Landing is serial.** With each repo's own CI, a queue makes the 50th change wait 248 s to 3 614 s.
 
-Read it fairly: the same 5 conflicts happen on both sides. The difference is that TreeYard warns
-about all 5 before anyone lands, and nobody waits for a queue. The TreeYard agents have no
-directory (API only); for agents that need one, see the workspace numbers below. Four more runs and
-the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-git-worktrees-vs-treeyard-task-015-2026-10-18).
+Sources: [docs/comparison.md](docs/comparison.md).
 
-## Benchmarks
+</details>
 
-> **Measured results, not estimates.** 15-core CPU, 48 GB RAM, one run per
-> configuration (seed 1). Repositories: ripgrep `3fce3b5`, requests `611c6162`, astro (pnpm monorepo),
-> go `dfc6f7db9bd7`, linux `58161ead29e5`. Commands, method and raw data: [docs/benchmarks.md](docs/benchmarks.md).
+<details>
+<summary><b>What TreeYard does</b></summary>
+
+<br>
+
+| | |
+|---|---|
+| **See conflicts early** | Each `apply` lands every pair of open changes on today's main, in both orders, and reports `conflict` with a reason or a near `overlap`. Workspaces keep it in `.treeyard/collisions.json`. Intents (paths, symbols) warn at `open_change`. |
+| **Lose nothing** | Every revision stays on the server. Workspaces sync about 300 ms after an edit, and `remove` sends the last edits first. `checkpoint` and `restore_change` undo inside a change. |
+| **Land without a lock** | The server rebases and merges on `land`, and a conflict comes back as a task. Modes: `direct`, `queue` (tests first), `optimistic` (tests after, bisect, revert). `workspace land` waits for the verdict. |
+| **Fast workspaces** | Copy-on-write clones of a built base, layers by lockfile, a warm pool, ports per workspace, `.treeyard/workspace.toml`, `gc`, sparse `--paths`. |
+| **One checkout, many agents** | `treeyard share`: every hunk gets a stable id and one owner, so each agent still gets its own change. |
+| **Keep git** | Deterministic commits; `git clone`, `pull`, `push` over HTTP; `treeyard mirror` to GitHub; agent transcripts as git notes. |
+| **Ask the server** | `blame` (equal to `git blame --first-parent`), `log`, indexed `grep`, tree-sitter `symbols`, `bisect`. |
+
+</details>
+
+<details>
+<summary><b>All benchmark numbers</b></summary>
+
+<br>
 
 | Measurement (50 agents) | Plain git | TreeYard | Gain |
 |---|---|---|---|
@@ -135,30 +119,46 @@ the method: [docs/benchmarks.md](docs/benchmarks.md#swarm-demo-scripted-agents-g
 
 Correctness: 300 random histories gave 2 200 clean server merges, all equal to `git merge-tree`, and
 0 server conflicts that git merged cleanly (`TREEYARD_FUZZ_SEEDS=300 cargo test --release --test
-fuzz_history`, [docs/benchmarks.md](docs/benchmarks.md#hardening-checks-task-013-2026-10-17)).
+fuzz_history`).
 
-Limits of these numbers:
+> [!WARNING]
+> Read these fairly. Land time excludes CI: use `queue` or `optimistic` mode to run tests. The replay declares
+> exact paths, so 111 → 0 is an upper bound. Conflict warnings catch 99 % to 100 % of real conflicts, and 72 %
+> to 90 % of warned pairs really conflict. The agents in this table are scripts; the live run uses Claude Code.
 
-- TreeYard land time does not include CI. To run tests, set `landing.mode` to `queue` or `optimistic`.
-- The replay declares the exact paths of each commit. Real agents guess, so 0 thrown-away changes is an
-  upper bound.
-- Conflict warnings catch 99 % to 100 % of real conflicts, and 72 % to 90 % of warned pairs really
-  conflict. The other warnings are false alarms.
-- With 50 agents on stale bases and no intents, the final tree is different from the history. A merge
-  cannot see that a fix landed before the bug it fixes.
-- All agents in these measurements are scripts. No Claude Code, Codex or OpenCode session ran.
+</details>
 
-## Quick start
+<details>
+<summary><b>50 scripted agents: git worktrees vs TreeYard</b></summary>
 
-Install the binary (macOS and Linux, arm64 and x86_64; the script checks the SHA-256):
+<br>
 
-```text
-curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh
-```
+`examples/swarm-demo.sh --agents 50 --pairs 5`: every agent adds a file and edits its own line of a shared
+file, and 5 pairs edit the same line. Git side: one worktree each and a serial queue (no CI). TreeYard side:
+one change each, and all land at once.
 
-Or build with `make release` ([docs/install.md](docs/install.md)). Then run this in
-an empty directory. `sh scripts/check-quickstart.sh README.md` runs these blocks word for word; the
-longer version with conflicts, workspaces and MCP is [docs/quickstart.md](docs/quickstart.md).
+| Step                                      | git worktrees       | TreeYard           |
+|-------------------------------------------|---------------------|--------------------|
+| Give 50 agents a place to work (s)        | 8.06                | 1.22               |
+| Extra disk for 50 agents (MB)             | 391.2               | 6.8                |
+| Edit and commit, all agents at once (s)   | 2.85                | 2.07               |
+| Land every change (s)                     | 3.71 (serial queue) | 0.88 (all at once) |
+| Change is on main after, p50 / p95 (ms)   | 2021 / 3562         | 500 / 834          |
+| Same-line conflicts warned before land    | 0 of 5              | 5 of 5             |
+| Conflicts at land (agent redoes the edit) | 5                   | 5                  |
+| Edits missing from main                   | 0 of 50             | 0 of 50            |
+
+The same 5 conflicts happen on both sides. TreeYard warns about all 5 before anyone lands, and nobody waits.
+
+</details>
+
+<details>
+<summary><b>Quick start: 2 minutes, no agent needed</b></summary>
+
+<br>
+
+Run this in an empty directory. `sh scripts/check-quickstart.sh README.md` runs these blocks word for word;
+the long version is [docs/quickstart.md](docs/quickstart.md).
 
 ```sh
 mkdir demo-repo
@@ -188,17 +188,12 @@ git -C people-clone log --format='%s | %an' -n 1
 kill "$SERVER"
 ```
 
-## Connect your agents
+</details>
 
-```text
-claude mcp add --transport stdio treeyard -- treeyard mcp --agent claude-1
-codex mcp add treeyard -- treeyard mcp --agent codex-1
-```
+<details>
+<summary><b>Docs</b></summary>
 
-OpenCode, `.mcp.json`, and Claude Code worktree hooks that make `claude --worktree` and subagents
-use TreeYard workspaces: [docs/mcp.md](docs/mcp.md).
-
-## Docs
+<br>
 
 | Doc | What |
 |---|---|
@@ -213,19 +208,23 @@ use TreeYard workspaces: [docs/mcp.md](docs/mcp.md).
 | [docs/reference.md](docs/reference.md), [docs/benchmarks.md](docs/benchmarks.md), [SECURITY.md](SECURITY.md) | configuration, numbers, threat model |
 | [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md) | history, how to help |
 
-## Status and not yet
+</details>
 
-v0.1: one node, one binary, macOS and Linux. There is no TLS and no token expiry yet: keep the
-server on loopback or behind a TLS proxy with tokens ([SECURITY.md](SECURITY.md)).
+> [!WARNING]
+> **v0.1** is one node, with no TLS and no token expiry. Keep the server on loopback or behind a TLS proxy
+> with tokens ([SECURITY.md](SECURITY.md)).
 
-Not built yet:
-- continuous two-way workspace sync: a workspace gets the server's version on request
-  (`workspace update`, and on its own after a land that hits a conflict), not live;
-- a virtual file system (a workspace holds its whole tree, or its `--paths` cone);
-- persistent events (the event log is in memory);
-- blame of moved or copied lines, and symbol references (only definitions);
-- Postgres and S3 storage, and more than one node.
+<details>
+<summary>Not built yet</summary>
+
+<br>
+
+- Live two-way workspace sync (today: `workspace update`, and on its own after a land conflict).
+- A virtual file system, persistent events, blame of moved lines, symbol references.
+- Postgres and S3 storage, more than one node.
+
+</details>
 
 ## Licence
 
-Apache-2.0.
+Apache-2.0. Inspired by Anthropic's write-up of Scion and by Meta's Mononoke.

@@ -95,6 +95,6 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   files and `dir/` keys. Bump `INDEX_VERSION` in history.rs when rows change meaning.
 - `rpc::call` runs as `Caller::internal()`; HTTP uses `call_as` with the token's caller. Writes and
   denials write an audit row inside the same `Repo::with`. Never put a token secret in a row or a log.
-- README: race GIF and hero cards on top (`assets/hero/make.py`, `make_gif.py`), then short ASD-STE100 text; every number sourced in docs/benchmarks.md; hardware only as "15-core CPU, 48 GB RAM".
+- README: install + MCP lines first, 3 bullets, hero cards (`assets/hero/make.py`), live run; the rest in `<details>`; GitHub alerts; numbers only from docs/benchmarks.md; hardware as "15-core CPU, 48 GB RAM".
 - Spawn git only through `git::cmd()` (or `NO_MAINTENANCE` for tokio): auto maintenance once ran 39 repacks (16 GB).
 - No `.github/workflows/`: checks run locally with `make check`.
