@@ -16,6 +16,8 @@ version; the rename comes in a later version.
   `land` waits until its conflicts are resolved. Default off (the old rule).
 - Agent transcripts per change: `attach` (transcript, summary or note; lines that look like secrets
   are dropped) and `attachments`; on land they become a git note under `refs/notes/treeyard`.
+- Best-of-N: `open_change` takes `group`; `group` compares the members (state, diff size) and
+  `land_one_of` lands one and abandons the other open changes of the group.
 
 ## [0.1.0] - not released yet
 

@@ -133,6 +133,14 @@ struct Open {
     paths: Vec<String>,
     #[serde(default)]
     symbols: Vec<String>,
+    group: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GroupP {
+    group: String,
+    change: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -262,6 +270,7 @@ const AUDITED: &[&str] = &[
     "checkpoint",
     "restore_change",
     "attach",
+    "land_one_of",
     "revert",
     "export_change",
     "review_close",
@@ -560,7 +569,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             }
             let agent = agent_for(c, a.agent)?;
             let declared = Intent { paths: a.paths, symbols: a.symbols };
-            let ch = r.open_change_with(&agent, &a.intent, a.model, a.session, a.base.as_deref(), declared)?;
+            if let Some(g) = &a.group {
+                crate::repo::check_group(g)?;
+            }
+            let mut ch = r.open_change_with(&agent, &a.intent, a.model, a.session, a.base.as_deref(), declared)?;
+            if let Some(g) = &a.group {
+                ch = r.set_group(&ch.id, g)?;
+            }
             let overlaps = r.intent_overlaps(&ch)?;
             let mut v = r.change_view(&ch)?;
             v["advice"] = advice(&overlaps);
@@ -646,6 +661,26 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let mut v = r.restore_change(&a.change, &to)?;
             filter_change(&mut v["change"], c);
             Ok(v)
+        }
+        "group" => {
+            let a: GroupP = params(p)?;
+            if a.change.is_some() {
+                bail!("group takes only group");
+            }
+            r.group_view(&a.group)
+        }
+        "land_one_of" => {
+            let a: GroupP = params(p)?;
+            let id = a.change.ok_or_else(|| anyhow!("land_one_of needs change"))?;
+            let ch = owned(r, c, &id)?;
+            check_writes(r, c, &ch)?;
+            // The siblings get abandoned: a restricted token must own them too.
+            for other in r.store.group(&a.group)? {
+                if other.state == crate::model::ChangeState::Open {
+                    owned(r, c, &other.id)?;
+                }
+            }
+            r.land_one_of(&a.group, &id)
         }
         "attach" => {
             let a: AttachP = params(p)?;
@@ -920,7 +955,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "open_change",
             "Start a change on top of main (no branch). Declare the paths and symbols you plan to touch: the reply lists open changes that overlap them, with advice. Edit with apply, then land.",
-            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}}),
+            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}, "group": {"type": "string", "description": "best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest"}}),
             &["intent"],
         ),
         tool(
@@ -991,6 +1026,18 @@ pub fn tools() -> Vec<Value> {
             "Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).",
             json!({"change": change, "label": {"type": "string", "description": "a short note, e.g. the turn or the step"}}),
             &["change"],
+        ),
+        tool(
+            "group",
+            "Best-of-N: the changes of a group with agent, model, state, conflicts and diff size (files, lines added and removed), to pick the best one.",
+            json!({"group": {"type": "string"}}),
+            &["group"],
+        ),
+        tool(
+            "land_one_of",
+            "Best-of-N: land one change of a group, then abandon the other open changes of the group (listed in abandoned). Siblings stay open unless it landed (conflict, waiting, or queued: call again after it lands).",
+            json!({"group": {"type": "string"}, "change": change}),
+            &["group", "change"],
         ),
         tool(
             "attach",

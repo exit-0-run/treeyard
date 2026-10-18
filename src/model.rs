@@ -128,6 +128,10 @@ pub struct Change {
     /// its own (continuous rebase). Whole-file writes are then merged onto the new head.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
+    /// Best-of-N: changes that try the same task share a group; `land_one_of` lands one of
+    /// them and abandons the others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// What an agent declares before it edits: path globs and symbol names (`name` or `path#name`).

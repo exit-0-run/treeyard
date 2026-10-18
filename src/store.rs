@@ -115,6 +115,16 @@ impl Store {
         bodies.iter().map(|b| serde_json::from_str(b).map_err(Into::into)).collect()
     }
 
+    /// Changes of a best-of-N group, oldest first (ties by id).
+    pub fn group(&self, group: &str) -> Result<Vec<Change>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT body FROM changes WHERE json_extract(body, '$.group') = ?1
+             ORDER BY json_extract(body, '$.created'), id",
+        )?;
+        let bodies = stmt.query_map([group], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        bodies.iter().map(|b| serde_json::from_str(b).map_err(Into::into)).collect()
+    }
+
     pub fn get_ref(&self, name: &str) -> Result<Option<String>> {
         Ok(self.conn.query_row("SELECT value FROM refs WHERE name = ?1", [name], |r| r.get(0)).optional()?)
     }

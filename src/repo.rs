@@ -485,6 +485,7 @@ impl Inner {
             created: now(),
             declared,
             view: None,
+            group: None,
         };
         self.store.put_change(&ch)?;
         self.emit(
@@ -1310,6 +1311,66 @@ impl Inner {
         }))
     }
 
+    // ---- best-of-N groups --------------------------------------------------------------
+
+    /// Puts an open change in a best-of-N group.
+    pub fn set_group(&mut self, id: &str, group: &str) -> Result<Change> {
+        let group = check_group(group)?;
+        let mut ch = self.open_change_mut(id)?;
+        ch.group = Some(group.to_string());
+        self.store.put_change(&ch)?;
+        Ok(ch)
+    }
+
+    /// The members of a group with state and diff size (files, lines added and removed).
+    pub fn group_view(&mut self, group: &str) -> Result<Value> {
+        let members = self.store.group(group)?;
+        if members.is_empty() {
+            bail!("no group {group:?}");
+        }
+        let mut out = Vec::new();
+        for ch in &members {
+            let d = self.diff(&ch.base, &ch.head)?;
+            let files = d["files"].as_array().map_or(0, Vec::len);
+            let (mut added, mut removed) = (0, 0);
+            for f in d["files"].as_array().into_iter().flatten() {
+                for l in f["patch"].as_str().unwrap_or("").lines() {
+                    if l.starts_with('+') && !l.starts_with("+++") {
+                        added += 1;
+                    } else if l.starts_with('-') && !l.starts_with("---") {
+                        removed += 1;
+                    }
+                }
+            }
+            out.push(json!({
+                "change": ch.id, "agent": ch.agent, "model": ch.model, "intent": ch.intent, "state": ch.state,
+                "head": ch.head, "conflicts": ch.conflicts.len(), "landed_as": ch.landed_as,
+                "diff": {"files": files, "added": added, "removed": removed},
+            }));
+        }
+        Ok(json!({"group": group, "members": out}))
+    }
+
+    /// Lands `id` and, once it is on main, abandons the other open changes of its group. In
+    /// queue mode it answers `queued` and abandons nothing; call it again after the land.
+    pub fn land_one_of(&mut self, group: &str, id: &str) -> Result<Value> {
+        let ch = self.change(id)?;
+        if ch.group.as_deref() != Some(group) {
+            bail!("change {id} is not in group {group:?}");
+        }
+        let land = self.land(id)?;
+        let mut abandoned = Vec::new();
+        if matches!(land["status"].as_str(), Some("landed" | "already_on_main")) {
+            for other in self.store.group(group)? {
+                if other.id != id && other.state == ChangeState::Open {
+                    self.abandon(&other.id)?;
+                    abandoned.push(other.id);
+                }
+            }
+        }
+        Ok(json!({"status": land["status"], "group": group, "change": id, "land": land, "abandoned": abandoned}))
+    }
+
     // ---- git push from people -------------------------------------------------------------
 
     /// Lands commits a person pushed to the branch. `new` must contain main's exported commit
@@ -1384,6 +1445,7 @@ impl Inner {
                 created: now(),
                 declared: Intent::default(),
                 view: None,
+                group: None,
             };
             self.store.put_change(&ch)?;
             let out = self.land_direct(&id)?;
@@ -1509,7 +1571,7 @@ impl Inner {
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
-            "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(),
+            "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(), "group": ch.group,
         }))
     }
 
@@ -1680,6 +1742,15 @@ fn clone_bare(src: &Path, git_dir: &Path) -> Result<()> {
     }
     git::run(None, &["clone", "--bare", "--quiet", &src_s, &git_s])?;
     Ok(())
+}
+
+/// A group name: 1 to 100 characters on one line, trimmed.
+pub fn check_group(group: &str) -> Result<&str> {
+    let group = group.trim();
+    if group.is_empty() || group.len() > 100 || group.chars().any(char::is_control) {
+        bail!("group must be a name of 1 to 100 characters on one line");
+    }
+    Ok(group)
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

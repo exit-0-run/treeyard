@@ -12,8 +12,9 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 | History and search | `blame`, `log` filters (`path`, `paths` globs, `agent`, `since`, `until`), `symbols`, `outline`, `bisect` ([docs/derived.md](derived.md)) |
 | Access | `whoami`, `audit`, `token_create`, `token_list`, `token_revoke` ([docs/access.md](access.md)) |
 | Write | `open_change`, `apply` (content, base64, delete, exact-once `replace`, executable bit, symlink), `resolve`, `rebase`, `abandon` |
-| Land | `land`, `revert` |
-| Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
+| Land | `land`, `revert`, `land_one_of` (best-of-N) |
+| Checkpoints, notes | `checkpoint`, `checkpoints`, `restore_change` (undo inside a change); `attach`, `attachments` (transcripts, git notes on land) |
+| Inspect | `change`, `changes`, `group`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
 | Coordinate | `declare`, `events` (poll or long poll; `GET /api/events` is the server-sent event stream), `reviews`, `review_close`, `queue`, `queue_run`, `test_main`, `config` |
 
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes
@@ -24,6 +25,12 @@ path: `conflict` or `overlap`, with the changed line ranges of both sides).
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review
 task is opened), or `waiting`. A change opened with
 `base` set to another change id is stacked on it, and it waits until that change lands.
+
+Best-of-N: open N changes for one task with the same `group`. `group {group}` lists them with state
+and diff size (files, lines added and removed). `land_one_of {group, change}` lands the pick and, once
+it is on main, abandons the other open changes of the group (`abandoned` in the reply). After a
+`conflict`, `waiting` or `queued` reply the siblings stay open; call it again when the pick lands.
+Test: `tests/best_of_n.rs`.
 
 ## Workspaces
 

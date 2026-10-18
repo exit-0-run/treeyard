@@ -84,6 +84,8 @@ A server declares one or more profiles. The core profile is required.
 | `revert` | a new change with the inverse of one landed changeset, landed |
 | `checkpoint` | marks the head of an open change; `checkpoint` with `id` (`cp_` + 12 hex) and `n` |
 | `checkpoints` | the checkpoints of a change: `id`, `n`, `changeset`, `label`, `time`, `paths` changed since the previous one |
+| `group` | best-of-N: the changes of a group (set with `open_change` `group`) with state and diff size |
+| `land_one_of` | lands one change of a group; once it is on main, the group's other open changes are `abandoned` |
 | `attach` | stores a `transcript`, `summary` or `note` with an open change; `dropped_lines` = lines removed as secrets |
 | `attachments` | the attachments of a change; `note` names the git note of a landed change |
 | `restore_change` | a new head whose tree equals checkpoint `to` (id, number, or a changeset of the change); `undo` names the checkpoint of the head before |

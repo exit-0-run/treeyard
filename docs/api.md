@@ -21,6 +21,7 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Read without a checkout: [`status`](#status), [`read`](#read), [`list`](#list), [`tree`](#tree), [`blobs`](#blobs), [`grep`](#grep), [`diff`](#diff)
 - History and code intelligence: [`log`](#log), [`blame`](#blame), [`symbols`](#symbols), [`outline`](#outline), [`bisect`](#bisect)
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
+- Best of N: [`group`](#group), [`land_one_of`](#land_one_of)
 - Checkpoints and attachments: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change), [`attach`](#attach), [`attachments`](#attachments)
 - Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
@@ -210,6 +211,7 @@ Start a change on top of main (no branch). Declare the paths and symbols you pla
 |---|---|---|---|
 | `agent` | string | no |  |
 | `base` | string | no | main (default) or another revision; a change id ch_... stacks on that change, which then lands first |
+| `group` | string | no | best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest |
 | `intent` | string | yes | what you are about to do, in one line |
 | `model` | string | no |  |
 | `paths` | array of string | no | path globs you will edit, e.g. src/parser/** or Cargo.toml |
@@ -310,6 +312,33 @@ Undo a landed changeset: opens a change with the inverse and lands it.
 
 ```sh
 treeyard call revert '{"changeset": "<changeset id>"}'
+```
+
+## Best of N
+
+### group
+
+Best-of-N: the changes of a group with agent, model, state, conflicts and diff size (files, lines added and removed), to pick the best one.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group` | string | yes |  |
+
+```sh
+treeyard call group '{"group": "fix-1"}'
+```
+
+### land_one_of
+
+Best-of-N: land one change of a group, then abandon the other open changes of the group (listed in abandoned). Siblings stay open unless it landed (conflict, waiting, or queued: call again after it lands).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `group` | string | yes |  |
+
+```sh
+treeyard call land_one_of '{"group": "fix-1", "change": "ch_..."}'
 ```
 
 ## Checkpoints and attachments
