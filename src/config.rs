@@ -35,6 +35,7 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 # mode = "direct"                # "queue" (batch tested before main moves) or "optimistic"
 # test = "cargo test --offline"  # runs in a temp copy of the tree; exit 0 = pass
 # batch = 8
+# parallel = 4                   # queue mode: when a batch fails, test its prefixes this many at a time
 # timeout_s = 600
 
 # [bisect]                       # commands the bisect operation may run (agents pick by name)
@@ -159,12 +160,14 @@ pub struct Landing {
     pub mode: Mode,
     pub test: Option<String>,
     pub batch: usize,
+    /// Queue mode: test runs at once when a batch fails (1 = bisect one run at a time).
+    pub parallel: usize,
     pub timeout_s: u64,
 }
 
 impl Default for Landing {
     fn default() -> Self {
-        Self { mode: Mode::Direct, test: None, batch: 8, timeout_s: 600 }
+        Self { mode: Mode::Direct, test: None, batch: 8, parallel: 1, timeout_s: 600 }
     }
 }
 

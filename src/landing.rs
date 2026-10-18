@@ -276,6 +276,37 @@ impl Inner {
         Ok(spec)
     }
 
+    /// Queue mode with `parallel` > 1: each queued change (up to `batch`) rebased alone onto main, so
+    /// they can be tested side by side before the batch. Returns (change, head alone, head now).
+    fn preflight(&mut self) -> Result<Vec<(String, String, String)>> {
+        let main = self.main()?;
+        let mut out = Vec::new();
+        for id in self.store.queue()?.into_iter().take(self.cfg.landing.batch.max(1)) {
+            let ch = self.change(&id)?;
+            if ch.state != ChangeState::Open || !ch.conflicts.is_empty() {
+                continue;
+            }
+            let mut alone = ch.clone();
+            self.rebase_onto(&mut alone, &main)?;
+            if alone.conflicts.is_empty() && alone.head != alone.base {
+                out.push((id, alone.head, ch.head));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Sends a change whose own preflight test failed back to its owner, unless it moved meanwhile.
+    fn reject_preflight(&mut self, id: &str, head: &str, out: &Outcome) -> Result<Option<Value>> {
+        let ch = self.change(id)?;
+        if ch.state != ChangeState::Open || ch.head != head || !self.store.queue()?.iter().any(|q| q == id) {
+            return Ok(None);
+        }
+        self.store.dequeue(id)?;
+        let review = self.add_review(&ch, "tests_failed", json!({"output": out.output, "seconds": out.seconds}))?;
+        self.emit("rejected", &[id], &[&ch.agent], json!({"change": id, "review": review, "preflight": true}));
+        Ok(Some(json!({"change": id, "review": review})))
+    }
+
     /// Lands the first `passing` items of a tested speculation, if nothing moved meanwhile.
     fn commit_speculation(
         &mut self,
@@ -379,8 +410,40 @@ impl Inner {
     }
 }
 
-/// One queue step: speculate, test, bisect a failing batch, land what passed.
+/// Runs `test` on each changeset, `parallel` at a time.
+fn test_all(repo: &Repo, heads: &[String], parallel: usize) -> Result<Vec<Outcome>> {
+    let mut outs = Vec::new();
+    for chunk in heads.chunks(parallel.max(1)) {
+        let res: Vec<Result<Outcome>> = std::thread::scope(|sc| {
+            let hs: Vec<_> = chunk.iter().map(|h| sc.spawn(move || test(repo, h))).collect();
+            hs.into_iter().map(|h| h.join().unwrap_or_else(|_| Err(anyhow::anyhow!("test thread panicked")))).collect()
+        });
+        for r in res {
+            outs.push(r?);
+        }
+    }
+    Ok(outs)
+}
+
+/// One queue step: speculate, test, bisect a failing batch, land what passed. With `parallel` > 1
+/// the queued changes are first tested one by one on main, side by side, and the failing ones go
+/// back to their owners, so one broken change no longer holds up a whole batch.
 pub fn queue_step(repo: &Repo) -> Result<Value> {
+    let parallel = repo.with(|r| Ok(r.cfg.landing.parallel.max(1)))?;
+    let mut preflight = Vec::new();
+    if parallel > 1 {
+        let pre = repo.with(|r| r.preflight())?;
+        if pre.len() > 1 {
+            let heads: Vec<String> = pre.iter().map(|p| p.1.clone()).collect();
+            let outs = test_all(repo, &heads, parallel)?;
+            for ((id, alone, head), out) in pre.iter().zip(&outs) {
+                preflight.push(json!({"change": id, "changeset": alone, "ok": out.ok, "seconds": out.seconds}));
+                if !out.ok {
+                    repo.with(|r| r.reject_preflight(id, head, out))?;
+                }
+            }
+        }
+    }
     let spec = repo.with(|r| r.speculate())?;
     if spec.items.is_empty() {
         let notes = spec.notes.clone();
@@ -398,6 +461,16 @@ pub fn queue_step(repo: &Repo) -> Result<Value> {
     let top = run(n)?;
     let (passing, culprit) = if top.ok {
         (n, None)
+    } else if parallel > 1 && n > 2 {
+        // Test the other prefixes `parallel` at a time instead of bisecting one run after another.
+        let outs = test_all(repo, &heads[..n - 1], parallel)?;
+        for (k, out) in outs.iter().enumerate() {
+            tests.push(json!({"changes": k + 1, "changeset": heads[k], "ok": out.ok, "seconds": out.seconds}));
+        }
+        let mut outs: Vec<Outcome> = outs;
+        outs.push(top);
+        let first_bad = outs.iter().position(|o| !o.ok).unwrap_or(n - 1);
+        (first_bad, Some(outs.swap_remove(first_bad)))
     } else {
         // Prefix 0 (main) passes, prefix n fails: find the first failing prefix.
         let (mut lo, mut hi, mut bad) = (0, n, top);
@@ -416,6 +489,9 @@ pub fn queue_step(repo: &Repo) -> Result<Value> {
     let notes = spec.notes.clone();
     let mut out = repo.with(|r| r.commit_speculation(spec, passing, culprit.as_ref(), tests))?;
     out["notes"] = json!(notes);
+    if !preflight.is_empty() {
+        out["preflight"] = json!(preflight);
+    }
     Ok(out)
 }
 
