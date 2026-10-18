@@ -14,6 +14,7 @@ the server runs: an agent's change must never change them.
 | (d) Merge drivers | `land` reply `drivers` | `src/drivers.rs`, `src/repo.rs` | `d_merge_drivers_…`, unit tests in `src/drivers.rs` |
 | (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed` | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
 | (f) Semantic guard | `reviews`, `review_close`; `land` reply `reviews`; event `review` | `src/coord.rs`, `src/repo.rs` | `f_guard_…`, `tests/replay.rs` |
+| (g) Shared directories | `assign`, `claim`, `apply_assigned`; `treeyard share` | `src/hunks.rs`, `src/share.rs` | `tests/share.rs` |
 
 All tests are in `tests/coordination.rs` unless named otherwise. Every operation is in the one table in
 `src/rpc.rs`, so HTTP, MCP and `treeyard call` get it at once.
@@ -187,6 +188,52 @@ In the replay of ripgrep at 16 agents (stale parents, 2026-10-17), the guard ope
 task, and it is the `dbg!` fix: commit `e92e2ef8137a` "cli: remove stray `dbg!`", path
 `crates/cli/src/lib.rs`, a path that is wrong at the end of its wave. Numbers for all runs:
 [benchmarks.md](benchmarks.md#phase-3-coordination-replay).
+
+## (g) Shared directories: one checkout, many agents
+
+Sometimes several agents (for example Claude Code sessions) edit one checkout at the same time,
+without workspaces. One `apply` of that directory would mix their edits into one change. A *share*
+splits them per hunk instead:
+
+```sh
+treeyard share join --dir . --agent alice --intent "fix parse" --symbols parse
+treeyard share join --dir . --agent bob --intent "new output" --paths "src/render/**"
+treeyard share sync --dir .        # after edits; again whenever you like
+treeyard share claim --dir . --agent bob h1a2b3c4d5e6
+```
+
+`join` opens one change per agent on the share base (main when the first agent joins) and keeps the
+list in `DIR/.treeyard/share.json`. `sync` sends every file that differs from the base to `assign`,
+then calls `apply_assigned` for each agent.
+
+- **Hunks.** Each file's diff against the share base (git's Myers diff, `src/xdiff.rs`) gives hunks.
+  A hunk id hashes the path, the removed and added lines and 2 base lines on each side. Line numbers
+  are not in it, so an edit elsewhere in the file keeps the id.
+- **Owner**, first rule that gives exactly one open change of the share:
+  1. a `claim {change, hunks}` on the id, or a claim on the earlier hunk that this one grew from;
+  2. intent: a declared symbol whose definition holds the hunk (in the base or the new text), then a
+     declared path glob; a tie goes to the earlier owner, else the hunk is `ambiguous` with `candidates`;
+  3. stickiness: the owner of the same id, or of the one earlier hunk it overlaps;
+  4. else unassigned (`why: none`).
+- **Dependencies.** A hunk that overlaps an earlier hunk of another change builds on that change's
+  lines (one agent edited inside the other's new code). It gets `depends_on` and is held: it is not
+  applied, and the other change keeps its older version (`kept`). A claim by that change settles it.
+- **`apply_assigned {change}`** writes base plus the change's ready hunks to each path. When the head
+  moved since the last write (a rebase, continuous rebase), the step from the last written text to the
+  new one is merged 3-way onto the head; a conflict leaves the path out (`conflicts`).
+- After a change lands, its hunks show as `landed` (still in the directory, now on main).
+  `share sync --rebase` rebases every agent's change onto main and moves the share there.
+
+`assign` replies with hunks per change and `unassigned` hunks; each hunk has `id`, `path`, `old` and
+`new` line ranges (1-based, half-open), `owner`, `why` (`claim`, `intent`, `sticky`, `none`,
+`ambiguous`, `landed`) and the first 40 diff lines. The idea comes from GitButler's hunk assignment
+and hunk dependency locks (static inspection, `projects/rootstock/research/competitors-re.md` in the appnice
+workspace, 2026-10-18); the code here is our own.
+
+Limits of (g): text files only (binary files and symlinks are skipped); file modes stay as in the
+head; every sync hashes every tracked file of the directory; the server keeps the directory's changed
+files in the share row (SQLite), so it suits source files, not large data. `assign` needs a token that
+may write the paths; `claim` and `apply_assigned` need the change's owner.
 
 ## Limits
 

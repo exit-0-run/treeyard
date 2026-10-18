@@ -25,8 +25,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   `python3 bench/scale.py --repo CLONE --dir SCRATCH --tag T [--history N] [--git]`; `bench/grep_stall.py` (docs/benchmarks.md).
 - Release and docs: `sh scripts/dist.sh` (dist/ + SHA256SUMS + install.sh; Linux musl needs cargo-zigbuild and zig on
   PATH, docs/install.md); `sh scripts/check-quickstart.sh docs/quickstart.md|README.md [--write]` (runs ```sh blocks in
-  an empty dir); `examples/swarm-demo.sh --agents N [--pairs P]`; `treeyard api-doc > docs/api.md`;
-  `python3 scripts/demo-svg.py assets/demo.txt > assets/demo.svg`. `tests/docs.rs` fails when any of these is stale.
+  an empty dir); `examples/swarm-demo.sh --agents N [--pairs P]`; `treeyard api-doc > docs/api.md`; `python3 scripts/demo-svg.py assets/demo.txt > assets/demo.svg`. `tests/docs.rs` fails when any of these is stale.
 
 ## Layout
 
@@ -46,6 +45,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP, CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror` |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
 | `src/workspace.rs`, `src/daemon.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon |
+| `src/hunks.rs`, `src/share.rs` | one shared directory, many agents: hunk ids, owners (claim, intent, sticky), `depends_on`; `treeyard share join\|sync\|claim` (`tests/share.rs`) |
 | `src/replay.rs` | `treeyard replay`: real history in waves of N agents, stale or stacked, checked against git |
 | `src/history.rs`, `src/blame.rs`, `src/xdiff.rs` | mainline + changed-path index, `log`; blame cached per (changeset, path); git's Myers diff port |
 | `src/search.rs`, `src/symbols.rs`, `src/indexer.rs` | trigram grep index; tree-sitter symbols; eager background indexing |

@@ -14,6 +14,7 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 | Write | `open_change`, `apply` (content, base64, delete, exact-once `replace`, executable bit, symlink), `resolve`, `rebase`, `abandon` |
 | Land | `land`, `revert` |
 | Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
+| Share | `assign`, `claim`, `apply_assigned`: agents that edit one directory get one change each, split per hunk ([docs/coordination.md](coordination.md#g-shared-directories-one-checkout-many-agents)) |
 | Coordinate | `declare`, `events` (poll or long poll; `GET /api/events` is the server-sent event stream), `reviews`, `review_close`, `queue`, `queue_run`, `test_main`, `config` |
 
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes

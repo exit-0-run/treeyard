@@ -114,6 +114,7 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 | History | `blame`, `symbols`, `outline`, `bisect` |
 | Git | `export_change` (a change head as a git commit under `refs/treeyard/changes/<id>`) |
 | Access | `whoami`, `token_create`, `token_list`, `token_revoke`, `audit` |
+| Share | `assign`, `claim`, `apply_assigned` (hunk ownership when agents share one directory) |
 
 ### 3.4 Land statuses
 

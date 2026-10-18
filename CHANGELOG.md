@@ -8,6 +8,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 Product name: TreeYard. The binary, the crate and the commands are still `treeyard` in this
 version; the rename comes in a later version.
 
+### Added
+- Shared directories: `assign`, `claim`, `apply_assigned` and `treeyard share join|sync|claim`. Agents
+  that edit one checkout get one change each; every hunk has a stable id and one owner (claim, intent,
+  earlier owner), and a hunk that builds on another change's lines is held as `depends_on`.
+
 ## [0.1.0] - not released yet
 
 The first version that is complete end to end on one node.

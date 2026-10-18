@@ -130,6 +130,13 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         spares: usize,
     },
+    /// Agents that edit one shared directory (no workspaces): each hunk goes to one agent's change.
+    Share {
+        #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL, global = true)]
+        url: String,
+        #[command(subcommand)]
+        cmd: ShareCmd,
+    },
     /// Print the API reference (Markdown, docs/api.md) generated from the operation table.
     ApiDoc {
         /// Print the raw tool table as JSON instead (the MCP `tools/list` reply).
@@ -247,6 +254,52 @@ enum WsCmd {
         #[arg(long)]
         force: bool,
     },
+}
+
+#[derive(Subcommand)]
+enum ShareCmd {
+    /// Open a change for an agent in the directory (base: the share base, main for the first agent).
+    Join {
+        #[arg(long)]
+        dir: PathBuf,
+        #[arg(long, env = "TREEYARD_AGENT")]
+        agent: String,
+        #[arg(long)]
+        intent: String,
+        /// Path globs the agent will edit (repeat it); its hunks there go to its change.
+        #[arg(long = "paths", num_args = 1..)]
+        paths: Vec<String>,
+        /// Symbols (`name` or `path#name`) the agent will edit (repeat it).
+        #[arg(long = "symbols", num_args = 1..)]
+        symbols: Vec<String>,
+    },
+    /// Send the directory's edits: assign hunks, then write each agent's own hunks into its change.
+    Sync {
+        #[arg(long)]
+        dir: PathBuf,
+        /// First rebase every agent's change onto main and move the share there.
+        #[arg(long)]
+        rebase: bool,
+    },
+    /// Give hunks (ids from sync) to an agent's change.
+    Claim {
+        #[arg(long)]
+        dir: PathBuf,
+        #[arg(long, env = "TREEYARD_AGENT")]
+        agent: String,
+        #[arg(required = true)]
+        hunks: Vec<String>,
+    },
+}
+
+fn share(url: &str, cmd: ShareCmd) -> Result<Value> {
+    match cmd {
+        ShareCmd::Join { dir, agent, intent, paths, symbols } => {
+            treeyard::share::join(url, &dir, &agent, &intent, &paths, &symbols)
+        }
+        ShareCmd::Sync { dir, rebase } => treeyard::share::sync(url, &dir, rebase),
+        ShareCmd::Claim { dir, agent, hunks } => treeyard::share::claim(url, &dir, &agent, &hunks),
+    }
 }
 
 fn print(v: &Value) -> Result<()> {
@@ -390,6 +443,7 @@ fn main() -> Result<()> {
             let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
             daemon::run(&node.node(), &o, stop, &mut |line| println!("{line}"))?;
         }
+        Cmd::Share { url, cmd } => print(&share(&url, cmd)?)?,
         Cmd::ApiDoc { json } => {
             let tools = treeyard::rpc::tools();
             if json {

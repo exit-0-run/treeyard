@@ -23,6 +23,7 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
 - Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
+- Shared directories: [`assign`](#assign), [`claim`](#claim), [`apply_assigned`](#apply_assigned)
 - Access and audit: [`whoami`](#whoami), [`token_create`](#token_create), [`token_list`](#token_list), [`token_revoke`](#token_revoke), [`audit`](#audit)
 
 ## Read without a checkout
@@ -432,6 +433,50 @@ No parameters.
 
 ```sh
 treeyard call config '{}'
+```
+
+## Shared directories
+
+### assign
+
+Agents that share one directory: send the directory's changed files (relative to the share base); each file's diff splits into hunks with stable ids, and each hunk gets one owner among the share's changes: a claim, then a declared symbol or path, then its earlier owner. Reply: hunks per change (depends_on = it builds on another change's hunk and is held) and unassigned hunks.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `base` | string | no | base revision of the share (default: main when the share is new); a new base moves the share, after every open change was rebased onto it |
+| `changes` | array of string | no | the open changes of the agents in this directory (default: as before) |
+| `files` | array of object (`content`, `delete`, `path`) | no | every file that differs from the base; others count as equal to it |
+| `share` | string | yes | share name, e.g. the directory path |
+
+```sh
+treeyard call assign '{"share": "..."}'
+```
+
+### claim
+
+Give hunks (ids from assign) of a shared directory to a change, before any intent or earlier owner. A claim follows the hunk while it grows.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `hunks` | array of string | yes |  |
+| `share` | string | no | default: the share that lists the change |
+
+```sh
+treeyard call claim '{"change": "ch_...", "hunks": "..."}'
+```
+
+### apply_assigned
+
+Write a change's own hunks of a shared directory into the change: base plus its ready hunks, merged 3-way onto the head when it was rebased. Hunks that depend on another change come back in held, unapplied.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `share` | string | no | default: the share that lists the change |
+
+```sh
+treeyard call apply_assigned '{"change": "ch_..."}'
 ```
 
 ## Access and audit

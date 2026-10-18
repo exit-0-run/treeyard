@@ -244,6 +244,9 @@ const AUDITED: &[&str] = &[
     "bisect",
     "token_create",
     "token_revoke",
+    "assign",
+    "claim",
+    "apply_assigned",
 ];
 
 /// Runs one operation with full rights (in-process callers: tests, replay, CLI tools).
@@ -377,6 +380,74 @@ fn keep_readable(v: &mut Value, key: &str, c: &Caller, field: &str) {
 fn filter_change(v: &mut Value, c: &Caller) {
     keep_readable(v, "paths", c, "");
     keep_readable(v, "conflicts", c, "path");
+}
+
+// ---- shared directories (src/hunks.rs) --------------------------------------------------
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ShareFile {
+    path: String,
+    content: Option<String>,
+    delete: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Assign {
+    share: String,
+    base: Option<String>,
+    changes: Option<Vec<String>>,
+    #[serde(default)]
+    files: Vec<ShareFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Claim {
+    share: Option<String>,
+    change: String,
+    hunks: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ApplyAssigned {
+    share: Option<String>,
+    change: String,
+}
+
+/// `assign`, `claim`, `apply_assigned`: hunk ownership in a directory that agents share.
+fn share_op(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
+    if !c.writes_any() {
+        return Err(deny(format!("token {} is read-only", c.name)));
+    }
+    match op {
+        "assign" => {
+            let a: Assign = params(p)?;
+            let mut files = std::collections::BTreeMap::new();
+            for f in a.files {
+                c.require_write(&f.path)?;
+                let text = match (f.content, f.delete) {
+                    (Some(t), None | Some(false)) => Some(t),
+                    (None, Some(true)) => None,
+                    _ => bail!("file {}: give content or delete: true", f.path),
+                };
+                files.insert(f.path, text);
+            }
+            r.assign(&a.share, a.base.as_deref(), a.changes, files)
+        }
+        "claim" => {
+            let a: Claim = params(p)?;
+            owned(r, c, &a.change)?;
+            r.claim(a.share.as_deref(), &a.change, &a.hunks)
+        }
+        _ => {
+            let a: ApplyAssigned = params(p)?;
+            owned(r, c, &a.change)?;
+            r.apply_assigned(a.share.as_deref(), &a.change, &|path| c.require_write(path))
+        }
+    }
 }
 
 fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
@@ -652,6 +723,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: ChangeId = params(p)?;
             r.export_change(&a.change)
         }
+        "assign" | "claim" | "apply_assigned" => share_op(r, c, op, p),
         "tools" => Ok(json!({"tools": tools()})),
         "token_create" | "token_list" | "token_revoke" => {
             c.require_admin(op)?;
@@ -940,6 +1012,25 @@ pub fn tools() -> Vec<Value> {
             "export_change",
             "Write a change's head as a git commit under refs/treeyard/changes/<id>.",
             json!({"change": change}),
+            &["change"],
+        ),
+        // Shared directories (src/hunks.rs).
+        tool(
+            "assign",
+            "Agents that share one directory: send the directory's changed files (relative to the share base); each file's diff splits into hunks with stable ids, and each hunk gets one owner among the share's changes: a claim, then a declared symbol or path, then its earlier owner. Reply: hunks per change (depends_on = it builds on another change's hunk and is held) and unassigned hunks.",
+            json!({"share": {"type": "string", "description": "share name, e.g. the directory path"}, "base": {"type": "string", "description": "base revision of the share (default: main when the share is new); a new base moves the share, after every open change was rebased onto it"}, "changes": {"type": "array", "items": {"type": "string"}, "description": "the open changes of the agents in this directory (default: as before)"}, "files": {"type": "array", "description": "every file that differs from the base; others count as equal to it", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}}, "required": ["path"]}}}),
+            &["share"],
+        ),
+        tool(
+            "claim",
+            "Give hunks (ids from assign) of a shared directory to a change, before any intent or earlier owner. A claim follows the hunk while it grows.",
+            json!({"share": {"type": "string", "description": "default: the share that lists the change"}, "change": change, "hunks": {"type": "array", "items": {"type": "string"}}}),
+            &["change", "hunks"],
+        ),
+        tool(
+            "apply_assigned",
+            "Write a change's own hunks of a shared directory into the change: base plus its ready hunks, merged 3-way onto the head when it was rebased. Hunks that depend on another change come back in held, unapplied.",
+            json!({"share": {"type": "string", "description": "default: the share that lists the change"}, "change": change}),
             &["change"],
         ),
     ]
