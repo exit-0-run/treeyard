@@ -34,6 +34,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+# Git's automatic maintenance starts a detached `git repack` after commands on a big repository; many
+# at once used all memory on a linux clone (39 repacks, 16 GB). Every git this script runs has it off.
+os.environ.update({"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "maintenance.auto", "GIT_CONFIG_VALUE_0": "false",
+                   "GIT_CONFIG_KEY_1": "gc.auto", "GIT_CONFIG_VALUE_1": "0"})
+
 PATTERNS = [
     r"fn\s+main",
     r"TODO|FIXME",

@@ -303,6 +303,9 @@ enum WsCmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Write the change as the server holds it now into the workspace (after a land that hit a
+    /// conflict, or a continuous rebase): the work that landed first plus conflict markers.
+    Update { name: String },
     /// Send the last edits to the change, then delete the workspace directory. With --abandon the
     /// open change is dropped instead. Refuses when the edits cannot be sent, unless --force.
     Remove {
@@ -462,6 +465,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             dry_run,
             ..Default::default()
         })?)?,
+        WsCmd::Update { name } => print(&node.update(&name)?)?,
         WsCmd::Remove { name, abandon, force } => print(&node.remove(&name, abandon, force)?)?,
     }
     Ok(())

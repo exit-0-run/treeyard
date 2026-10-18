@@ -443,3 +443,36 @@ fn from_dir_seeds_the_change_with_a_checkouts_uncommitted_edits() {
     assert!(format!("{e:#}").contains("git"), "{e:#}");
     assert_eq!(node.get("p").unwrap().state, WsState::Failed);
 }
+
+#[test]
+fn land_conflict_updates_the_workspace_to_the_rebased_change() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[]);
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (a, _) = node.create(&opts("a")).unwrap();
+    let (b, _) = node.create(&opts("b")).unwrap();
+    let line = |text: &str, i: usize, new: &str| -> String {
+        text.lines().enumerate().map(|(j, l)| if j == i { format!("{new}\n") } else { format!("{l}\n") }).collect()
+    };
+    let base = fs::read_to_string(a.dir.join("f00.txt")).unwrap();
+    fs::write(a.dir.join("f00.txt"), line(&base, 3, "A was here")).unwrap();
+    fs::write(a.dir.join("a.txt"), "from a\n").unwrap();
+    fs::write(b.dir.join("f00.txt"), line(&base, 3, "B was here")).unwrap();
+    assert_eq!(node.land("a").unwrap()["land"]["status"], "landed");
+
+    // b's land conflicts: its directory now holds a's landed file and the conflict markers.
+    let r = node.land("b").unwrap();
+    assert_eq!(r["land"]["status"], "conflict", "{r}");
+    assert_eq!(r["update"]["conflicts"], json!(["f00.txt"]), "{r}");
+    assert_eq!(fs::read_to_string(b.dir.join("a.txt")).unwrap(), "from a\n");
+    let marked = fs::read_to_string(b.dir.join("f00.txt")).unwrap();
+    assert!(marked.contains("<<<<<<<") && marked.contains("A was here") && marked.contains("B was here"), "{marked}");
+
+    // Resolving in the directory and landing again works; main has both agents' work.
+    fs::write(b.dir.join("f00.txt"), line(&base, 3, "A and B were here")).unwrap();
+    assert_eq!(node.land("b").unwrap()["land"]["status"], "landed");
+    assert_eq!(read_at(&url, "main", "f00.txt")["content"], line(&base, 3, "A and B were here"));
+    assert_eq!(read_at(&url, "main", "a.txt")["content"], "from a\n");
+    // A second update finds nothing to write.
+    assert_eq!(node.update("b").unwrap()["written"], json!([]));
+}

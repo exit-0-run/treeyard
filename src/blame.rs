@@ -96,7 +96,7 @@ fn carry(prev: &Blamed, a: &[u8], b: &[u8], me: &str) -> Blamed {
 /// `git blame --first-parent --porcelain` of `path` at `commit`; lines from `commit` itself
 /// get origin `root` (the import changeset).
 fn git_blame(gd: &std::path::Path, commit: &str, path: &str, root: &str) -> Result<Blamed> {
-    let out = std::process::Command::new("git")
+    let out = crate::git::cmd()
         .arg("--git-dir")
         .arg(gd)
         .args(["blame", "--first-parent", "--porcelain", commit, "--", path])
@@ -161,7 +161,7 @@ fn rename_source(r: &mut Inner, parent: &str, cs: &str, path: &str) -> Result<Op
     if deleted.len() <= 4000 {
         args.extend(deleted.iter().map(String::as_str));
     }
-    let out = std::process::Command::new("git").args(&args).output().context("running git diff-tree")?;
+    let out = crate::git::cmd().args(&args).output().context("running git diff-tree")?;
     if !out.status.success() {
         bail!("git diff-tree -M failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }

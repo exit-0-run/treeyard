@@ -183,6 +183,14 @@ fn hunk_text(h: &diffy::Hunk<'_, str>) -> String {
     s
 }
 
+/// Clean overlaps whose edits are further apart than this many lines are not reported.
+const NEAR: usize = 3;
+
+/// Two sets of regions come within `margin` lines of each other.
+fn regions_near(a: &[(usize, usize)], b: &[(usize, usize)], margin: usize) -> bool {
+    a.iter().any(|x| b.iter().any(|y| x.0 <= y.1 + margin && y.0 <= x.1 + margin))
+}
+
 /// Two sets of regions overlap or touch (the cases where diff3 conflicts).
 fn regions_meet(a: &[(usize, usize)], b: &[(usize, usize)]) -> bool {
     a.iter().any(|x| b.iter().any(|y| x.0 <= y.1 && y.0 <= x.1))
@@ -465,6 +473,11 @@ impl Inner {
                     }
                     _ => (vec![], vec![]),
                 };
+                // A clean overlap with edits far apart merges either way and gives the agent
+                // nothing to act on; the shared path still shows in `overlaps`.
+                if kind == "overlap" && !mh.is_empty() && !th.is_empty() && !regions_near(&mh, &th, NEAR) {
+                    continue;
+                }
                 files.push(json!({
                     "path": path, "kind": kind, "hunks": {"mine": mh, "theirs": th},
                     "reason": reason, "if_you_land_second": me_second, "if_they_land_second": they_second,
@@ -490,6 +503,9 @@ impl Inner {
                         json!({"change": ch.id, "other": other.id, "file": f}),
                     );
                 }
+            }
+            if files.is_empty() {
+                continue;
             }
             let worst = if files.iter().any(|f| f["kind"] == "conflict") { "conflict" } else { "overlap" };
             out.push(json!({"change": other.id, "agent": other.agent, "intent": other.intent, "kind": worst, "files": files}));

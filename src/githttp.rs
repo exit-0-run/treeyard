@@ -109,6 +109,7 @@ async fn info_refs(
             let proto = git_protocol(&headers);
             let v2 = proto.as_deref().is_some_and(|p| p.contains("version=2"));
             let mut cmd = tokio::process::Command::new("git");
+            cmd.args(crate::git::NO_MAINTENANCE);
             cmd.args(["upload-pack", "--stateless-rpc", "--advertise-refs"]).arg(repo.git_dir());
             if let Some(p) = &proto {
                 cmd.env("GIT_PROTOCOL", p);
@@ -165,6 +166,7 @@ async fn upload_pack(State(repo): State<Arc<Repo>>, headers: HeaderMap, body: By
         Err(e) => return error(StatusCode::BAD_REQUEST, format!("bad request body: {e}")),
     };
     let mut cmd = tokio::process::Command::new("git");
+    cmd.args(crate::git::NO_MAINTENANCE);
     cmd.args(["upload-pack", "--stateless-rpc"]).arg(repo.git_dir());
     if let Some(p) = git_protocol(&headers) {
         cmd.env("GIT_PROTOCOL", p);

@@ -290,7 +290,7 @@ fn entry(r: &mut Inner, id: &str, m: &Meta, touched: &[&String]) -> Result<Value
 /// its own git commit; used by `init --history`. Merge commits diff against their first parent.
 pub fn import_log(git_dir: &std::path::Path, root: &str, tip: &str) -> Result<Vec<(String, Changeset)>> {
     let range = format!("{root}..{tip}");
-    let out = std::process::Command::new("git")
+    let out = crate::git::cmd()
         .arg("--git-dir")
         .arg(git_dir)
         .args([

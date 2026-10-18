@@ -73,7 +73,8 @@ stored. The reply's `collisions` gives `kind` = `conflict` or `overlap` per path
 conflict: `landing_order` (the change that lands second conflicts), `you_conflict_with_main` or
 `they_conflict_with_main` (one side cannot land on main even alone). `if_you_land_second` and
 `if_they_land_second` give the outcome of each order (`null` when the first one already conflicts with
-main). It also gives the changed line ranges of both sides (`hunks.mine`,
+main). A clean `overlap` whose edits on both sides are more than 3 lines apart is not reported (it
+merges either way); the shared path still shows in `overlaps`. It also gives the changed line ranges of both sides (`hunks.mine`,
 `hunks.theirs`, half-open, 1-based, in base lines). Edits inside another change's declared paths
 (`declared`) or symbols (`symbol`) count too. Each new or changed collision of a pair and path is
 published once as a `collision` event.

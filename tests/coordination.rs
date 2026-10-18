@@ -128,7 +128,7 @@ fn b_live_collisions_trial_merge_and_events() {
         panic!("stream ended: {seen:?}");
     });
     std::thread::sleep(Duration::from_millis(200));
-    let r = write(&url, &c, "f00.txt", &set_line(&base, 25, "C was here"));
+    let r = write(&url, &c, "f00.txt", &set_line(&base, 8, "C was here"));
     let kinds: Vec<&str> = r["collisions"].as_array().unwrap().iter().map(|x| x["kind"].as_str().unwrap()).collect();
     assert_eq!(kinds, ["overlap", "overlap"], "{r}");
     let (seen, ev) = reader.join().unwrap();
@@ -141,6 +141,11 @@ fn b_live_collisions_trial_merge_and_events() {
     write(&url, &b, "f01.txt", "other\n");
     assert_eq!(events(&url, json!({"kinds": ["collision"]})).len(), before);
     assert_eq!(before, 3);
+    // An edit far from everyone else's in the same file merges either way: no collision, no event.
+    let d = id(&open(&url, "d", json!({})));
+    let r = write(&url, &d, "f00.txt", &set_line(&base, 25, "D was here"));
+    assert_eq!(r["collisions"], json!([]), "{r}");
+    assert_eq!(events(&url, json!({"kinds": ["collision"]})).len(), before);
 
     // A long poll returns as soon as an event arrives.
     let latest = call(&url, "events", json!({}))["latest"].as_u64().unwrap();

@@ -5,6 +5,8 @@
 # Needs git, python3 (standard library) and a treeyard binary: on PATH, TREEYARD_BIN, --bin,
 # or target/release/treeyard (`make release`). Everything runs in a temporary directory.
 set -eu
+# No git auto maintenance: detached repacks on a big repository can use all memory.
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=maintenance.auto GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=gc.auto GIT_CONFIG_VALUE_1=0
 here=$(cd "$(dirname "$0")" && pwd)
 if [ -z "${TREEYARD_BIN:-}" ]; then
     if [ -x "$here/../target/release/treeyard" ]; then

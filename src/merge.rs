@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::model::{ConflictKind, Entry, MODE_GITLINK, MODE_LINK};
@@ -33,7 +33,7 @@ pub fn git_merge_file(dir: &Path, base: &str, ours: &str, theirs: &str) -> Resul
         for (f, body) in files.iter().zip([theirs, base, ours]) {
             std::fs::write(f, body)?;
         }
-        let out = Command::new("git")
+        let out = crate::git::cmd()
             .args(["merge-file", "-p", "--diff-algorithm", GIT_MERGE_DIFF, "-L", "main", "-L", "base", "-L", "change"])
             .args(&files)
             .stdin(Stdio::null())

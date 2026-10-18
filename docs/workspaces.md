@@ -240,8 +240,11 @@ git.cache/                bare git cache for --git
 
 ## Limits
 
-- One way only: the workspace pushes edits to the server. A server-side rebase does not rewrite the
-  workspace's files; `land` rebases on the server, and a conflict comes back as a task in `land`'s reply.
+- Sync is one way while you work: the workspace pushes edits to the server. A server-side rebase
+  does not rewrite the workspace's files until you ask: `treeyard workspace update NAME` writes the
+  change as the server holds it (after syncing first, so nothing local is lost). `workspace land` does
+  this on its own when the land hits a conflict, so the agent sees the markers and the work that
+  landed first.
 - No lazy checkout: the base holds the whole tree, and a `--paths` workspace holds its whole cone (a
   virtual file system is phase 5).
 - `overlay` needs mount rights. In a container that is `--privileged` or a user namespace with

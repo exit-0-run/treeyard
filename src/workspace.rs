@@ -1305,6 +1305,40 @@ impl Node {
         let to: Value = to.parse::<u64>().map_or_else(|_| json!(to), |n| json!(n));
         let restored = self.call("restore_change", json!({"change": ws.change, "to": to}))?;
         let head = restored["change"]["head"].as_str().context("restore_change reply")?.to_string();
+        let (written, gone) = self.write_head(name, &ws, &head)?;
+        Ok(json!({
+            "workspace": name, "change": ws.change, "head": head, "written": written, "deleted": gone,
+            "sync": sync, "restore": restored,
+        }))
+    }
+
+    /// Brings the workspace up to its change as the server holds it now: after a land that hit a
+    /// conflict (the server rebased the change onto main: other agents' landed work plus conflict
+    /// markers) or a continuous rebase. Syncs first, so a local edit is never overwritten.
+    pub fn update(&self, name: &str) -> Result<Value> {
+        let mut ws = self.get(name)?;
+        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        let sync = self.sync_locked(name, &ws)?;
+        let ch = self.call("change", json!({"change": ws.change}))?;
+        let head = ch["head"].as_str().context("change reply has no head")?.to_string();
+        let (written, gone) = self.write_head(name, &ws, &head)?;
+        if let Some(base) = ch["base"].as_str()
+            && base != ws.base
+        {
+            ws.base = base.to_string();
+            write_json(&self.meta_path(name), &ws)?;
+        }
+        let conflicts =
+            ch["conflicts"].as_array().map(|c| c.iter().filter_map(|x| x["path"].as_str()).collect::<Vec<_>>());
+        Ok(json!({
+            "workspace": name, "change": ws.change, "head": head, "written": written, "deleted": gone,
+            "conflicts": conflicts, "sync": sync,
+        }))
+    }
+
+    /// Rewrites the files of the workspace that differ from the tree at `head` (and deletes files
+    /// it lacks); other files keep their mtimes. The caller holds the workspace lock.
+    fn write_head(&self, name: &str, ws: &Workspace, head: &str) -> Result<(Vec<String>, Vec<String>)> {
         let tree = self.call("tree", json!({"at": head}))?;
         let mut want: BTreeMap<String, (u32, String)> = BTreeMap::new();
         for row in tree["entries"].as_array().context("tree has no entries")? {
@@ -1349,11 +1383,7 @@ impl Node {
             );
         }
         write_json(&self.state_path(name), &state)?;
-        let written: Vec<&String> = todo.iter().map(|(p, _)| p).collect();
-        Ok(json!({
-            "workspace": name, "change": ws.change, "head": head, "written": written, "deleted": gone,
-            "sync": sync, "restore": restored,
-        }))
+        Ok((todo.into_iter().map(|(p, _)| p).collect(), gone))
     }
 
     /// Starts (`into` = a directory) or stops (`None`) the mirror of a workspace: after every sync
@@ -1482,12 +1512,14 @@ impl Node {
         Ok(scan_cone(&ws.dir, &state, &layer_dirs, &ws.paths)?.diffs.len())
     }
 
-    /// Syncs, then lands the change on main.
+    /// Syncs, then lands the change on main. When the land hits a conflict, the workspace is
+    /// updated to the rebased change, so the agent sees the markers and the work that landed first.
     pub fn land(&self, name: &str) -> Result<Value> {
         let sync = self.sync(name)?;
         let ws = self.get(name)?;
         let land = self.call("land", json!({"change": ws.change}))?;
-        Ok(json!({"sync": sync, "land": land}))
+        let update = if land["status"] == "conflict" { self.update(name)? } else { Value::Null };
+        Ok(json!({"sync": sync, "land": land, "update": update}))
     }
 }
 
@@ -1611,7 +1643,7 @@ fn clone_sparse(base: &Path, dir: &Path, paths: &[String], cone: &State, s: Stra
         cow::clone_tree(&base.join(".git"), &dir.join(".git"), Strategy::Auto)?;
         let mut args = vec!["sparse-checkout", "set", "--cone"];
         args.extend(paths.iter().map(String::as_str));
-        let out = std::process::Command::new("git").arg("-C").arg(dir).args(&args).output().context("run git")?;
+        let out = crate::git::cmd().arg("-C").arg(dir).args(&args).output().context("run git")?;
         if !out.status.success() {
             bail!("git sparse-checkout in {}: {}", dir.display(), String::from_utf8_lossy(&out.stderr).trim());
         }
@@ -1706,13 +1738,8 @@ pub fn git_busy(dir: &Path) -> Option<String> {
 /// Runs a read-only git command (a status probe) in checkout `dir`. `GIT_OPTIONAL_LOCKS=0` keeps
 /// it from taking `index.lock` to refresh the index, so it never blocks the agent's own git.
 pub fn git_probe(dir: &Path, args: &[&str]) -> Result<Vec<u8>> {
-    let out = std::process::Command::new("git")
-        .arg("-C")
-        .arg(dir)
-        .args(args)
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .output()
-        .context("run git")?;
+    let out =
+        crate::git::cmd().arg("-C").arg(dir).args(args).env("GIT_OPTIONAL_LOCKS", "0").output().context("run git")?;
     if !out.status.success() {
         bail!("git {} in {}: {}", args.join(" "), dir.display(), String::from_utf8_lossy(&out.stderr).trim());
     }

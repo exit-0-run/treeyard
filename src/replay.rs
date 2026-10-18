@@ -21,7 +21,6 @@ use rand::{SeedableRng, rngs::StdRng};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Instant;
 
 use crate::git;
@@ -98,7 +97,7 @@ struct Counts {
 
 fn rev_parse(dir: &Path, rev: &str) -> Result<String> {
     let out =
-        Command::new("git").current_dir(dir).args(["rev-parse", "--verify", &format!("{rev}^{{commit}}")]).output()?;
+        crate::git::cmd().current_dir(dir).args(["rev-parse", "--verify", &format!("{rev}^{{commit}}")]).output()?;
     if !out.status.success() {
         bail!("unknown revision {rev} in {}", dir.display());
     }
@@ -570,7 +569,7 @@ pub fn run(o: &Options) -> Result<Value> {
                     Ok((r.commit_for(&m.base)?, r.commit_for(&m.ours)?, r.commit_for(&m.theirs)?, landed))
                 })?
             };
-            let out = Command::new("git")
+            let out = crate::git::cmd()
                 .args(["--git-dir", &gd_s, "-c", "merge.renames=false", "-c", "diff.renames=false", "merge-tree"])
                 .args(["--write-tree", &format!("--merge-base={base}"), &theirs, &ours])
                 .output()?;
@@ -600,7 +599,7 @@ pub fn run(o: &Options) -> Result<Value> {
 
     // Old histories carry their own fsck errors; only errors the source does not have count.
     let fsck_errors = |dir: &Path, bare: bool| -> Result<std::collections::BTreeSet<String>> {
-        let mut cmd = Command::new("git");
+        let mut cmd = crate::git::cmd();
         if bare {
             cmd.arg("--git-dir").arg(dir);
         } else {

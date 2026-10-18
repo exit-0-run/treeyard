@@ -12,6 +12,18 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use crate::model::{Entry, Manifest};
 
+/// The flags every git child of TreeYard gets. Git's automatic maintenance would otherwise start a
+/// detached `git repack` after a command on a big repository, and many of them at once can use all
+/// memory (seen on a linux clone: 39 repacks, 16 GB).
+pub const NO_MAINTENANCE: [&str; 4] = ["-c", "maintenance.auto=false", "-c", "gc.auto=0"];
+
+/// `git` with automatic maintenance turned off.
+pub fn cmd() -> Command {
+    let mut c = Command::new("git");
+    c.args(NO_MAINTENANCE);
+    c
+}
+
 /// The git object id of `data` stored as an object of `kind` ("blob", "tree", "commit").
 pub fn object_id(kind: &str, data: &[u8]) -> String {
     let mut h = Sha1::new();
@@ -22,7 +34,7 @@ pub fn object_id(kind: &str, data: &[u8]) -> String {
 
 /// Runs git (against `git_dir` when given) and returns stdout.
 pub fn run(git_dir: Option<&Path>, args: &[&str]) -> Result<String> {
-    let mut cmd = Command::new("git");
+    let mut cmd = cmd();
     if let Some(d) = git_dir {
         cmd.arg("--git-dir").arg(d);
     }
@@ -35,11 +47,7 @@ pub fn run(git_dir: Option<&Path>, args: &[&str]) -> Result<String> {
 
 /// Every file of `commit`, as (path, entry). Submodules come back with mode 160000.
 pub fn ls_tree(git_dir: &Path, commit: &str) -> Result<Vec<(String, Entry)>> {
-    let out = Command::new("git")
-        .arg("--git-dir")
-        .arg(git_dir)
-        .args(["ls-tree", "-r", "-z", "--full-tree", commit])
-        .output()?;
+    let out = cmd().arg("--git-dir").arg(git_dir).args(["ls-tree", "-r", "-z", "--full-tree", commit]).output()?;
     if !out.status.success() {
         bail!("git ls-tree {commit} failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
@@ -57,7 +65,7 @@ pub fn ls_tree(git_dir: &Path, commit: &str) -> Result<Vec<(String, Entry)>> {
 
 /// Paths that differ between two commits (no rename detection), with the new entry or `None`.
 pub fn diff_tree(git_dir: &Path, from: &str, to: &str) -> Result<Vec<(String, Option<Entry>)>> {
-    let out = Command::new("git")
+    let out = cmd()
         .arg("--git-dir")
         .arg(git_dir)
         .args(["diff-tree", "-r", "-z", "--no-renames", "--no-commit-id", from, to])
@@ -89,7 +97,7 @@ pub fn parse_raw(raw: &[u8]) -> Result<Vec<(String, Option<Entry>)>> {
 
 /// Whether `a` is an ancestor of (or equal to) `b`.
 pub fn is_ancestor(git_dir: &Path, a: &str, b: &str) -> Result<bool> {
-    let st = Command::new("git")
+    let st = cmd()
         .arg("--git-dir")
         .arg(git_dir)
         .args(["merge-base", "--is-ancestor", a, b])
@@ -153,7 +161,7 @@ impl StoredPack {
 /// Stores a pack (thin packs allowed) in the repo with `git index-pack` and returns its name
 /// and the ids of its objects.
 pub fn index_pack(git_dir: &Path, pack: &[u8]) -> Result<StoredPack> {
-    let mut child = Command::new("git")
+    let mut child = cmd()
         .arg("--git-dir")
         .arg(git_dir)
         .args(["index-pack", "--stdin", "--fix-thin"])
@@ -173,7 +181,7 @@ pub fn index_pack(git_dir: &Path, pack: &[u8]) -> Result<StoredPack> {
     let line = String::from_utf8(out.stdout)?;
     let hash = line.split_whitespace().last().context("index-pack printed no pack name")?;
     let idx = fs::File::open(git_dir.join("objects/pack").join(format!("pack-{hash}.idx")))?;
-    let out = Command::new("git").arg("--git-dir").arg(git_dir).arg("show-index").stdin(idx).output()?;
+    let out = cmd().arg("--git-dir").arg(git_dir).arg("show-index").stdin(idx).output()?;
     if !out.status.success() {
         bail!("git show-index failed: {}", String::from_utf8_lossy(&out.stderr).trim());
     }
@@ -206,7 +214,7 @@ impl CatFile {
     }
 
     fn spawn_mode(git_dir: &Path, mode: &str) -> Result<Self> {
-        let mut child = Command::new("git")
+        let mut child = cmd()
             .arg("--git-dir")
             .arg(git_dir)
             .args(["cat-file", mode])
@@ -560,4 +568,17 @@ pub fn commit_bytes(
         s.push('\n');
     }
     s.into_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn git_children_never_start_auto_maintenance() {
+        let get = |key: &str| {
+            let out = super::cmd().args(["config", "--get", key]).output().unwrap();
+            String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        assert_eq!(get("maintenance.auto"), "false");
+        assert_eq!(get("gc.auto"), "0");
+    }
 }
