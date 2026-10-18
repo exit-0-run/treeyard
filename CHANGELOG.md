@@ -5,10 +5,23 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
-Product name: TreeYard. The binary, the crate and the commands are still `treeyard` in this
-version; the rename comes in a later version.
+## [0.1.0] - 2026-10-18
 
-### Added
+The first version that is complete end to end on one node.
+
+### After the first live runs with real agents
+- `treeyard workspace update` writes the change as the server holds it; `workspace land` does it on its
+  own after a land that hits a conflict.
+- `land_status` and `workspace land --wait-s`: the verdict of queue or optimistic tests (passed,
+  rejected, reverted with the failing output); a closed change is followed by a new change from the
+  workspace base, merged 3-way onto main.
+- Collisions trial-land both orders on today's main and give a `reason`; clean overlaps far apart are
+  not reported.
+- Safe `workspace remove`, repo config `.treeyard/workspace.toml`, workspace states and logs,
+  `workspace gc`, polite git probes, `workspace mirror`, sparse `--paths`, `--from-dir`.
+- Every git child runs without automatic maintenance (detached repacks once used all memory).
+
+### Shared directories, checkpoints, conflicts that wait, notes, best-of-N
 - Shared directories: `assign`, `claim`, `apply_assigned` and `treeyard share join|sync|claim`. Agents
   that edit one checkout get one change each; every hunk has a stable id and one owner (claim, intent,
   earlier owner), and a hunk that builds on another change's lines is held as `depends_on`.
@@ -21,10 +34,6 @@ version; the rename comes in a later version.
   are dropped) and `attachments`; on land they become a git note under `refs/notes/treeyard`.
 - Best-of-N: `open_change` takes `group`; `group` compares the members (state, diff size) and
   `land_one_of` lands one and abandons the other open changes of the group.
-
-## [0.1.0] - not released yet
-
-The first version that is complete end to end on one node.
 
 ### Server core
 - Changes with stable ids instead of branches; content-addressed changesets; SQLite metadata.

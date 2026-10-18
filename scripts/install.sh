@@ -1,5 +1,6 @@
 #!/bin/sh
 # Installs the treeyard binary from a release directory or URL, after a SHA-256 check.
+#   curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh
 #   sh install.sh --from ./dist                       # a directory made by scripts/dist.sh
 #   sh install.sh --from https://example.org/v0.1.0   # any URL that serves the archives + SHA256SUMS
 #   options: --prefix DIR (default ~/.local), --version V (default: the newest archive in SHA256SUMS)
@@ -13,7 +14,7 @@ while [ $# -gt 0 ]; do
         --from) from=$2; shift 2 ;;
         --prefix) prefix=$2; shift 2 ;;
         --version) version=$2; shift 2 ;;
-        -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
         *) echo "install: unknown option $1" >&2; exit 2 ;;
     esac
 done
@@ -23,7 +24,8 @@ if [ -z "$from" ]; then
         if [ -f "$d/SHA256SUMS" ]; then from=$d; break; fi
     done
 fi
-[ -n "$from" ] || { echo "install: give --from DIR_OR_URL (a directory or URL with SHA256SUMS)" >&2; exit 2; }
+# Default: the newest release on GitHub (each asset redirects from /latest/download/).
+[ -n "$from" ] || from=https://github.com/exit-0-run/treeyard/releases/latest/download
 
 case $(uname -s) in
     Darwin) os=apple-darwin ;;

@@ -15,6 +15,8 @@ host=$(rustc -vV | sed -n 's/^host: //p')
 linux="x86_64-unknown-linux-musl aarch64-unknown-linux-musl"
 if [ -z "${DIST_TARGETS:-}" ]; then
     DIST_TARGETS=$host
+    # On Apple Silicon the Intel Mac binary builds with the native toolchain.
+    [ "$host" = "aarch64-apple-darwin" ] && DIST_TARGETS="$DIST_TARGETS x86_64-apple-darwin"
     if command -v cargo-zigbuild >/dev/null 2>&1 && command -v zig >/dev/null 2>&1; then
         DIST_TARGETS="$DIST_TARGETS $linux"
     else
@@ -25,6 +27,9 @@ fi
 mkdir -p dist
 for t in $DIST_TARGETS; do
     if [ "$t" = "$host" ]; then
+        "$CARGO" build --release --locked --target "$t"
+    elif [ "${t#*-apple-darwin}" != "$t" ]; then
+        rustup target add "$t" >/dev/null
         "$CARGO" build --release --locked --target "$t"
     else
         rustup target add "$t" >/dev/null

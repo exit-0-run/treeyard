@@ -150,7 +150,13 @@ Limits of these numbers:
 
 ## Quick start
 
-Install a release ([docs/install.md](docs/install.md)) or build with `make release`, then run this in
+Install the binary (macOS and Linux, arm64 and x86_64; the script checks the SHA-256):
+
+```text
+curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh
+```
+
+Or build with `make release` ([docs/install.md](docs/install.md)). Then run this in
 an empty directory. `sh scripts/check-quickstart.sh README.md` runs these blocks word for word; the
 longer version with conflicts, workspaces and MCP is [docs/quickstart.md](docs/quickstart.md).
 

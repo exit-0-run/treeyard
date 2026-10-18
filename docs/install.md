@@ -13,6 +13,7 @@ A release is a directory (or URL) with one archive per platform, `SHA256SUMS` an
 `~/.local/bin` (change it with `--prefix`). It needs no root rights.
 
 ```text
+curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh   # newest GitHub release
 sh dist/install.sh --from dist                 # a local release directory
 sh install.sh --from https://HOST/PATH/v0.1.0  # any URL that serves the same files
 ```
