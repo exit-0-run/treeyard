@@ -181,6 +181,18 @@ treeyard replay --src oss/ripgrep --from 3fce3b5~500 --to 3fce3b5 --agents 16 --
 | requests | 16 | 0.991 → 1.0 | 0.776 → 0.849 | 531 (451 right) |
 | requests | 50 | 1.0 → 1.0 | 0.852 → 0.904 | 1 584 (1 432 right) |
 
+**Conflicts with main reported once (2026-10-18, after the hard live run).** A change that no longer
+merges onto main by itself was reported as a conflict with every other agent that shared the file (31
+warnings for 4 real pairs in the hard live run). Now a pair is warned only when the order of landing
+decides it, and a conflict with main comes once, as a collision with `"change": "main"`. Same command:
+
+| Repo | Agents | Warned pairs: before → now | Recall | Pair precision |
+|---|---|---|---|---|
+| ripgrep | 16 | 410 → 114 | 0.988 → 1.0 | 0.720 → 0.719 |
+| ripgrep | 50 | 1 521 → 188 | 1.0 → 1.0 | 0.888 → 0.851 |
+| requests | 16 | 531 → 151 | 1.0 → 1.0 | 0.849 → 0.735 |
+| requests | 50 | 1 584 → 229 | 1.0 → 1.0 | 0.904 → 0.812 |
+
 Rules tried on the same runs (pair precision / recall, ripgrep 16): both orders only 0.655 / 0.741 (it
 misses changes that conflict with main by themselves); both orders and the old rule together 0.778 /
 0.593. "Both orders, or one side conflicts with main" was the only rule better on every run.
@@ -647,4 +659,21 @@ Read it fairly: 8 agents on independent bug fixes never conflicted in git either
 queue wait. Optimistic landing leaves main red for about a second before the revert; the queue keeps it
 green but makes changes wait (here up to 34 s; with 50 agents and the repository's own CI, 4 to 60 min,
 see the phase-0 baseline above).
+
+### Hard set: two agents per function (2026-10-18)
+
+`DEMO_SET=hard python3 examples/live-agents/demo.py git|treeyard`: 8 agents in 4 pairs, each pair adds two
+different options to one function (`windowed`, `first`, `split_at`, `padded`; both edit the same `def`
+line, docstring, stub and tests). 12 hidden checks (`probes_hard.py`): each option, and both options of a
+pair used together. Base `4aeb433`.
+
+| Arm | All landed after | Hidden checks | Conflicts at land | Agent turns | Cost |
+|---|---|---|---|---|---|
+| git worktrees + merge queue | 106.5 s | 12 / 12 | 3 (rebase in the queue) | 111 | $1.02 |
+| TreeYard, optimistic | 72.3 s | 12 / 12 | 4 | 107 | $1.09 |
+
+The early warnings did not lower the number of conflicts: two parameters added to the same `def` line
+conflict however early you know it, and no agent chose to wait and build on the other. The gain is again
+the queue wait (32 % sooner). The run also showed noisy warnings (31 conflict warnings for 4 real pairs),
+fixed above by reporting conflicts with main once.
 

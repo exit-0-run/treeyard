@@ -182,7 +182,7 @@ in [docs/benchmarks.md](benchmarks.md#phase-3-coordination-replay)):
 | requests | 50 | 239 / 3 | 0 / 0 | 0/10 → 10/10 | 3.36 |
 
 The replay declares each commit's exact paths, so this is an upper bound for agents that guess. The
-trial landing of `collisions` (both orders on today's main) is right for 72 % to 90 % of warned pairs at recall 0.99 to 1.0; a shared path alone
+trial landing of `collisions` (both orders on today's main) is right for 72 % to 85 % of warnings at recall 1.0; a shared path alone
 has precision 0.20 to 0.42.
 
 ## Benchmark commands

@@ -63,6 +63,10 @@ checks test every fix on the final main.
 | A change that failed a test | caught by the queue before the merge | reverted about 1 s after the land; the agent got the verdict and landed its fix |
 | Agent turns, API-equivalent cost | 66, $0.45 | 66, $0.46 |
 
+Harder set, two agents per function (both add an option to the same `def` line): 106.5 s against
+**72.3 s**, 12 / 12 hidden checks on both sides, 3 and 4 conflicts at land. Early warnings do not remove
+a conflict on the same line; the gain is the queue wait.
+
 > [!IMPORTANT]
 > The first runs of this demo found three bugs in TreeYard. All are fixed and covered by tests. Every run, and
 > how to repeat it: [docs/benchmarks.md](docs/benchmarks.md) and `examples/live-agents/`.
@@ -123,8 +127,8 @@ fuzz_history`).
 
 > [!WARNING]
 > Read these fairly. Land time excludes CI: use `queue` or `optimistic` mode to run tests. The replay declares
-> exact paths, so 111 → 0 is an upper bound. Conflict warnings catch 99 % to 100 % of real conflicts, and 72 %
-> to 90 % of warned pairs really conflict. The agents in this table are scripts; the live run uses Claude Code.
+> exact paths, so 111 → 0 is an upper bound. Conflict warnings catch 100 % of real conflicts, and 72 % to
+> 85 % of warnings really conflict. The agents in this table are scripts; the live run uses Claude Code.
 
 </details>
 

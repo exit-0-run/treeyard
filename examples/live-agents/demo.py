@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Live demo v2: 8 real Claude Code agents (claude -p) fix 8 real bugs from more-itertools history at once.
+"""Live demo: 8 real Claude Code agents (claude -p) work on more-itertools at once (DEMO_SET=bugs: 8 real bugs;
+DEMO_SET=hard: 4 pairs of feature requests, two agents per function).
 
     sh setup.sh                # once: clone more-itertools, make a venv with pytest
     python3 demo.py git        # arm 1: git worktrees + a serial merge queue (land.py)
@@ -18,7 +19,9 @@ D = os.environ.get("DEMO_DIR", os.path.expanduser("~/.cache/treeyard-live-agents
 SRC = os.path.join(D, "src")
 PY = os.path.join(D, "venv", "bin", "python")
 TY = os.environ.get("TREEYARD_BIN") or shutil.which("treeyard") or os.path.join(HERE, "..", "..", "target", "release", "treeyard")
-BASE = "2fe1b2e"
+SET = os.environ.get("DEMO_SET", "bugs")  # bugs: 8 real bugs; hard: 4 pairs of agents on one function each
+BASE = {"bugs": "2fe1b2e", "hard": "4aeb433"}[SET]
+PROBES = {"bugs": "probes.py", "hard": "probes_hard.py"}[SET]
 MODEL = os.environ.get("DEMO_MODEL", "sonnet")
 URL = "http://127.0.0.1:7431"
 
@@ -55,10 +58,41 @@ TASKS = [
      "raised during iteration must propagate; arguments that cannot be iterated at all are still emitted as is."),
 ]
 
-COMMON = """You are one of 8 coding agents that fix bugs in the more-itertools library at the same time, in the
-same repository. Your bug report: {title}.
+TASKS_HARD = [
+    ("windowed_strict", "windowed: add strict",
+     "Add a keyword-only parameter strict=False to windowed(seq, n, fillvalue=None, step=1). With strict=True, "
+     "raise ValueError instead of yielding a window that would need fillvalue."),
+    ("windowed_skip_partial", "windowed: add skip_partial",
+     "Add a keyword-only parameter skip_partial=False to windowed(seq, n, fillvalue=None, step=1). With "
+     "skip_partial=True, do not yield a last window that would need fillvalue (and do not raise)."),
+    ("first_pred", "first: add pred",
+     "Add a keyword-only parameter pred=None to first(iterable, default=...). When pred is given, return the "
+     "first item for which pred(item) is true; if there is none, return default or raise as today."),
+    ("first_too_short", "first: add too_short",
+     "Add a keyword-only parameter too_short=None to first(iterable, default=...), like one(): when no item is "
+     "found and there is no default, raise too_short (an exception class or instance) instead of ValueError."),
+    ("split_at_keep_empty", "split_at: add keep_empty",
+     "Add a keyword-only parameter keep_empty=True to split_at(iterable, pred, maxsplit=-1, keep_separator=False). "
+     "With keep_empty=False, do not yield empty groups: split_at('a,,b', lambda c: c == ',', keep_empty=False) "
+     "gives [['a'], ['b']]."),
+    ("split_at_separator_value", "split_at: accept a separator value",
+     "Let split_at(iterable, pred, ...) take a separator value instead of a predicate: when pred is not callable, "
+     "split where item == pred. split_at('a,b', ',') gives [['a'], ['b']]."),
+    ("padded_strict", "padded: add strict",
+     "Add a keyword-only parameter strict=False to padded(iterable, fillvalue=None, n=None, next_multiple=False). "
+     "With strict=True and n given (not next_multiple), raise ValueError if the iterable has more than n items."),
+    ("padded_left", "padded: add left",
+     "Add a keyword-only parameter left=False to padded(iterable, fillvalue=None, n=None, next_multiple=False). "
+     "With left=True, put the fill values before the items: padded([1, 2], 0, n=4, left=True) gives [0, 0, 1, 2]."),
+]
+if SET == "hard":
+    TASKS = TASKS_HARD
+
+COMMON = """You are one of 8 coding agents that work on the more-itertools library at the same time, in the
+same repository. Your task: {title}.
 {desc}
-Fix it in more_itertools/more.py with the smallest clean change, and add regression tests in
+Make the change in more_itertools/more.py (and its type stub in more_itertools/more.pyi when the
+signature changes) with the smallest clean change, update the docstring, and add tests in
 tests/test_more.py next to the existing tests of that function. Follow the existing style. Run the tests
 with `{py} -m pytest -q -x tests`. Do not change anything else.
 """
@@ -72,7 +106,11 @@ LANDED. You are done when it prints LANDED.
 
 TY_FINISH = """This directory is a TreeYard workspace: every file you save is sent to the TreeYard server
 automatically, and other agents' work is visible to the server. If the file `.treeyard/overlaps.json`
-exists, it lists other agents' open changes that touch the same code as you: read it before you land.
+exists, it lists other agents' open changes that touch the same code as you, and the file
+`.treeyard/collisions.json` (rewritten on every save) lists real conflicts with them and the reason.
+`treeyard workspace status {ws}` asks the server again. If another agent's change conflicts with yours,
+read it with `treeyard call diff '{{"change": "<their change id>"}}'` and make your edit fit with theirs
+(keep their change working too); check `treeyard workspace status {ws}` again before you land.
 When the tests pass, run `treeyard workspace land {ws}`. If the reply has "status": "conflict", the
 conflicted files in this directory now hold conflict markers plus the work other agents already landed:
 resolve the markers (keep both sides' intent), run the tests, and run `treeyard workspace land {ws}`
@@ -96,8 +134,8 @@ def run_agents(arm, dirs, prompts, env):
     procs = []
     t0 = time.time()
     for i, (cwd, prompt) in enumerate(zip(dirs, prompts)):
-        out = open(os.path.join(D, "agents", f"{arm}-{i}.json"), "w")
-        err = open(os.path.join(D, "agents", f"{arm}-{i}.err"), "w")
+        out = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.json"), "w")
+        err = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.err"), "w")
         cmd = ["claude", "-p", prompt, "--output-format", "json", "--model", MODEL, "--max-turns", "80",
                "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED,
                "--mcp-config", '{"mcpServers":{}}', "--strict-mcp-config"]
@@ -114,7 +152,7 @@ def run_agents(arm, dirs, prompts, env):
     agents = []
     for i, p, _ in procs:
         try:
-            r = json.load(open(os.path.join(D, "agents", f"{arm}-{i}.json")))
+            r = json.load(open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.json")))
         except Exception:
             r = {}
         agents.append({"task": TASKS[i][0], "exit": p.returncode, "wall_s": round(ends[i], 1),
@@ -126,7 +164,7 @@ def run_agents(arm, dirs, prompts, env):
 
 def final_tests(repo):
     r = subprocess.run([PY, "-m", "pytest", "-q", "tests"], cwd=repo, capture_output=True, text=True)
-    p = subprocess.run([PY, os.path.join(HERE, "probes.py"), repo], capture_output=True, text=True)
+    p = subprocess.run([PY, os.path.join(HERE, PROBES), repo], capture_output=True, text=True)
     try:
         probes = json.loads(p.stdout)
     except ValueError:
@@ -229,7 +267,7 @@ def main():
     os.makedirs(os.path.join(D, "results"), exist_ok=True)
     r = arm_git() if arm == "git" else arm_treeyard()
     r["model"] = MODEL
-    json.dump(r, open(os.path.join(D, "results", f"{arm}.json"), "w"), indent=2)
+    json.dump(r, open(os.path.join(D, "results", f"{SET}-{arm}.json"), "w"), indent=2)
     print(json.dumps({k: v for k, v in r.items() if k != "agents"}, indent=2))
 
 

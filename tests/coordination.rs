@@ -175,11 +175,13 @@ fn b_collision_names_the_side_that_already_conflicts_with_main() {
     let now = read(&url, "f00.txt", "main");
     let b = id(&open(&url, "b", json!({})));
     write(&url, &a, "f00.txt", &set_line(&base, 5, "A was here"));
-    // b edits a line far away: the pair would merge either way, but a cannot land on main.
+    // b edits a line far away: the pair merges either way. a cannot land on main, but that is a's
+    // problem, not b's: b gets no warning, and a gets one collision with "main", not with b.
     let r = write(&url, &b, "f00.txt", &set_line(&now, 25, "B was here"));
-    let f = &r["collisions"][0]["files"][0];
-    assert_eq!((&f["kind"], &f["reason"]), (&json!("conflict"), &json!("they_conflict_with_main")), "{r}");
+    assert_eq!(r["collisions"], json!([]), "{r}");
     let r = write(&url, &a, "f01.txt", "touch\n");
+    assert_eq!(r["collisions"].as_array().unwrap().len(), 1, "{r}");
+    assert_eq!(r["collisions"][0]["change"], "main", "{r}");
     let f = &r["collisions"][0]["files"][0];
     assert_eq!((&f["path"], &f["reason"]), (&json!("f00.txt"), &json!("you_conflict_with_main")), "{r}");
     assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");

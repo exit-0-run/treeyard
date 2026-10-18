@@ -68,7 +68,7 @@ Nothing is lost: the change keeps every revision.
 - **Semantic guard**: a review task when a rebase makes an edit vanish.
 
 Measured precision of the warnings, per warned pair: shared path alone 0.20 to 0.42, trial landing
-0.72 to 0.90 at recall 0.99 to 1.0 (ripgrep and requests, 16 and 50 agents;
+0.72 to 0.85 at recall 1.0 (ripgrep and requests, 16 and 50 agents;
 [benchmarks.md](benchmarks.md#early-warnings-precision-next-to-recall)). So agents get the trial-landing
 signal with its reason (`landing_order`, `you_conflict_with_main`, `they_conflict_with_main`), not every
 shared path.
