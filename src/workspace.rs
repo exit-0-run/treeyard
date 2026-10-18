@@ -1548,9 +1548,12 @@ impl Node {
         Ok(json!({"sync": sync, "land": land, "update": update, "verdict": verdict, "reopened": reopened}))
     }
 
-    /// Binds the workspace to a new change on today's main when its change has landed or was
-    /// dropped. The sync state is reset to main's tree, so the next sync sends every file that
-    /// differs from main: the work in the directory stays whole even after a revert.
+    /// Binds the workspace to a new change when its change has landed or was dropped. The new
+    /// change starts from the workspace's own base (`ws.base`, the tree its files derive from) and
+    /// the sync state is reset to that tree, so the next sync sends the agent's whole work since
+    /// that base, even after a revert. `land` then merges it 3-way onto today's main, so work that
+    /// other agents landed meanwhile is kept. (Starting from main instead would send stale copies
+    /// of shared files and overwrite that work.)
     pub fn reopen(&self, name: &str) -> Result<Value> {
         let mut ws = self.get(name)?;
         let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
@@ -1560,7 +1563,10 @@ impl Node {
         }
         let opened = self.call(
             "open_change",
-            json!({"agent": ws.agent, "intent": format!("follow-up of {} ({})", ws.change, old["verdict"].as_str().unwrap_or("closed"))}),
+            json!({
+                "agent": ws.agent, "base": ws.base,
+                "intent": format!("follow-up of {} ({})", ws.change, old["verdict"].as_str().unwrap_or("closed")),
+            }),
         )?;
         let id = opened["id"].as_str().context("open_change reply has no id")?.to_string();
         let base = opened["base"].as_str().context("open_change reply has no base")?.to_string();

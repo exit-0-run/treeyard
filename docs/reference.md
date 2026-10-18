@@ -54,7 +54,7 @@ does not sync a `--git` workspace during a merge, rebase, cherry-pick or with a 
 retries after 1 s, 5 s, 30 s, 120 s. `workspace mirror NAME --into DIR` (`--off` stops it) writes the change's files into
 one fixed directory after every sync, touching only files that differ. `create --paths a/,b/` makes a sparse
 workspace (these directories plus root files, git cone mode); sync never treats the rest as deleted. `create
---from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ. `update NAME` writes the change as the server holds it now (automatic after a land that hits a conflict). `land NAME [--wait-s N]` waits for the verdict of queue or optimistic tests (`land_status`) and, when the change has already landed or was reverted, lands the work as a follow-up change.
+--from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ. `update NAME` writes the change as the server holds it now (automatic after a land that hits a conflict). `land NAME [--wait-s N]` waits for the verdict of queue or optimistic tests (`land_status`) and, when the change has already landed or was reverted, lands the work as a follow-up change (from the workspace base, merged 3-way onto main).
 Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 

@@ -35,8 +35,8 @@ treeyard workspace remove fix-1
    verdict of the tests (`land_status`): `passed`, `rejected` (the queue's tests failed; fix and land
    again) or `reverted` (optimistic landing found the change broke main and reverted it; the reply has
    the failing output). When the workspace's change has already landed or was reverted, the next `land`
-   first opens a follow-up change on today's main and sends every file that differs from main, so the
-   whole work in the directory lands, not only the last edit.
+   first opens a follow-up change from the workspace's own base and sends the agent's whole work since
+   that base; the land merges it 3-way onto today's main, so work other agents landed meanwhile stays.
 8. `remove` syncs first, under the workspace lock, so an edit that the daemon has not sent yet still
    reaches the change. When that sync fails (for example the server is down), nothing is deleted unless
    `--force`. `--abandon` drops the change instead. The record is marked `removing` before the directory

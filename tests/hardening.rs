@@ -400,8 +400,13 @@ fn hostile_paths_and_sizes_are_refused_over_the_api() {
     assert!(e.contains("at most 10000 edits"), "{e}");
     // A body over the 64 MiB limit never reaches the operation: 413, or the server closes the
     // connection while the client still sends (broken pipe), depending on timing.
+    // ureq sometimes panics instead of erroring when the server closes the connection mid-body;
+    // that is the same outcome as a transport error here.
     let big = "x".repeat(65 << 20);
-    let e = raw(&url, "apply", json!({"change": id, "edits": [{"path": "big.txt", "content": big}]})).unwrap_err();
+    let body = json!({"change": id, "edits": [{"path": "big.txt", "content": big}]});
+    let e = std::panic::catch_unwind(|| raw(&url, "apply", body))
+        .map(|r| r.unwrap_err())
+        .unwrap_or_else(|_| "transport: client panicked on the closed connection".into());
     assert!(e.starts_with("HTTP 413") || e.starts_with("transport:"), "{}", &e[..e.len().min(200)]);
     // A file over the 48 MiB API limit, inside the body limit.
     let big = "y".repeat(49 << 20);

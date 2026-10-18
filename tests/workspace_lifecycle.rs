@@ -503,6 +503,11 @@ fn optimistic_revert_reaches_the_agent_and_the_workspace_carries_on() {
     assert_eq!(r["verdict"]["verdict"], "reverted", "{r}");
     assert!(read_at(&url, "main", "new.txt").is_null(), "the revert took the whole change out");
 
+    // Another agent lands meanwhile, in a file this workspace still has in its old version.
+    let (x, _) = node.create(&opts("x")).unwrap();
+    fs::write(x.dir.join("f01.txt"), "from x\n").unwrap();
+    assert_eq!(node.land_with("x", Duration::from_secs(60)).unwrap()["verdict"]["verdict"], "passed");
+
     // The agent fixes the file and lands again from the same workspace: a follow-up change on
     // today's main carries all of its work, not only the last edit.
     fs::write(w.dir.join("f00.txt"), "fixed\n").unwrap();
@@ -511,4 +516,6 @@ fn optimistic_revert_reaches_the_agent_and_the_workspace_carries_on() {
     assert_eq!(r["verdict"]["verdict"], "passed", "{r}");
     assert_eq!(read_at(&url, "main", "f00.txt")["content"], "fixed\n");
     assert_eq!(read_at(&url, "main", "new.txt")["content"], "kept\n");
+    // The follow-up merged onto main: x's work is still there (w's stale f01.txt did not win).
+    assert_eq!(read_at(&url, "main", "f01.txt")["content"], "from x\n");
 }
