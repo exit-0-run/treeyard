@@ -26,3 +26,11 @@ an allow-list of tools (file edits, `git`, `python`, `treeyard`, `cat`, `ls`, `g
 `DEMO_N=5` runs only the first 5 tasks and `DEMO_POOL=4` keeps at most 4 `claude -p` running at once.
 `cloud.sh TAG` builds treeyard, runs both arms and copies the results to `bench/results/live-agents/TAG/`
 (made for a Claude Code cloud session: it stops first if the `claude` CLI is missing or `claude -p` fails).
+
+`DEMO_SET=wide` is 50 tasks on base `4aeb433` (`tasks_wide.py`): 10 pairs that each add two options to one
+function, and 30 single tasks on 30 other functions. `probes_wide.py` has 60 hidden checks (one per task,
+one per pair using both options). `wide_ref.patch` is a reference solution: with it all 60 checks pass and
+so does the repo's suite; on the base none pass. Note that more-itertools' `.gitattributes` sets
+`more_itertools/more.py merge=union`, so the git arm's rebase never stops on a conflict in `more.py` (it keeps
+both sides, and the queue's tests catch a broken result); TreeYard does not read `.gitattributes` yet and
+reports those conflicts.
