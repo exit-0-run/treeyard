@@ -21,6 +21,7 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Read without a checkout: [`status`](#status), [`read`](#read), [`list`](#list), [`tree`](#tree), [`blobs`](#blobs), [`grep`](#grep), [`diff`](#diff)
 - History and code intelligence: [`log`](#log), [`blame`](#blame), [`symbols`](#symbols), [`outline`](#outline), [`bisect`](#bisect)
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
+- Checkpoints: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change)
 - Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
 - Access and audit: [`whoami`](#whoami), [`token_create`](#token_create), [`token_list`](#token_list), [`token_revoke`](#token_revoke), [`audit`](#audit)
@@ -309,6 +310,46 @@ Undo a landed changeset: opens a change with the inverse and lands it.
 
 ```sh
 treeyard call revert '{"changeset": "<changeset id>"}'
+```
+
+## Checkpoints
+
+### checkpoint
+
+Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `label` | string | no | a short note, e.g. the turn or the step |
+
+```sh
+treeyard call checkpoint '{"change": "ch_..."}'
+```
+
+### checkpoints
+
+The checkpoints of a change, oldest first: id, number, changeset, label, time, and the paths that changed since the previous checkpoint.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+
+```sh
+treeyard call checkpoints '{"change": "ch_..."}'
+```
+
+### restore_change
+
+Undo inside an open change: make a new head whose tree equals an earlier state. History is kept: the head before the restore becomes a checkpoint (its number is in undo), so a restore can be undone. If the change was rebased since, that state's edits are merged onto the current base.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `to` | string or integer | yes | checkpoint id cp_..., checkpoint number (0 = the base, no edits), or a changeset id of this change |
+
+```sh
+treeyard call restore_change '{"change": "ch_...", "to": 2}'
 ```
 
 ## Inspect changes

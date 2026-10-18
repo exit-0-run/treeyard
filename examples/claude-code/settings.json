@@ -5,6 +5,9 @@
     ],
     "WorktreeRemove": [
       { "hooks": [ { "type": "command", "command": "sh /path/to/treeyard/examples/claude-code/worktree-remove.sh" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "sh /path/to/treeyard/examples/claude-code/checkpoint.sh" } ] }
     ]
   }
 }

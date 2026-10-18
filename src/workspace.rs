@@ -885,6 +885,66 @@ impl Node {
         }))
     }
 
+    /// Syncs, restores the change to `to` on the server (`restore_change`), then rewrites only
+    /// the files that differ from the restored tree. Other files keep their mtimes.
+    pub fn restore(&self, name: &str, to: &str) -> Result<Value> {
+        let ws = self.get(name)?;
+        let _l = lock(&self.home.join("meta").join(format!("{name}.lock")))?;
+        let sync = self.sync_locked(name, &ws)?;
+        let to: Value = to.parse::<u64>().map_or_else(|_| json!(to), |n| json!(n));
+        let restored = self.call("restore_change", json!({"change": ws.change, "to": to}))?;
+        let head = restored["change"]["head"].as_str().context("restore_change reply")?.to_string();
+        let tree = self.call("tree", json!({"at": head}))?;
+        let mut want: BTreeMap<String, (u32, String)> = BTreeMap::new();
+        for row in tree["entries"].as_array().context("tree has no entries")? {
+            let path = row[0].as_str().context("bad tree row")?.to_string();
+            check_rel(&path)?;
+            let mode = row[1].as_u64().context("bad tree row")? as u32;
+            if mode != MODE_GITLINK {
+                want.insert(path, (mode, row[2].as_str().context("bad tree row")?.to_string()));
+            }
+        }
+        crate::safety::check_tree(want.keys().map(String::as_str))?;
+        let mut state: State = read_json(&self.state_path(name))?;
+        let same = |st: Option<&FileState>, w: &(u32, String)| st.is_some_and(|s| (s.mode, &s.blob) == (w.0, &w.1));
+        let gone: Vec<String> = state.keys().filter(|p| !want.contains_key(*p)).cloned().collect();
+        for p in &gone {
+            let _ = fs::remove_file(ws.dir.join(p));
+            state.remove(p);
+        }
+        prune_empty_dirs(&ws.dir, gone.iter())?;
+        let todo: Vec<(String, (u32, String))> = want.into_iter().filter(|(p, w)| !same(state.get(p), w)).collect();
+        let ids: Vec<String> = todo.iter().map(|(_, (_, b))| b.clone()).collect::<BTreeSet<_>>().into_iter().collect();
+        let blobs = self.fetch_blobs(&ids)?;
+        for (path, (mode, blob)) in &todo {
+            let p = crate::safety::dest(&ws.dir, path)?;
+            if let Some(parent) = p.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            if fs::symlink_metadata(&p).is_ok() {
+                fs::remove_file(&p)?;
+            }
+            if *mode == MODE_LINK {
+                std::os::unix::fs::symlink(String::from_utf8_lossy(&blobs[blob]).into_owned(), &p)?;
+            } else {
+                fs::write(&p, &blobs[blob])?;
+                let perm = if *mode == MODE_EXEC { 0o755 } else { 0o644 };
+                fs::set_permissions(&p, fs::Permissions::from_mode(perm))?;
+            }
+            let md = fs::symlink_metadata(&p)?;
+            state.insert(
+                path.clone(),
+                FileState { mode: *mode, blob: blob.clone(), size: md.len(), mtime_ns: mtime_ns(&md) },
+            );
+        }
+        write_json(&self.state_path(name), &state)?;
+        let written: Vec<&String> = todo.iter().map(|(p, _)| p).collect();
+        Ok(json!({
+            "workspace": name, "change": ws.change, "head": head, "written": written, "deleted": gone,
+            "sync": sync, "restore": restored,
+        }))
+    }
+
     /// Syncs, then lands the change on main.
     pub fn land(&self, name: &str) -> Result<Value> {
         let sync = self.sync(name)?;

@@ -9,12 +9,17 @@ pub const GROUPS: &[(&str, &[&str])] = &[
     ("Read without a checkout", &["status", "read", "list", "tree", "blobs", "grep", "diff"]),
     ("History and code intelligence", &["log", "blame", "symbols", "outline", "bisect"]),
     ("Changes", &["open_change", "declare", "apply", "resolve", "rebase", "land", "abandon", "revert"]),
+    ("Checkpoints", &["checkpoint", "checkpoints", "restore_change"]),
     ("Inspect changes", &["change", "changes", "export_change"]),
     ("Coordination", &["events", "reviews", "review_close", "queue", "queue_run", "test_main", "config"]),
     ("Access and audit", &["whoami", "token_create", "token_list", "token_revoke", "audit"]),
 ];
 
 fn type_of(schema: &Value) -> String {
+    if let Some(ts) = schema["type"].as_array() {
+        let names: Vec<&str> = ts.iter().filter_map(Value::as_str).collect();
+        return names.join(" or ");
+    }
     let t = schema["type"].as_str().unwrap_or("any");
     match t {
         "array" => format!("array of {}", type_of(&schema["items"])),
@@ -126,6 +131,7 @@ fn example(required: &[&str]) -> String {
             "ids" => "\"ids\": [\"<blob id>\"]".to_string(),
             "id" => "\"id\": \"...\"".to_string(),
             "take" => "\"take\": \"ours\"".to_string(),
+            "to" => "\"to\": 2".to_string(),
             "path" => "\"path\": \"README.md\"".to_string(),
             "pattern" => "\"pattern\": \"fn main\"".to_string(),
             "intent" => "\"intent\": \"fix a typo\"".to_string(),

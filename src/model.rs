@@ -144,3 +144,15 @@ impl Intent {
         self.paths.is_empty() && self.symbols.is_empty()
     }
 }
+
+/// A named point in an open change's history: the head at the time of `checkpoint`. Numbers
+/// count from 1 per change; `restore_change` makes a new head with the tree of one of them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Checkpoint {
+    pub id: String,
+    pub change: String,
+    pub n: i64,
+    pub changeset: String,
+    pub label: Option<String>,
+    pub time: i64,
+}

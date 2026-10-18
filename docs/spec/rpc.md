@@ -82,6 +82,9 @@ A server declares one or more profiles. The core profile is required.
 | `rebase` | the change on current main; conflicts come back as tasks |
 | `abandon` | the change, `state` `abandoned` |
 | `revert` | a new change with the inverse of one landed changeset, landed |
+| `checkpoint` | marks the head of an open change; `checkpoint` with `id` (`cp_` + 12 hex) and `n` |
+| `checkpoints` | the checkpoints of a change: `id`, `n`, `changeset`, `label`, `time`, `paths` changed since the previous one |
+| `restore_change` | a new head whose tree equals checkpoint `to` (id, number, or a changeset of the change); `undo` names the checkpoint of the head before |
 
 Edits in `apply`: each edit has a `path` and one of `content` (UTF-8), `content_b64`,
 `delete: true`, or `replace: {old, new, all?}`. A `replace` without `all` MUST fail unless `old`

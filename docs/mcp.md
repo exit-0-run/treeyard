@@ -76,6 +76,21 @@ in Bash; `.worktreeinclude` is not processed (copy `.env` files in your setup co
 subagent finishes, Claude Code keeps the worktree and does not run the remove hook: land or remove
 those workspaces yourself (`treeyard workspace list`).
 
+### One checkpoint per turn
+
+`examples/claude-code/checkpoint.sh` is a `UserPromptSubmit` hook. Before each prompt it finds the
+workspace of the session (the `.treeyard/env` above `cwd`), syncs it, and calls `checkpoint` with the
+label `turn of session <id>`. A turn without edits adds no checkpoint. It prints nothing on stdout (that
+would become model context) and never blocks the prompt. Undo a turn with
+`treeyard workspace restore NAME --to N`, or ask the agent to call `restore_change`; `checkpoints` lists
+them with the paths each turn changed.
+
+```json
+{ "hooks": { "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "sh /path/to/examples/claude-code/checkpoint.sh" }] }] } }
+```
+
+Test: `tests/claude_hooks.rs` (two turns give two checkpoints; outside a workspace the hook does nothing).
+
 ## Codex
 
 ```text

@@ -8,6 +8,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 Product name: TreeYard. The binary, the crate and the commands are still `treeyard` in this
 version; the rename comes in a later version.
 
+### Added
+- Checkpoints inside an open change: `checkpoint`, `checkpoints`, `restore_change` (undo that keeps
+  history), `treeyard workspace restore NAME --to N`, and a Claude Code `UserPromptSubmit` hook that
+  marks one checkpoint per turn (`examples/claude-code/checkpoint.sh`).
+
 ## [0.1.0] - not released yet
 
 The first version that is complete end to end on one node.

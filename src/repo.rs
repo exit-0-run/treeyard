@@ -1140,6 +1140,149 @@ impl Inner {
         self.land_direct(&ch.id)
     }
 
+    // ---- checkpoints inside an open change -----------------------------------------------
+
+    /// Marks the head of an open change as the next checkpoint. A head that is already the
+    /// newest checkpoint is not marked twice (a hook may call this every turn).
+    pub fn checkpoint(&mut self, id: &str, label: Option<String>) -> Result<Value> {
+        let ch = self.open_change_mut(id)?;
+        let label = label.map(|l| one_line(&l)).filter(|l| !l.is_empty());
+        if let Some(last) = self.store.checkpoints(id)?.pop()
+            && last.changeset == ch.head
+        {
+            return Ok(json!({"change": id, "checkpoint": last, "repeated": true}));
+        }
+        let cp = Checkpoint {
+            id: format!("cp_{:012x}", rand::thread_rng().r#gen::<u64>() & 0xffff_ffff_ffff),
+            change: id.to_string(),
+            n: 0,
+            changeset: ch.head.clone(),
+            label,
+            time: now(),
+        };
+        let cp = self.store.add_checkpoint(&cp)?;
+        Ok(json!({"change": id, "checkpoint": cp, "repeated": false}))
+    }
+
+    /// The checkpoints of a change, oldest first, each with the paths that differ from the one
+    /// before (the first one: from the base it was made on).
+    pub fn checkpoints(&mut self, id: &str) -> Result<Value> {
+        let ch = self.change(id)?;
+        let mut out = Vec::new();
+        let mut prev: Option<String> = None;
+        for cp in self.store.checkpoints(id)? {
+            let from = match &prev {
+                Some(p) => p.clone(),
+                None => self.edit_base(id, &cp.changeset)?,
+            };
+            let paths = self.changed_paths(id, &from, &cp.changeset)?;
+            out.push(json!({
+                "id": cp.id, "n": cp.n, "changeset": cp.changeset, "label": cp.label, "time": cp.time,
+                "paths": paths, "current": cp.changeset == ch.head,
+            }));
+            prev = Some(cp.changeset);
+        }
+        Ok(json!({"change": id, "head": ch.head, "checkpoints": out}))
+    }
+
+    /// The base a changeset of change `id` was made on (its parent), or the changeset itself
+    /// when it is a base (the change was empty then).
+    fn edit_base(&self, id: &str, cs: &str) -> Result<String> {
+        let c = self.changeset(cs)?;
+        match (c.meta.change.as_deref() == Some(id), c.parents.first()) {
+            (true, Some(p)) => Ok(p.clone()),
+            _ => Ok(cs.to_string()),
+        }
+    }
+
+    /// The change's own edits in changeset `cs` (empty when `cs` is a base).
+    fn edits_of(&self, id: &str, cs: &str) -> Result<Changes> {
+        let c = self.changeset(cs)?;
+        Ok(if c.meta.change.as_deref() == Some(id) && !c.parents.is_empty() { c.changes } else { Changes::new() })
+    }
+
+    /// Paths edited by the change in `a` or `b` whose entries differ between the two trees.
+    fn changed_paths(&mut self, id: &str, a: &str, b: &str) -> Result<Vec<String>> {
+        let mut keys: BTreeSet<String> = self.edits_of(id, a)?.into_keys().collect();
+        keys.extend(self.edits_of(id, b)?.into_keys());
+        let (ma, mb) = (self.manifest(a)?, self.manifest(b)?);
+        Ok(keys.into_iter().filter(|p| ma.get(p) != mb.get(p)).collect())
+    }
+
+    /// `to` of `restore_change`: a checkpoint id `cp_...`, a checkpoint number (0 = the base,
+    /// an empty change), or a changeset of this change (a former head) or its base.
+    fn restore_target(&self, ch: &Change, to: &str) -> Result<(String, Option<i64>)> {
+        let to = to.trim();
+        let cps = self.store.checkpoints(&ch.id)?;
+        if to.starts_with("cp_") {
+            let cp =
+                cps.iter().find(|c| c.id == to).with_context(|| format!("change {} has no checkpoint {to}", ch.id))?;
+            return Ok((cp.changeset.clone(), Some(cp.n)));
+        }
+        if !to.is_empty() && to.len() < 10 && to.bytes().all(|b| b.is_ascii_digit()) {
+            let n: i64 = to.parse()?;
+            if n == 0 {
+                return Ok((ch.base.clone(), Some(0)));
+            }
+            let cp = cps
+                .iter()
+                .find(|c| c.n == n)
+                .with_context(|| format!("change {} has no checkpoint {n} (it has {})", ch.id, cps.len()))?;
+            return Ok((cp.changeset.clone(), Some(n)));
+        }
+        let cs = self.resolve_at(Some(to))?;
+        let ours = self.changeset(&cs)?.meta.change.as_deref() == Some(ch.id.as_str());
+        if !(ours || cs == ch.base || cps.iter().any(|c| c.changeset == cs)) {
+            bail!("{} is not a changeset of change {}", &cs[..12], ch.id);
+        }
+        let n = cps.iter().find(|c| c.changeset == cs).map(|c| c.n);
+        Ok((cs, n))
+    }
+
+    /// Makes a new head whose tree equals an earlier state of the change (`restore_target`).
+    /// If the change was rebased since, that state's own edits are merged onto the current base
+    /// instead, so main's later work stays. The head before the restore becomes a checkpoint,
+    /// so a restore is undone by restoring to it.
+    pub fn restore_change(&mut self, id: &str, to: &str) -> Result<Value> {
+        let mut ch = self.open_change_mut(id)?;
+        let (target, n) = self.restore_target(&ch, to)?;
+        let before = self.checkpoint(id, Some(format!("before restore to {to}")))?;
+        let previous = ch.head.clone();
+        let from = self.edit_base(id, &target)?;
+        let mut paths: BTreeSet<String> = self.edits_of(id, &target)?.into_keys().collect();
+        paths.extend(self.own_changes(&ch)?.into_keys());
+        let (pm, tm, bm) = (self.manifest(&from)?, self.manifest(&target)?, self.manifest(&ch.base)?);
+        let (mut entries, mut conflicts) = (Vec::new(), Vec::new());
+        for path in paths {
+            let (b, o, t) = (pm.get(&path), tm.get(&path), bm.get(&path));
+            match merge3(self, b, o, t)? {
+                Merged::Clean(e) => entries.push((path, e)),
+                Merged::Conflict { kind, materialized } => {
+                    conflicts.push(Conflict {
+                        path: path.clone(),
+                        kind,
+                        base: b.cloned(),
+                        ours: o.cloned(),
+                        theirs: t.cloned(),
+                        theirs_by: self.touches(&from, &ch.base, &path)?,
+                    });
+                    entries.push((path, materialized));
+                }
+            }
+        }
+        self.set_entries(&mut ch, entries, None)?;
+        if !conflicts.is_empty() {
+            let paths: Vec<String> = conflicts.iter().map(|c| c.path.clone()).collect();
+            ch.conflicts.extend(conflicts);
+            self.store.put_change(&ch)?;
+            self.emit("conflict", &[id], &[&ch.agent], json!({"change": id, "paths": paths, "cause": "restore"}));
+        }
+        Ok(json!({
+            "change": self.change_view(&ch)?, "restored_to": target, "checkpoint": n, "previous": previous,
+            "undo": before["checkpoint"]["n"], "rebased_since": from != ch.base && target != ch.base,
+        }))
+    }
+
     // ---- git push from people -------------------------------------------------------------
 
     /// Lands commits a person pushed to the branch. `new` must contain main's exported commit

@@ -196,6 +196,21 @@ struct ChangeId {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CheckpointP {
+    change: String,
+    label: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RestoreP {
+    change: String,
+    /// A checkpoint id, a checkpoint number (JSON number or string) or a changeset id.
+    to: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Changes {
     state: Option<String>,
 }
@@ -236,6 +251,8 @@ const AUDITED: &[&str] = &[
     "rebase",
     "land",
     "abandon",
+    "checkpoint",
+    "restore_change",
     "revert",
     "export_change",
     "review_close",
@@ -591,6 +608,36 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let ch = r.abandon(&a.change)?;
             r.change_view(&ch)
         }
+        "checkpoint" => {
+            let a: CheckpointP = params(p)?;
+            owned(r, c, &a.change)?;
+            r.checkpoint(&a.change, a.label)
+        }
+        "checkpoints" => {
+            let a: ChangeId = params(p)?;
+            let mut v = r.checkpoints(&a.change)?;
+            if !c.reads_all()
+                && let Some(cps) = v["checkpoints"].as_array_mut()
+            {
+                for cp in cps {
+                    keep_readable(cp, "paths", c, "");
+                }
+            }
+            Ok(v)
+        }
+        "restore_change" => {
+            let a: RestoreP = params(p)?;
+            let ch = owned(r, c, &a.change)?;
+            check_writes(r, c, &ch)?;
+            let to = match &a.to {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => bail!("to must be a checkpoint id, a checkpoint number or a changeset id"),
+            };
+            let mut v = r.restore_change(&a.change, &to)?;
+            filter_change(&mut v["change"], c);
+            Ok(v)
+        }
         "change" => {
             let a: ChangeId = params(p)?;
             let ch = r.change(&a.change)?;
@@ -918,6 +965,24 @@ pub fn tools() -> Vec<Value> {
             &["change"],
         ),
         tool("abandon", "Drop a change.", json!({"change": change}), &["change"]),
+        tool(
+            "checkpoint",
+            "Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).",
+            json!({"change": change, "label": {"type": "string", "description": "a short note, e.g. the turn or the step"}}),
+            &["change"],
+        ),
+        tool(
+            "checkpoints",
+            "The checkpoints of a change, oldest first: id, number, changeset, label, time, and the paths that changed since the previous checkpoint.",
+            json!({"change": change}),
+            &["change"],
+        ),
+        tool(
+            "restore_change",
+            "Undo inside an open change: make a new head whose tree equals an earlier state. History is kept: the head before the restore becomes a checkpoint (its number is in undo), so a restore can be undone. If the change was rebased since, that state's edits are merged onto the current base.",
+            json!({"change": change, "to": {"type": ["string", "integer"], "description": "checkpoint id cp_..., checkpoint number (0 = the base, no edits), or a changeset id of this change"}}),
+            &["change", "to"],
+        ),
         tool(
             "change",
             "One change: paths, conflicts as tasks, overlaps with other open changes.",
