@@ -12,6 +12,8 @@ export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=maintenance.auto GIT_CONFIG_VALUE_0=f
   GIT_CONFIG_KEY_1=gc.auto GIT_CONFIG_VALUE_1=0
 OUT="$ROOT/bench/results/live-agents/$TAG"
 mkdir -p "$OUT"
+# A reused VM keeps DEMO_DIR: never copy an earlier run's results into this one.
+rm -rf "$DEMO_DIR/results" "$DEMO_DIR/agents"
 {
   echo "nproc: $(nproc 2>/dev/null || sysctl -n hw.ncpu)"
   free -m 2>/dev/null | sed -n 2p || true
