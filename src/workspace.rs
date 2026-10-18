@@ -13,7 +13,8 @@
 //! layers/<name>-<key>/      dependency dirs at their workspace-relative paths (+ .json)
 //! ws/<name>/                the workspace; ws/<name>/.treeyard/env holds its environment
 //! meta/<name>.json          workspace record; meta/<name>.state.json = what the server has
-//! logs/<name>.<step>.log    output of the teardown command
+//! logs/<name>.<step>.log    create steps, setup and teardown output
+//! gc.lock                   held while a gc runs
 //! workspace.toml            node-local workspace config (overrides the repo's)
 //! ```
 //!
@@ -257,6 +258,9 @@ pub struct CreateOptions {
     pub copy_from: Option<PathBuf>,
     /// Sparse workspace: only these directories plus root files (git's cone mode). Empty = all.
     pub paths: Vec<String>,
+    /// A git checkout whose uncommitted edits (changes against its HEAD, untracked files that
+    /// are not ignored) seed the new change as its first changeset.
+    pub from_dir: Option<PathBuf>,
 }
 
 impl Default for CreateOptions {
@@ -275,6 +279,7 @@ impl Default for CreateOptions {
             ports: None,
             copy_from: None,
             paths: vec![],
+            from_dir: None,
         }
     }
 }
@@ -823,6 +828,20 @@ impl Node {
         let env: String = ws.env().iter().map(|(k, v)| format!("{k}={v}\n")).collect();
         fs::write(dir.join(PRIVATE).join("env"), env)?;
 
+        // The uncommitted edits of a checkout, before the setup (it may need them); synced once ready.
+        let seeded = match &o.from_dir {
+            Some(from) => {
+                let v = seed_from(from, &dir, &ws.paths, &ws_state)?;
+                log.line(&format!(
+                    "seeded {} files from {}",
+                    v["written"].as_array().map_or(0, Vec::len),
+                    from.display()
+                ));
+                v
+            }
+            None => Value::Null,
+        };
+
         // Gitignored files (`.env`, certificates) from a source directory, before the setup needs them.
         let from = o.copy_from.clone().or(cfg.copy_from.as_deref().map(expand_home));
         let copied = self.copy_in(from.as_deref(), cfg.copy.as_deref().unwrap_or_default(), &dir, &state)?;
@@ -876,9 +895,14 @@ impl Node {
         ws.state = WsState::Ready;
         write_json(&self.meta_path(&o.name), &*ws)?;
         log.line(&format!("ready in {total} s"));
+        let mut from_dir = seeded;
+        if !from_dir.is_null() {
+            // The seed is the change's first changeset. A failed sync is reported; the daemon retries.
+            from_dir["sync"] = self.sync(&o.name).unwrap_or_else(|e| json!({"error": format!("{e:#}")}));
+        }
         Ok(json!({
             "base_s": round(t_base), "clone_s": round(t_clone), "layers_s": round(t_layers), "setup_s": round(setup_s),
-            "total_s": total, "spare": spare.is_some(), "copy": copied,
+            "total_s": total, "spare": spare.is_some(), "copy": copied, "from_dir": from_dir,
         }))
     }
 
@@ -1533,6 +1557,67 @@ fn clone_sparse(base: &Path, dir: &Path, paths: &[String], cone: &State, s: Stra
         }
     }
     Ok(used)
+}
+
+/// Writes the uncommitted edits of the git checkout `from` into the workspace `ws`: files that
+/// differ from its HEAD (staged or not), deletions, and untracked files that are not ignored.
+/// Files outside the cone of `paths` are skipped. Git runs as a polite probe (`git_probe`).
+fn seed_from(from: &Path, ws: &Path, paths: &[String], tracked: &State) -> Result<Value> {
+    let top = String::from_utf8(git_probe(from, &["rev-parse", "--show-toplevel"])?)?.trim().to_string();
+    let top = PathBuf::from(top);
+    let head = String::from_utf8(git_probe(&top, &["rev-parse", "HEAD"])?)?.trim().to_string();
+    let mut todo: Vec<(String, bool)> = Vec::new();
+    let diff = git_probe(&top, &["diff", "--name-status", "--no-renames", "-z", "HEAD"])?;
+    let mut parts = diff.split(|b| *b == 0).filter(|p| !p.is_empty());
+    while let (Some(st), Some(path)) = (parts.next(), parts.next()) {
+        todo.push((String::from_utf8_lossy(path).into_owned(), st == b"D"));
+    }
+    let others = git_probe(&top, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    todo.extend(
+        others.split(|b| *b == 0).filter(|p| !p.is_empty()).map(|p| (String::from_utf8_lossy(p).into_owned(), false)),
+    );
+    let (mut written, mut deleted, mut skipped) = (Vec::new(), Vec::new(), Vec::new());
+    for (rel, gone) in todo {
+        let why = if check_rel(&rel).is_err() {
+            Some("unsafe or private path")
+        } else if !in_cone(paths, &rel) {
+            Some("outside --paths")
+        } else {
+            None
+        };
+        if let Some(why) = why {
+            skipped.push(json!({"path": rel, "why": why}));
+            continue;
+        }
+        let dst = crate::safety::dest(ws, &rel)?;
+        let src = top.join(&rel);
+        let md = fs::symlink_metadata(&src);
+        if gone || md.is_err() {
+            if tracked.contains_key(&rel) {
+                fs::remove_file(&dst)?;
+                deleted.push(rel);
+            }
+            continue;
+        }
+        let md = md?;
+        if md.is_dir() {
+            skipped.push(json!({"path": rel, "why": "a directory (submodule)"}));
+            continue;
+        }
+        if let Some(p) = dst.parent() {
+            fs::create_dir_all(p)?;
+        }
+        if fs::symlink_metadata(&dst).is_ok() {
+            fs::remove_file(&dst)?;
+        }
+        if md.file_type().is_symlink() {
+            std::os::unix::fs::symlink(fs::read_link(&src)?, &dst)?;
+        } else {
+            fs::copy(&src, &dst).with_context(|| format!("copy {rel} from {}", top.display()))?;
+        }
+        written.push(rel);
+    }
+    Ok(json!({"from": top, "head": head, "written": written, "deleted": deleted, "skipped": skipped}))
 }
 
 /// Files in a git dir that mean a git operation is in progress in that checkout.

@@ -104,6 +104,21 @@ cuts the clone and the scans of every sync.
 - The node still keeps the whole base once (`bases/<changeset>/`); only the workspace is sparse.
   `--paths` does not work with `--strategy overlay`, and a sparse create does not take a spare.
 
+## Start from a dirty checkout (`--from-dir`)
+
+`treeyard workspace create NAME --from-dir PATH` starts the agent from what a person sees in the git
+checkout at PATH, not only from main. The new workspace gets every uncommitted edit of that checkout:
+
+- files that differ from its HEAD, staged or not, and files deleted there;
+- untracked files that its `.gitignore` does not ignore.
+
+The files are written right after the clone (so the setup sees them) and sent as the change's first
+changeset when the workspace is ready. The reply's `from_dir` field lists `written`, `deleted`,
+`skipped` (with the reason, for example `outside --paths`) and the `sync`. PATH can be any directory of
+the checkout. Files are copied whole: when the checkout's HEAD is not the base of the change, the copied
+files also carry the differences between the two commits. Git runs there with `GIT_OPTIONAL_LOCKS=0` and
+reads only, so it never blocks the person's own git. A PATH that is not a git checkout fails the create.
+
 ## Mirror: one fixed directory (`workspace mirror`)
 
 Some apps run only from one fixed path, with one port or one database. `treeyard workspace mirror NAME
@@ -191,7 +206,7 @@ The node is polite to the agent's own git:
   conflict markers. The daemon tries again after 1 s, 5 s, 30 s and then every 120 s, and logs each skip
   as one JSON line (`skipped`, `retry_s`). `sync`, `exec` and `remove` by hand do not wait.
 - `gc` skips such a workspace too.
-- Git status probes that the node runs in a checkout (`workspace::git_probe`) set `GIT_OPTIONAL_LOCKS=0`, so
+- Git status probes that the node runs in a checkout (`create --from-dir`) set `GIT_OPTIONAL_LOCKS=0`, so
   they never take `index.lock` and never block a git command of the agent.
 
 ## Daemon

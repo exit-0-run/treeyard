@@ -11,6 +11,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
+use treeyard::cow::Strategy;
 use treeyard::repo::Repo;
 use treeyard::workspace::{CreateOptions, GcOptions, Node, WsState};
 
@@ -397,4 +398,48 @@ fn sparse_workspace_holds_only_its_cone_and_never_deletes_the_rest() {
     fs::write(g.dir.join("b/z.txt"), "z2\n").unwrap();
     assert_eq!(common::git(&g.dir, &["status", "--porcelain"]), " M b/z.txt\n");
     assert_eq!(node.sync("g").unwrap()["paths"], json!(["b/z.txt"]));
+}
+
+#[test]
+fn from_dir_seeds_the_change_with_a_checkouts_uncommitted_edits() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path(), &[(".gitignore", "*.log\n"), ("sub/a.txt", "a\n"), ("other/b.txt", "b\n")]);
+    // The source repo of the server is a checkout at the base commit; make it dirty.
+    let src = tmp.path().join("src");
+    fs::write(src.join("f00.txt"), "edited, not staged\n").unwrap();
+    fs::remove_file(src.join("f01.txt")).unwrap();
+    fs::write(src.join("new.txt"), "untracked\n").unwrap();
+    fs::write(src.join("staged.txt"), "staged\n").unwrap();
+    common::git(&src, &["add", "staged.txt"]);
+    fs::write(src.join("debug.log"), "ignored\n").unwrap();
+    fs::write(src.join("other/b.txt"), "b2\n").unwrap();
+    let node = Node::new(tmp.path().join("node"), &url);
+    let (ws, timing) = node
+        .create(&CreateOptions { from_dir: Some(src.join("sub")), strategy: Strategy::Hardlink, ..opts("d") })
+        .unwrap();
+    let seeded = &timing["from_dir"];
+    assert_eq!(seeded["written"], json!(["f00.txt", "other/b.txt", "staged.txt", "new.txt"]), "{timing}");
+    assert_eq!(seeded["deleted"], json!(["f01.txt"]));
+    assert_eq!(seeded["sync"]["changesets"], 1, "{timing}");
+    assert!(!ws.dir.join("debug.log").exists(), "ignored files are not seeded");
+    let ch = common::call(&url, "change", json!({"change": ws.change}));
+    assert_eq!(ch["paths"], json!(["f00.txt", "f01.txt", "new.txt", "other/b.txt", "staged.txt"]), "{ch}");
+    assert_eq!(read_at(&url, &ws.change, "f00.txt")["content"], "edited, not staged\n");
+    assert_eq!(ch["revisions"], 2, "the empty head, then one changeset: {ch}");
+    // The base was not written through (hardlink strategy replaces files, never writes them).
+    let base = node.home.join("bases").join(&ws.base).join("f00.txt");
+    assert!(fs::read_to_string(base).unwrap().starts_with("file 0"));
+    // The probes never left an index.lock in the checkout.
+    assert!(!src.join(".git/index.lock").exists());
+
+    // A sparse workspace takes only the edits in its cone.
+    let (_, timing) =
+        node.create(&CreateOptions { from_dir: Some(src.clone()), paths: vec!["sub".into()], ..opts("s") }).unwrap();
+    assert_eq!(timing["from_dir"]["skipped"][0], json!({"path": "other/b.txt", "why": "outside --paths"}), "{timing}");
+    // Not a git checkout: the create fails and says so.
+    let plain = tmp.path().join("plain");
+    fs::create_dir_all(&plain).unwrap();
+    let e = node.create(&CreateOptions { from_dir: Some(plain), ..opts("p") }).unwrap_err();
+    assert!(format!("{e:#}").contains("git"), "{e:#}");
+    assert_eq!(node.get("p").unwrap().state, WsState::Failed);
 }

@@ -191,6 +191,8 @@ impl NodeArgs {
     }
 }
 
+// Parsed once per run, so the size of `Create` does not matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 enum WsCmd {
     /// Open a change and make its workspace directory.
@@ -233,6 +235,9 @@ enum WsCmd {
         /// Sparse workspace: only these directories (comma-separated, like `src/,docs/`) plus root files.
         #[arg(long, value_delimiter = ',')]
         paths: Vec<String>,
+        /// Seed the change with the uncommitted edits of the git checkout at PATH (first changeset).
+        #[arg(long, value_name = "PATH")]
+        from_dir: Option<PathBuf>,
     },
     /// Keep COUNT spare directories (base clone + layers) for current main; create takes one.
     Spare {
@@ -321,6 +326,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
             ports,
             copy_from,
             paths,
+            from_dir,
         } => {
             let layers = if no_layers {
                 Some(vec![])
@@ -343,6 +349,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
                 ports,
                 copy_from,
                 paths,
+                from_dir,
             };
             let (ws, timing) = node.create(&o)?;
             let mut v = serde_json::to_value(&ws)?;

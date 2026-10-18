@@ -12,7 +12,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 - Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`,
   `treeyard mcp --url URL --agent NAME`, `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`.
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
-  [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
+  [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
   `remove [--abandon]`, `gc`, `mirror NAME --into DIR`; repo config `.treeyard/workspace.toml`; `treeyard daemon [--gc-every H]` syncs after edits settle.
 - Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
   `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
