@@ -67,10 +67,6 @@ Harder set, two agents per function (both add an option to the same `def` line):
 **72.3 s**, 12 / 12 hidden checks on both sides, 3 and 4 conflicts at land. Early warnings do not remove
 a conflict on the same line; the gain is the queue wait.
 
-> [!IMPORTANT]
-> The first runs of this demo found three bugs in TreeYard. All are fixed and covered by tests. Every run, and
-> how to repeat it: [docs/benchmarks.md](docs/benchmarks.md) and `examples/live-agents/`.
-
 <details>
 <summary><b>Why: what hurts with git worktrees</b></summary>
 
