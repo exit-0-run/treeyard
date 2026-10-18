@@ -133,6 +133,14 @@ struct Open {
     paths: Vec<String>,
     #[serde(default)]
     symbols: Vec<String>,
+    group: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GroupP {
+    group: String,
+    change: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -196,6 +204,29 @@ struct ChangeId {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CheckpointP {
+    change: String,
+    label: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RestoreP {
+    change: String,
+    /// A checkpoint id, a checkpoint number (JSON number or string) or a changeset id.
+    to: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AttachP {
+    change: String,
+    kind: String,
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Changes {
     state: Option<String>,
 }
@@ -236,6 +267,10 @@ const AUDITED: &[&str] = &[
     "rebase",
     "land",
     "abandon",
+    "checkpoint",
+    "restore_change",
+    "attach",
+    "land_one_of",
     "revert",
     "export_change",
     "review_close",
@@ -605,7 +640,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             }
             let agent = agent_for(c, a.agent)?;
             let declared = Intent { paths: a.paths, symbols: a.symbols };
-            let ch = r.open_change_with(&agent, &a.intent, a.model, a.session, a.base.as_deref(), declared)?;
+            if let Some(g) = &a.group {
+                crate::repo::check_group(g)?;
+            }
+            let mut ch = r.open_change_with(&agent, &a.intent, a.model, a.session, a.base.as_deref(), declared)?;
+            if let Some(g) = &a.group {
+                ch = r.set_group(&ch.id, g)?;
+            }
             let overlaps = r.intent_overlaps(&ch)?;
             let mut v = r.change_view(&ch)?;
             v["advice"] = advice(&overlaps);
@@ -661,6 +702,68 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             owned(r, c, &a.change)?;
             let ch = r.abandon(&a.change)?;
             r.change_view(&ch)
+        }
+        "checkpoint" => {
+            let a: CheckpointP = params(p)?;
+            owned(r, c, &a.change)?;
+            r.checkpoint(&a.change, a.label)
+        }
+        "checkpoints" => {
+            let a: ChangeId = params(p)?;
+            let mut v = r.checkpoints(&a.change)?;
+            if !c.reads_all()
+                && let Some(cps) = v["checkpoints"].as_array_mut()
+            {
+                for cp in cps {
+                    keep_readable(cp, "paths", c, "");
+                }
+            }
+            Ok(v)
+        }
+        "restore_change" => {
+            let a: RestoreP = params(p)?;
+            let ch = owned(r, c, &a.change)?;
+            check_writes(r, c, &ch)?;
+            let to = match &a.to {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                _ => bail!("to must be a checkpoint id, a checkpoint number or a changeset id"),
+            };
+            let mut v = r.restore_change(&a.change, &to)?;
+            filter_change(&mut v["change"], c);
+            Ok(v)
+        }
+        "group" => {
+            let a: GroupP = params(p)?;
+            if a.change.is_some() {
+                bail!("group takes only group");
+            }
+            r.group_view(&a.group)
+        }
+        "land_one_of" => {
+            let a: GroupP = params(p)?;
+            let id = a.change.ok_or_else(|| anyhow!("land_one_of needs change"))?;
+            let ch = owned(r, c, &id)?;
+            check_writes(r, c, &ch)?;
+            // The siblings get abandoned: a restricted token must own them too.
+            for other in r.store.group(&a.group)? {
+                if other.state == crate::model::ChangeState::Open {
+                    owned(r, c, &other.id)?;
+                }
+            }
+            r.land_one_of(&a.group, &id)
+        }
+        "attach" => {
+            let a: AttachP = params(p)?;
+            owned(r, c, &a.change)?;
+            r.attach(&a.change, &a.kind, &a.text)
+        }
+        "attachments" => {
+            let a: ChangeId = params(p)?;
+            if !c.reads_all() {
+                owned(r, c, &a.change)?;
+            }
+            r.attachments(&a.change)
         }
         "change" => {
             let a: ChangeId = params(p)?;
@@ -924,7 +1027,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "open_change",
             "Start a change on top of main (no branch). Declare the paths and symbols you plan to touch: the reply lists open changes that overlap them, with advice. Edit with apply, then land.",
-            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}}),
+            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}, "group": {"type": "string", "description": "best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest"}}),
             &["intent"],
         ),
         tool(
@@ -990,6 +1093,48 @@ pub fn tools() -> Vec<Value> {
             &["change"],
         ),
         tool("abandon", "Drop a change.", json!({"change": change}), &["change"]),
+        tool(
+            "checkpoint",
+            "Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).",
+            json!({"change": change, "label": {"type": "string", "description": "a short note, e.g. the turn or the step"}}),
+            &["change"],
+        ),
+        tool(
+            "group",
+            "Best-of-N: the changes of a group with agent, model, state, conflicts and diff size (files, lines added and removed), to pick the best one.",
+            json!({"group": {"type": "string"}}),
+            &["group"],
+        ),
+        tool(
+            "land_one_of",
+            "Best-of-N: land one change of a group, then abandon the other open changes of the group (listed in abandoned). Siblings stay open unless it landed (conflict, waiting, or queued: call again after it lands).",
+            json!({"group": {"type": "string"}, "change": change}),
+            &["group", "change"],
+        ),
+        tool(
+            "attach",
+            "Store a transcript, summary or note with an open change (up to 256 KiB each), so a later agent can read why the code changed. Lines that look like secrets (sk-, ghp_, github_pat_, AKIA, xox tokens, key = value secrets, private key blocks) are dropped; the reply says how many. On land it becomes a git note on the landed commit (refs/notes/treeyard).",
+            json!({"change": change, "kind": {"type": "string", "enum": ["transcript", "summary", "note"]}, "text": {"type": "string"}}),
+            &["change", "kind", "text"],
+        ),
+        tool(
+            "attachments",
+            "The attachments of a change, oldest first, and for a landed change the git note that holds them (git notes --ref=treeyard show <commit>).",
+            json!({"change": change}),
+            &["change"],
+        ),
+        tool(
+            "checkpoints",
+            "The checkpoints of a change, oldest first: id, number, changeset, label, time, and the paths that changed since the previous checkpoint.",
+            json!({"change": change}),
+            &["change"],
+        ),
+        tool(
+            "restore_change",
+            "Undo inside an open change: make a new head whose tree equals an earlier state. History is kept: the head before the restore becomes a checkpoint (its number is in undo), so a restore can be undone. If the change was rebased since, that state's edits are merged onto the current base.",
+            json!({"change": change, "to": {"type": ["string", "integer"], "description": "checkpoint id cp_..., checkpoint number (0 = the base, no edits), or a changeset id of this change"}}),
+            &["change", "to"],
+        ),
         tool(
             "change",
             "One change: paths, conflicts as tasks, overlaps with other open changes.",

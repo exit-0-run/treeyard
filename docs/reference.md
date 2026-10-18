@@ -12,8 +12,9 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 | History and search | `blame`, `log` filters (`path`, `paths` globs, `agent`, `since`, `until`), `symbols`, `outline`, `bisect` ([docs/derived.md](derived.md)) |
 | Access | `whoami`, `audit`, `token_create`, `token_list`, `token_revoke` ([docs/access.md](access.md)) |
 | Write | `open_change`, `apply` (content, base64, delete, exact-once `replace`, executable bit, symlink), `resolve`, `rebase`, `abandon` |
-| Land | `land`, `revert` |
-| Inspect | `change`, `changes`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
+| Land | `land`, `revert`, `land_one_of` (best-of-N) |
+| Checkpoints, notes | `checkpoint`, `checkpoints`, `restore_change` (undo inside a change); `attach`, `attachments` (transcripts, git notes on land) |
+| Inspect | `change`, `changes`, `group`, `export_change` (writes a change head to `refs/treeyard/changes/<id>`) |
 | Share | `assign`, `claim`, `apply_assigned`: agents that edit one directory get one change each, split per hunk ([docs/coordination.md](coordination.md#g-shared-directories-one-checkout-many-agents)) |
 | Coordinate | `declare`, `events` (poll or long poll; `GET /api/events` is the server-sent event stream), `reviews`, `review_close`, `queue`, `queue_run`, `test_main`, `config` |
 
@@ -26,6 +27,12 @@ path: `conflict` or `overlap`, with the changed line ranges of both sides).
 task is opened), or `waiting`. A change opened with
 `base` set to another change id is stacked on it, and it waits until that change lands.
 
+Best-of-N: open N changes for one task with the same `group`. `group {group}` lists them with state
+and diff size (files, lines added and removed). `land_one_of {group, change}` lands the pick and, once
+it is on main, abandons the other open changes of the group (`abandoned` in the reply). After a
+`conflict`, `waiting` or `queued` reply the siblings stay open; call it again when the pick lands.
+Test: `tests/best_of_n.rs`.
+
 ## Workspaces
 
 `treeyard workspace create NAME [--setup CMD] [--layer DIR=LOCKFILE] [--git] [--strategy S]` opens a
@@ -36,7 +43,8 @@ directories are layers keyed by a hash of their lockfiles, built once and cloned
 `.treeyard/env` gives each workspace `PORT` and a block of 10 ports. `treeyard daemon` watches every
 workspace and syncs after edits settle (300 ms): each sync is one new changeset of the workspace's change,
 so `overlaps` sees everyone's work live. Also `list`, `sync`, `land`, `exec NAME -- CMD`, `env`, `path`,
-`spare`, `remove [--abandon] [--force]` (sends the last edits first; refuses without `--force` when it cannot). Details and limits: [docs/workspaces.md](workspaces.md). Tests:
+`spare`, `remove [--abandon] [--force]` (sends the last edits first; refuses without `--force` when it cannot), `restore NAME --to N`
+(back to checkpoint `N` of the change; rewrites only the files that differ). Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against
@@ -55,6 +63,7 @@ output and limits: [docs/coordination.md](coordination.md). Tests: `tests/coordi
 ```toml
 [coordination]
 continuous_rebase = true          # rebase open changes after every land; conflicts show up at once
+keep_conflicted = true            # a conflicted change still rebases and takes edits; land waits for it
 [merge]
 syntax = "auto"                   # mergiraf on the remaining conflicts, when installed
 [[merge.driver]]

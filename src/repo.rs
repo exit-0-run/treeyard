@@ -261,6 +261,9 @@ impl Repo {
         let main = inner.main()?;
         let commit = inner.commit_for(&main)?;
         inner.odb.update_ref(&format!("refs/heads/{}", inner.branch), &commit)?;
+        if let Some(notes) = inner.store.get_ref("notes")? {
+            inner.odb.update_ref(crate::attach::NOTES_REF, &notes)?;
+        }
         let auth = crate::auth::Auth::open(&db)?;
         Ok(Self { inner: Mutex::new(inner), git_dir, events: Events::default(), auth })
     }
@@ -482,6 +485,7 @@ impl Inner {
             created: now(),
             declared,
             view: None,
+            group: None,
         };
         self.store.put_change(&ch)?;
         self.emit(
@@ -630,6 +634,13 @@ impl Inner {
             Some(v) if *v != ch.head => Some(self.manifest(v)?),
             _ => None,
         };
+        // With kept conflicts, a write to a conflicted path is its resolution: no merge with the
+        // stale view (that would nest conflict markers).
+        let kept: BTreeSet<String> = if self.cfg.coordination.keep_conflicted {
+            ch.conflicts.iter().map(|c| c.path.clone()).collect()
+        } else {
+            BTreeSet::new()
+        };
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
@@ -638,6 +649,7 @@ impl Inner {
             let mut new = self.edit_entry(e, cur.as_ref())?;
             if let Some(v) = &view
                 && e.replace.is_none()
+                && !kept.contains(&e.path)
                 && v.get(&e.path) != cur.as_ref()
             {
                 let old = v.get(&e.path).cloned();
@@ -845,9 +857,12 @@ impl Inner {
         if ch.base == onto {
             return Ok(report);
         }
-        if !ch.conflicts.is_empty() {
+        if !ch.conflicts.is_empty() && !self.cfg.coordination.keep_conflicted {
             bail!("change {} has unresolved conflicts; resolve them before rebasing", ch.id);
         }
+        // A kept conflict merges again from its own base and our side, never from the text
+        // with markers, so main's later edits to the path join the same conflict.
+        let kept: HashMap<String, Conflict> = ch.conflicts.drain(..).map(|c| (c.path.clone(), c)).collect();
         let base_m = self.manifest(&ch.base)?;
         let theirs_m = self.manifest(onto)?;
         let mut changes = Changes::new();
@@ -857,8 +872,16 @@ impl Inner {
         // base is not an ancestor of `onto` (a base holding work main lacks, as in replay),
         // main seems to delete that work and a driver would apply the deletion.
         let drivers_ok = self.is_ancestor(&ch.base, onto)?;
-        for (path, ours) in self.own_changes(ch)? {
-            let (b, t) = (base_m.get(&path), theirs_m.get(&path));
+        let mut own = self.own_changes(ch)?;
+        for (p, c) in &kept {
+            own.entry(p.clone()).or_insert_with(|| c.ours.clone());
+        }
+        for (path, mut ours) in own {
+            let (mut b, t) = (base_m.get(&path), theirs_m.get(&path));
+            let old = kept.get(&path);
+            if let Some(c) = old {
+                (b, ours) = (c.base.as_ref(), c.ours.clone());
+            }
             let mut merged = merge3(self, b, ours.as_ref(), t)?;
             if let (
                 true,
@@ -881,13 +904,15 @@ impl Inner {
                 Merged::Conflict { kind, materialized } => (materialized, Some(kind)),
             };
             if let Some(kind) = kind {
+                let mut theirs_by = self.touches(&ch.base, onto, &path)?;
+                theirs_by.extend(old.map(|c| c.theirs_by.clone()).unwrap_or_default());
                 conflicts.push(Conflict {
                     path: path.clone(),
                     kind,
                     base: b.cloned(),
                     ours: ours.clone(),
                     theirs: t.cloned(),
-                    theirs_by: self.touches(&ch.base, onto, &path)?,
+                    theirs_by,
                 });
             } else if let Some((whole, hunks)) = self.absorbed(b, ours.as_ref(), t, result.as_ref())? {
                 report.absorbed.push(json!({
@@ -1060,6 +1085,7 @@ impl Inner {
         crate::failpoint::hit("land:after-db");
         self.odb.update_ref(&format!("refs/heads/{}", self.branch), &commit)?;
         crate::failpoint::hit("land:after-ref");
+        let notes = self.notes_after_land(id, &ch.head, &commit);
         self.forget(id);
         self.emit(
             "landed",
@@ -1070,13 +1096,14 @@ impl Inner {
         let rebased = self.continuous_rebase()?;
         Ok(json!({
             "status": "landed", "change": ch.id, "changeset": ch.head, "commit": commit, "merged_from": merged_from,
-            "drivers": report.drivers, "reviews": reviews, "rebased": rebased,
+            "drivers": report.drivers, "reviews": reviews, "rebased": rebased, "notes": notes,
         }))
     }
 
     /// Continuous rebase (`[coordination] continuous_rebase`): after main moved, rebase every
-    /// open change that is not stacked, queued or conflicted onto it, so conflicts show up
-    /// while they are small. The owner's later whole-file writes merge through `view`.
+    /// open change that is not stacked, queued or conflicted (unless `keep_conflicted`) onto it,
+    /// so conflicts show up while they are small. The owner's later whole-file writes merge
+    /// through `view`.
     pub fn continuous_rebase(&mut self) -> Result<Vec<Value>> {
         let mut out = Vec::new();
         if !self.cfg.coordination.continuous_rebase {
@@ -1085,7 +1112,8 @@ impl Inner {
         let main = self.main()?;
         let queued: BTreeSet<String> = self.store.queue()?.into_iter().collect();
         for mut o in self.store.changes(Some("open"))? {
-            if o.base == main || !o.conflicts.is_empty() || queued.contains(&o.id) {
+            let conflicted = !o.conflicts.is_empty() && !self.cfg.coordination.keep_conflicted;
+            if o.base == main || conflicted || queued.contains(&o.id) {
                 continue;
             }
             // A base that is not an ancestor of main holds work main lacks (replay's stale
@@ -1138,6 +1166,209 @@ impl Inner {
         self.set_entries(&mut ch, entries, None)?;
         // A revert never waits in the queue: it is the way back to a green main.
         self.land_direct(&ch.id)
+    }
+
+    // ---- checkpoints inside an open change -----------------------------------------------
+
+    /// Marks the head of an open change as the next checkpoint. A head that is already the
+    /// newest checkpoint is not marked twice (a hook may call this every turn).
+    pub fn checkpoint(&mut self, id: &str, label: Option<String>) -> Result<Value> {
+        let ch = self.open_change_mut(id)?;
+        let label = label.map(|l| one_line(&l)).filter(|l| !l.is_empty());
+        if let Some(last) = self.store.checkpoints(id)?.pop()
+            && last.changeset == ch.head
+        {
+            return Ok(json!({"change": id, "checkpoint": last, "repeated": true}));
+        }
+        let cp = Checkpoint {
+            id: format!("cp_{:012x}", rand::thread_rng().r#gen::<u64>() & 0xffff_ffff_ffff),
+            change: id.to_string(),
+            n: 0,
+            changeset: ch.head.clone(),
+            label,
+            time: now(),
+        };
+        let cp = self.store.add_checkpoint(&cp)?;
+        Ok(json!({"change": id, "checkpoint": cp, "repeated": false}))
+    }
+
+    /// The checkpoints of a change, oldest first, each with the paths that differ from the one
+    /// before (the first one: from the base it was made on).
+    pub fn checkpoints(&mut self, id: &str) -> Result<Value> {
+        let ch = self.change(id)?;
+        let mut out = Vec::new();
+        let mut prev: Option<String> = None;
+        for cp in self.store.checkpoints(id)? {
+            let from = match &prev {
+                Some(p) => p.clone(),
+                None => self.edit_base(id, &cp.changeset)?,
+            };
+            let paths = self.changed_paths(id, &from, &cp.changeset)?;
+            out.push(json!({
+                "id": cp.id, "n": cp.n, "changeset": cp.changeset, "label": cp.label, "time": cp.time,
+                "paths": paths, "current": cp.changeset == ch.head,
+            }));
+            prev = Some(cp.changeset);
+        }
+        Ok(json!({"change": id, "head": ch.head, "checkpoints": out}))
+    }
+
+    /// The base a changeset of change `id` was made on (its parent), or the changeset itself
+    /// when it is a base (the change was empty then).
+    fn edit_base(&self, id: &str, cs: &str) -> Result<String> {
+        let c = self.changeset(cs)?;
+        match (c.meta.change.as_deref() == Some(id), c.parents.first()) {
+            (true, Some(p)) => Ok(p.clone()),
+            _ => Ok(cs.to_string()),
+        }
+    }
+
+    /// The change's own edits in changeset `cs` (empty when `cs` is a base).
+    fn edits_of(&self, id: &str, cs: &str) -> Result<Changes> {
+        let c = self.changeset(cs)?;
+        Ok(if c.meta.change.as_deref() == Some(id) && !c.parents.is_empty() { c.changes } else { Changes::new() })
+    }
+
+    /// Paths edited by the change in `a` or `b` whose entries differ between the two trees.
+    fn changed_paths(&mut self, id: &str, a: &str, b: &str) -> Result<Vec<String>> {
+        let mut keys: BTreeSet<String> = self.edits_of(id, a)?.into_keys().collect();
+        keys.extend(self.edits_of(id, b)?.into_keys());
+        let (ma, mb) = (self.manifest(a)?, self.manifest(b)?);
+        Ok(keys.into_iter().filter(|p| ma.get(p) != mb.get(p)).collect())
+    }
+
+    /// `to` of `restore_change`: a checkpoint id `cp_...`, a checkpoint number (0 = the base,
+    /// an empty change), or a changeset of this change (a former head) or its base.
+    fn restore_target(&self, ch: &Change, to: &str) -> Result<(String, Option<i64>)> {
+        let to = to.trim();
+        let cps = self.store.checkpoints(&ch.id)?;
+        if to.starts_with("cp_") {
+            let cp =
+                cps.iter().find(|c| c.id == to).with_context(|| format!("change {} has no checkpoint {to}", ch.id))?;
+            return Ok((cp.changeset.clone(), Some(cp.n)));
+        }
+        if !to.is_empty() && to.len() < 10 && to.bytes().all(|b| b.is_ascii_digit()) {
+            let n: i64 = to.parse()?;
+            if n == 0 {
+                return Ok((ch.base.clone(), Some(0)));
+            }
+            let cp = cps
+                .iter()
+                .find(|c| c.n == n)
+                .with_context(|| format!("change {} has no checkpoint {n} (it has {})", ch.id, cps.len()))?;
+            return Ok((cp.changeset.clone(), Some(n)));
+        }
+        let cs = self.resolve_at(Some(to))?;
+        let ours = self.changeset(&cs)?.meta.change.as_deref() == Some(ch.id.as_str());
+        if !(ours || cs == ch.base || cps.iter().any(|c| c.changeset == cs)) {
+            bail!("{} is not a changeset of change {}", &cs[..12], ch.id);
+        }
+        let n = cps.iter().find(|c| c.changeset == cs).map(|c| c.n);
+        Ok((cs, n))
+    }
+
+    /// Makes a new head whose tree equals an earlier state of the change (`restore_target`).
+    /// If the change was rebased since, that state's own edits are merged onto the current base
+    /// instead, so main's later work stays. The head before the restore becomes a checkpoint,
+    /// so a restore is undone by restoring to it.
+    pub fn restore_change(&mut self, id: &str, to: &str) -> Result<Value> {
+        let mut ch = self.open_change_mut(id)?;
+        let (target, n) = self.restore_target(&ch, to)?;
+        let before = self.checkpoint(id, Some(format!("before restore to {to}")))?;
+        let previous = ch.head.clone();
+        let from = self.edit_base(id, &target)?;
+        let mut paths: BTreeSet<String> = self.edits_of(id, &target)?.into_keys().collect();
+        paths.extend(self.own_changes(&ch)?.into_keys());
+        let (pm, tm, bm) = (self.manifest(&from)?, self.manifest(&target)?, self.manifest(&ch.base)?);
+        let (mut entries, mut conflicts) = (Vec::new(), Vec::new());
+        for path in paths {
+            let (b, o, t) = (pm.get(&path), tm.get(&path), bm.get(&path));
+            match merge3(self, b, o, t)? {
+                Merged::Clean(e) => entries.push((path, e)),
+                Merged::Conflict { kind, materialized } => {
+                    conflicts.push(Conflict {
+                        path: path.clone(),
+                        kind,
+                        base: b.cloned(),
+                        ours: o.cloned(),
+                        theirs: t.cloned(),
+                        theirs_by: self.touches(&from, &ch.base, &path)?,
+                    });
+                    entries.push((path, materialized));
+                }
+            }
+        }
+        self.set_entries(&mut ch, entries, None)?;
+        if !conflicts.is_empty() {
+            let paths: Vec<String> = conflicts.iter().map(|c| c.path.clone()).collect();
+            ch.conflicts.extend(conflicts);
+            self.store.put_change(&ch)?;
+            self.emit("conflict", &[id], &[&ch.agent], json!({"change": id, "paths": paths, "cause": "restore"}));
+        }
+        Ok(json!({
+            "change": self.change_view(&ch)?, "restored_to": target, "checkpoint": n, "previous": previous,
+            "undo": before["checkpoint"]["n"], "rebased_since": from != ch.base && target != ch.base,
+        }))
+    }
+
+    // ---- best-of-N groups --------------------------------------------------------------
+
+    /// Puts an open change in a best-of-N group.
+    pub fn set_group(&mut self, id: &str, group: &str) -> Result<Change> {
+        let group = check_group(group)?;
+        let mut ch = self.open_change_mut(id)?;
+        ch.group = Some(group.to_string());
+        self.store.put_change(&ch)?;
+        Ok(ch)
+    }
+
+    /// The members of a group with state and diff size (files, lines added and removed).
+    pub fn group_view(&mut self, group: &str) -> Result<Value> {
+        let members = self.store.group(group)?;
+        if members.is_empty() {
+            bail!("no group {group:?}");
+        }
+        let mut out = Vec::new();
+        for ch in &members {
+            let d = self.diff(&ch.base, &ch.head)?;
+            let files = d["files"].as_array().map_or(0, Vec::len);
+            let (mut added, mut removed) = (0, 0);
+            for f in d["files"].as_array().into_iter().flatten() {
+                for l in f["patch"].as_str().unwrap_or("").lines() {
+                    if l.starts_with('+') && !l.starts_with("+++") {
+                        added += 1;
+                    } else if l.starts_with('-') && !l.starts_with("---") {
+                        removed += 1;
+                    }
+                }
+            }
+            out.push(json!({
+                "change": ch.id, "agent": ch.agent, "model": ch.model, "intent": ch.intent, "state": ch.state,
+                "head": ch.head, "conflicts": ch.conflicts.len(), "landed_as": ch.landed_as,
+                "diff": {"files": files, "added": added, "removed": removed},
+            }));
+        }
+        Ok(json!({"group": group, "members": out}))
+    }
+
+    /// Lands `id` and, once it is on main, abandons the other open changes of its group. In
+    /// queue mode it answers `queued` and abandons nothing; call it again after the land.
+    pub fn land_one_of(&mut self, group: &str, id: &str) -> Result<Value> {
+        let ch = self.change(id)?;
+        if ch.group.as_deref() != Some(group) {
+            bail!("change {id} is not in group {group:?}");
+        }
+        let land = self.land(id)?;
+        let mut abandoned = Vec::new();
+        if matches!(land["status"].as_str(), Some("landed" | "already_on_main")) {
+            for other in self.store.group(group)? {
+                if other.id != id && other.state == ChangeState::Open {
+                    self.abandon(&other.id)?;
+                    abandoned.push(other.id);
+                }
+            }
+        }
+        Ok(json!({"status": land["status"], "group": group, "change": id, "land": land, "abandoned": abandoned}))
     }
 
     // ---- git push from people -------------------------------------------------------------
@@ -1214,6 +1445,7 @@ impl Inner {
                 created: now(),
                 declared: Intent::default(),
                 view: None,
+                group: None,
             };
             self.store.put_change(&ch)?;
             let out = self.land_direct(&id)?;
@@ -1339,7 +1571,7 @@ impl Inner {
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
-            "declared": ch.declared, "view": ch.view,
+            "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(), "group": ch.group,
         }))
     }
 
@@ -1510,6 +1742,15 @@ fn clone_bare(src: &Path, git_dir: &Path) -> Result<()> {
     }
     git::run(None, &["clone", "--bare", "--quiet", &src_s, &git_s])?;
     Ok(())
+}
+
+/// A group name: 1 to 100 characters on one line, trimmed.
+pub fn check_group(group: &str) -> Result<&str> {
+    let group = group.trim();
+    if group.is_empty() || group.len() > 100 || group.chars().any(char::is_control) {
+        bail!("group must be a name of 1 to 100 characters on one line");
+    }
+    Ok(group)
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

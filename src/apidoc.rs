@@ -9,6 +9,8 @@ pub const GROUPS: &[(&str, &[&str])] = &[
     ("Read without a checkout", &["status", "read", "list", "tree", "blobs", "grep", "diff"]),
     ("History and code intelligence", &["log", "blame", "symbols", "outline", "bisect"]),
     ("Changes", &["open_change", "declare", "apply", "resolve", "rebase", "land", "abandon", "revert"]),
+    ("Best of N", &["group", "land_one_of"]),
+    ("Checkpoints and attachments", &["checkpoint", "checkpoints", "restore_change", "attach", "attachments"]),
     ("Inspect changes", &["change", "changes", "export_change"]),
     ("Coordination", &["events", "reviews", "review_close", "queue", "queue_run", "test_main", "config"]),
     ("Shared directories", &["assign", "claim", "apply_assigned"]),
@@ -16,6 +18,10 @@ pub const GROUPS: &[(&str, &[&str])] = &[
 ];
 
 fn type_of(schema: &Value) -> String {
+    if let Some(ts) = schema["type"].as_array() {
+        let names: Vec<&str> = ts.iter().filter_map(Value::as_str).collect();
+        return names.join(" or ");
+    }
     let t = schema["type"].as_str().unwrap_or("any");
     match t {
         "array" => format!("array of {}", type_of(&schema["items"])),
@@ -127,6 +133,10 @@ fn example(required: &[&str]) -> String {
             "ids" => "\"ids\": [\"<blob id>\"]".to_string(),
             "id" => "\"id\": \"...\"".to_string(),
             "take" => "\"take\": \"ours\"".to_string(),
+            "to" => "\"to\": 2".to_string(),
+            "group" => "\"group\": \"fix-1\"".to_string(),
+            "kind" => "\"kind\": \"summary\"".to_string(),
+            "text" => "\"text\": \"why: the parser dropped a trailing comma\"".to_string(),
             "path" => "\"path\": \"README.md\"".to_string(),
             "pattern" => "\"pattern\": \"fn main\"".to_string(),
             "intent" => "\"intent\": \"fix a typo\"".to_string(),

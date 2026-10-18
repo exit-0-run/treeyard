@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 
-use crate::model::{Change, Changeset};
+use crate::model::{Change, Changeset, Checkpoint};
 
 pub struct Store {
     conn: Connection,
@@ -24,7 +24,9 @@ impl Store {
              CREATE INDEX IF NOT EXISTS git_map_commit ON git_map (git_commit);
              CREATE TABLE IF NOT EXISTS queue (seq INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT UNIQUE NOT NULL);
              CREATE TABLE IF NOT EXISTS reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT NOT NULL,
-                 state TEXT NOT NULL, body TEXT NOT NULL);",
+                 state TEXT NOT NULL, body TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS checkpoints (id TEXT PRIMARY KEY, change TEXT NOT NULL, n INTEGER NOT NULL,
+                 changeset TEXT NOT NULL, label TEXT, time INTEGER NOT NULL, UNIQUE (change, n));",
         )?;
         // Derived data (history index, blame cache, search and symbol indexes) and IAM tables.
         for schema in [
@@ -35,6 +37,7 @@ impl Store {
             crate::auth::SCHEMA,
             crate::audit::SCHEMA,
             crate::hunks::SCHEMA,
+            crate::attach::SCHEMA,
         ] {
             conn.execute_batch(schema)?;
         }
@@ -113,6 +116,16 @@ impl Store {
         bodies.iter().map(|b| serde_json::from_str(b).map_err(Into::into)).collect()
     }
 
+    /// Changes of a best-of-N group, oldest first (ties by id).
+    pub fn group(&self, group: &str) -> Result<Vec<Change>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT body FROM changes WHERE json_extract(body, '$.group') = ?1
+             ORDER BY json_extract(body, '$.created'), id",
+        )?;
+        let bodies = stmt.query_map([group], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<Vec<_>>>()?;
+        bodies.iter().map(|b| serde_json::from_str(b).map_err(Into::into)).collect()
+    }
+
     pub fn get_ref(&self, name: &str) -> Result<Option<String>> {
         Ok(self.conn.query_row("SELECT value FROM refs WHERE name = ?1", [name], |r| r.get(0)).optional()?)
     }
@@ -187,5 +200,42 @@ impl Store {
 
     pub fn close_review(&self, id: i64, state: &str) -> Result<bool> {
         Ok(self.conn.execute("UPDATE reviews SET state = ?2 WHERE id = ?1", params![id, state])? == 1)
+    }
+
+    // ---- checkpoints of open changes -------------------------------------------------------
+
+    /// Adds a checkpoint as the next number of its change; returns it with `n` set.
+    pub fn add_checkpoint(&self, cp: &Checkpoint) -> Result<Checkpoint> {
+        let n: i64 = self.conn.query_row(
+            "SELECT COALESCE(MAX(n), 0) + 1 FROM checkpoints WHERE change = ?1",
+            [&cp.change],
+            |r| r.get(0),
+        )?;
+        let cp = Checkpoint { n, ..cp.clone() };
+        self.conn.execute(
+            "INSERT INTO checkpoints (id, change, n, changeset, label, time) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![cp.id, cp.change, cp.n, cp.changeset, cp.label, cp.time],
+        )?;
+        Ok(cp)
+    }
+
+    /// The checkpoints of a change, oldest first.
+    pub fn checkpoints(&self, change: &str) -> Result<Vec<Checkpoint>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, change, n, changeset, label, time FROM checkpoints WHERE change = ?1 ORDER BY n")?;
+        let rows = stmt
+            .query_map([change], |r| {
+                Ok(Checkpoint {
+                    id: r.get(0)?,
+                    change: r.get(1)?,
+                    n: r.get(2)?,
+                    changeset: r.get(3)?,
+                    label: r.get(4)?,
+                    time: r.get(5)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows)
     }
 }

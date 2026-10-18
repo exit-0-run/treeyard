@@ -128,6 +128,10 @@ pub struct Change {
     /// its own (continuous rebase). Whole-file writes are then merged onto the new head.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
+    /// Best-of-N: changes that try the same task share a group; `land_one_of` lands one of
+    /// them and abandons the others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// What an agent declares before it edits: path globs and symbol names (`name` or `path#name`).
@@ -143,4 +147,16 @@ impl Intent {
     pub fn is_empty(&self) -> bool {
         self.paths.is_empty() && self.symbols.is_empty()
     }
+}
+
+/// A named point in an open change's history: the head at the time of `checkpoint`. Numbers
+/// count from 1 per change; `restore_change` makes a new head with the tree of one of them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Checkpoint {
+    pub id: String,
+    pub change: String,
+    pub n: i64,
+    pub changeset: String,
+    pub label: Option<String>,
+    pub time: i64,
 }

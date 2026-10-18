@@ -12,6 +12,15 @@ version; the rename comes in a later version.
 - Shared directories: `assign`, `claim`, `apply_assigned` and `treeyard share join|sync|claim`. Agents
   that edit one checkout get one change each; every hunk has a stable id and one owner (claim, intent,
   earlier owner), and a hunk that builds on another change's lines is held as `depends_on`.
+- Checkpoints inside an open change: `checkpoint`, `checkpoints`, `restore_change` (undo that keeps
+  history), `treeyard workspace restore NAME --to N`, and a Claude Code `UserPromptSubmit` hook that
+  marks one checkpoint per turn (`examples/claude-code/checkpoint.sh`).
+- `[coordination] keep_conflicted = true`: a conflicted change keeps rebasing and taking edits;
+  `land` waits until its conflicts are resolved. Default off (the old rule).
+- Agent transcripts per change: `attach` (transcript, summary or note; lines that look like secrets
+  are dropped) and `attachments`; on land they become a git note under `refs/notes/treeyard`.
+- Best-of-N: `open_change` takes `group`; `group` compares the members (state, diff size) and
+  `land_one_of` lands one and abandons the other open changes of the group.
 
 ## [0.1.0] - not released yet
 

@@ -31,6 +31,9 @@ every operation is in [api.md](api.md).
 - A **change** is a pointer with a stable id (`ch_...`) that one agent owns. It has a `base` and a
   `head`. Each `apply` makes a new head; the id stays. There is no branch to name, push or delete.
 - `open_change` costs one SQLite row. An agent can open, try and abandon changes all day.
+- **Checkpoints** mark heads inside a change (one per agent turn); `restore_change` goes back to one
+  with a new head, so even the undo can be undone. Several changes can try one task as a **group**
+  (best-of-N); `land_one_of` lands the best and abandons the rest.
 - A change opened with `base` set to another change id is **stacked** on it. Its `land` returns
   `waiting` until the change under it lands. The replay showed why: without the rule, a fix landed
   before the commit that added the bug ([benchmarks.md](benchmarks.md#phase-3-coordination-replay)).

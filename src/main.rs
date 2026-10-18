@@ -235,6 +235,13 @@ enum WsCmd {
     Sync { name: String },
     /// Sync, then land the change on main.
     Land { name: String },
+    /// Sync, restore the change to a checkpoint, and rewrite only the files that differ.
+    Restore {
+        name: String,
+        /// Checkpoint number (0 = no edits), checkpoint id cp_..., or a changeset id of the change.
+        #[arg(long)]
+        to: String,
+    },
     /// Print the workspace's environment as `export` lines.
     Env { name: String },
     /// Print the workspace directory.
@@ -336,6 +343,7 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         WsCmd::List => print(&serde_json::to_value(node.list()?)?)?,
         WsCmd::Sync { name } => print(&node.sync(&name)?)?,
         WsCmd::Land { name } => print(&node.land(&name)?)?,
+        WsCmd::Restore { name, to } => print(&node.restore(&name, &to)?)?,
         WsCmd::Env { name } => {
             for (k, v) in node.get(&name)?.env() {
                 println!("export {k}='{}'", v.replace('\'', "'\\''"));

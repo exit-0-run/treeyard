@@ -69,3 +69,42 @@ fn worktree_hooks_create_a_workspace_and_keep_its_edits() {
     let bad = json!({"hook_event_name": "WorktreeCreate", "name": "../escape"});
     assert!(!hook("worktree-create.sh", &bad, &url, &home).0, "a name with a slash is refused");
 }
+
+#[test]
+fn prompt_hook_checkpoints_each_turn_of_a_workspace_session() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 3, 5, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let home = tmp.path().join("node");
+    let input = json!({"hook_event_name": "WorktreeCreate", "name": "calm-fir-01"});
+    let (ok, stdout, stderr) = hook("worktree-create.sh", &input, &url, &home);
+    assert!(ok, "create hook failed: {stderr}");
+    let dir = PathBuf::from(stdout.lines().rfind(|l| !l.trim().is_empty()).unwrap().trim());
+
+    let prompt = |n: usize| {
+        let input = json!({"session_id": "s-1", "hook_event_name": "UserPromptSubmit", "cwd": dir.join("sub"),
+            "prompt": format!("turn {n}")});
+        let (ok, stdout, stderr) = hook("checkpoint.sh", &input, &url, &home);
+        assert!(ok, "checkpoint hook failed: {stderr}");
+        assert_eq!(stdout, "", "stdout would become model context");
+    };
+    std::fs::create_dir_all(dir.join("sub")).unwrap();
+    std::fs::write(dir.join("f00.txt"), "after turn 1\n").unwrap();
+    prompt(2);
+    std::fs::write(dir.join("f00.txt"), "after turn 2\n").unwrap();
+    prompt(3);
+    prompt(3);
+
+    let env = std::fs::read_to_string(dir.join(".treeyard/env")).unwrap();
+    let change = env.lines().find_map(|l| l.strip_prefix("TREEYARD_CHANGE=")).unwrap();
+    let list = treeyard::client::call(&url, "checkpoints", json!({"change": change})).unwrap();
+    let cps = list["checkpoints"].as_array().unwrap();
+    assert_eq!(cps.len(), 2, "one checkpoint per turn with edits: {list}");
+    assert_eq!(cps[0]["label"], "turn of session s-1");
+
+    // Outside a workspace the hook does nothing and never blocks the prompt.
+    let input = json!({"hook_event_name": "UserPromptSubmit", "cwd": tmp.path(), "prompt": "hi"});
+    assert!(hook("checkpoint.sh", &input, &url, &home).0);
+}

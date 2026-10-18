@@ -254,6 +254,12 @@ impl Inner {
             let commit = self.commit_for(m)?;
             self.store.set_ref("main", m)?;
             self.odb.update_ref(&format!("refs/heads/{}", self.branch), &commit)?;
+            for l in &landed {
+                if let (Some(id), Some(cs)) = (l["change"].as_str(), l["changeset"].as_str()) {
+                    let c = self.commit_for(cs)?;
+                    self.notes_after_land(id, cs, &c);
+                }
+            }
         }
         let mut rejected = Value::Null;
         if let (Some(out), Some(item)) = (culprit, items.next()) {

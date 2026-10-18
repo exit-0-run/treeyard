@@ -15,6 +15,7 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 
 # [coordination]
 # continuous_rebase = true       # rebase open changes onto main after every land
+# keep_conflicted = true         # a conflicted change still rebases; land waits until it is resolved
 
 # Merge drivers run only where the line merge conflicts; first matching rule wins.
 # [merge]
@@ -114,6 +115,9 @@ impl Bisect {
 #[serde(default, deny_unknown_fields)]
 pub struct Coordination {
     pub continuous_rebase: bool,
+    /// A conflicted change keeps rebasing (each conflict is merged again from its own base and
+    /// sides onto the new main); only `land` waits until every conflict is resolved.
+    pub keep_conflicted: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

@@ -34,6 +34,12 @@ treeyard workspace remove fix-1
    reaches the change. When that sync fails (for example the server is down), nothing is deleted unless
    `--force`. `--abandon` drops the change instead. The record is marked `removing` before the directory
    goes; `treeyard daemon` finishes such a remove at start. Only a directory under `ws/` is deleted.
+8. `restore NAME --to N` is undo inside the change. It syncs first, calls `restore_change` (the change
+   gets a new head with the tree of checkpoint `N`; `0` = no edits), then rewrites only the files that
+   differ and updates the sync state. Other files keep their mtimes, so a build stays warm. The head
+   before the restore becomes a checkpoint (`restore.undo` in the reply): restore to it to undo.
+   Checkpoints come from the `checkpoint` operation, for example once per agent turn
+   ([mcp.md](mcp.md#one-checkpoint-per-turn)).
 
 ## Clone strategies (`--strategy`)
 

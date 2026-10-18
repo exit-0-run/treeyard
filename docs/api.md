@@ -21,6 +21,8 @@ A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a
 - Read without a checkout: [`status`](#status), [`read`](#read), [`list`](#list), [`tree`](#tree), [`blobs`](#blobs), [`grep`](#grep), [`diff`](#diff)
 - History and code intelligence: [`log`](#log), [`blame`](#blame), [`symbols`](#symbols), [`outline`](#outline), [`bisect`](#bisect)
 - Changes: [`open_change`](#open_change), [`declare`](#declare), [`apply`](#apply), [`resolve`](#resolve), [`rebase`](#rebase), [`land`](#land), [`abandon`](#abandon), [`revert`](#revert)
+- Best of N: [`group`](#group), [`land_one_of`](#land_one_of)
+- Checkpoints and attachments: [`checkpoint`](#checkpoint), [`checkpoints`](#checkpoints), [`restore_change`](#restore_change), [`attach`](#attach), [`attachments`](#attachments)
 - Inspect changes: [`change`](#change), [`changes`](#changes), [`export_change`](#export_change)
 - Coordination: [`events`](#events), [`reviews`](#reviews), [`review_close`](#review_close), [`queue`](#queue), [`queue_run`](#queue_run), [`test_main`](#test_main), [`config`](#config)
 - Shared directories: [`assign`](#assign), [`claim`](#claim), [`apply_assigned`](#apply_assigned)
@@ -210,6 +212,7 @@ Start a change on top of main (no branch). Declare the paths and symbols you pla
 |---|---|---|---|
 | `agent` | string | no |  |
 | `base` | string | no | main (default) or another revision; a change id ch_... stacks on that change, which then lands first |
+| `group` | string | no | best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest |
 | `intent` | string | yes | what you are about to do, in one line |
 | `model` | string | no |  |
 | `paths` | array of string | no | path globs you will edit, e.g. src/parser/** or Cargo.toml |
@@ -310,6 +313,99 @@ Undo a landed changeset: opens a change with the inverse and lands it.
 
 ```sh
 treeyard call revert '{"changeset": "<changeset id>"}'
+```
+
+## Best of N
+
+### group
+
+Best-of-N: the changes of a group with agent, model, state, conflicts and diff size (files, lines added and removed), to pick the best one.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `group` | string | yes |  |
+
+```sh
+treeyard call group '{"group": "fix-1"}'
+```
+
+### land_one_of
+
+Best-of-N: land one change of a group, then abandon the other open changes of the group (listed in abandoned). Siblings stay open unless it landed (conflict, waiting, or queued: call again after it lands).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `group` | string | yes |  |
+
+```sh
+treeyard call land_one_of '{"group": "fix-1", "change": "ch_..."}'
+```
+
+## Checkpoints and attachments
+
+### checkpoint
+
+Mark the current head of an open change as the next checkpoint (one per agent turn is a good rhythm). Returns its id and number; a head that is already the newest checkpoint is not marked again (repeated = true).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `label` | string | no | a short note, e.g. the turn or the step |
+
+```sh
+treeyard call checkpoint '{"change": "ch_..."}'
+```
+
+### checkpoints
+
+The checkpoints of a change, oldest first: id, number, changeset, label, time, and the paths that changed since the previous checkpoint.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+
+```sh
+treeyard call checkpoints '{"change": "ch_..."}'
+```
+
+### restore_change
+
+Undo inside an open change: make a new head whose tree equals an earlier state. History is kept: the head before the restore becomes a checkpoint (its number is in undo), so a restore can be undone. If the change was rebased since, that state's edits are merged onto the current base.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `to` | string or integer | yes | checkpoint id cp_..., checkpoint number (0 = the base, no edits), or a changeset id of this change |
+
+```sh
+treeyard call restore_change '{"change": "ch_...", "to": 2}'
+```
+
+### attach
+
+Store a transcript, summary or note with an open change (up to 256 KiB each), so a later agent can read why the code changed. Lines that look like secrets (sk-, ghp_, github_pat_, AKIA, xox tokens, key = value secrets, private key blocks) are dropped; the reply says how many. On land it becomes a git note on the landed commit (refs/notes/treeyard).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+| `kind` | one of `transcript`, `summary`, `note` | yes |  |
+| `text` | string | yes |  |
+
+```sh
+treeyard call attach '{"change": "ch_...", "kind": "summary", "text": "why: the parser dropped a trailing comma"}'
+```
+
+### attachments
+
+The attachments of a change, oldest first, and for a landed change the git note that holds them (git notes --ref=treeyard show <commit>).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `change` | string | yes | change id, ch_... |
+
+```sh
+treeyard call attachments '{"change": "ch_..."}'
 ```
 
 ## Inspect changes

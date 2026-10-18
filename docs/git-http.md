@@ -17,6 +17,21 @@ git push origin main
 | `git push origin main` | TreeYard reads the ref updates itself, stores the pack with `git index-pack --fix-thin`, then lands under the same lock as agents. |
 | `treeyard mirror --data D --remote URL [--every N]` | `git push URL refs/heads/main:refs/heads/main` from the export repo, never forced. |
 
+## Why the code changed: notes
+
+Agents store transcripts and summaries with a change (`attach`). When the change lands, the server
+writes them as one git note on the landed commit, under `refs/notes/treeyard`. Lines that looked like
+secrets were dropped when the text came in. The notes commit takes its dates from the landed
+changeset, so the same history gives the same notes. Read them in a clone:
+
+```sh
+git fetch origin refs/notes/treeyard:refs/notes/treeyard
+git log --notes=treeyard -3
+git notes --ref=treeyard show <commit>
+```
+
+Agents read the same text with `attachments {change}`. Test: `tests/attachments.rs`.
+
 ## Push rules
 
 1. Only `refs/heads/<branch>` (the imported branch, usually `main`) accepts pushes. Other refs get
