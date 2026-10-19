@@ -173,6 +173,7 @@ Cargo.lock lost lines (run `t-drivers`, 2026-10-17, ripgrep at 16 agents).
 mode = "queue"                   # or "optimistic"; default "direct"
 test = "cargo test --offline"    # sh -c in a temp copy of the tree; exit 0 = pass
 batch = 8
+parallel = 4                     # test runs side by side; default half the cores, at most 4
 timeout_s = 600
 ```
 
@@ -183,6 +184,11 @@ timeout_s = 600
   `tests_failed`, event `rejected`; the change stays open). A change that conflicts only with a
   batch-mate waits for the next batch; a conflict with main is real and goes to the owner. Test `e_queue…`:
   4 changes, the second breaks the test, 3 test runs, 1 lands, then the other 2 land in 1 run.
+  With `parallel` above 1, a step first tests each queued change alone on main, `parallel` at a time,
+  and sends the failing ones back at once; the rest are batched as above, and a failing batch tests its
+  prefixes side by side instead of bisecting. One broken change then no longer holds up its batch-mates:
+  in a scripted run of 40 changes with 1 in 4 broken (6 s suite, 10 at a time), the queue took 277 s with
+  `parallel = 1`, 187 s with `parallel = 4`, and a plain git queue 329 s.
 - `optimistic`: `land` moves main at once. A step tests main. When it fails, it bisects the main
   changesets since the last green one, reverts the first failing changeset through the normal `revert`
   operation, and opens a `reverted_by_bisect` review task for its owner. Test `e_optimistic…`.

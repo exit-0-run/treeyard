@@ -345,7 +345,7 @@ fn d_merge_drivers_resolve_lockfiles_changelogs_generated_files_and_syntax() {
     assert_eq!(read(&url, "gen.txt", "main"), "A\nB\n");
 }
 
-const NOT_BROKEN: &str = "[landing]\nmode = \"{mode}\"\ntest = \"! grep -rq BROKEN .\"\nbatch = 4\n";
+const NOT_BROKEN: &str = "[landing]\nmode = \"{mode}\"\ntest = \"! grep -rq BROKEN .\"\nbatch = 4\nparallel = 1\n";
 
 fn four_changes(url: &str) -> Vec<String> {
     (0..4)
