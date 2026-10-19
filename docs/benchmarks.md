@@ -804,3 +804,23 @@ Plain git livelocks with 50 pushers on one branch: most pushes lose the race, an
 rebase and lose again. TreeYard rebases on the server, so every change lands at its first attempt or
 fails on a real conflict (the 53 planned ones). Like gitai's numbers, this measures the server only: no
 model, no tests, no workspace setup.
+
+### Same machine as gitai (2026-10-19)
+
+gitai (https://github.com/feder-cr/git-ai, commit cb64347) built on this machine with its own `make build`,
+measured with its own script: `AGENT_COUNTS=50 CHANGES=5 RATE=0.2 SEED=1 bash
+examples/graft/demo/acceptance-phase4.sh` (its graft-bench over gRPC; acceptance PASS). Raw results:
+`bench/results/gitai/`. TreeYard: `bench/landbench.sh` above, same machine, same day.
+
+| 50 agents, 250 changes, 20 % conflicting | gitai, batching off | gitai, batching on | TreeYard |
+|---|---|---|---|
+| Landed | 112 | 200 | 197 |
+| Run time | 119.2 s | 22.2 s | **1.1 s** |
+| Lands per minute | 56 | 540 | **10 777** |
+| p50 / p99 of landed changes | 14.1 s / 36.9 s | 4.4 s / 5.9 s | **0.17 s / 0.29 s** |
+
+Read it fairly: each server runs with its own load generator, and both time a change from its start to
+the end of its land. gitai writes git commits and packs with fsync on every batch; its README reports
+1 862 to 2 544 lands a minute on a 16-core Linux machine, so macOS may be slower for it. The planned
+conflicts differ (50 in gitai's plan, 53 in ours) because the two generators pick conflicting changes
+with different random numbers.

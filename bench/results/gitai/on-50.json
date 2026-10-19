@@ -1,0 +1,50 @@
+{
+  "label": "batching-on-50",
+  "mode": "land",
+  "agents": 50,
+  "changes_per_agent": 5,
+  "branches": 1,
+  "conflict_rate": 0.2,
+  "test_duration_ms": 0,
+  "changes": 250,
+  "landed": 200,
+  "already_landed": 0,
+  "failed": 50,
+  "conflicts": 50,
+  "resolutions": 0,
+  "attempts": 200,
+  "observed_conflict_rate": 0.2,
+  "attempts_per_land": 1,
+  "max_attempts": 1,
+  "attempts_histogram": {
+    "1": 200
+  },
+  "batch_size_mean": 8.26,
+  "batch_size_max": 25,
+  "batch_size_histogram": {
+    "1": 1,
+    "10": 6,
+    "12": 5,
+    "16": 16,
+    "2": 2,
+    "25": 24,
+    "3": 14,
+    "4": 73,
+    "5": 36,
+    "6": 11,
+    "7": 5,
+    "8": 7
+  },
+  "duration_seconds": 22.218148125,
+  "lands_per_minute": 540.0990187160344,
+  "p50_ms": 4433.582042,
+  "p95_ms": 5085.149958,
+  "p99_ms": 5861.035041,
+  "failed_p95_ms": 6823.325208,
+  "failure_classes": {
+    "land: rpc error: code = FailedPrecondition desc = landing commit: rebase: commit \"\u003coid\u003e\": there are conflicting files": 50
+  },
+  "errors": [
+    "land: rpc error: code = FailedPrecondition desc = landing commit: rebase: commit \"59c322abaa036cdfbf9aabb107d4ce54f15ed1cb\": there are conflicting files"
+  ]
+}

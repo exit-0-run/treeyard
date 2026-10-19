@@ -1,0 +1,63 @@
+{
+  "label": "batching-off-50",
+  "mode": "land",
+  "agents": 50,
+  "changes_per_agent": 5,
+  "branches": 1,
+  "conflict_rate": 0.2,
+  "test_duration_ms": 0,
+  "changes": 250,
+  "landed": 112,
+  "already_landed": 0,
+  "failed": 138,
+  "conflicts": 50,
+  "resolutions": 0,
+  "attempts": 2761,
+  "observed_conflict_rate": 0.2,
+  "attempts_per_land": 24.651785714285715,
+  "max_attempts": 20,
+  "attempts_histogram": {
+    "1": 9,
+    "10": 5,
+    "11": 6,
+    "12": 5,
+    "13": 3,
+    "14": 6,
+    "15": 3,
+    "16": 2,
+    "17": 3,
+    "18": 5,
+    "19": 2,
+    "2": 5,
+    "20": 5,
+    "3": 9,
+    "4": 4,
+    "5": 6,
+    "6": 6,
+    "7": 12,
+    "8": 10,
+    "9": 6
+  },
+  "failed_attempts_histogram": {
+    "20": 88
+  },
+  "batch_size_mean": 1,
+  "batch_size_max": 1,
+  "batch_size_histogram": {
+    "1": 112
+  },
+  "duration_seconds": 119.16693575,
+  "lands_per_minute": 56.39148105727809,
+  "p50_ms": 14133.838125,
+  "p95_ms": 33266.445458,
+  "p99_ms": 36873.687834,
+  "failed_p95_ms": 39961.573334,
+  "failure_classes": {
+    "land: rpc error: code = FailedPrecondition desc = branch \"bench-50\" kept moving, giving up after 20 attempts: reference refs/heads/bench-50 moved concurrently: reference update: reference does not point to expected object": 88,
+    "land: rpc error: code = FailedPrecondition desc = landing commit: rebase: commit \"\u003coid\u003e\": there are conflicting files": 50
+  },
+  "errors": [
+    "land: rpc error: code = FailedPrecondition desc = landing commit: rebase: commit \"6e9b796b91414b6d2610101144d1c63c2c99249c\": there are conflicting files",
+    "land: rpc error: code = FailedPrecondition desc = branch \"bench-50\" kept moving, giving up after 20 attempts: reference refs/heads/bench-50 moved concurrently: reference update: reference does not point to expected object"
+  ]
+}
