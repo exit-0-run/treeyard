@@ -763,3 +763,20 @@ the 10 pairs that met their pair-mate's conflict in the queue, 1 rejected) and t
 settle 42 s. TreeYard cost 12 % more: resumed sessions read their context again. The queue ran as many tests
 as the git queue (44 against 53), because every change was tested alone first; since then a batch is tested
 first and its changes alone only when it fails (scripted: 8 test runs for 40 passing changes).
+
+Run 6 (`wide50f`, main at 074c72b: queue tests the batch first; land and go). Results
+`bench/results/live-agents/wide50f/`; VM lightly loaded (load 1.4 and 2.0).
+
+| Arm | Every change landed and tested | Hidden checks | Final suite | Agent turns | Cost | Test runs |
+|---|---|---|---|---|---|---|
+| git worktrees + merge queue | 738 s | 60 / 60 | passes | 451 | $6.60 | 56 (694 s) |
+| TreeYard, queue + land and go | **607 s** | 60 / 60 | passes | 485 | $7.62 | 41 (560 s) |
+
+TreeYard 18 % sooner again, with no hung agent this time; it cost 15 % more (12 resumed sessions). The 50
+agents were done after 154 s; the queue's tests then took 231 s, and three fix-up rounds about 220 s
+(11 agents: 9 second changes of a pair that met their pair-mate's conflict in the queue, 2 rejected; one of
+them twice). Batches stayed small (41 runs for 50 changes) because agents land at different times.
+
+Across runs 5 and 6, TreeYard finished the 50 tasks 18 % sooner than a git merge queue (579 s / 708 s and
+607 s / 738 s), with the same correctness and 12 to 15 % higher cost. Runs 1 to 3 (TreeYard 1.17x to 2.9x
+slower) used optimistic landing or a serial-bisect queue, with agents waiting in `land` for verdicts.

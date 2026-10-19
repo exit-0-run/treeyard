@@ -1,0 +1,6238 @@
+[
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "chunked: add fillvalue",
+  "kind": "opened",
+  "seq": 1,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_1d4408109a9a",
+  "changes": [
+   "ch_1d4408109a9a"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "chunked: add as_tuples",
+  "kind": "opened",
+  "seq": 2,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "intersperse: add leading",
+  "kind": "opened",
+  "seq": 3,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_cd3ba1d8b3ad",
+  "changes": [
+   "ch_cd3ba1d8b3ad"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "intersperse: add trailing",
+  "kind": "opened",
+  "seq": 4,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_ebe45d52350e",
+  "changes": [
+   "ch_ebe45d52350e"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "lstrip: accept a value to strip",
+  "kind": "opened",
+  "seq": 5,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "lstrip: add limit",
+  "kind": "opened",
+  "seq": 6,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "one: add pred",
+  "kind": "opened",
+  "seq": 7,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_0a883cee0379",
+  "changes": [
+   "ch_0a883cee0379"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "one: add default",
+  "kind": "opened",
+  "seq": 8,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_a91326ae28f3",
+  "changes": [
+   "ch_a91326ae28f3"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "argmax: add default",
+  "kind": "opened",
+  "seq": 9,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "argmax: add last",
+  "kind": "opened",
+  "seq": 10,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_972b68fbfb17",
+  "changes": [
+   "ch_972b68fbfb17"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iterate: add times",
+  "kind": "opened",
+  "seq": 11,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iterate: add until",
+  "kind": "opened",
+  "seq": 12,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "last: add pred",
+  "kind": "opened",
+  "seq": 13,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_816ce085aa1a",
+  "changes": [
+   "ch_816ce085aa1a"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "last: add too_short",
+  "kind": "opened",
+  "seq": 14,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "split_into: add fillvalue",
+  "kind": "opened",
+  "seq": 15,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_6598781469bd",
+  "changes": [
+   "ch_6598781469bd"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "split_into: add rest",
+  "kind": "opened",
+  "seq": 16,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "powerset: add min_size",
+  "kind": "opened",
+  "seq": 17,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_b7e17c27968e",
+  "changes": [
+   "ch_b7e17c27968e"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "powerset: add max_size",
+  "kind": "opened",
+  "seq": 18,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_98c43bdbff28",
+  "changes": [
+   "ch_98c43bdbff28"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tabulate: add step",
+  "kind": "opened",
+  "seq": 19,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tabulate: add stop",
+  "kind": "opened",
+  "seq": 20,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_3efab516f46f",
+  "changes": [
+   "ch_3efab516f46f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "interleave_longest: add fillvalue",
+  "kind": "opened",
+  "seq": 21,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "locate: accept a value",
+  "kind": "opened",
+  "seq": 22,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_5c4dd8ab4b64",
+  "changes": [
+   "ch_5c4dd8ab4b64"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "replace: a negative count is accepted",
+  "kind": "opened",
+  "seq": 23,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_6ff89e518eaf",
+  "changes": [
+   "ch_6ff89e518eaf"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "side_effect: chunk_size=0 drops every item",
+  "kind": "opened",
+  "seq": 24,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_6b334536616f",
+  "changes": [
+   "ch_6b334536616f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "collapse: a negative levels is accepted",
+  "kind": "opened",
+  "seq": 25,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_cfbe2f6c4f94",
+  "changes": [
+   "ch_cfbe2f6c4f94"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "peekable: add __length_hint__",
+  "kind": "opened",
+  "seq": 26,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_35055cb5c590",
+  "changes": [
+   "ch_35055cb5c590"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "sample: weights of the wrong length are accepted",
+  "kind": "opened",
+  "seq": 27,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_49d5db602d40",
+  "changes": [
+   "ch_49d5db602d40"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "distinct_permutations: a negative r yields nothing",
+  "kind": "opened",
+  "seq": 28,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_aab7d87d1568",
+  "changes": [
+   "ch_aab7d87d1568"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "interleave_evenly: negative lengths are accepted",
+  "kind": "opened",
+  "seq": 29,
+  "time": 1792414759
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_190ec01d5a0f",
+  "changes": [
+   "ch_190ec01d5a0f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "duplicates_everseen: add once",
+  "kind": "opened",
+  "seq": 30,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_9af1fe8a2cdc",
+  "changes": [
+   "ch_9af1fe8a2cdc"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "substrings: add reverse",
+  "kind": "opened",
+  "seq": 31,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "unique_to_each: add key",
+  "kind": "opened",
+  "seq": 32,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_30ed06ebc38d",
+  "changes": [
+   "ch_30ed06ebc38d"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "count_cycle: add start",
+  "kind": "opened",
+  "seq": 33,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_09a30a19924f",
+  "changes": [
+   "ch_09a30a19924f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "nth_or_last: a negative n returns the default",
+  "kind": "opened",
+  "seq": 34,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_d7ca087c00f4",
+  "changes": [
+   "ch_d7ca087c00f4"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "run_length.decode: negative counts are accepted",
+  "kind": "opened",
+  "seq": 35,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_cae629dd3ebb",
+  "changes": [
+   "ch_cae629dd3ebb"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "map_if: accept pred=None",
+  "kind": "opened",
+  "seq": 36,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_dbeee20ed051",
+  "changes": [
+   "ch_dbeee20ed051"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "consecutive_groups: add step",
+  "kind": "opened",
+  "seq": 37,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_87d5ee77c6a0",
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "only: add pred",
+  "kind": "opened",
+  "seq": 38,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_f52a2f51ae91",
+  "changes": [
+   "ch_f52a2f51ae91"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "stagger: offsets cannot be an iterator",
+  "kind": "opened",
+  "seq": 39,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_da8e53943aff",
+  "changes": [
+   "ch_da8e53943aff"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "zip_offset: offsets cannot be an iterator",
+  "kind": "opened",
+  "seq": 40,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_ccdfe32aabcc",
+  "changes": [
+   "ch_ccdfe32aabcc"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iequals: add key",
+  "kind": "opened",
+  "seq": 41,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_ab1fae085afd",
+  "changes": [
+   "ch_ab1fae085afd"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "unzip: add fillvalue",
+  "kind": "opened",
+  "seq": 42,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "extract: add default",
+  "kind": "opened",
+  "seq": 43,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_2268786d2a24",
+  "changes": [
+   "ch_2268786d2a24"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "partitions: add k",
+  "kind": "opened",
+  "seq": 44,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_e5b51b17e935",
+  "changes": [
+   "ch_e5b51b17e935"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tail: a negative n behaves differently for lists and iterators",
+  "kind": "opened",
+  "seq": 45,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_d1f3fca78e3f",
+  "changes": [
+   "ch_d1f3fca78e3f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "grouper: n=0 yields nothing",
+  "kind": "opened",
+  "seq": 46,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_a7279f0bbd0c",
+  "changes": [
+   "ch_a7279f0bbd0c"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "dotproduct: vectors of different lengths are accepted",
+  "kind": "opened",
+  "seq": 47,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_199eaf6db43b",
+  "changes": [
+   "ch_199eaf6db43b"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "totient: non-positive n gives nonsense",
+  "kind": "opened",
+  "seq": 48,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_882061cb38d5",
+  "changes": [
+   "ch_882061cb38d5"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "quantify: accept pred=None",
+  "kind": "opened",
+  "seq": 49,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_fdd164e477bd",
+  "changes": [
+   "ch_fdd164e477bd"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iter_index: a negative start or stop behaves differently by input type",
+  "kind": "opened",
+  "seq": 50,
+  "time": 1792414760
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_cd3ba1d8b3ad",
+  "changes": [
+   "ch_cd3ba1d8b3ad"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 51,
+  "time": 1792414774
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "kind": "queued",
+  "position": 2,
+  "seq": 52,
+  "time": 1792414774
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "518c7cbc5a8dc37ee7ebfe64e7d1e7769cae89b95a9abb4285a58e586fd981db",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.2,
+  "seq": 53,
+  "time": 1792414775
+ },
+ {
+  "agents": [
+   "agent-2",
+   "agent-3"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7",
+   "ch_cd3ba1d8b3ad"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_cd3ba1d8b3ad"
+   },
+   "hunks": {
+    "mine": [
+     [
+      968,
+      969
+     ]
+    ],
+    "theirs": [
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_cd3ba1d8b3ad",
+  "seq": 54,
+  "time": 1792414776
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "a940cfc306da63745a0889f200a6fa7b53289b57feafb42992145f6bee76c7e5",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.3,
+  "seq": 55,
+  "time": 1792414776
+ },
+ {
+  "agents": [
+   "agent-8",
+   "agent-9"
+  ],
+  "change": "ch_a91326ae28f3",
+  "changes": [
+   "ch_a91326ae28f3",
+   "ch_7b168821e10f"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_7b168821e10f"
+   },
+   "hunks": {
+    "mine": [
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ],
+    "theirs": [
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_7b168821e10f",
+  "seq": 56,
+  "time": 1792414777
+ },
+ {
+  "agents": [
+   "agent-9",
+   "agent-8"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f",
+   "ch_a91326ae28f3"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      997,
+      998
+     ]
+    ],
+    "theirs": [
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_a91326ae28f3",
+  "seq": 57,
+  "time": 1792414777
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_1d4408109a9a",
+  "changes": [
+   "ch_1d4408109a9a"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 58,
+  "time": 1792414777
+ },
+ {
+  "agents": [
+   "agent-9",
+   "agent-8"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f",
+   "ch_a91326ae28f3"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_a91326ae28f3"
+   },
+   "hunks": {
+    "mine": [
+     [
+      6808,
+      6808
+     ]
+    ],
+    "theirs": [
+     [
+      6808,
+      6808
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_a91326ae28f3",
+  "seq": 59,
+  "time": 1792414778
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_a91326ae28f3",
+  "changes": [
+   "ch_a91326ae28f3"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 60,
+  "time": 1792414779
+ },
+ {
+  "agents": [
+   "agent-2",
+   "agent-3"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7",
+   "ch_cd3ba1d8b3ad"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_cd3ba1d8b3ad"
+   },
+   "hunks": {
+    "mine": [
+     [
+      243,
+      244
+     ]
+    ],
+    "theirs": [
+     [
+      243,
+      244
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_cd3ba1d8b3ad",
+  "seq": 61,
+  "time": 1792414780
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 62,
+  "time": 1792414780
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1",
+   "ch_1d4408109a9a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_1d4408109a9a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      215,
+      216
+     ],
+     [
+      227,
+      228
+     ],
+     [
+      238,
+      238
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_1d4408109a9a",
+  "seq": 63,
+  "time": 1792414783
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1",
+   "ch_1d4408109a9a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_1d4408109a9a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      179,
+      181
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_1d4408109a9a",
+  "seq": 64,
+  "time": 1792414783
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1",
+   "ch_1d4408109a9a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_1d4408109a9a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      74,
+      74
+     ]
+    ],
+    "theirs": [
+     [
+      74,
+      74
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_1d4408109a9a",
+  "seq": 65,
+  "time": 1792414783
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 66,
+  "time": 1792414783
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 67,
+  "time": 1792414785
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "505b481a2aaff5cb7d88c8a14e380bbe0d23c50291825fe94867be536503dc1b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 9.6,
+  "seq": 68,
+  "time": 1792414785
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "detail": {
+   "output": "................................................................... [  8%]\n........................................................... [ 16%]\n............................................................................................................. [ 30%]\n..................................................................................................................... [ 45%]\n...............F\n=================================== FAILURES ===================================\n_______________________ OnlyTests.test_custom_exception ________________________\n\nself = <tests.test_more.OnlyTests testMethod=test_custom_exception>\n\n    def test_custom_exception(self):\n>       self.assertEqual(mi.only([], too_long=RuntimeError), None)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\ntests/test_more.py:4523: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\niterable = [], default = None, too_long = <class 'RuntimeError'>\n\n    def only(iterable, default=None, too_long=None):\n        \"\"\"If *iterable* has only one item, return it.\n        If it has zero items, return *default*.\n        If it has more than one item, raise the exception given by *too_long*,\n        which is ``ValueError`` by default.\n    \n        >>> only([], default='missing')\n        'missing'\n        >>> only([1])\n        1\n        >>> only([1, 2])  # doctest: +IGNORE_EXCEPTION_DETAIL\n        Traceback (most recent call last):\n        ...\n        ValueError: Expected exactly one item in iterable, but got 1, 2,\n         and perhaps more.'\n        >>> only([1, 2], too_long=TypeError)  # doctest: +IGNORE_EXCEPTION_DETAIL\n        Traceback (most recent call last):\n        ...\n        TypeError\n    \n        Note that :func:`only` attempts to advance *iterable* twice to ensure there\n        is only one item.  See :func:`spy` or :func:`peekable` to check\n        iterable contents less destructively.\n    \n        \"\"\"\n>       iterator = iter(iterable) if pred is None else filter(pred, iterable)\n                                     ^^^^\nE       NameError: name 'pred' is not defined\n\nmore_itertools/more.py:3696: NameError\n=========================== short test summary info ============================\nFAILED tests/test_more.py::OnlyTests::test_custom_exception - NameError: name...\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 367 passed, 3179 subtests passed in 1.07s\n",
+   "seconds": 1.267604641
+  },
+  "kind": "review",
+  "review": 1,
+  "review_kind": "tests_failed",
+  "seq": 69,
+  "time": 1792414785
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "kind": "rejected",
+  "preflight": true,
+  "review": 1,
+  "seq": 70,
+  "time": 1792414785
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_ebe45d52350e",
+  "changes": [
+   "ch_ebe45d52350e"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 71,
+  "time": 1792414785
+ },
+ {
+  "agents": [
+   "agent-5",
+   "agent-4"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f",
+   "ch_ebe45d52350e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_ebe45d52350e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ]
+    ],
+    "theirs": [
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_ebe45d52350e",
+  "seq": 72,
+  "time": 1792414789
+ },
+ {
+  "agents": [
+   "agent-5",
+   "agent-4"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f",
+   "ch_ebe45d52350e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_ebe45d52350e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      579,
+      580
+     ]
+    ],
+    "theirs": [
+     [
+      579,
+      580
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_ebe45d52350e",
+  "seq": 73,
+  "time": 1792414789
+ },
+ {
+  "agents": [
+   "agent-5",
+   "agent-4"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f",
+   "ch_ebe45d52350e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_ebe45d52350e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      3462,
+      3462
+     ]
+    ],
+    "theirs": [
+     [
+      3462,
+      3462
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_ebe45d52350e",
+  "seq": 74,
+  "time": 1792414789
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 75,
+  "time": 1792414791
+ },
+ {
+  "agents": [
+   "agent-7",
+   "agent-6"
+  ],
+  "change": "ch_0a883cee0379",
+  "changes": [
+   "ch_0a883cee0379",
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_275ac63df5be"
+   },
+   "hunks": {
+    "mine": [
+     [
+      614,
+      615
+     ]
+    ],
+    "theirs": [
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      658,
+      659
+     ],
+     [
+      3690,
+      3691
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_275ac63df5be",
+  "seq": 76,
+  "time": 1792414795
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "6c37fd930f3746330cc07029f43ceddcbc8dd29b58b063dee7546d4560331d5f",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.7,
+  "seq": 77,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_cd3ba1d8b3ad",
+  "changes": [
+   "ch_cd3ba1d8b3ad"
+  ],
+  "changeset": "505b481a2aaff5cb7d88c8a14e380bbe0d23c50291825fe94867be536503dc1b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 78,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_1d4408109a9a",
+  "changes": [
+   "ch_1d4408109a9a"
+  ],
+  "changeset": "2adbe27bf946496a0555297531f2c3ed0203317092826554e73145c8df597689",
+  "kind": "landed",
+  "queue": true,
+  "seq": 79,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_a91326ae28f3",
+  "changes": [
+   "ch_a91326ae28f3"
+  ],
+  "changeset": "6c37fd930f3746330cc07029f43ceddcbc8dd29b58b063dee7546d4560331d5f",
+  "kind": "landed",
+  "queue": true,
+  "seq": 80,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "cause": "queue",
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "tests/test_more.py"
+  ],
+  "seq": 81,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "cause": "queue",
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 82,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "cause": "queue",
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi"
+  ],
+  "seq": 83,
+  "time": 1792414796
+ },
+ {
+  "agents": [
+   "agent-7",
+   "agent-6"
+  ],
+  "change": "ch_0a883cee0379",
+  "changes": [
+   "ch_0a883cee0379",
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ]
+    ],
+    "theirs": [
+     [
+      228,
+      228
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_275ac63df5be",
+  "seq": 84,
+  "time": 1792414798
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_816ce085aa1a",
+  "changes": [
+   "ch_816ce085aa1a"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 85,
+  "time": 1792414799
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_972b68fbfb17",
+  "changes": [
+   "ch_972b68fbfb17"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 86,
+  "time": 1792414799
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-13"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6",
+   "ch_816ce085aa1a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_816ce085aa1a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      280,
+      281
+     ],
+     [
+      289,
+      291
+     ],
+     [
+      293,
+      293
+     ]
+    ],
+    "theirs": [
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_816ce085aa1a",
+  "seq": 87,
+  "time": 1792414800
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-13"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6",
+   "ch_816ce085aa1a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_816ce085aa1a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      194,
+      194
+     ]
+    ],
+    "theirs": [
+     [
+      194,
+      194
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_816ce085aa1a",
+  "seq": 88,
+  "time": 1792414800
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_0a883cee0379",
+  "changes": [
+   "ch_0a883cee0379"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 89,
+  "time": 1792414803
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-13"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6",
+   "ch_816ce085aa1a"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_816ce085aa1a"
+   },
+   "hunks": {
+    "mine": [
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ]
+    ],
+    "theirs": [
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_816ce085aa1a",
+  "seq": 90,
+  "time": 1792414804
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 91,
+  "time": 1792414804
+ },
+ {
+  "agents": [
+   "agent-11",
+   "agent-10"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646",
+   "ch_972b68fbfb17"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_972b68fbfb17"
+   },
+   "hunks": {
+    "mine": [
+     [
+      546,
+      547
+     ],
+     [
+      555,
+      555
+     ]
+    ],
+    "theirs": [
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      559,
+      559
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      564
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_972b68fbfb17",
+  "seq": 92,
+  "time": 1792414807
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "d0b476d6c8089e13a251a50c718306f44219704a99aaefe57884d7e6d71609e7",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.4,
+  "seq": 93,
+  "time": 1792414807
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_ebe45d52350e",
+  "changes": [
+   "ch_ebe45d52350e"
+  ],
+  "changeset": "d0b476d6c8089e13a251a50c718306f44219704a99aaefe57884d7e6d71609e7",
+  "kind": "landed",
+  "queue": true,
+  "seq": 94,
+  "time": 1792414807
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "cause": "queue",
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 95,
+  "time": 1792414807
+ },
+ {
+  "agents": [
+   "agent-16",
+   "agent-17"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478",
+   "ch_b7e17c27968e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_b7e17c27968e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      451,
+      452
+     ],
+     [
+      457,
+      457
+     ]
+    ],
+    "theirs": [
+     [
+      451,
+      452
+     ],
+     [
+      457,
+      457
+     ],
+     [
+      469,
+      470
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_b7e17c27968e",
+  "seq": 96,
+  "time": 1792414808
+ },
+ {
+  "agents": [
+   "agent-11",
+   "agent-10"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646",
+   "ch_972b68fbfb17"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_972b68fbfb17"
+   },
+   "hunks": {
+    "mine": [
+     [
+      213,
+      214
+     ]
+    ],
+    "theirs": [
+     [
+      213,
+      214
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_972b68fbfb17",
+  "seq": 97,
+  "time": 1792414809
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_6598781469bd",
+  "changes": [
+   "ch_6598781469bd"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 98,
+  "time": 1792414809
+ },
+ {
+  "agents": [
+   "agent-11",
+   "agent-10"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646",
+   "ch_972b68fbfb17"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_972b68fbfb17"
+   },
+   "hunks": {
+    "mine": [
+     [
+      6551,
+      6551
+     ]
+    ],
+    "theirs": [
+     [
+      6551,
+      6551
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_972b68fbfb17",
+  "seq": 99,
+  "time": 1792414810
+ },
+ {
+  "agents": [
+   "agent-16",
+   "agent-17"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478",
+   "ch_b7e17c27968e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_b7e17c27968e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      115,
+      116
+     ]
+    ],
+    "theirs": [
+     [
+      115,
+      116
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_b7e17c27968e",
+  "seq": 100,
+  "time": 1792414810
+ },
+ {
+  "agents": [
+   "agent-14",
+   "agent-15"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab",
+   "ch_6598781469bd"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6598781469bd"
+   },
+   "hunks": {
+    "mine": [
+     [
+      1737,
+      1738
+     ],
+     [
+      1764,
+      1764
+     ],
+     [
+      1779,
+      1780
+     ]
+    ],
+    "theirs": [
+     [
+      1737,
+      1738
+     ],
+     [
+      1764,
+      1764
+     ],
+     [
+      1781,
+      1781
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6598781469bd",
+  "seq": 101,
+  "time": 1792414812
+ },
+ {
+  "agents": [
+   "agent-14",
+   "agent-15"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab",
+   "ch_6598781469bd"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6598781469bd"
+   },
+   "hunks": {
+    "mine": [
+     [
+      321,
+      322
+     ]
+    ],
+    "theirs": [
+     [
+      321,
+      322
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6598781469bd",
+  "seq": 102,
+  "time": 1792414812
+ },
+ {
+  "agents": [
+   "agent-16",
+   "agent-17"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478",
+   "ch_b7e17c27968e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_b7e17c27968e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      402,
+      402
+     ]
+    ],
+    "theirs": [
+     [
+      402,
+      402
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_b7e17c27968e",
+  "seq": 103,
+  "time": 1792414812
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 104,
+  "time": 1792414812
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 105,
+  "time": 1792414812
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_b7e17c27968e",
+  "changes": [
+   "ch_b7e17c27968e"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 106,
+  "time": 1792414813
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_98c43bdbff28",
+  "changes": [
+   "ch_98c43bdbff28"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 107,
+  "time": 1792414814
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5",
+   "ch_98c43bdbff28"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_98c43bdbff28"
+   },
+   "hunks": {
+    "mine": [
+     [
+      129,
+      130
+     ]
+    ],
+    "theirs": [
+     [
+      129,
+      130
+     ],
+     [
+      131,
+      132
+     ],
+     [
+      135,
+      137
+     ],
+     [
+      143,
+      143
+     ],
+     [
+      144,
+      145
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_98c43bdbff28",
+  "seq": 108,
+  "time": 1792414817
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "bcba70d4ba999c6d1e11e14fd31c71ae553f17e48e21ac9748b9dbdcd2a66302",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.5,
+  "seq": 109,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_816ce085aa1a",
+  "changes": [
+   "ch_816ce085aa1a"
+  ],
+  "changeset": "e0ec3e401dc4ab6f5d0b4575b8e93e7fb2a48ecf45e930e6687cfc776c955260",
+  "kind": "landed",
+  "queue": true,
+  "seq": 110,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_972b68fbfb17",
+  "changes": [
+   "ch_972b68fbfb17"
+  ],
+  "changeset": "d381a869218c8acbad45eceeea86c379bc12362c70e6b7810588b49308606702",
+  "kind": "landed",
+  "queue": true,
+  "seq": 111,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_0a883cee0379",
+  "changes": [
+   "ch_0a883cee0379"
+  ],
+  "changeset": "bcba70d4ba999c6d1e11e14fd31c71ae553f17e48e21ac9748b9dbdcd2a66302",
+  "kind": "landed",
+  "queue": true,
+  "seq": 112,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "cause": "queue",
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 113,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "cause": "queue",
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 114,
+  "time": 1792414818
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 115,
+  "time": 1792414819
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5",
+   "ch_98c43bdbff28"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_98c43bdbff28"
+   },
+   "hunks": {
+    "mine": [
+     [
+      82,
+      83
+     ]
+    ],
+    "theirs": [
+     [
+      82,
+      83
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_98c43bdbff28",
+  "seq": 116,
+  "time": 1792414820
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5",
+   "ch_98c43bdbff28"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_98c43bdbff28"
+   },
+   "hunks": {
+    "mine": [
+     [
+      71,
+      71
+     ]
+    ],
+    "theirs": [
+     [
+      71,
+      71
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_98c43bdbff28",
+  "seq": 117,
+  "time": 1792414820
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-5"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6",
+   "ch_7ef4b7b75d7f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7ef4b7b75d7f",
+  "seq": 118,
+  "time": 1792414822
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-12"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6",
+   "ch_669edf577be6"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_669edf577be6",
+  "seq": 119,
+  "time": 1792414822
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-11"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6",
+   "ch_6634f9533646"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_6634f9533646",
+  "seq": 120,
+  "time": 1792414822
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 121,
+  "time": 1792414822
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 122,
+  "time": 1792414822
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_3efab516f46f",
+  "changes": [
+   "ch_3efab516f46f"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 123,
+  "time": 1792414827
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_5c4dd8ab4b64",
+  "changes": [
+   "ch_5c4dd8ab4b64"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 124,
+  "time": 1792414828
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "02a0a69c1558b8d33961aa72697e756cd1061ad26c4d817d9f184e5e6d187065",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.3,
+  "seq": 125,
+  "time": 1792414828
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_6598781469bd",
+  "changes": [
+   "ch_6598781469bd"
+  ],
+  "changeset": "223fc67654f5eefe4f34386ab7f2d3fe494ad102573f3be03fa0e7f0ab00541a",
+  "kind": "landed",
+  "queue": true,
+  "seq": 126,
+  "time": 1792414828
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_b7e17c27968e",
+  "changes": [
+   "ch_b7e17c27968e"
+  ],
+  "changeset": "62497470e8456ff7e0c5d4826f27302b44cc3e8f1207574c34f7ca050d876ebf",
+  "kind": "landed",
+  "queue": true,
+  "seq": 127,
+  "time": 1792414828
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_98c43bdbff28",
+  "changes": [
+   "ch_98c43bdbff28"
+  ],
+  "changeset": "02a0a69c1558b8d33961aa72697e756cd1061ad26c4d817d9f184e5e6d187065",
+  "kind": "landed",
+  "queue": true,
+  "seq": 128,
+  "time": 1792414828
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "cause": "queue",
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi"
+  ],
+  "seq": 129,
+  "time": 1792414829
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "cause": "queue",
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "seq": 130,
+  "time": 1792414829
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "cause": "queue",
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "seq": 131,
+  "time": 1792414829
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_6ff89e518eaf",
+  "changes": [
+   "ch_6ff89e518eaf"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 132,
+  "time": 1792414834
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_6b334536616f",
+  "changes": [
+   "ch_6b334536616f"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 133,
+  "time": 1792414837
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c697a3d3340c6198022b76da9367c9072c3a15e04517b0103dbc8eb2c7466ef0",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.3,
+  "seq": 134,
+  "time": 1792414839
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_2a1392f112a6",
+  "changes": [
+   "ch_2a1392f112a6"
+  ],
+  "changeset": "a76204ba4015a15626294dc00387e918a2c21b8c346ab1bb13fbaa7d39e8078e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 135,
+  "time": 1792414839
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_3efab516f46f",
+  "changes": [
+   "ch_3efab516f46f"
+  ],
+  "changeset": "338e93a8b8b59eca8fda331d1b2ce9fb72b66ace47ce290f05d7f897e0b15918",
+  "kind": "landed",
+  "queue": true,
+  "seq": 136,
+  "time": 1792414839
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_5c4dd8ab4b64",
+  "changes": [
+   "ch_5c4dd8ab4b64"
+  ],
+  "changeset": "c697a3d3340c6198022b76da9367c9072c3a15e04517b0103dbc8eb2c7466ef0",
+  "kind": "landed",
+  "queue": true,
+  "seq": 137,
+  "time": 1792414839
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_49d5db602d40",
+  "changes": [
+   "ch_49d5db602d40"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 138,
+  "time": 1792414842
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_aab7d87d1568",
+  "changes": [
+   "ch_aab7d87d1568"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 139,
+  "time": 1792414843
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-9"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_7b168821e10f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      997,
+      998
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7b168821e10f",
+  "seq": 140,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-0"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_d2f83663f2f1"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      181,
+      181
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_d2f83663f2f1",
+  "seq": 141,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-2"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_7076e75fffa7"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      984,
+      985
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7076e75fffa7",
+  "seq": 142,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-2"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_7076e75fffa7"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7076e75fffa7",
+  "seq": 143,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-5"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_7ef4b7b75d7f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7ef4b7b75d7f",
+  "seq": 144,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-12"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_669edf577be6"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_669edf577be6",
+  "seq": 145,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-11"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_6634f9533646"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_6634f9533646",
+  "seq": 146,
+  "time": 1792414846
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-14"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312",
+   "ch_bee18b1d45ab"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_bee18b1d45ab",
+  "seq": 147,
+  "time": 1792414846
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "776f59f566159b12f01491ead35b5e8279adfa3ee505535f1a738cbb8b78da4b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.3,
+  "seq": 148,
+  "time": 1792414849
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_6ff89e518eaf",
+  "changes": [
+   "ch_6ff89e518eaf"
+  ],
+  "changeset": "d48bd1e13f45e06d51684aa3a534a873a8ae2408b94765bfa7db3bf129994c0a",
+  "kind": "landed",
+  "queue": true,
+  "seq": 149,
+  "time": 1792414849
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_6b334536616f",
+  "changes": [
+   "ch_6b334536616f"
+  ],
+  "changeset": "776f59f566159b12f01491ead35b5e8279adfa3ee505535f1a738cbb8b78da4b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 150,
+  "time": 1792414849
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_cfbe2f6c4f94",
+  "changes": [
+   "ch_cfbe2f6c4f94"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 151,
+  "time": 1792414850
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_30ed06ebc38d",
+  "changes": [
+   "ch_30ed06ebc38d"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 152,
+  "time": 1792414852
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_190ec01d5a0f",
+  "changes": [
+   "ch_190ec01d5a0f"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 153,
+  "time": 1792414852
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_9af1fe8a2cdc",
+  "changes": [
+   "ch_9af1fe8a2cdc"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 154,
+  "time": 1792414852
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 155,
+  "time": 1792414855
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_09a30a19924f",
+  "changes": [
+   "ch_09a30a19924f"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 156,
+  "time": 1792414857
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_d7ca087c00f4",
+  "changes": [
+   "ch_d7ca087c00f4"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 157,
+  "time": 1792414859
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "4cd7998afbb5e344347bd1d82c159fa0e55c433e433de8b7f826e105a7cbf9db",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 12.5,
+  "seq": 158,
+  "time": 1792414862
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_49d5db602d40",
+  "changes": [
+   "ch_49d5db602d40"
+  ],
+  "changeset": "0fe0c7333135ccbdaac005ab3485fe21b8e50907f2dd18215a0f2d4c792ff689",
+  "kind": "landed",
+  "queue": true,
+  "seq": 159,
+  "time": 1792414862
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_aab7d87d1568",
+  "changes": [
+   "ch_aab7d87d1568"
+  ],
+  "changeset": "4cd7998afbb5e344347bd1d82c159fa0e55c433e433de8b7f826e105a7cbf9db",
+  "kind": "landed",
+  "queue": true,
+  "seq": 160,
+  "time": 1792414862
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "af80e439fda5e13fb2f8b738eddbb5b25f56c1f3b7bd243d55fcd41d36857dff",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.8,
+  "seq": 161,
+  "time": 1792414864
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_cae629dd3ebb",
+  "changes": [
+   "ch_cae629dd3ebb"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 162,
+  "time": 1792414864
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_dbeee20ed051",
+  "changes": [
+   "ch_dbeee20ed051"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 163,
+  "time": 1792414866
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_35055cb5c590",
+  "changes": [
+   "ch_35055cb5c590"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 164,
+  "time": 1792414866
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_87d5ee77c6a0",
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "kind": "queued",
+  "position": 11,
+  "seq": 165,
+  "time": 1792414874
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_190ec01d5a0f",
+  "changes": [
+   "ch_190ec01d5a0f"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 166,
+  "time": 1792414875
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "dd9c933e801db9614b92ca0eadee7083f5485fbeb766a574d1dccdbf0be40a8c",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.9,
+  "seq": 167,
+  "time": 1792414875
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_f52a2f51ae91",
+  "changes": [
+   "ch_f52a2f51ae91"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 168,
+  "time": 1792414875
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "dcd3dfe7b6b3a628710dfe4a98ac6f4e94f96325123068f08908190c5ce9fccb",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.1,
+  "seq": 169,
+  "time": 1792414875
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_da8e53943aff",
+  "changes": [
+   "ch_da8e53943aff"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 170,
+  "time": 1792414877
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "3aa8769c03d1efc89b8028c23f8ee6251aebc65bfa843bb6a2d866d7872bf47d",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.9,
+  "seq": 171,
+  "time": 1792414877
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_ccdfe32aabcc",
+  "changes": [
+   "ch_ccdfe32aabcc"
+  ],
+  "kind": "queued",
+  "position": 14,
+  "seq": 172,
+  "time": 1792414884
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "4759d9146424e9655a16dd9cc13af88164d0e0f882845b653b89af163aa9b379",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.1,
+  "seq": 173,
+  "time": 1792414886
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_d1f3fca78e3f",
+  "changes": [
+   "ch_d1f3fca78e3f"
+  ],
+  "kind": "queued",
+  "position": 15,
+  "seq": 174,
+  "time": 1792414888
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_e5b51b17e935",
+  "changes": [
+   "ch_e5b51b17e935"
+  ],
+  "kind": "queued",
+  "position": 16,
+  "seq": 175,
+  "time": 1792414888
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-9"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_7b168821e10f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5379
+     ],
+     [
+      5380,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7b168821e10f",
+  "seq": 176,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-0"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_d2f83663f2f1"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      227,
+      228
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_d2f83663f2f1",
+  "seq": 177,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-2"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_7076e75fffa7"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      984,
+      985
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7076e75fffa7",
+  "seq": 178,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-5"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_7ef4b7b75d7f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      2631,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_7ef4b7b75d7f",
+  "seq": 179,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-12"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_669edf577be6"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      289,
+      289
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      293,
+      293
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      559,
+      559
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      564
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_669edf577be6",
+  "seq": 180,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-11"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_6634f9533646"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      555,
+      555
+     ],
+     [
+      559,
+      559
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      564
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_6634f9533646",
+  "seq": 181,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-14"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386",
+   "ch_bee18b1d45ab"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5413
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      246,
+      247
+     ],
+     [
+      249,
+      249
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      559,
+      559
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      564
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1764,
+      1764
+     ],
+     [
+      1779,
+      1780
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_bee18b1d45ab",
+  "seq": 182,
+  "time": 1792414890
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386"
+  ],
+  "kind": "queued",
+  "position": 17,
+  "seq": 183,
+  "time": 1792414891
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_2268786d2a24",
+  "changes": [
+   "ch_2268786d2a24"
+  ],
+  "kind": "queued",
+  "position": 18,
+  "seq": 184,
+  "time": 1792414892
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1b1c962348d865b1633fe2314c8c60ff6b90853be39aec7950da0e15ff74845b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.7,
+  "seq": 185,
+  "time": 1792414897
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "50f84c17200aca40e19317b906b9fd5ef0e0a8b3e391de445b9ba3bfa0bb62ed",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.8,
+  "seq": 186,
+  "time": 1792414897
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_199eaf6db43b",
+  "changes": [
+   "ch_199eaf6db43b"
+  ],
+  "kind": "queued",
+  "position": 19,
+  "seq": 187,
+  "time": 1792414898
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_882061cb38d5",
+  "changes": [
+   "ch_882061cb38d5"
+  ],
+  "kind": "queued",
+  "position": 20,
+  "seq": 188,
+  "time": 1792414899
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_ab1fae085afd",
+  "changes": [
+   "ch_ab1fae085afd"
+  ],
+  "kind": "queued",
+  "position": 21,
+  "seq": 189,
+  "time": 1792414901
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_fdd164e477bd",
+  "changes": [
+   "ch_fdd164e477bd"
+  ],
+  "kind": "queued",
+  "position": 22,
+  "seq": 190,
+  "time": 1792414902
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_a7279f0bbd0c",
+  "changes": [
+   "ch_a7279f0bbd0c"
+  ],
+  "kind": "queued",
+  "position": 23,
+  "seq": 191,
+  "time": 1792414905
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "75a245a364e361005c951c09e56c8a2680c777fdc69979190daae7a5ccd33ee1",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 192,
+  "time": 1792414907
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "220346afe3710eb3e0fe0614289364e7c2baa2f50fc80a01ce23ff471b7a28c8",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 38.8,
+  "seq": 193,
+  "time": 1792414946
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "fecb4455fcb0a60456e8f9cf7b81879040f1610988aab1ff740e2a5c14388326",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 40.7,
+  "seq": 194,
+  "time": 1792414948
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c9e3c8e5d66e5fc8e78bbb16d51f44cf9c70fd5017c113942c39eddfd3dd3279",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.7,
+  "seq": 195,
+  "time": 1792414950
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "843c20bb684b5a81dbd88d2b39fe6b57c20ba669f3e7c62f16e93e469b30711f",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.8,
+  "seq": 196,
+  "time": 1792414950
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "fb675166ef24489dfacf7888b41a4540911bbb67b5a0eb1089badc98f4e98590",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.8,
+  "seq": 197,
+  "time": 1792414952
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "ede6e9f0fc4f92b30801debd3220f8347a25da14ba0d140ea86ed7b13d9ceb5e",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.9,
+  "seq": 198,
+  "time": 1792414952
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c071883a103bf9f716307eaf09a84550f7b3af36da0da0c091c7ef37a52857f8",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.0,
+  "seq": 199,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_cfbe2f6c4f94",
+  "changes": [
+   "ch_cfbe2f6c4f94"
+  ],
+  "changeset": "ca0ea303c106c232ed15684a791d83ff9e99fd83d8cea2f34e31a17b6cbcc8fb",
+  "kind": "landed",
+  "queue": true,
+  "seq": 200,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_30ed06ebc38d",
+  "changes": [
+   "ch_30ed06ebc38d"
+  ],
+  "changeset": "0325ae14f67a84ebf5259e2ace8d77f743595c14ac9b587801c4533c8503539e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 201,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_190ec01d5a0f",
+  "changes": [
+   "ch_190ec01d5a0f"
+  ],
+  "changeset": "3ecd0afd4342eecf7bca8c1ed5d13f3ad36e9f84cf8b09d6f67c39f774aa5f85",
+  "kind": "landed",
+  "queue": true,
+  "seq": 202,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_9af1fe8a2cdc",
+  "changes": [
+   "ch_9af1fe8a2cdc"
+  ],
+  "changeset": "726c5f91a0969d9f184f83b57fde47f2b601a26ff940cffb5f5fa24e8caf8d58",
+  "kind": "landed",
+  "queue": true,
+  "seq": 203,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_2cfa66838312",
+  "changes": [
+   "ch_2cfa66838312"
+  ],
+  "changeset": "9958c98b8874208a5a56d18d03e499331fc44507278e13df9b3f3704148d36bd",
+  "kind": "landed",
+  "queue": true,
+  "seq": 204,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_09a30a19924f",
+  "changes": [
+   "ch_09a30a19924f"
+  ],
+  "changeset": "4df363ce8bc5d62347f139c16e168c7463d7ad80c2ddd12f315407c5215aac7b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 205,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_d7ca087c00f4",
+  "changes": [
+   "ch_d7ca087c00f4"
+  ],
+  "changeset": "ac7770a91d040a3aac34240ffa4e815b8a10666d1810602e533d043f3b443165",
+  "kind": "landed",
+  "queue": true,
+  "seq": 206,
+  "time": 1792414962
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_cae629dd3ebb",
+  "changes": [
+   "ch_cae629dd3ebb"
+  ],
+  "changeset": "c071883a103bf9f716307eaf09a84550f7b3af36da0da0c091c7ef37a52857f8",
+  "kind": "landed",
+  "queue": true,
+  "seq": 207,
+  "time": 1792414962
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "a5b107e6e683055d40635f03b3c2a6249406ef0299e2a87aff773e76aa109017",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 0.9,
+  "seq": 208,
+  "time": 1792414963
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "9d79b655bf68db765ae265f4176720dec44858813d77b24cf7809df9eaf27a05",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.0,
+  "seq": 209,
+  "time": 1792414973
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "0b25ba9e0ac393249515ae45993906b305d4ba18dde2a8da074181a2a1f3200b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.7,
+  "seq": 210,
+  "time": 1792414975
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "dbe7f6661335359aaa2893af31648776b59883944e7c45a8c6d979afc12499b5",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 0.8,
+  "seq": 211,
+  "time": 1792414976
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "bf247e641ea02f1d3582dc0715f25f05aaf7946886ebd09627e91659b6772a31",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 35.4,
+  "seq": 212,
+  "time": 1792415011
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "a66a8a5202b2507c0f867f5b37704a2a095370ebcc614eee82a4c62ed8cd4662",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 213,
+  "time": 1792415021
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "72b80a3ccae1099afe16032f5a213e82c59d3d682eb9a4f016cd2b4a64e2780f",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 14.8,
+  "seq": 214,
+  "time": 1792415025
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c2e9c82c9029a520d25c96356edb1f185798f5889261d96d725c78a9e7f73d2b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 18.8,
+  "seq": 215,
+  "time": 1792415044
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1f084e84d20d6a442da199055f2ed70f23e6d3419460cf3a819765c6c0eddf99",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 27.4,
+  "seq": 216,
+  "time": 1792415053
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "detail": {
+   "output": ".................................................................F\n=================================== FAILURES ===================================\n_____________________________ OneTests.test_basic ______________________________\n\nself = <tests.test_more.OneTests testMethod=test_basic>\n\n    def test_basic(self):\n        it = iter(['item'])\n>       self.assertEqual(mi.one(it), 'item')\n                         ^^^^^^^^^^\n\ntests/test_more.py:815: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\niterable = <list_iterator object at 0x7fa420250040>, too_short = None\ntoo_long = None, default = <object object at 0x7fa4215817a0>\n\n    def one(iterable, too_short=None, too_long=None, *, default=_marker):\n        \"\"\"Return the first item from *iterable*, which is expected to contain only\n        that item. Raise an exception if *iterable* is empty or has more than one\n        item.\n    \n        :func:`one` is useful for ensuring that an iterable contains only one item.\n        For example, it can be used to retrieve the result of a database query\n        that is expected to return a single row.\n    \n        If *iterable* is empty, ``ValueError`` will be raised. You may specify a\n        different exception with the *too_short* keyword:\n    \n            >>> it = []\n            >>> one(it)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            ValueError: too few items in iterable (expected 1)'\n            >>> too_short = IndexError('too few items')\n            >>> one(it, too_short=too_short)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            IndexError: too few items\n    \n        Similarly, if *iterable* contains more than one item, ``ValueError`` will\n        be raised. You may specify a different exception with the *too_long*\n        keyword:\n    \n            >>> it = ['too', 'many']\n            >>> one(it)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            ValueError: Expected exactly one item in iterable, but got 'too',\n            'many', and perhaps more.\n            >>> too_long = RuntimeError\n            >>> one(it, too_long=too_long)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            RuntimeError\n    \n        If *default* is given, it is returned when *iterable* is empty instead of\n        raising an exception. Too many items still raise:\n    \n            >>> one([], default=None) is None\n            True\n            >>> one([7], default=0)\n            7\n    \n        Note that :func:`one` attempts to advance *iterable* twice to ensure there\n        is only one item. See :func:`spy` or :func:`peekable` to check iterable\n        contents less destructively.\n    \n        \"\"\"\n>       iterator = iter(iterable) if pred is None else filter(pred, iterable)\n                                     ^^^^\nE       NameError: name 'pred' is not defined\n\nmore_itertools/more.py:704: NameError\n=========================== short test summary info ============================\nFAILED tests/test_more.py::OneTests::test_basic - NameError: name 'pred' is n...\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 65 passed, 1164 subtests passed in 0.60s\n",
+   "seconds": 0.784942731
+  },
+  "kind": "review",
+  "review": 2,
+  "review_kind": "tests_failed",
+  "seq": 217,
+  "time": 1792415053
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_87d5ee77c6a0",
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "kind": "rejected",
+  "preflight": true,
+  "review": 2,
+  "seq": 218,
+  "time": 1792415053
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "a9d1b7bed943ca717bf77007178a1fb06a2a26b509371cc280d43aa93b69bd13",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.7,
+  "seq": 219,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_dbeee20ed051",
+  "changes": [
+   "ch_dbeee20ed051"
+  ],
+  "changeset": "db1de54bd0718ebd699fa39dc7228ae02df6ab990dc63f81653b6853fc9bb8ec",
+  "kind": "landed",
+  "queue": true,
+  "seq": 220,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_35055cb5c590",
+  "changes": [
+   "ch_35055cb5c590"
+  ],
+  "changeset": "7ef13829c6f579337a502c699f27bbd7f6a99184bbaef2de21f55861dcd8346e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 221,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_f52a2f51ae91",
+  "changes": [
+   "ch_f52a2f51ae91"
+  ],
+  "changeset": "92d300dfb92334248ff4dda159692b423b70ed7a1ae2065d854464352e9d0c30",
+  "kind": "landed",
+  "queue": true,
+  "seq": 222,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_da8e53943aff",
+  "changes": [
+   "ch_da8e53943aff"
+  ],
+  "changeset": "8e06d38bdedfd2944820b628389e5b64e0ee75749784179996348c312a85b4a0",
+  "kind": "landed",
+  "queue": true,
+  "seq": 223,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_ccdfe32aabcc",
+  "changes": [
+   "ch_ccdfe32aabcc"
+  ],
+  "changeset": "a524a412e86bbb28466e76ad2ce6cbcb95ccb291f9ababa61df716b6906d8f35",
+  "kind": "landed",
+  "queue": true,
+  "seq": 224,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_d1f3fca78e3f",
+  "changes": [
+   "ch_d1f3fca78e3f"
+  ],
+  "changeset": "921c9cdf14d6aebaa360b9da07e0ee7afb9c80c7f4ee9de5fe591504dd42b88e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 225,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_e5b51b17e935",
+  "changes": [
+   "ch_e5b51b17e935"
+  ],
+  "changeset": "1647488a6dda0f13bfad96647429d931e0c4224295af1fe176efe76c813df713",
+  "kind": "landed",
+  "queue": true,
+  "seq": 226,
+  "time": 1792415065
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_03c81de18386",
+  "changes": [
+   "ch_03c81de18386"
+  ],
+  "changeset": "a9d1b7bed943ca717bf77007178a1fb06a2a26b509371cc280d43aa93b69bd13",
+  "kind": "landed",
+  "queue": true,
+  "seq": 227,
+  "time": 1792415065
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "95cdf91f8fcd8e14a7fcd1cf3e08d97aa1cf0ebeb52b970f7bb331f1b3d6a075",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 79.6,
+  "seq": 228,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_2268786d2a24",
+  "changes": [
+   "ch_2268786d2a24"
+  ],
+  "changeset": "cfd1f62c88108407d942c8bc1c42bfeb447cff7379d2eb51208e339ae359cbbe",
+  "kind": "landed",
+  "queue": true,
+  "seq": 229,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_199eaf6db43b",
+  "changes": [
+   "ch_199eaf6db43b"
+  ],
+  "changeset": "f1d3fe75e0eb9240d062d416fd46365654815a34d014d9297ae4ad15bc748e7b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 230,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_882061cb38d5",
+  "changes": [
+   "ch_882061cb38d5"
+  ],
+  "changeset": "5e5f2f8b830a447adff5b855ab874e0ad78fc185e79887782e5b1194bec6576d",
+  "kind": "landed",
+  "queue": true,
+  "seq": 231,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_ab1fae085afd",
+  "changes": [
+   "ch_ab1fae085afd"
+  ],
+  "changeset": "efb4ffd93b293f90104f9fd0a9d25308f53ee956744bfc94d0bf89d04129d514",
+  "kind": "landed",
+  "queue": true,
+  "seq": 232,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_fdd164e477bd",
+  "changes": [
+   "ch_fdd164e477bd"
+  ],
+  "changeset": "adaff1012f0a736ac69117217dcc8ee9bbc81db350fd429296710f62fb194593",
+  "kind": "landed",
+  "queue": true,
+  "seq": 233,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_a7279f0bbd0c",
+  "changes": [
+   "ch_a7279f0bbd0c"
+  ],
+  "changeset": "95cdf91f8fcd8e14a7fcd1cf3e08d97aa1cf0ebeb52b970f7bb331f1b3d6a075",
+  "kind": "landed",
+  "queue": true,
+  "seq": 234,
+  "time": 1792415145
+ },
+ {
+  "agents": [
+   "agent-11",
+   "agent-6"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646",
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ],
+    "theirs": [
+     [
+      228,
+      228
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_275ac63df5be",
+  "seq": 235,
+  "time": 1792415151
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-6"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6",
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ],
+    "theirs": [
+     [
+      228,
+      228
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_275ac63df5be",
+  "seq": 236,
+  "time": 1792415153
+ },
+ {
+  "agents": [
+   "agent-14",
+   "agent-6"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab",
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ],
+    "theirs": [
+     [
+      228,
+      228
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_275ac63df5be",
+  "seq": 237,
+  "time": 1792415153
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 238,
+  "time": 1792415164
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5"
+  ],
+  "kind": "queued",
+  "position": 2,
+  "seq": 239,
+  "time": 1792415164
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 240,
+  "time": 1792415171
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 241,
+  "time": 1792415172
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 242,
+  "time": 1792415174
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "0a140ff21afafdc6fc479cce72edef95700d991f0c8f08d5b97b4b222b7a3535",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.5,
+  "seq": 243,
+  "time": 1792415175
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_7b168821e10f",
+  "changes": [
+   "ch_7b168821e10f"
+  ],
+  "changeset": "b11b1aaf07974211d734f8834883ce542782fb29c4e82e7efbc101323605d8bf",
+  "kind": "landed",
+  "queue": true,
+  "seq": 244,
+  "time": 1792415175
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_d75f3c0834d5",
+  "changes": [
+   "ch_d75f3c0834d5"
+  ],
+  "changeset": "0a140ff21afafdc6fc479cce72edef95700d991f0c8f08d5b97b4b222b7a3535",
+  "kind": "landed",
+  "queue": true,
+  "seq": 245,
+  "time": 1792415175
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "file": {
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "you_conflict_with_main"
+  },
+  "kind": "collision",
+  "other": "main",
+  "seq": 246,
+  "time": 1792415177
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 247,
+  "time": 1792415177
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 248,
+  "time": 1792415182
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 249,
+  "time": 1792415183
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 250,
+  "time": 1792415186
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "e69b4ff01bd19997b9a3e8d808caf99e37feb48836a806f9a544ed0c3c309434",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 14.5,
+  "seq": 251,
+  "time": 1792415190
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_7758c34bb478",
+  "changes": [
+   "ch_7758c34bb478"
+  ],
+  "changeset": "9460a64c42f491f730d03f7b22cd6a7054fb3ab192f0c7f5e26b7bc936ad920e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 252,
+  "time": 1792415190
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_6634f9533646",
+  "changes": [
+   "ch_6634f9533646"
+  ],
+  "changeset": "12d29b60ec66765426d0a14e1e795aef9020274e53db5aed78f7be3b119ef0a9",
+  "kind": "landed",
+  "queue": true,
+  "seq": 253,
+  "time": 1792415190
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_669edf577be6",
+  "changes": [
+   "ch_669edf577be6"
+  ],
+  "changeset": "e69b4ff01bd19997b9a3e8d808caf99e37feb48836a806f9a544ed0c3c309434",
+  "kind": "landed",
+  "queue": true,
+  "seq": 254,
+  "time": 1792415190
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 255,
+  "time": 1792415191
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "fa32ffefe40e152181eae240a715d38f7914c2fa76eb5179ed6520d3706e3a89",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 33.2,
+  "seq": 256,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_d2f83663f2f1",
+  "changes": [
+   "ch_d2f83663f2f1"
+  ],
+  "changeset": "000afa7ccc5fe8988b750fc2e9d07a7e642df08727c5675bec983cd0cf180cdc",
+  "kind": "landed",
+  "queue": true,
+  "seq": 257,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_7ef4b7b75d7f",
+  "changes": [
+   "ch_7ef4b7b75d7f"
+  ],
+  "changeset": "fe1c967726a3b216038d4af667b17023d30e8be88b090a44cc7cd044cab48230",
+  "kind": "landed",
+  "queue": true,
+  "seq": 258,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_7076e75fffa7",
+  "changes": [
+   "ch_7076e75fffa7"
+  ],
+  "changeset": "67c2d30ba4e62784249a8c28b74e63298bf10add2382979da3a6a7617917452b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 259,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_bee18b1d45ab",
+  "changes": [
+   "ch_bee18b1d45ab"
+  ],
+  "changeset": "fa32ffefe40e152181eae240a715d38f7914c2fa76eb5179ed6520d3706e3a89",
+  "kind": "landed",
+  "queue": true,
+  "seq": 260,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "cause": "queue",
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py"
+  ],
+  "seq": 261,
+  "time": 1792415223
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_87d5ee77c6a0",
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 262,
+  "time": 1792415226
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "f18b0877d0852c4db97c59a6180cc240a73fcd32a8701ee6d6b1b3e67ec4cb4a",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 9.8,
+  "seq": 263,
+  "time": 1792415236
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_87d5ee77c6a0",
+  "changes": [
+   "ch_87d5ee77c6a0"
+  ],
+  "changeset": "f18b0877d0852c4db97c59a6180cc240a73fcd32a8701ee6d6b1b3e67ec4cb4a",
+  "kind": "landed",
+  "queue": true,
+  "seq": 264,
+  "time": 1792415236
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 265,
+  "time": 1792415348
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "5f724b2d41f3e2add432f4d010c76d09a9ba92652c6bb590d0136e2cbccde1c3",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 18.0,
+  "seq": 266,
+  "time": 1792415366
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_275ac63df5be",
+  "changes": [
+   "ch_275ac63df5be"
+  ],
+  "changeset": "5f724b2d41f3e2add432f4d010c76d09a9ba92652c6bb590d0136e2cbccde1c3",
+  "kind": "landed",
+  "queue": true,
+  "seq": 267,
+  "time": 1792415366
+ }
+]
