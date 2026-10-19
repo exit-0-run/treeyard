@@ -34,3 +34,9 @@ so does the repo's suite; on the base none pass. Note that more-itertools' `.git
 `more_itertools/more.py merge=union`, so the git arm's rebase never stops on a conflict in `more.py` (it keeps
 both sides, and the queue's tests catch a broken result); TreeYard does not read `.gitattributes` yet and
 reports those conflicts.
+
+`DEMO_LAND_AND_GO=1` (TreeYard arm): agents land with `--wait-s 0` and stop instead of waiting for the
+server's tests. When the tests reject or revert a change (or it is left unlanded after a conflict found in
+the queue), the runner resumes that agent's own session (`claude -p --resume`) with the verdict and the test
+output, up to 3 rounds; the arm's time runs until every change has passed. Locally (6 tasks = the first 3
+pairs, queue mode): git 108.2 s, TreeYard 104.3 s, both 9/9 hidden checks; one fix-up round of 3 agents.

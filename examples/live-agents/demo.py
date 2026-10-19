@@ -8,7 +8,8 @@ DEMO_SET=hard: 4 pairs of feature requests, two agents per function).
 
 Env: DEMO_DIR (work dir, default ~/.cache/treeyard-live-agents), TREEYARD_BIN, DEMO_MODEL (sonnet),
 DEMO_N (use the first N tasks), DEMO_POOL (at most this many claude -p at once; default all),
-DEMO_LANDING (TreeYard landing mode: optimistic, the default, or queue: batches of 8 tested before they land).
+DEMO_LANDING (TreeYard landing mode: optimistic, the default, or queue: batches of 8 tested before they land),
+DEMO_LAND_AND_GO=1 (TreeYard agents do not wait for the tests; a rejected or reverted change resumes its agent).
 Needs the `claude` CLI (Claude Code); each run starts 8 `claude -p` sessions.
 
 Same model, tasks and task text in both arms; only the way work reaches master differs.
@@ -138,6 +139,33 @@ agent's change, "red_change", which that agent is fixing). If the verdict is "op
 `treeyard workspace land {ws}` again: it shows a conflict found while your change waited to land.
 """
 
+# Land and go (DEMO_LAND_AND_GO=1, TreeYard arm): the agent lands without waiting for the server's tests;
+# when they reject or revert the change later, the runner resumes that agent's session with the output
+# (like a CI notification). The run ends when every change has passed.
+LAND_AND_GO = os.environ.get("DEMO_LAND_AND_GO") == "1"
+TY_GO = """This directory is a TreeYard workspace: every file you save is sent to the TreeYard server
+automatically, and other agents' work is visible to the server. If the file `.treeyard/collisions.json`
+exists, it lists real conflicts with other agents' open changes and the reason; `treeyard workspace status
+{ws}` asks the server again. If another agent's change conflicts with yours, read it with
+`treeyard call diff '{{"change": "<their change id>"}}'` and make your edit fit with theirs.
+When the tests pass, run `treeyard workspace land {ws} --wait-s 0`. If the reply's land status is
+"conflict", the conflicted files in this directory now hold conflict markers plus the work other agents
+already landed: resolve the markers (keep both sides' intent), run the tests, and land again. You are done
+when the land status is "landed", "queued" or "already_on_main": the server runs the full test suite on its
+own, and if your change fails it you will be told, with the output.
+"""
+FIXUP = """The TreeYard server's full test suite did not pass your change: the verdict is "{verdict}".
+Test output (the end):
+{output}
+Fix your work in this directory (the workspace carries on by itself), run the tests, and run
+`treeyard workspace land {ws} --wait-s 0` again; handle a "conflict" as before. You are done when the
+land status is "landed", "queued" or "already_on_main".
+"""
+NOT_LANDED = """Your change is not landed yet. Finish it, run the tests, and run `treeyard workspace land {ws}
+--wait-s 0`; handle a "conflict" as before. You are done when the land status is "landed", "queued" or
+"already_on_main".
+"""
+
 ALLOWED = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git:*)", "Bash(python3:*)", f"Bash({PY}:*)",
            "Bash(treeyard:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(grep:*)", "Bash(sed:*)", "Bash(head:*)",
            "Bash(tail:*)", "Bash(wc:*)", "Bash(diff:*)"]
@@ -147,23 +175,29 @@ def sh(cmd, **kw):
     return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
 
 
-def run_agents(arm, dirs, prompts, env):
+def run_agents(arm, dirs, prompts, env, only=None, resume=None, tag=""):
+    """Runs agents `only` (default all), POOL at a time; `resume` maps an agent to the claude session to
+    continue. Output: agents/<set>-<arm><tag>-<n>.json."""
     os.makedirs(os.path.join(D, "agents"), exist_ok=True)
     procs = []
     t0 = time.time()
+    only = list(range(len(dirs))) if only is None else only
+    resume = resume or {}
 
     def start(i):
-        out = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.json"), "w")
-        err = open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.err"), "w")
+        out = open(os.path.join(D, "agents", f"{SET}-{arm}{tag}-{i}.json"), "w")
+        err = open(os.path.join(D, "agents", f"{SET}-{arm}{tag}-{i}.err"), "w")
         cmd = ["claude", "-p", prompts[i], "--output-format", "json", "--model", MODEL, "--max-turns", "80",
                "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED,
                "--mcp-config", '{"mcpServers":{}}', "--strict-mcp-config"]
+        if i in resume:
+            cmd += ["--resume", resume[i]]
         # A land can wait minutes in a long queue: let the agent's shell wait for it (both arms).
         e = {**env[i], "BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "3600000"}
-        procs.append((i, subprocess.Popen(cmd, cwd=dirs[i], env=e, stdout=out, stderr=err), time.time()))
+        procs.append((i, subprocess.Popen(cmd, cwd=dirs[i], env=e, stdin=subprocess.DEVNULL, stdout=out, stderr=err), time.time()))
 
-    ends, waiting = {}, list(range(len(dirs)))
-    while len(ends) < len(dirs):
+    ends, waiting = {}, list(only)
+    while len(ends) < len(only):
         while waiting and len(procs) - len(ends) < POOL:  # a pool: start the next agent when one exits
             start(waiting.pop(0))
         for i, p, started in procs:
@@ -177,10 +211,11 @@ def run_agents(arm, dirs, prompts, env):
     agents = []
     for i, p, _ in procs:
         try:
-            r = json.load(open(os.path.join(D, "agents", f"{SET}-{arm}-{i}.json")))
+            r = json.load(open(os.path.join(D, "agents", f"{SET}-{arm}{tag}-{i}.json")))
         except Exception:
             r = {}
-        agents.append({"task": TASKS[i][0], "exit": p.returncode, "wall_s": round(ends[i], 1),
+        agents.append({"task": TASKS[i][0], "index": i, "session": r.get("session_id"), "exit": p.returncode,
+                       "wall_s": round(ends[i], 1),
                        "turns": r.get("num_turns"), "cost_usd": r.get("total_cost_usd"),
                        "duration_ms": r.get("duration_ms"), "is_error": r.get("is_error"),
                        "last": (r.get("result") or "")[-400:]})
@@ -276,9 +311,47 @@ def arm_treeyard():
         w = json.loads(open(os.path.join(home, "meta", f"{ws}.json")).read())
         dirs.append(w["dir"])
         envs.append({**env, "TREEYARD_WORKSPACE": ws, "TREEYARD_AGENT": ws})
-        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY, where=WHERE) + TY_FINISH.format(ws=ws, change=w["change"]))
+        finish = TY_GO.format(ws=ws) if LAND_AND_GO else TY_FINISH.format(ws=ws, change=w["change"])
+        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY, where=WHERE) + finish)
     setup_s = round(time.time() - t0, 2)
+    t_agents = time.time()
     agents, wall = run_agents("treeyard", dirs, prompts, envs)
+    rounds = []
+    if LAND_AND_GO:
+        def verdicts():
+            out = {}
+            for i in range(len(TASKS)):
+                ch = json.loads(open(os.path.join(home, "meta", f"agent-{i}.json")).read())["change"]
+                out[i] = call("land_status", {"change": ch})
+            return out
+
+        sessions = {a["index"]: a["session"] for a in agents if a.get("session")}
+        for rnd in range(1, 4):
+            t_s = time.time()
+            while time.time() - t_s < 900:  # the server's tests of every landed or queued change
+                v = verdicts()
+                if not any(x["verdict"] in ("pending", "queued") for x in v.values()):
+                    break
+                time.sleep(3)
+            bad = [i for i, x in v.items() if x["verdict"] not in ("passed", "main_red", "not_tested")]
+            rounds.append({"round": rnd, "settle_s": round(time.time() - t_s, 1),
+                           "fixups": {TASKS[i][0]: v[i]["verdict"] for i in bad}})
+            if not bad:
+                break
+            fix = list(prompts)
+            for i in bad:
+                if v[i]["verdict"] == "open":
+                    fix[i] = NOT_LANDED.format(ws=f"agent-{i}")
+                else:
+                    fix[i] = FIXUP.format(verdict=v[i]["verdict"], output=str(v[i].get("output") or "")[-3000:],
+                                          ws=f"agent-{i}")
+            more, _ = run_agents("treeyard", dirs, fix, envs, only=bad,
+                                 resume={i: sessions[i] for i in bad if i in sessions}, tag=f"-fix{rnd}")
+            for a in more:
+                a["round"] = rnd
+                sessions[a["index"]] = a.get("session") or sessions.get(a["index"])
+            agents += more
+        wall = round(time.time() - t_agents, 1)  # until every change passed: comparable with the git arm
     # Optimistic landing tests main after the lands: wait for the worker to settle.
     t_wait = time.time()
     while time.time() - t_wait < 600:
@@ -297,7 +370,8 @@ def arm_treeyard():
     ev = call("events", {"limit": 5000})["events"]
     final_dir = os.path.join(T, "final")
     sh(["git", "clone", "-q", f"{URL}/git", final_dir])
-    result = {"arm": f"TreeYard workspaces + {LANDING} landing", "setup_s": setup_s, "agents_wall_s": wall,
+    result = {"arm": f"TreeYard workspaces + {LANDING} landing" + (", land and go" if LAND_AND_GO else ""),
+              "setup_s": setup_s, "agents_wall_s": wall, "fixup_rounds": rounds,
               "settle_after_agents_s": settle_s, "agents": agents,
               "events": {k: sum(e["kind"] == k for e in ev) for k in sorted({e["kind"] for e in ev})},
               "collision_pairs_warned": len({tuple(sorted(e.get("changes", []))) for e in ev if e["kind"] == "collision"}),
