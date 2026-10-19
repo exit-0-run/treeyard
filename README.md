@@ -6,7 +6,7 @@
 
 <p align="center">
   <img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-2f6b45">
-  <img alt="Version 0.1.1" src="https://img.shields.io/badge/version-0.1.1-2f6b45">
+  <img alt="Version 0.1.2" src="https://img.shields.io/badge/version-0.1.2-2f6b45">
   <img alt="Rust 2024" src="https://img.shields.io/badge/rust-2024_edition-b7410e?logo=rust&logoColor=white">
   <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platform-macOS_%7C_Linux-4a5560">
   <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5b4fc4">

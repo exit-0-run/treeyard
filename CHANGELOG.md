@@ -5,6 +5,29 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-19
+
+Found by runs with 50 real Claude Code agents (docs/benchmarks.md, "50 agents, wide set").
+
+### Fixed
+- Optimistic landing: a culprit whose revert conflicts no longer keeps every later verdict `pending`. It
+  stays on main as `red`, its owner gets `broke_main` and fixes forward, later changes get `main_red` at
+  once, and a red main costs one test per step.
+
+### Changed
+- Queue mode tests a batch first. When the batch fails, it tests each change alone on main, side by side
+  (`landing.parallel`, default half the cores, at most 4), and sends the failing ones back, so one broken
+  change no longer holds up its batch.
+- Landing tests run in one kept directory per parallel slot (`landing.warm`, default on). Only changed files
+  are written, so `target/` and `node_modules` stay warm between test runs.
+
+### Added
+- A `test_run` event for every landing test, with its seconds.
+- `bench/landbench.sh` and `src/bin/landbench.rs`: a landing load test against plain git (50 agents x 5
+  changes, 20 % conflicting: 197 of 250 landed in 1.1 s; plain git landed 5 to 93).
+- Live-agent runner: land and go (`DEMO_LAND_AND_GO=1`), queue mode, a 50-task set with 60 hidden checks,
+  ripgrep support, a Claude Code cloud-session runner.
+
 ## [0.1.1] - 2026-10-18
 
 ### Fixed
