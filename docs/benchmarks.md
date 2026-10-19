@@ -824,3 +824,8 @@ the end of its land. gitai writes git commits and packs with fsync on every batc
 1 862 to 2 544 lands a minute on a 16-core Linux machine, so macOS may be slower for it. The planned
 conflicts differ (50 in gitai's plan, 53 in ours) because the two generators pick conflicting changes
 with different random numbers.
+
+Durability differs too: TreeYard keeps its state in SQLite with `journal_mode = WAL`, `synchronous = NORMAL`
+(safe when the process dies, not on power loss), while gitai fsyncs a pack per batch. With
+`synchronous = FULL` (a sync on every commit; on macOS without `F_FULLFSYNC`) the same TreeYard run took
+1.19 s: 197 landed, 9 936 lands a minute, p99 0.35 s.
