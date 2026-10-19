@@ -57,7 +57,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `tests/workspace.rs`, `tests/workspace_lifecycle.rs`, `tests/checkpoints.rs` | create/sync/remove, clone strategies, layers, ports, daemon, CLI; overlay (Linux, root); repo config, gc, mirror, sparse; checkpoints and restore |
 | `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/attachments.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; notes |
 | `tests/hardening.rs`, `tests/fuzz_history.rs`, `tests/old_git.rs` | git < 2.44 merges; kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
-| `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py` | phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |
+| `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py`, `bench/landbench.sh` | landing load test vs git (`src/bin/landbench.rs`); phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |
 | `tests/docs.rs`, `tests/swarm_demo.rs`, `tests/claude_hooks.rs` | api.md, spec, links, demo SVG, README demo table; demo end to end; Claude Code worktree and checkpoint hooks |
 | `examples/`, `scripts/`, `site/` | swarm demo, Claude Code hooks; dist, install, quickstart check, demo SVG; static landing page (no deploy) |
 

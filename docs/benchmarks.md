@@ -780,3 +780,27 @@ them twice). Batches stayed small (41 runs for 50 changes) because agents land a
 Across runs 5 and 6, TreeYard finished the 50 tasks 18 % sooner than a git merge queue (579 s / 708 s and
 607 s / 738 s), with the same correctness and 12 to 15 % higher cost. Runs 1 to 3 (TreeYard 1.17x to 2.9x
 slower) used optimistic landing or a serial-bisect queue, with agents waiting in `land` for verdicts.
+
+## Landing load test: the shape of gitai's graft-bench (2026-10-19)
+
+`sh bench/landbench.sh --agents 50 --changes 5 --conflict-rate 0.2 --runs 2` (`src/bin/landbench.rs`, Rust
+threads as agents, the shape of gitai's `graft-bench`, https://github.com/feder-cr/git-ai doc/graft/BENCH.md).
+Each change adds its own file; 20 % also append a line at the end of one shared file, so two of those made
+from the same base conflict. No conflict resolver. Plain git: one bare repository on local disk, a clone
+per agent, `git push`; a rejected push fetches, rebases and pushes again, up to 20 attempts (a failed fetch
+is retried). TreeYard: `treeyard serve`, direct landing, `open_change`, `apply`, `land`. 15-core CPU, 48 GB RAM.
+
+| 50 agents, 250 changes | plain git, run 1 | plain git, run 2 | TreeYard, run 1 | TreeYard, run 2 |
+|---|---|---|---|---|
+| Landed | 93 | 5 | 197 | 197 |
+| Failed: merge conflict | 51 | 13 | 53 | 53 |
+| Failed: gave up after 20 attempts | 106 | 232 | 0 | 0 |
+| Attempts per landed change | 35.7 | 941.8 | 1.27 | 1.27 |
+| Lands per minute | 42 | 3 | 10 777 | 10 734 |
+| Run time | 132 s | 97 s | 1.10 s | 1.10 s |
+| p50 / p99 latency of landed changes | 5.7 s / 30.2 s | 2.2 s / 6.0 s | 0.17 s / 0.29 s | 0.16 s / 0.32 s |
+
+Plain git livelocks with 50 pushers on one branch: most pushes lose the race, and the losers fetch,
+rebase and lose again. TreeYard rebases on the server, so every change lands at its first attempt or
+fails on a real conflict (the 53 planned ones). Like gitai's numbers, this measures the server only: no
+model, no tests, no workspace setup.
