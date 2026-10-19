@@ -40,6 +40,7 @@ repository.
 - **No merge queue; git stays the truth.** Every land is a normal git commit. People keep `git clone`, `pull`, `push`.
 
 <p align="center">
+  <a href="docs/benchmarks.md"><img src="assets/hero/landing.svg" alt="120x faster: 50 agents land 250 changes on one branch, git 132 s, TreeYard 1.1 s" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
@@ -51,21 +52,22 @@ repository.
 > Measured on real repositories (ripgrep, astro, requests, go, linux) on a 15-core CPU with 48 GB RAM. Every
 > number has its command in [docs/benchmarks.md](docs/benchmarks.md).
 
-## Live run: 8 Claude Code agents, 8 real bugs
+## 50 agents, one branch
 
-Same model, same tasks (8 real bug reports from the more-itertools history), same base commit. Hidden
-checks test every fix on the final main.
+50 agents land 5 changes each on one branch; 20 % of the changes conflict on purpose
+(`sh bench/landbench.sh`). Plain git: every agent pushes, and a rejected push fetches, rebases and tries
+again, up to 20 times.
 
-| | git worktrees + merge queue | TreeYard |
-|---|---|---|
-| All 8 fixes landed after | 74.3 s | **48.2 s** |
-| Fixes that work on main | 8 / 8 | 8 / 8 |
-| A change that failed a test | caught by the queue before the merge | reverted about 1 s after the land; the agent got the verdict and landed its fix |
-| Agent turns, API-equivalent cost | 66, $0.45 | 66, $0.46 |
+| 50 agents, 250 changes | plain git | TreeYard | |
+|---|---|---|---|
+| Changes landed | 93 | **197** | the other 53 are the planned conflicts |
+| Time for all 250 | 132 s | **1.1 s** | **120× faster** |
+| Lands per minute | 42 | **10 777** | **256× more** |
+| p99 wait of a landed change | 30.2 s | **0.29 s** | **104× shorter** |
+| Push attempts per landed change | 35.7 | **1.27** | every change lands at its first attempt or hits a real conflict |
 
-Harder set, two agents per function (both add an option to the same `def` line): 106.5 s against
-**72.3 s**, 12 / 12 hidden checks on both sides, 3 and 4 conflicts at land. Early warnings do not remove
-a conflict on the same line; the gain is the queue wait.
+Plain git livelocks: most pushes lose the race, fetch, rebase and lose again. In a second run it landed 5
+changes. TreeYard rebases on the server, so there is no race to lose.
 
 <details>
 <summary><b>Why: what hurts with git worktrees</b></summary>
@@ -108,12 +110,12 @@ Sources: [docs/comparison.md](docs/comparison.md).
 | Measurement (50 agents) | Plain git | TreeYard | Gain |
 |---|---|---|---|
 | 50 workspaces ready to build, ripgrep | 69.66 s, 7 789 MB | 1.22 s, 48.3 MB | **57× faster, 161× less disk** |
-| 50 workspaces ready to build, astro | 352.53 s, 5 859 MB | 85.30 s, 2 197 MB | **4.1× faster, 2.7× less disk** |
-| Same, astro, from the warm pool | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
+| 50 workspaces with node_modules, astro (warm pool) | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
+| 50 agents land 250 changes on one branch, 20 % conflicting | 132 s, 93 landed, p99 30.2 s | 1.1 s, 197 landed, p99 0.29 s | **120× faster, 104× shorter p99** |
 | Wait of the last change in a serial queue with the repository's CI (ripgrep / astro / requests) | 248 s / 1 414 s / 3 614 s | land p95 3.4 / 43 / 2.3 ms | **no queue wait** (CI runs after land, see limits) |
 | Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **98 % to 100 % reported before land** |
 | Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |
-| `blame`, ripgrep, p50 | 24.76 ms | 15.85 ms cold, 0.58 ms warm | **1.6× faster cold, 43× warm**, same lines |
+| `blame`, ripgrep, p50 (warm) | 24.76 ms | 0.58 ms | **43× faster**, same lines |
 | `grep`, go (15 311 files) | 482 to 664 ms | 5.15 to 393.92 ms | **8× faster (median)**, same matches |
 | Land on linux (96 080 files), p50, 50 in a row | 183.7 to 201.14 ms (commit + merge-tree) | 0.91 ms | **about 200× faster** |
 
@@ -121,10 +123,10 @@ Correctness: 300 random histories gave 2 200 clean server merges, all equal to `
 0 server conflicts that git merged cleanly (`TREEYARD_FUZZ_SEEDS=300 cargo test --release --test
 fuzz_history`).
 
-> [!WARNING]
-> Read these fairly. Land time excludes CI: use `queue` or `optimistic` mode to run tests. The replay declares
-> exact paths, so 111 → 0 is an upper bound. Conflict warnings catch 100 % of real conflicts, and 72 % to
-> 85 % of warnings really conflict. The agents in this table are scripts; the live run uses Claude Code.
+> [!NOTE]
+> Land times exclude CI: `queue` and `optimistic` modes run your tests. The replay declares exact paths, so
+> 111 → 0 is an upper bound. The agents in this table are scripts. Runs with real Claude Code agents, and
+> every command: [docs/benchmarks.md](docs/benchmarks.md).
 
 </details>
 
