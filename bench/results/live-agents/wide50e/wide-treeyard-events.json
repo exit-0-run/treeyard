@@ -1,0 +1,8047 @@
+[
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "chunked: add fillvalue",
+  "kind": "opened",
+  "seq": 1,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_7ab61642d1da",
+  "changes": [
+   "ch_7ab61642d1da"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "chunked: add as_tuples",
+  "kind": "opened",
+  "seq": 2,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_b66dc5c02047",
+  "changes": [
+   "ch_b66dc5c02047"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "intersperse: add leading",
+  "kind": "opened",
+  "seq": 3,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "intersperse: add trailing",
+  "kind": "opened",
+  "seq": 4,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "lstrip: accept a value to strip",
+  "kind": "opened",
+  "seq": 5,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_6ae90df0d84b",
+  "changes": [
+   "ch_6ae90df0d84b"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "lstrip: add limit",
+  "kind": "opened",
+  "seq": 6,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_5f689264b67c",
+  "changes": [
+   "ch_5f689264b67c"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "one: add pred",
+  "kind": "opened",
+  "seq": 7,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_50a57274d994",
+  "changes": [
+   "ch_50a57274d994"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "one: add default",
+  "kind": "opened",
+  "seq": 8,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "argmax: add default",
+  "kind": "opened",
+  "seq": 9,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_20755eb3f79f",
+  "changes": [
+   "ch_20755eb3f79f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "argmax: add last",
+  "kind": "opened",
+  "seq": 10,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iterate: add times",
+  "kind": "opened",
+  "seq": 11,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_0275aa4ac27c",
+  "changes": [
+   "ch_0275aa4ac27c"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iterate: add until",
+  "kind": "opened",
+  "seq": 12,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "last: add pred",
+  "kind": "opened",
+  "seq": 13,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_737eeefda6a9",
+  "changes": [
+   "ch_737eeefda6a9"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "last: add too_short",
+  "kind": "opened",
+  "seq": 14,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "split_into: add fillvalue",
+  "kind": "opened",
+  "seq": 15,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_88206d366063",
+  "changes": [
+   "ch_88206d366063"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "split_into: add rest",
+  "kind": "opened",
+  "seq": 16,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_6f58c2da628e",
+  "changes": [
+   "ch_6f58c2da628e"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "powerset: add min_size",
+  "kind": "opened",
+  "seq": 17,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "powerset: add max_size",
+  "kind": "opened",
+  "seq": 18,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_dc64e3c58d69",
+  "changes": [
+   "ch_dc64e3c58d69"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tabulate: add step",
+  "kind": "opened",
+  "seq": 19,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tabulate: add stop",
+  "kind": "opened",
+  "seq": 20,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_31e092ec8598",
+  "changes": [
+   "ch_31e092ec8598"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "interleave_longest: add fillvalue",
+  "kind": "opened",
+  "seq": 21,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "locate: accept a value",
+  "kind": "opened",
+  "seq": 22,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_9e80334ae31f",
+  "changes": [
+   "ch_9e80334ae31f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "replace: a negative count is accepted",
+  "kind": "opened",
+  "seq": 23,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_d3f76dd02665",
+  "changes": [
+   "ch_d3f76dd02665"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "side_effect: chunk_size=0 drops every item",
+  "kind": "opened",
+  "seq": 24,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_81d882ca613f",
+  "changes": [
+   "ch_81d882ca613f"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "collapse: a negative levels is accepted",
+  "kind": "opened",
+  "seq": 25,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_8abd80352414",
+  "changes": [
+   "ch_8abd80352414"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "peekable: add __length_hint__",
+  "kind": "opened",
+  "seq": 26,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_258f3666c31c",
+  "changes": [
+   "ch_258f3666c31c"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "sample: weights of the wrong length are accepted",
+  "kind": "opened",
+  "seq": 27,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_53c69d86b9a6",
+  "changes": [
+   "ch_53c69d86b9a6"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "distinct_permutations: a negative r yields nothing",
+  "kind": "opened",
+  "seq": 28,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_7288c76e50d5",
+  "changes": [
+   "ch_7288c76e50d5"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "interleave_evenly: negative lengths are accepted",
+  "kind": "opened",
+  "seq": 29,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_879a95c9734a",
+  "changes": [
+   "ch_879a95c9734a"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "duplicates_everseen: add once",
+  "kind": "opened",
+  "seq": 30,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_723069bee0c0",
+  "changes": [
+   "ch_723069bee0c0"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "substrings: add reverse",
+  "kind": "opened",
+  "seq": 31,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "unique_to_each: add key",
+  "kind": "opened",
+  "seq": 32,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_4c3e09e02c93",
+  "changes": [
+   "ch_4c3e09e02c93"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "count_cycle: add start",
+  "kind": "opened",
+  "seq": 33,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_5ea0781511e0",
+  "changes": [
+   "ch_5ea0781511e0"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "nth_or_last: a negative n returns the default",
+  "kind": "opened",
+  "seq": 34,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_c1555477bc6a",
+  "changes": [
+   "ch_c1555477bc6a"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "run_length.decode: negative counts are accepted",
+  "kind": "opened",
+  "seq": 35,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_469caa971447",
+  "changes": [
+   "ch_469caa971447"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "map_if: accept pred=None",
+  "kind": "opened",
+  "seq": 36,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_973bbe6ee000",
+  "changes": [
+   "ch_973bbe6ee000"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "consecutive_groups: add step",
+  "kind": "opened",
+  "seq": 37,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "only: add pred",
+  "kind": "opened",
+  "seq": 38,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_9fc3e9eecbb5",
+  "changes": [
+   "ch_9fc3e9eecbb5"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "stagger: offsets cannot be an iterator",
+  "kind": "opened",
+  "seq": 39,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_8af52102fd82",
+  "changes": [
+   "ch_8af52102fd82"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "zip_offset: offsets cannot be an iterator",
+  "kind": "opened",
+  "seq": 40,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_b8a68c1e3e63",
+  "changes": [
+   "ch_b8a68c1e3e63"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iequals: add key",
+  "kind": "opened",
+  "seq": 41,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_0976437aa516",
+  "changes": [
+   "ch_0976437aa516"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "unzip: add fillvalue",
+  "kind": "opened",
+  "seq": 42,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "extract: add default",
+  "kind": "opened",
+  "seq": 43,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_eb1fef0033c8",
+  "changes": [
+   "ch_eb1fef0033c8"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "partitions: add k",
+  "kind": "opened",
+  "seq": 44,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_aa04b8315d84",
+  "changes": [
+   "ch_aa04b8315d84"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "tail: a negative n behaves differently for lists and iterators",
+  "kind": "opened",
+  "seq": 45,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_203eafef333c",
+  "changes": [
+   "ch_203eafef333c"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "grouper: n=0 yields nothing",
+  "kind": "opened",
+  "seq": 46,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_3dca767ee0c8",
+  "changes": [
+   "ch_3dca767ee0c8"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "dotproduct: vectors of different lengths are accepted",
+  "kind": "opened",
+  "seq": 47,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_33d44c77a5f1",
+  "changes": [
+   "ch_33d44c77a5f1"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "totient: non-positive n gives nonsense",
+  "kind": "opened",
+  "seq": 48,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_252a1bc33831",
+  "changes": [
+   "ch_252a1bc33831"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "quantify: accept pred=None",
+  "kind": "opened",
+  "seq": 49,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_1309d2dbaae9",
+  "changes": [
+   "ch_1309d2dbaae9"
+  ],
+  "declared": {
+   "paths": [],
+   "symbols": []
+  },
+  "intent": "iter_index: a negative start or stop behaves differently by input type",
+  "kind": "opened",
+  "seq": 50,
+  "time": 1792407434
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_b66dc5c02047",
+  "changes": [
+   "ch_b66dc5c02047"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 51,
+  "time": 1792407455
+ },
+ {
+  "agents": [
+   "agent-3",
+   "agent-2"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e",
+   "ch_b66dc5c02047"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_b66dc5c02047"
+   },
+   "hunks": {
+    "mine": [
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      981,
+      981
+     ]
+    ],
+    "theirs": [
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_b66dc5c02047",
+  "seq": 52,
+  "time": 1792407455
+ },
+ {
+  "agents": [
+   "agent-3",
+   "agent-2"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e",
+   "ch_b66dc5c02047"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_b66dc5c02047"
+   },
+   "hunks": {
+    "mine": [
+     [
+      243,
+      244
+     ]
+    ],
+    "theirs": [
+     [
+      243,
+      244
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_b66dc5c02047",
+  "seq": 53,
+  "time": 1792407455
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_6ae90df0d84b",
+  "changes": [
+   "ch_6ae90df0d84b"
+  ],
+  "kind": "queued",
+  "position": 2,
+  "seq": 54,
+  "time": 1792407455
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 55,
+  "time": 1792407460
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_7ab61642d1da",
+  "changes": [
+   "ch_7ab61642d1da"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 56,
+  "time": 1792407460
+ },
+ {
+  "agents": [
+   "agent-8",
+   "agent-9"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5",
+   "ch_20755eb3f79f"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_20755eb3f79f"
+   },
+   "hunks": {
+    "mine": [
+     [
+      5354,
+      5355
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5380
+     ]
+    ],
+    "theirs": [
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_20755eb3f79f",
+  "seq": 57,
+  "time": 1792407461
+ },
+ {
+  "agents": [
+   "agent-9",
+   "agent-8"
+  ],
+  "change": "ch_20755eb3f79f",
+  "changes": [
+   "ch_20755eb3f79f",
+   "ch_150fdbd941d5"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_150fdbd941d5"
+   },
+   "hunks": {
+    "mine": [
+     [
+      6808,
+      6808
+     ]
+    ],
+    "theirs": [
+     [
+      6808,
+      6808
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_150fdbd941d5",
+  "seq": 58,
+  "time": 1792407461
+ },
+ {
+  "agents": [
+   "agent-7",
+   "agent-6"
+  ],
+  "change": "ch_50a57274d994",
+  "changes": [
+   "ch_50a57274d994",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_5f689264b67c"
+   },
+   "hunks": {
+    "mine": [
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ]
+    ],
+    "theirs": [
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 59,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-7",
+   "agent-6"
+  ],
+  "change": "ch_50a57274d994",
+  "changes": [
+   "ch_50a57274d994",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ]
+    ],
+    "theirs": [
+     [
+      228,
+      228
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 60,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_50a57274d994",
+  "changes": [
+   "ch_50a57274d994"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 61,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820",
+   "ch_7ab61642d1da"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_7ab61642d1da"
+   },
+   "hunks": {
+    "mine": [
+     [
+      215,
+      216
+     ],
+     [
+      227,
+      228
+     ],
+     [
+      238,
+      238
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_7ab61642d1da",
+  "seq": 62,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820",
+   "ch_7ab61642d1da"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_7ab61642d1da"
+   },
+   "hunks": {
+    "mine": [
+     [
+      179,
+      181
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_7ab61642d1da",
+  "seq": 63,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-0",
+   "agent-1"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820",
+   "ch_7ab61642d1da"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_7ab61642d1da"
+   },
+   "hunks": {
+    "mine": [
+     [
+      74,
+      74
+     ]
+    ],
+    "theirs": [
+     [
+      74,
+      74
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_7ab61642d1da",
+  "seq": 64,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 65,
+  "time": 1792407463
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_20755eb3f79f",
+  "changes": [
+   "ch_20755eb3f79f"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 66,
+  "time": 1792407465
+ },
+ {
+  "agents": [
+   "agent-8",
+   "agent-9"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5",
+   "ch_20755eb3f79f"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      996,
+      996
+     ],
+     [
+      999,
+      999
+     ]
+    ],
+    "theirs": [
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_20755eb3f79f",
+  "seq": 67,
+  "time": 1792407466
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 68,
+  "time": 1792407466
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "ee358d4571aa5d15090950fcbfc981c207c16931c7416929055cc1105cbb61fa",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.7,
+  "seq": 69,
+  "time": 1792407467
+ },
+ {
+  "agents": [
+   "agent-2"
+  ],
+  "change": "ch_b66dc5c02047",
+  "changes": [
+   "ch_b66dc5c02047"
+  ],
+  "changeset": "ee358d4571aa5d15090950fcbfc981c207c16931c7416929055cc1105cbb61fa",
+  "kind": "landed",
+  "queue": true,
+  "seq": 70,
+  "time": 1792407467
+ },
+ {
+  "agents": [
+   "agent-4",
+   "agent-5"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b",
+   "ch_6ae90df0d84b"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6ae90df0d84b"
+   },
+   "hunks": {
+    "mine": [
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ]
+    ],
+    "theirs": [
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6ae90df0d84b",
+  "seq": 71,
+  "time": 1792407469
+ },
+ {
+  "agents": [
+   "agent-4",
+   "agent-5"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b",
+   "ch_6ae90df0d84b"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6ae90df0d84b"
+   },
+   "hunks": {
+    "mine": [
+     [
+      579,
+      580
+     ]
+    ],
+    "theirs": [
+     [
+      579,
+      580
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6ae90df0d84b",
+  "seq": 72,
+  "time": 1792407470
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 73,
+  "time": 1792407471
+ },
+ {
+  "agents": [
+   "agent-4",
+   "agent-5"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b",
+   "ch_6ae90df0d84b"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6ae90df0d84b"
+   },
+   "hunks": {
+    "mine": [
+     [
+      3462,
+      3462
+     ]
+    ],
+    "theirs": [
+     [
+      3462,
+      3462
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6ae90df0d84b",
+  "seq": 74,
+  "time": 1792407471
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 75,
+  "time": 1792407475
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "04014055a347cd99a95d458c336d2c21db9a9095b6b1c1141bb9832f26000a33",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.9,
+  "seq": 76,
+  "time": 1792407478
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "b2dc320bb7c68fc468301f203686bf505fc5320203e4b46f4fa4a8402083191a",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.0,
+  "seq": 77,
+  "time": 1792407478
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_5f689264b67c",
+  "changes": [
+   "ch_5f689264b67c"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 78,
+  "time": 1792407485
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_0275aa4ac27c",
+  "changes": [
+   "ch_0275aa4ac27c"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 79,
+  "time": 1792407486
+ },
+ {
+  "agents": [
+   "agent-10",
+   "agent-11"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866",
+   "ch_0275aa4ac27c"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_0275aa4ac27c"
+   },
+   "hunks": {
+    "mine": [
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      555,
+      555
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      563
+     ]
+    ],
+    "theirs": [
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_0275aa4ac27c",
+  "seq": 80,
+  "time": 1792407487
+ },
+ {
+  "agents": [
+   "agent-10",
+   "agent-11"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866",
+   "ch_0275aa4ac27c"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_0275aa4ac27c"
+   },
+   "hunks": {
+    "mine": [
+     [
+      213,
+      214
+     ]
+    ],
+    "theirs": [
+     [
+      213,
+      214
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_0275aa4ac27c",
+  "seq": 81,
+  "time": 1792407487
+ },
+ {
+  "agents": [
+   "agent-10",
+   "agent-11"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866",
+   "ch_0275aa4ac27c"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_0275aa4ac27c"
+   },
+   "hunks": {
+    "mine": [
+     [
+      6551,
+      6551
+     ]
+    ],
+    "theirs": [
+     [
+      6551,
+      6551
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_0275aa4ac27c",
+  "seq": 82,
+  "time": 1792407487
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866"
+  ],
+  "kind": "queued",
+  "position": 11,
+  "seq": 83,
+  "time": 1792407487
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "d64bce3ff87fc97eff4dea34eee3d786c0090421eedb3688f259d3d5fd4cb7b1",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.4,
+  "seq": 84,
+  "time": 1792407488
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1f0249ec0744ab56d6e849661ce237ab19105b53ee1d90c3b7a8a8c1d39678b4",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.9,
+  "seq": 85,
+  "time": 1792407489
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-13"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd",
+   "ch_737eeefda6a9"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_737eeefda6a9"
+   },
+   "hunks": {
+    "mine": [
+     [
+      280,
+      281
+     ],
+     [
+      289,
+      291
+     ],
+     [
+      294,
+      296
+     ]
+    ],
+    "theirs": [
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_737eeefda6a9",
+  "seq": 86,
+  "time": 1792407492
+ },
+ {
+  "agents": [
+   "agent-12",
+   "agent-13"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd",
+   "ch_737eeefda6a9"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_737eeefda6a9"
+   },
+   "hunks": {
+    "mine": [
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ]
+    ],
+    "theirs": [
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_737eeefda6a9",
+  "seq": 87,
+  "time": 1792407492
+ },
+ {
+  "agents": [
+   "agent-13",
+   "agent-12"
+  ],
+  "change": "ch_737eeefda6a9",
+  "changes": [
+   "ch_737eeefda6a9",
+   "ch_37341ab088fd"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_37341ab088fd"
+   },
+   "hunks": {
+    "mine": [
+     [
+      194,
+      194
+     ]
+    ],
+    "theirs": [
+     [
+      194,
+      194
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_37341ab088fd",
+  "seq": 88,
+  "time": 1792407493
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_737eeefda6a9",
+  "changes": [
+   "ch_737eeefda6a9"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 89,
+  "time": 1792407496
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_88206d366063",
+  "changes": [
+   "ch_88206d366063"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 90,
+  "time": 1792407497
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "db6c61aa570cba997547ced8d970b5b6addd0a048b05ae993cb294f7a8138226",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.2,
+  "seq": 91,
+  "time": 1792407499
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "20f7ab153dd582a8e2e459e01f1e7f506fe6f0ec65d7188154b3db2858a1343f",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.7,
+  "seq": 92,
+  "time": 1792407500
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "cause": "queue",
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi"
+  ],
+  "seq": 93,
+  "time": 1792407500
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_6f58c2da628e",
+  "changes": [
+   "ch_6f58c2da628e"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 94,
+  "time": 1792407500
+ },
+ {
+  "agents": [
+   "agent-14",
+   "agent-15"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610",
+   "ch_88206d366063"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_88206d366063"
+   },
+   "hunks": {
+    "mine": [
+     [
+      1737,
+      1738
+     ],
+     [
+      1769,
+      1769
+     ],
+     [
+      1779,
+      1780
+     ]
+    ],
+    "theirs": [
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/more.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_88206d366063",
+  "seq": 95,
+  "time": 1792407502
+ },
+ {
+  "agents": [
+   "agent-14",
+   "agent-15"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610",
+   "ch_88206d366063"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      320,
+      320
+     ],
+     [
+      324,
+      324
+     ]
+    ],
+    "theirs": [
+     [
+      321,
+      322
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_88206d366063",
+  "seq": 96,
+  "time": 1792407502
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd"
+  ],
+  "kind": "queued",
+  "position": 14,
+  "seq": 97,
+  "time": 1792407503
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610"
+  ],
+  "kind": "queued",
+  "position": 15,
+  "seq": 98,
+  "time": 1792407506
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "308f2127c3a90352476959a4265023bdbb53cc7d82b9d78cf9da52e416315bf6",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.3,
+  "seq": 99,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-5"
+  ],
+  "change": "ch_6ae90df0d84b",
+  "changes": [
+   "ch_6ae90df0d84b"
+  ],
+  "changeset": "8dea036d206b487bcc99363ea38a6562eac9519258c9e9f6e88b3584f2cc743e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 100,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-1"
+  ],
+  "change": "ch_7ab61642d1da",
+  "changes": [
+   "ch_7ab61642d1da"
+  ],
+  "changeset": "309511ff49589dcc8c9107dff0b3cded38a87a82e1695f771cff4400705927c5",
+  "kind": "landed",
+  "queue": true,
+  "seq": 101,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-7"
+  ],
+  "change": "ch_50a57274d994",
+  "changes": [
+   "ch_50a57274d994"
+  ],
+  "changeset": "2a0a962b1513477b2f6c6e05d9940773720b869296196073fe15f7304b728e66",
+  "kind": "landed",
+  "queue": true,
+  "seq": 102,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-9"
+  ],
+  "change": "ch_20755eb3f79f",
+  "changes": [
+   "ch_20755eb3f79f"
+  ],
+  "changeset": "2bb77962313b2eace4e031a64fa3cc905e2ec7e06a30b43c711e92c6fcc338e6",
+  "kind": "landed",
+  "queue": true,
+  "seq": 103,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-11"
+  ],
+  "change": "ch_0275aa4ac27c",
+  "changes": [
+   "ch_0275aa4ac27c"
+  ],
+  "changeset": "871b9ec82b9f67b8f91474acefa5b8212679607f539da23638d6168ed5099325",
+  "kind": "landed",
+  "queue": true,
+  "seq": 104,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-13"
+  ],
+  "change": "ch_737eeefda6a9",
+  "changes": [
+   "ch_737eeefda6a9"
+  ],
+  "changeset": "1c768fb5ac107be4dac8e2a35c4cd0068492a748ca3e94b2b4d6247923e230ea",
+  "kind": "landed",
+  "queue": true,
+  "seq": 105,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-15"
+  ],
+  "change": "ch_88206d366063",
+  "changes": [
+   "ch_88206d366063"
+  ],
+  "changeset": "308f2127c3a90352476959a4265023bdbb53cc7d82b9d78cf9da52e416315bf6",
+  "kind": "landed",
+  "queue": true,
+  "seq": 106,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "cause": "queue",
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 107,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "cause": "queue",
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "tests/test_more.py"
+  ],
+  "seq": 108,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "cause": "queue",
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 109,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "cause": "queue",
+  "change": "ch_5f689264b67c",
+  "changes": [
+   "ch_5f689264b67c"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py"
+  ],
+  "seq": 110,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "cause": "queue",
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 111,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "cause": "queue",
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py",
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "seq": 112,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "cause": "queue",
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/more.py"
+  ],
+  "seq": 113,
+  "time": 1792407511
+ },
+ {
+  "agents": [
+   "agent-17",
+   "agent-16"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79",
+   "ch_6f58c2da628e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6f58c2da628e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      451,
+      452
+     ],
+     [
+      465,
+      465
+     ],
+     [
+      469,
+      470
+     ]
+    ],
+    "theirs": [
+     [
+      451,
+      452
+     ],
+     [
+      457,
+      457
+     ],
+     [
+      469,
+      470
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6f58c2da628e",
+  "seq": 114,
+  "time": 1792407512
+ },
+ {
+  "agents": [
+   "agent-17",
+   "agent-16"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79",
+   "ch_6f58c2da628e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6f58c2da628e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      115,
+      116
+     ]
+    ],
+    "theirs": [
+     [
+      115,
+      116
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6f58c2da628e",
+  "seq": 115,
+  "time": 1792407512
+ },
+ {
+  "agents": [
+   "agent-17",
+   "agent-16"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79",
+   "ch_6f58c2da628e"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_6f58c2da628e"
+   },
+   "hunks": {
+    "mine": [
+     [
+      402,
+      402
+     ]
+    ],
+    "theirs": [
+     [
+      402,
+      402
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_6f58c2da628e",
+  "seq": 116,
+  "time": 1792407512
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-0"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_2d04f96ba820"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      181,
+      181
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2d04f96ba820",
+  "seq": 117,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-8"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_150fdbd941d5"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      997,
+      998
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_150fdbd941d5",
+  "seq": 118,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-4"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_1207e1bf359b"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_1207e1bf359b",
+  "seq": 119,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-6"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      228,
+      228
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 120,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-10"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_2e01e50f5866"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2e01e50f5866",
+  "seq": 121,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-12"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_37341ab088fd"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_37341ab088fd",
+  "seq": 122,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21",
+   "agent-14"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a",
+   "ch_925ca33a8610"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      575,
+      576
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      320,
+      320
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      324,
+      324
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_925ca33a8610",
+  "seq": 123,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a"
+  ],
+  "kind": "queued",
+  "position": 2,
+  "seq": 124,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 125,
+  "time": 1792407514
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_9e80334ae31f",
+  "changes": [
+   "ch_9e80334ae31f"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 126,
+  "time": 1792407516
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_dc64e3c58d69",
+  "changes": [
+   "ch_dc64e3c58d69"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 127,
+  "time": 1792407516
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62",
+   "ch_dc64e3c58d69"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_dc64e3c58d69"
+   },
+   "hunks": {
+    "mine": [
+     [
+      129,
+      130
+     ],
+     [
+      143,
+      143
+     ],
+     [
+      144,
+      145
+     ]
+    ],
+    "theirs": [
+     [
+      129,
+      130
+     ],
+     [
+      131,
+      132
+     ],
+     [
+      135,
+      137
+     ],
+     [
+      143,
+      143
+     ],
+     [
+      144,
+      145
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_dc64e3c58d69",
+  "seq": 128,
+  "time": 1792407516
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62",
+   "ch_dc64e3c58d69"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_dc64e3c58d69"
+   },
+   "hunks": {
+    "mine": [
+     [
+      82,
+      83
+     ]
+    ],
+    "theirs": [
+     [
+      82,
+      83
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "more_itertools/recipes.pyi",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_dc64e3c58d69",
+  "seq": 129,
+  "time": 1792407517
+ },
+ {
+  "agents": [
+   "agent-19",
+   "agent-18"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62",
+   "ch_dc64e3c58d69"
+  ],
+  "file": {
+   "advice": {
+    "stack_on": "ch_dc64e3c58d69"
+   },
+   "hunks": {
+    "mine": [
+     [
+      71,
+      71
+     ]
+    ],
+    "theirs": [
+     [
+      71,
+      71
+     ]
+    ]
+   },
+   "if_they_land_second": true,
+   "if_you_land_second": true,
+   "kind": "conflict",
+   "path": "tests/test_recipes.py",
+   "reason": "landing_order"
+  },
+  "kind": "collision",
+  "other": "ch_dc64e3c58d69",
+  "seq": 130,
+  "time": 1792407519
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_31e092ec8598",
+  "changes": [
+   "ch_31e092ec8598"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 131,
+  "time": 1792407519
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "5ddf8ebf85bd4050167406254e372186d515b658570aa159ae31d049e606aa5d",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.6,
+  "seq": 132,
+  "time": 1792407522
+ },
+ {
+  "agents": [
+   "agent-16"
+  ],
+  "change": "ch_6f58c2da628e",
+  "changes": [
+   "ch_6f58c2da628e"
+  ],
+  "changeset": "5ddf8ebf85bd4050167406254e372186d515b658570aa159ae31d049e606aa5d",
+  "kind": "landed",
+  "queue": true,
+  "seq": 133,
+  "time": 1792407522
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 134,
+  "time": 1792407524
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_81d882ca613f",
+  "changes": [
+   "ch_81d882ca613f"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 135,
+  "time": 1792407529
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "20b803327f7a23bc69f8e90eed587c6a86f39f16d299b4f74ee58ab3368d6d3b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.5,
+  "seq": 136,
+  "time": 1792407533
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "7fc476fb4d6176ac7eebc74bb13eb24e3593b7f5f60df7e7b732d55ed563deec",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.2,
+  "seq": 137,
+  "time": 1792407533
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c6862f96b8563fb625e1d47daa582330391603f99b5344f9de34d7a58ff208f5",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.0,
+  "seq": 138,
+  "time": 1792407545
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_8abd80352414",
+  "changes": [
+   "ch_8abd80352414"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 139,
+  "time": 1792407545
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_d3f76dd02665",
+  "changes": [
+   "ch_d3f76dd02665"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 140,
+  "time": 1792407545
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1c5dc036738d38d590d5b6d265e47b4b0b9a211d1a405a4ca1e1dda71ab6bd54",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.3,
+  "seq": 141,
+  "time": 1792407545
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "cause": "queue",
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "seq": 142,
+  "time": 1792407545
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_723069bee0c0",
+  "changes": [
+   "ch_723069bee0c0"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 143,
+  "time": 1792407545
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_53c69d86b9a6",
+  "changes": [
+   "ch_53c69d86b9a6"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 144,
+  "time": 1792407547
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_879a95c9734a",
+  "changes": [
+   "ch_879a95c9734a"
+  ],
+  "kind": "queued",
+  "position": 11,
+  "seq": 145,
+  "time": 1792407550
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_4c3e09e02c93",
+  "changes": [
+   "ch_4c3e09e02c93"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 146,
+  "time": 1792407553
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_5ea0781511e0",
+  "changes": [
+   "ch_5ea0781511e0"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 147,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_7288c76e50d5",
+  "changes": [
+   "ch_7288c76e50d5"
+  ],
+  "kind": "queued",
+  "position": 14,
+  "seq": 148,
+  "time": 1792407556
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "6d73a7b52c17d49bbdc686134ef9d35216a13545310360dbb33e49ecd2681f98",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.9,
+  "seq": 149,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-21"
+  ],
+  "change": "ch_ada3a5c6b97a",
+  "changes": [
+   "ch_ada3a5c6b97a"
+  ],
+  "changeset": "2106c1b4c3e152627cf63ab8982e1d2f597fab4641cc3097d16d5720bc43a49e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 150,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-22"
+  ],
+  "change": "ch_9e80334ae31f",
+  "changes": [
+   "ch_9e80334ae31f"
+  ],
+  "changeset": "9aff85b3213067d3715fb14d50b800ad2af62ef06a91779588f05fa747a4fdf4",
+  "kind": "landed",
+  "queue": true,
+  "seq": 151,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-18"
+  ],
+  "change": "ch_dc64e3c58d69",
+  "changes": [
+   "ch_dc64e3c58d69"
+  ],
+  "changeset": "b7ca38558ee4f56d41bde1e7db0346b40fe5d925473eb2f4b3bb540b548ece52",
+  "kind": "landed",
+  "queue": true,
+  "seq": 152,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-20"
+  ],
+  "change": "ch_31e092ec8598",
+  "changes": [
+   "ch_31e092ec8598"
+  ],
+  "changeset": "f43f01d70d8f3995ed2fdf1e165a0c35eb2f2e05ad0d9d4fc194c30fa2f14120",
+  "kind": "landed",
+  "queue": true,
+  "seq": 153,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-24"
+  ],
+  "change": "ch_81d882ca613f",
+  "changes": [
+   "ch_81d882ca613f"
+  ],
+  "changeset": "eb329917779aaef02083e8740379b2bea9b9fcd03e8024da86951e70bcc3ec31",
+  "kind": "landed",
+  "queue": true,
+  "seq": 154,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-25"
+  ],
+  "change": "ch_8abd80352414",
+  "changes": [
+   "ch_8abd80352414"
+  ],
+  "changeset": "12a8550f8b05c4e6c0be104ede8cd78671e56c03f49ab5647b4b68c163da341a",
+  "kind": "landed",
+  "queue": true,
+  "seq": 155,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-23"
+  ],
+  "change": "ch_d3f76dd02665",
+  "changes": [
+   "ch_d3f76dd02665"
+  ],
+  "changeset": "6d73a7b52c17d49bbdc686134ef9d35216a13545310360dbb33e49ecd2681f98",
+  "kind": "landed",
+  "queue": true,
+  "seq": 156,
+  "time": 1792407556
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-3"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_f59c2dd8596e"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      981,
+      981
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_f59c2dd8596e",
+  "seq": 157,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-3"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_f59c2dd8596e"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      243,
+      244
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_f59c2dd8596e",
+  "seq": 158,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-0"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_2d04f96ba820"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      227,
+      228
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2d04f96ba820",
+  "seq": 159,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-0"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_2d04f96ba820"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      181,
+      181
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2d04f96ba820",
+  "seq": 160,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-8"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_150fdbd941d5"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5379
+     ],
+     [
+      5380,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_150fdbd941d5",
+  "seq": 161,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-8"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_150fdbd941d5"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      996,
+      996
+     ],
+     [
+      997,
+      998
+     ],
+     [
+      999,
+      999
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_150fdbd941d5",
+  "seq": 162,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-4"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_1207e1bf359b"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      2631,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_1207e1bf359b",
+  "seq": 163,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-4"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_1207e1bf359b"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_1207e1bf359b",
+  "seq": 164,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-6"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      658,
+      659
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 165,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-6"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      228,
+      228
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 166,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-10"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_2e01e50f5866"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      555,
+      555
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      563
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2e01e50f5866",
+  "seq": 167,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-10"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_2e01e50f5866"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2e01e50f5866",
+  "seq": 168,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-12"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_37341ab088fd"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      289,
+      289
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      294,
+      295
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_37341ab088fd",
+  "seq": 169,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-12"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_37341ab088fd"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_37341ab088fd",
+  "seq": 170,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-14"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_925ca33a8610"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      994,
+      995
+     ],
+     [
+      1020,
+      1020
+     ],
+     [
+      1022,
+      1025
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1769,
+      1769
+     ],
+     [
+      1779,
+      1780
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_925ca33a8610",
+  "seq": 171,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-31",
+   "agent-14"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e",
+   "ch_925ca33a8610"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      245,
+      246
+     ]
+    ],
+    "theirs": [
+     [
+      178,
+      178
+     ],
+     [
+      179,
+      180
+     ],
+     [
+      182,
+      182
+     ],
+     [
+      186,
+      187
+     ],
+     [
+      188,
+      189
+     ],
+     [
+      213,
+      214
+     ],
+     [
+      224,
+      224
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      243,
+      244
+     ],
+     [
+      320,
+      320
+     ],
+     [
+      321,
+      322
+     ],
+     [
+      324,
+      324
+     ],
+     [
+      579,
+      580
+     ],
+     [
+      997,
+      998
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.pyi",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_925ca33a8610",
+  "seq": 172,
+  "time": 1792407560
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_879a95c9734a",
+  "changes": [
+   "ch_879a95c9734a"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 173,
+  "time": 1792407562
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 174,
+  "time": 1792407563
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_258f3666c31c",
+  "changes": [
+   "ch_258f3666c31c"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 175,
+  "time": 1792407563
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "9356e4d6899690fd0b1d5de7410a1709db4006ef8a45e46f79731b7947f83e64",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.4,
+  "seq": 176,
+  "time": 1792407567
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "0b94b67e91675ed8fe4ce5eaf15045a0ce4bd2ee91d35bc29bd9d688bb49bff3",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.5,
+  "seq": 177,
+  "time": 1792407567
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "e74decaaf107b9e2d6a8e11da480d68619857073204f994e6aaaf49db3e45981",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 1.8,
+  "seq": 178,
+  "time": 1792407569
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_469caa971447",
+  "changes": [
+   "ch_469caa971447"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 179,
+  "time": 1792407569
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_973bbe6ee000",
+  "changes": [
+   "ch_973bbe6ee000"
+  ],
+  "kind": "queued",
+  "position": 11,
+  "seq": 180,
+  "time": 1792407576
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_c1555477bc6a",
+  "changes": [
+   "ch_c1555477bc6a"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 181,
+  "time": 1792407578
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "703218b4e22a8bbeca843e391f2b7f1ad5437a8f37e64b6fe302b63f04b501b1",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 12.5,
+  "seq": 182,
+  "time": 1792407579
+ },
+ {
+  "agents": [
+   "agent-37",
+   "agent-6"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      658,
+      659
+     ],
+     [
+      3665,
+      3666
+     ],
+     [
+      3685,
+      3685
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      658,
+      659
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 183,
+  "time": 1792407583
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 184,
+  "time": 1792407583
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_9fc3e9eecbb5",
+  "changes": [
+   "ch_9fc3e9eecbb5"
+  ],
+  "kind": "queued",
+  "position": 14,
+  "seq": 185,
+  "time": 1792407584
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_b8a68c1e3e63",
+  "changes": [
+   "ch_b8a68c1e3e63"
+  ],
+  "kind": "queued",
+  "position": 15,
+  "seq": 186,
+  "time": 1792407588
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "d7eabde3be984c4dd8f12a5739341ca613f86f8a5ec7d731b96754b2e36b668b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.8,
+  "seq": 187,
+  "time": 1792407590
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "b5f705877871593dbf3a51873eda402c0792a6bb91543084003db8e0c6ed3b76",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.3,
+  "seq": 188,
+  "time": 1792407591
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "cause": "queue",
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62"
+  ],
+  "kind": "conflict",
+  "paths": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "seq": 189,
+  "time": 1792407591
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_8af52102fd82",
+  "changes": [
+   "ch_8af52102fd82"
+  ],
+  "kind": "queued",
+  "position": 15,
+  "seq": 190,
+  "time": 1792407596
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_aa04b8315d84",
+  "changes": [
+   "ch_aa04b8315d84"
+  ],
+  "kind": "queued",
+  "position": 16,
+  "seq": 191,
+  "time": 1792407597
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 192,
+  "time": 1792407601
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_0976437aa516",
+  "changes": [
+   "ch_0976437aa516"
+  ],
+  "kind": "queued",
+  "position": 17,
+  "seq": 193,
+  "time": 1792407602
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "6f1f89031915657ef85478d6dfbbb75d43a41971a4398a8abff12091063ec32f",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.2,
+  "seq": 194,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-30"
+  ],
+  "change": "ch_723069bee0c0",
+  "changes": [
+   "ch_723069bee0c0"
+  ],
+  "changeset": "25d5c4f36629466cfce53f872257ec7802eee6b35060ab0c05912ab6f9d93ef0",
+  "kind": "landed",
+  "queue": true,
+  "seq": 195,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-27"
+  ],
+  "change": "ch_53c69d86b9a6",
+  "changes": [
+   "ch_53c69d86b9a6"
+  ],
+  "changeset": "70861e10605277546a68699fd89d5d072cb9330354bd3e97382b2e66dfc52f7e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 196,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-29"
+  ],
+  "change": "ch_879a95c9734a",
+  "changes": [
+   "ch_879a95c9734a"
+  ],
+  "changeset": "d4e6240aa4cb1655d8f1ae996f0a10f1f98a9231d6768b24eb12d54ec53f6663",
+  "kind": "landed",
+  "queue": true,
+  "seq": 197,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-32"
+  ],
+  "change": "ch_4c3e09e02c93",
+  "changes": [
+   "ch_4c3e09e02c93"
+  ],
+  "changeset": "b341fce65614574418788b54049cee5c811cb53e97fce7caaafb1992c98c9dee",
+  "kind": "landed",
+  "queue": true,
+  "seq": 198,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-33"
+  ],
+  "change": "ch_5ea0781511e0",
+  "changes": [
+   "ch_5ea0781511e0"
+  ],
+  "changeset": "7dacf14b1d2262b4c97a12d69ddad648aa30a803122cd77591052b547bc95f72",
+  "kind": "landed",
+  "queue": true,
+  "seq": 199,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-28"
+  ],
+  "change": "ch_7288c76e50d5",
+  "changes": [
+   "ch_7288c76e50d5"
+  ],
+  "changeset": "3ff6f77edf395ac662e3b41ad842f1d8db83fab8ef84e00bd555a27384ab80e8",
+  "kind": "landed",
+  "queue": true,
+  "seq": 200,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-31"
+  ],
+  "change": "ch_58e3e1f9ad2e",
+  "changes": [
+   "ch_58e3e1f9ad2e"
+  ],
+  "changeset": "c43b69af2a2736960e0185707dac1153fb6c1ac0c8479c09b0ac74aa3de87b0e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 201,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-26"
+  ],
+  "change": "ch_258f3666c31c",
+  "changes": [
+   "ch_258f3666c31c"
+  ],
+  "changeset": "6f1f89031915657ef85478d6dfbbb75d43a41971a4398a8abff12091063ec32f",
+  "kind": "landed",
+  "queue": true,
+  "seq": 202,
+  "time": 1792407602
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_33d44c77a5f1",
+  "changes": [
+   "ch_33d44c77a5f1"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 203,
+  "time": 1792407610
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-0"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_2d04f96ba820"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      227,
+      228
+     ],
+     [
+      229,
+      229
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2d04f96ba820",
+  "seq": 204,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-8"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_150fdbd941d5"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5376,
+      5376
+     ],
+     [
+      5379,
+      5379
+     ],
+     [
+      5380,
+      5380
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_150fdbd941d5",
+  "seq": 205,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-4"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_1207e1bf359b"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2630
+     ],
+     [
+      2631,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_1207e1bf359b",
+  "seq": 206,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-6"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_5f689264b67c"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      658,
+      659
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_5f689264b67c",
+  "seq": 207,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-10"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_2e01e50f5866"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      549,
+      550
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      555,
+      555
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      563,
+      563
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_2e01e50f5866",
+  "seq": 208,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-12"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_37341ab088fd"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      289,
+      289
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      294,
+      295
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1781,
+      1781
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_37341ab088fd",
+  "seq": 209,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42",
+   "agent-14"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3",
+   "ch_925ca33a8610"
+  ],
+  "file": {
+   "advice": null,
+   "hunks": {
+    "mine": [
+     [
+      5382,
+      5383
+     ],
+     [
+      5393,
+      5394
+     ],
+     [
+      5399,
+      5400
+     ],
+     [
+      5411,
+      5412
+     ],
+     [
+      5421,
+      5422
+     ],
+     [
+      5436,
+      5437
+     ],
+     [
+      5445,
+      5446
+     ],
+     [
+      5450,
+      5451
+     ]
+    ],
+    "theirs": [
+     [
+      215,
+      216
+     ],
+     [
+      233,
+      233
+     ],
+     [
+      238,
+      238
+     ],
+     [
+      280,
+      281
+     ],
+     [
+      290,
+      291
+     ],
+     [
+      298,
+      298
+     ],
+     [
+      546,
+      547
+     ],
+     [
+      552,
+      552
+     ],
+     [
+      561,
+      562
+     ],
+     [
+      614,
+      615
+     ],
+     [
+      653,
+      653
+     ],
+     [
+      668,
+      668
+     ],
+     [
+      968,
+      969
+     ],
+     [
+      978,
+      978
+     ],
+     [
+      979,
+      979
+     ],
+     [
+      983,
+      985
+     ],
+     [
+      987,
+      988
+     ],
+     [
+      991,
+      992
+     ],
+     [
+      1737,
+      1738
+     ],
+     [
+      1750,
+      1750
+     ],
+     [
+      1769,
+      1769
+     ],
+     [
+      1779,
+      1780
+     ],
+     [
+      2615,
+      2616
+     ],
+     [
+      2626,
+      2626
+     ],
+     [
+      2630,
+      2631
+     ],
+     [
+      5354,
+      5355
+     ],
+     [
+      5363,
+      5363
+     ],
+     [
+      5379,
+      5379
+     ]
+    ]
+   },
+   "if_they_land_second": false,
+   "if_you_land_second": false,
+   "kind": "overlap",
+   "path": "more_itertools/more.py",
+   "reason": null
+  },
+  "kind": "collision",
+  "other": "ch_925ca33a8610",
+  "seq": 210,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_252a1bc33831",
+  "changes": [
+   "ch_252a1bc33831"
+  ],
+  "kind": "queued",
+  "position": 11,
+  "seq": 211,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3"
+  ],
+  "kind": "queued",
+  "position": 12,
+  "seq": 212,
+  "time": 1792407611
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_eb1fef0033c8",
+  "changes": [
+   "ch_eb1fef0033c8"
+  ],
+  "kind": "queued",
+  "position": 13,
+  "seq": 213,
+  "time": 1792407612
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1084b95d1701eb97ad028ecca3e4578a921410fd2085862a2ac0bc3f4779046c",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 214,
+  "time": 1792407613
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "e1b4f103aaaa76b96cae9f77f1618dba37d544e9c18c1fae83114cd7d5200e3b",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.5,
+  "seq": 215,
+  "time": 1792407613
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_203eafef333c",
+  "changes": [
+   "ch_203eafef333c"
+  ],
+  "kind": "queued",
+  "position": 14,
+  "seq": 216,
+  "time": 1792407613
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c396ae991f0f60fe24e5a44b05eb88d22c21a7465eabddbe9c19e6280e57e6a1",
+  "kind": "test_run",
+  "ok": false,
+  "seconds": 0.8,
+  "seq": 217,
+  "time": 1792407614
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_3dca767ee0c8",
+  "changes": [
+   "ch_3dca767ee0c8"
+  ],
+  "kind": "queued",
+  "position": 15,
+  "seq": 218,
+  "time": 1792407618
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "fa009e2a87128ef0352ebe44059d6258087f95e0fd9ba381ae029ddf33b084e6",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.2,
+  "seq": 219,
+  "time": 1792407623
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_1309d2dbaae9",
+  "changes": [
+   "ch_1309d2dbaae9"
+  ],
+  "kind": "queued",
+  "position": 16,
+  "seq": 220,
+  "time": 1792407625
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "56d9073afa11e86e6f054672fafcf9f5ecc484e9c402f4dfc22a4065b1c9c62e",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.2,
+  "seq": 221,
+  "time": 1792407635
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "ac8233b013d2bdaf42c28ccbf4ed5c7c540869326f687ca9acb281468dfb16a8",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 12.3,
+  "seq": 222,
+  "time": 1792407636
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "7a3714641e2df7ddde3d7a4142dccea1bb5ba308fc91371ba436dcb7216bcb21",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.8,
+  "seq": 223,
+  "time": 1792407646
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "be67ce5edca54713b5d8b246a347c19c0e1232d0e0b481e5270e4596eee73d60",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 58.5,
+  "seq": 224,
+  "time": 1792407694
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "detail": {
+   "output": "..................................................................F\n=================================== FAILURES ===================================\n_____________________________ OneTests.test_basic ______________________________\n\nself = <tests.test_more.OneTests testMethod=test_basic>\n\n    def test_basic(self):\n        it = iter(['item'])\n>       self.assertEqual(mi.one(it), 'item')\n                         ^^^^^^^^^^\n\ntests/test_more.py:817: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\niterable = <list_iterator object at 0x7fd25c1d3370>, too_short = None\ntoo_long = None, default = <object object at 0x7fd25d5817b0>\n\n    def one(iterable, too_short=None, too_long=None, *, default=_marker):\n        \"\"\"Return the first item from *iterable*, which is expected to contain only\n        that item. Raise an exception if *iterable* is empty or has more than one\n        item.\n    \n        :func:`one` is useful for ensuring that an iterable contains only one item.\n        For example, it can be used to retrieve the result of a database query\n        that is expected to return a single row.\n    \n        If *iterable* is empty, ``ValueError`` will be raised. You may specify a\n        different exception with the *too_short* keyword:\n    \n            >>> it = []\n            >>> one(it)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            ValueError: too few items in iterable (expected 1)'\n            >>> too_short = IndexError('too few items')\n            >>> one(it, too_short=too_short)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            IndexError: too few items\n    \n        Similarly, if *iterable* contains more than one item, ``ValueError`` will\n        be raised. You may specify a different exception with the *too_long*\n        keyword:\n    \n            >>> it = ['too', 'many']\n            >>> one(it)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            ValueError: Expected exactly one item in iterable, but got 'too',\n            'many', and perhaps more.\n            >>> too_long = RuntimeError\n            >>> one(it, too_long=too_long)  # doctest: +IGNORE_EXCEPTION_DETAIL\n            Traceback (most recent call last):\n            ...\n            RuntimeError\n    \n        If *default* is given, it is returned when *iterable* is empty instead of\n        raising an exception. Too many items still raise:\n    \n            >>> one([], default=None) is None\n            True\n            >>> one([7], default=0)\n            7\n    \n        Note that :func:`one` attempts to advance *iterable* twice to ensure there\n        is only one item. See :func:`spy` or :func:`peekable` to check iterable\n        contents less destructively.\n    \n        \"\"\"\n>       iterator = iter(iterable) if pred is None else filter(pred, iterable)\n                                     ^^^^\nE       NameError: name 'pred' is not defined\n\nmore_itertools/more.py:707: NameError\n=========================== short test summary info ============================\nFAILED tests/test_more.py::OneTests::test_basic - NameError: name 'pred' is n...\n!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!\n1 failed, 66 passed, 1164 subtests passed in 0.59s\n",
+   "seconds": 0.787866462
+  },
+  "kind": "review",
+  "review": 1,
+  "review_kind": "tests_failed",
+  "seq": 225,
+  "time": 1792407694
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "kind": "rejected",
+  "preflight": true,
+  "review": 1,
+  "seq": 226,
+  "time": 1792407694
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1ab96b6ccc0b4f08fea8afcf3ab656d742694d1a4905dd238f2cb2b4a8d835f1",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 43.2,
+  "seq": 227,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-35"
+  ],
+  "change": "ch_469caa971447",
+  "changes": [
+   "ch_469caa971447"
+  ],
+  "changeset": "b71277f3582d109e83ea8c97ca4deec03b109966a93bf527ce9410ee8c335564",
+  "kind": "landed",
+  "queue": true,
+  "seq": 228,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-36"
+  ],
+  "change": "ch_973bbe6ee000",
+  "changes": [
+   "ch_973bbe6ee000"
+  ],
+  "changeset": "503e9742ef7ea874ba2ca7b103c290d924093839b5dc3dfb891e4325f2d76fe7",
+  "kind": "landed",
+  "queue": true,
+  "seq": 229,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-34"
+  ],
+  "change": "ch_c1555477bc6a",
+  "changes": [
+   "ch_c1555477bc6a"
+  ],
+  "changeset": "65462f7cb9801af0de111a8410695e6476876ff12f9ef247e6c85e1fa30c447b",
+  "kind": "landed",
+  "queue": true,
+  "seq": 230,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-38"
+  ],
+  "change": "ch_9fc3e9eecbb5",
+  "changes": [
+   "ch_9fc3e9eecbb5"
+  ],
+  "changeset": "f119809c1081318778a898088fe2e37f2821c637bbd163665b3292ef548a6c0f",
+  "kind": "landed",
+  "queue": true,
+  "seq": 231,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-40"
+  ],
+  "change": "ch_b8a68c1e3e63",
+  "changes": [
+   "ch_b8a68c1e3e63"
+  ],
+  "changeset": "a7b82adf45ce707b0561463e21f28c1e07f29b3e6556108f762aa6a35b4e9702",
+  "kind": "landed",
+  "queue": true,
+  "seq": 232,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-39"
+  ],
+  "change": "ch_8af52102fd82",
+  "changes": [
+   "ch_8af52102fd82"
+  ],
+  "changeset": "5463ca621daa2e0e82714605d6b33a51758ed8619bee132d327d82ddc16b9711",
+  "kind": "landed",
+  "queue": true,
+  "seq": 233,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-44"
+  ],
+  "change": "ch_aa04b8315d84",
+  "changes": [
+   "ch_aa04b8315d84"
+  ],
+  "changeset": "e83a8b1b8bc6abe4cf9b44d49314226f12db3ed3dfb08d924d9d6c0853f7dd29",
+  "kind": "landed",
+  "queue": true,
+  "seq": 234,
+  "time": 1792407738
+ },
+ {
+  "agents": [
+   "agent-41"
+  ],
+  "change": "ch_0976437aa516",
+  "changes": [
+   "ch_0976437aa516"
+  ],
+  "changeset": "1ab96b6ccc0b4f08fea8afcf3ab656d742694d1a4905dd238f2cb2b4a8d835f1",
+  "kind": "landed",
+  "queue": true,
+  "seq": 235,
+  "time": 1792407738
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "3af96800b1ca5baa5f9c157bc94996e41f70dccadc417a163c056caf501470cb",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.2,
+  "seq": 236,
+  "time": 1792407748
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "5b7e0f16549599101835772003c4f0ea9ca95967b4ab7bbcac24a372728c6cdb",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 60.1,
+  "seq": 237,
+  "time": 1792407798
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "bd50da490bf8ee262f62ff76d8fae39633d583109b408c67968252a795895ec9",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 238,
+  "time": 1792407808
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "eb1614f6fdc4d49e774bbb1ae21c43453cff9a71b96aafa6cdc903daf83eab84",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 13.5,
+  "seq": 239,
+  "time": 1792407811
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "4dfd2107c64ff4106ab90fb8741064f04e1545826d8b1e801e7e7b245c65fa6d",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 22.7,
+  "seq": 240,
+  "time": 1792407834
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "8c74c9f41dd39e65e116eb730590ae0d61f381e00ee6c96998184c4e783d6a68",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 23.7,
+  "seq": 241,
+  "time": 1792407835
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "45d4fd10507dd6268496ffb6d83acdecb222e25030fefabdeb19d7b3176db654",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 60.6,
+  "seq": 242,
+  "time": 1792407896
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "1da7b5d86293c7942a5030c8facdffa9856ccabca6b0d08d7fca9709874fdd50",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 243,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-47"
+  ],
+  "change": "ch_33d44c77a5f1",
+  "changes": [
+   "ch_33d44c77a5f1"
+  ],
+  "changeset": "6aad97da72c7344744e66d4afe138d69566a611085d8b282bc5b8ac274ef61dd",
+  "kind": "landed",
+  "queue": true,
+  "seq": 244,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-48"
+  ],
+  "change": "ch_252a1bc33831",
+  "changes": [
+   "ch_252a1bc33831"
+  ],
+  "changeset": "a124fc9deb0c7f4e5d7d4b5da6c706f278ed66c3e0ebac56dcf32c334ea0c0f6",
+  "kind": "landed",
+  "queue": true,
+  "seq": 245,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-42"
+  ],
+  "change": "ch_e68b44e71bf3",
+  "changes": [
+   "ch_e68b44e71bf3"
+  ],
+  "changeset": "e8bab72f0d718182610f7adc59f6099c98a23c89e8f276954fdb00c94d671a3a",
+  "kind": "landed",
+  "queue": true,
+  "seq": 246,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-43"
+  ],
+  "change": "ch_eb1fef0033c8",
+  "changes": [
+   "ch_eb1fef0033c8"
+  ],
+  "changeset": "bedbb8e8b97a2030ce133533a770e1e4031c4c429265a6d2d76e25c68db76a44",
+  "kind": "landed",
+  "queue": true,
+  "seq": 247,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-45"
+  ],
+  "change": "ch_203eafef333c",
+  "changes": [
+   "ch_203eafef333c"
+  ],
+  "changeset": "c631753bc7e1e17e354c3c32e76a59ca7439230c6048697e7ebe646413b6f373",
+  "kind": "landed",
+  "queue": true,
+  "seq": 248,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-46"
+  ],
+  "change": "ch_3dca767ee0c8",
+  "changes": [
+   "ch_3dca767ee0c8"
+  ],
+  "changeset": "d8b25fe653584373a2ff75b7010d2d61adaa08b1140bf15e8513e93d9b730829",
+  "kind": "landed",
+  "queue": true,
+  "seq": 249,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-49"
+  ],
+  "change": "ch_1309d2dbaae9",
+  "changes": [
+   "ch_1309d2dbaae9"
+  ],
+  "changeset": "1da7b5d86293c7942a5030c8facdffa9856ccabca6b0d08d7fca9709874fdd50",
+  "kind": "landed",
+  "queue": true,
+  "seq": 250,
+  "time": 1792407906
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610"
+  ],
+  "kind": "queued",
+  "position": 1,
+  "seq": 251,
+  "time": 1792407925
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62"
+  ],
+  "kind": "queued",
+  "position": 2,
+  "seq": 252,
+  "time": 1792407925
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 253,
+  "time": 1792407926
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b"
+  ],
+  "kind": "queued",
+  "position": 4,
+  "seq": 254,
+  "time": 1792407926
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866"
+  ],
+  "kind": "queued",
+  "position": 5,
+  "seq": 255,
+  "time": 1792407927
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd"
+  ],
+  "kind": "queued",
+  "position": 6,
+  "seq": 256,
+  "time": 1792407928
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79"
+  ],
+  "kind": "queued",
+  "position": 7,
+  "seq": 257,
+  "time": 1792407928
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "kind": "queued",
+  "position": 8,
+  "seq": 258,
+  "time": 1792407929
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "69aca1d4fc6feef1948de5e1ccd12cb2f1ec10a1ce90b3fa587876e2b8e68518",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 11.7,
+  "seq": 259,
+  "time": 1792407937
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "c94a2662a4701295c355e0f11bd58e467766d6bf7888d862f79146219a06dfcb",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 12.2,
+  "seq": 260,
+  "time": 1792407937
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_5f689264b67c",
+  "changes": [
+   "ch_5f689264b67c"
+  ],
+  "kind": "queued",
+  "position": 9,
+  "seq": 261,
+  "time": 1792407938
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e"
+  ],
+  "kind": "queued",
+  "position": 10,
+  "seq": 262,
+  "time": 1792407942
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "e00104a877c716bbe7572bcace8ff4874119fe3fc9ff15136c3547573f08b7c1",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 15.8,
+  "seq": 263,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-14"
+  ],
+  "change": "ch_925ca33a8610",
+  "changes": [
+   "ch_925ca33a8610"
+  ],
+  "changeset": "4b5fec0b6f0811697c1255e572643f0eb59db72545800175e8f168562841bf22",
+  "kind": "landed",
+  "queue": true,
+  "seq": 264,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-19"
+  ],
+  "change": "ch_3db0b495bf62",
+  "changes": [
+   "ch_3db0b495bf62"
+  ],
+  "changeset": "3186ede276a646245b65e8975483af31a052b8eb2647b3c8db256f43626db65c",
+  "kind": "landed",
+  "queue": true,
+  "seq": 265,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-0"
+  ],
+  "change": "ch_2d04f96ba820",
+  "changes": [
+   "ch_2d04f96ba820"
+  ],
+  "changeset": "779915e9afc1560c8dfdbb45f836b1770ab0db3d9db07a921f688d888fab40fa",
+  "kind": "landed",
+  "queue": true,
+  "seq": 266,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-4"
+  ],
+  "change": "ch_1207e1bf359b",
+  "changes": [
+   "ch_1207e1bf359b"
+  ],
+  "changeset": "775b5a8a42699e48c7088a237baf06d0776bb19cfad4329464b518ca162f3274",
+  "kind": "landed",
+  "queue": true,
+  "seq": 267,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-10"
+  ],
+  "change": "ch_2e01e50f5866",
+  "changes": [
+   "ch_2e01e50f5866"
+  ],
+  "changeset": "b3e5f6d66af052b95785a685b35ab2b622ec81a5a70a1bd1430c1bf91aeec696",
+  "kind": "landed",
+  "queue": true,
+  "seq": 268,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-12"
+  ],
+  "change": "ch_37341ab088fd",
+  "changes": [
+   "ch_37341ab088fd"
+  ],
+  "changeset": "2ed840d8efeb6f9d1d50357e36755a59a163e81f6f52dcdddf4a43030104618d",
+  "kind": "landed",
+  "queue": true,
+  "seq": 269,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-17"
+  ],
+  "change": "ch_d7456c24fa79",
+  "changes": [
+   "ch_d7456c24fa79"
+  ],
+  "changeset": "7824d9f12766508e789f9a5e15a9af9a6a2103ec85f2eeba91b46bbb956608da",
+  "kind": "landed",
+  "queue": true,
+  "seq": 270,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-8"
+  ],
+  "change": "ch_150fdbd941d5",
+  "changes": [
+   "ch_150fdbd941d5"
+  ],
+  "changeset": "e00104a877c716bbe7572bcace8ff4874119fe3fc9ff15136c3547573f08b7c1",
+  "kind": "landed",
+  "queue": true,
+  "seq": 271,
+  "time": 1792407953
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "kind": "queued",
+  "position": 3,
+  "seq": 272,
+  "time": 1792407961
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "7cc010f4f463631c9351ad1c5414496f5c9bec098a2071381510ac6b304b953c",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 273,
+  "time": 1792407963
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "4933766712215c853c57da71a0bdff82b01232e3a43f902e9c18322cce77ba92",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 10.1,
+  "seq": 274,
+  "time": 1792407963
+ },
+ {
+  "agents": [],
+  "changes": [],
+  "changeset": "7d64d7bb196ae812b5f69217abb3ba3428eaa7469005cf59d027ca793745668e",
+  "kind": "test_run",
+  "ok": true,
+  "seconds": 47.5,
+  "seq": 275,
+  "time": 1792408011
+ },
+ {
+  "agents": [
+   "agent-6"
+  ],
+  "change": "ch_5f689264b67c",
+  "changes": [
+   "ch_5f689264b67c"
+  ],
+  "changeset": "b208318e311edb5b8a0ccf1bd9bb3b344c78a6bfee1f52b3f91574d3a179fa67",
+  "kind": "landed",
+  "queue": true,
+  "seq": 276,
+  "time": 1792408011
+ },
+ {
+  "agents": [
+   "agent-3"
+  ],
+  "change": "ch_f59c2dd8596e",
+  "changes": [
+   "ch_f59c2dd8596e"
+  ],
+  "changeset": "1bfb40157fb683bf15f71432bd0d4a47f1438b4becf319ba0519b065d24153fa",
+  "kind": "landed",
+  "queue": true,
+  "seq": 277,
+  "time": 1792408011
+ },
+ {
+  "agents": [
+   "agent-37"
+  ],
+  "change": "ch_047085df9f76",
+  "changes": [
+   "ch_047085df9f76"
+  ],
+  "changeset": "7d64d7bb196ae812b5f69217abb3ba3428eaa7469005cf59d027ca793745668e",
+  "kind": "landed",
+  "queue": true,
+  "seq": 278,
+  "time": 1792408011
+ }
+]

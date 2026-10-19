@@ -184,11 +184,12 @@ timeout_s = 600
   `tests_failed`, event `rejected`; the change stays open). A change that conflicts only with a
   batch-mate waits for the next batch; a conflict with main is real and goes to the owner. Test `e_queue…`:
   4 changes, the second breaks the test, 3 test runs, 1 lands, then the other 2 land in 1 run.
-  With `parallel` above 1, a step first tests each queued change alone on main, `parallel` at a time,
-  and sends the failing ones back at once; the rest are batched as above, and a failing batch tests its
-  prefixes side by side instead of bisecting. One broken change then no longer holds up its batch-mates:
-  in a scripted run of 40 changes with 1 in 4 broken (6 s suite, 10 at a time), the queue took 277 s with
-  `parallel = 1`, 187 s with `parallel = 4`, and a plain git queue 329 s.
+  With `parallel` above 1, a failing batch tests each of its changes alone on main, `parallel` at a time,
+  and sends the failing ones back at once; the next step batches the rest again. A passing batch still
+  costs one run. In scripted runs of 40 changes (6 s suite, 10 at a time): no broken change, 8 test runs and
+  56 s (git queue 259 s); 1 change in 4 broken, 172 s with `parallel = 4`, 212 s with 2, 277 s with 1
+  (git queue 329 s). Testing every change alone before its batch instead cost one run per change (44 runs
+  for 50 changes in the wide50e cloud run, as many as the git queue).
 - `optimistic`: `land` moves main at once. A step tests main. When it fails, it bisects the main
   changesets since the last green one, reverts the first failing changeset through the normal `revert`
   operation, and opens a `reverted_by_bisect` review task for its owner. Test `e_optimistic…`.

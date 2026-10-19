@@ -1,0 +1,525 @@
+[
+ {
+  "branch": "task-one_pred",
+  "result": "landed",
+  "waited_s": 0.0,
+  "test_s": 9.86,
+  "seconds": 9.87,
+  "t": 1792403728.6855164
+ },
+ {
+  "branch": "task-intersperse_trailing",
+  "result": "landed",
+  "waited_s": 7.84,
+  "test_s": 10.74,
+  "seconds": 18.73,
+  "t": 1792403739.5696926
+ },
+ {
+  "branch": "task-chunked_as_tuples",
+  "result": "landed",
+  "waited_s": 16.54,
+  "test_s": 16.12,
+  "seconds": 32.81,
+  "t": 1792403755.8434744
+ },
+ {
+  "branch": "task-lstrip_value",
+  "result": "landed",
+  "waited_s": 32.77,
+  "test_s": 10.33,
+  "seconds": 43.24,
+  "t": 1792403766.3108385
+ },
+ {
+  "branch": "task-lstrip_limit",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "waited_s": 40.75,
+  "t": 1792403766.3735812
+ },
+ {
+  "branch": "task-argmax_last",
+  "result": "landed",
+  "waited_s": 39.48,
+  "test_s": 11.57,
+  "seconds": 51.34,
+  "t": 1792403778.2359898
+ },
+ {
+  "branch": "task-intersperse_leading",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi"
+  ],
+  "waited_s": 51.23,
+  "t": 1792403778.3166208
+ },
+ {
+  "branch": "task-chunked_fillvalue",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi"
+  ],
+  "waited_s": 48.54,
+  "t": 1792403778.3965294
+ },
+ {
+  "branch": "task-argmax_default",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "waited_s": 38.68,
+  "t": 1792403778.4767957
+ },
+ {
+  "branch": "task-one_default",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi"
+  ],
+  "waited_s": 35.19,
+  "t": 1792403778.55386
+ },
+ {
+  "branch": "task-iterate_times",
+  "result": "landed",
+  "waited_s": 23.33,
+  "test_s": 9.87,
+  "seconds": 33.39,
+  "t": 1792403788.6215973
+ },
+ {
+  "branch": "task-iterate_until",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi",
+   "tests/test_more.py"
+  ],
+  "waited_s": 25.71,
+  "t": 1792403788.695253
+ },
+ {
+  "branch": "task-last_pred",
+  "result": "tests_failed",
+  "waited_s": 9.13,
+  "test_s": 0.69,
+  "t": 1792403789.5731792
+ },
+ {
+  "branch": "task-last_pred",
+  "result": "landed",
+  "waited_s": 0.0,
+  "test_s": 12.44,
+  "seconds": 12.46,
+  "t": 1792403807.5542943
+ },
+ {
+  "branch": "task-last_too_short",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi"
+  ],
+  "waited_s": 5.8,
+  "t": 1792403807.629432
+ },
+ {
+  "branch": "task-split_into_fillvalue",
+  "result": "landed",
+  "waited_s": 3.43,
+  "test_s": 16.1,
+  "seconds": 19.69,
+  "t": 1792403823.897675
+ },
+ {
+  "branch": "task-chunked_fillvalue",
+  "result": "landed",
+  "waited_s": 14.51,
+  "test_s": 14.85,
+  "seconds": 29.53,
+  "t": 1792403838.919036
+ },
+ {
+  "branch": "task-split_into_rest",
+  "result": "conflict",
+  "files": [
+   "more_itertools/more.pyi"
+  ],
+  "waited_s": 28.25,
+  "t": 1792403839.0215912
+ },
+ {
+  "branch": "task-argmax_default",
+  "result": "landed",
+  "waited_s": 23.06,
+  "test_s": 9.53,
+  "seconds": 32.75,
+  "t": 1792403848.717669
+ },
+ {
+  "branch": "task-one_default",
+  "result": "tests_failed",
+  "waited_s": 31.57,
+  "test_s": 0.43,
+  "t": 1792403849.298949
+ },
+ {
+  "branch": "task-lstrip_limit",
+  "result": "landed",
+  "waited_s": 31.91,
+  "test_s": 16.27,
+  "seconds": 48.35,
+  "t": 1792403865.742244
+ },
+ {
+  "branch": "task-iterate_until",
+  "result": "landed",
+  "waited_s": 42.27,
+  "test_s": 9.62,
+  "seconds": 52.05,
+  "t": 1792403875.5196218
+ },
+ {
+  "branch": "task-powerset_min_size",
+  "result": "landed",
+  "waited_s": 47.38,
+  "test_s": 11.24,
+  "seconds": 58.79,
+  "t": 1792403886.927697
+ },
+ {
+  "branch": "task-last_too_short",
+  "result": "landed",
+  "waited_s": 43.31,
+  "test_s": 14.75,
+  "seconds": 58.22,
+  "t": 1792403901.8409116
+ },
+ {
+  "branch": "task-powerset_max_size",
+  "result": "conflict",
+  "files": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "waited_s": 54.45,
+  "t": 1792403901.8652756
+ },
+ {
+  "branch": "task-tabulate_step",
+  "result": "landed",
+  "waited_s": 39.4,
+  "test_s": 11.85,
+  "seconds": 51.37,
+  "t": 1792403913.8383057
+ },
+ {
+  "branch": "task-one_default",
+  "result": "landed",
+  "waited_s": 44.65,
+  "test_s": 10.29,
+  "seconds": 55.22,
+  "t": 1792403924.41127
+ },
+ {
+  "branch": "task-split_into_rest",
+  "result": "landed",
+  "waited_s": 43.96,
+  "test_s": 9.64,
+  "seconds": 53.75,
+  "t": 1792403934.204675
+ },
+ {
+  "branch": "task-tabulate_stop",
+  "result": "conflict",
+  "files": [
+   "more_itertools/recipes.py",
+   "more_itertools/recipes.pyi",
+   "tests/test_recipes.py"
+  ],
+  "waited_s": 53.26,
+  "t": 1792403934.2289555
+ },
+ {
+  "branch": "task-locate_value",
+  "result": "landed",
+  "waited_s": 33.77,
+  "test_s": 12.17,
+  "seconds": 46.23,
+  "t": 1792403946.6903448
+ },
+ {
+  "branch": "",
+  "result": "dirty",
+  "t": 1792403954.1309133
+ },
+ {
+  "branch": "task-replace_negative_count",
+  "result": "landed",
+  "waited_s": 39.07,
+  "test_s": 11.71,
+  "seconds": 50.92,
+  "t": 1792403958.5414333
+ },
+ {
+  "branch": "task-interleave_longest_fillvalue",
+  "result": "landed",
+  "waited_s": 39.75,
+  "test_s": 9.73,
+  "seconds": 49.69,
+  "t": 1792403968.485876
+ },
+ {
+  "branch": "task-collapse_negative_levels",
+  "result": "landed",
+  "waited_s": 31.02,
+  "test_s": 14.9,
+  "seconds": 46.05,
+  "t": 1792403983.523584
+ },
+ {
+  "branch": "task-side_effect_chunk_size",
+  "result": "landed",
+  "waited_s": 43.06,
+  "test_s": 16.66,
+  "seconds": 59.86,
+  "t": 1792404000.3219697
+ },
+ {
+  "branch": "task-powerset_max_size",
+  "result": "landed",
+  "waited_s": 53.78,
+  "test_s": 20.2,
+  "seconds": 74.1,
+  "t": 1792404020.6347523
+ },
+ {
+  "branch": "task-tabulate_stop",
+  "result": "landed",
+  "waited_s": 61.08,
+  "test_s": 9.99,
+  "seconds": 71.18,
+  "t": 1792404030.7345889
+ },
+ {
+  "branch": "task-peekable_length_hint",
+  "result": "landed",
+  "waited_s": 69.81,
+  "test_s": 14.05,
+  "seconds": 84.03,
+  "t": 1792404044.9598033
+ },
+ {
+  "branch": "task-sample_weights_length",
+  "result": "landed",
+  "waited_s": 75.54,
+  "test_s": 9.74,
+  "seconds": 85.45,
+  "t": 1792404054.8639517
+ },
+ {
+  "branch": "task-interleave_evenly_negative_lengths",
+  "result": "landed",
+  "waited_s": 74.29,
+  "test_s": 19.09,
+  "seconds": 93.52,
+  "t": 1792404074.100434
+ },
+ {
+  "branch": "task-distinct_permutations_negative_r",
+  "result": "landed",
+  "waited_s": 84.4,
+  "test_s": 15.97,
+  "seconds": 100.55,
+  "t": 1792404090.250557
+ },
+ {
+  "branch": "task-duplicates_everseen_once",
+  "result": "tests_failed",
+  "waited_s": 91.81,
+  "test_s": 1.85,
+  "t": 1792404092.318958
+ },
+ {
+  "branch": "task-substrings_reverse",
+  "result": "landed",
+  "waited_s": 77.51,
+  "test_s": 13.44,
+  "seconds": 91.18,
+  "t": 1792404105.9915926
+ },
+ {
+  "branch": "task-unique_to_each_key",
+  "result": "landed",
+  "waited_s": 74.62,
+  "test_s": 15.62,
+  "seconds": 90.46,
+  "t": 1792404121.8339193
+ },
+ {
+  "branch": "task-count_cycle_start",
+  "result": "landed",
+  "waited_s": 73.64,
+  "test_s": 18.27,
+  "seconds": 92.15,
+  "t": 1792404140.3413875
+ },
+ {
+  "branch": "task-nth_or_last_negative_n",
+  "result": "landed",
+  "waited_s": 87.99,
+  "test_s": 9.95,
+  "seconds": 98.11,
+  "t": 1792404150.4656925
+ },
+ {
+  "branch": "task-run_length_decode_negative",
+  "result": "landed",
+  "waited_s": 71.35,
+  "test_s": 16.25,
+  "seconds": 87.79,
+  "t": 1792404166.9124885
+ },
+ {
+  "branch": "task-map_if_pred_none",
+  "result": "landed",
+  "waited_s": 78.89,
+  "test_s": 11.42,
+  "seconds": 90.56,
+  "t": 1792404178.5883203
+ },
+ {
+  "branch": "task-duplicates_everseen_once",
+  "result": "landed",
+  "waited_s": 77.58,
+  "test_s": 15.59,
+  "seconds": 93.47,
+  "t": 1792404194.4766846
+ },
+ {
+  "branch": "task-consecutive_groups_step",
+  "result": "landed",
+  "waited_s": 92.95,
+  "test_s": 10.33,
+  "seconds": 103.54,
+  "t": 1792404205.067044
+ },
+ {
+  "branch": "task-only_pred",
+  "result": "landed",
+  "waited_s": 93.31,
+  "test_s": 10.81,
+  "seconds": 104.38,
+  "t": 1792404216.1344116
+ },
+ {
+  "branch": "task-stagger_offsets_iterator",
+  "result": "landed",
+  "waited_s": 80.37,
+  "test_s": 12.74,
+  "seconds": 93.38,
+  "t": 1792404229.1474147
+ },
+ {
+  "branch": "task-zip_offset_offsets_iterator",
+  "result": "landed",
+  "waited_s": 69.35,
+  "test_s": 14.64,
+  "seconds": 84.28,
+  "t": 1792404244.0781152
+ },
+ {
+  "branch": "task-unzip_fillvalue",
+  "result": "landed",
+  "waited_s": 60.88,
+  "test_s": 11.31,
+  "seconds": 72.48,
+  "t": 1792404255.6777802
+ },
+ {
+  "branch": "task-iequals_key",
+  "result": "landed",
+  "waited_s": 71.68,
+  "test_s": 19.78,
+  "seconds": 91.75,
+  "t": 1792404275.7481613
+ },
+ {
+  "branch": "task-extract_default",
+  "result": "landed",
+  "waited_s": 72.72,
+  "test_s": 13.72,
+  "seconds": 86.73,
+  "t": 1792404289.7604446
+ },
+ {
+  "branch": "task-partitions_k",
+  "result": "landed",
+  "waited_s": 69.84,
+  "test_s": 18.79,
+  "seconds": 88.9,
+  "t": 1792404308.824652
+ },
+ {
+  "branch": "task-grouper_validate_n",
+  "result": "landed",
+  "waited_s": 77.78,
+  "test_s": 10.37,
+  "seconds": 88.28,
+  "t": 1792404319.317536
+ },
+ {
+  "branch": "task-dotproduct_length_mismatch",
+  "result": "landed",
+  "waited_s": 70.35,
+  "test_s": 9.74,
+  "seconds": 80.2,
+  "t": 1792404329.1710865
+ },
+ {
+  "branch": "task-totient_validate_n",
+  "result": "landed",
+  "waited_s": 67.72,
+  "test_s": 9.73,
+  "seconds": 77.57,
+  "t": 1792404339.024383
+ },
+ {
+  "branch": "task-quantify_pred_none",
+  "result": "landed",
+  "waited_s": 68.34,
+  "test_s": 9.92,
+  "seconds": 78.4,
+  "t": 1792404349.0793006
+ },
+ {
+  "branch": "task-tail_negative_n",
+  "result": "landed",
+  "waited_s": 65.66,
+  "test_s": 9.67,
+  "seconds": 75.46,
+  "t": 1792404358.87861
+ },
+ {
+  "branch": "task-iter_index_negative_start",
+  "result": "landed",
+  "waited_s": 73.11,
+  "test_s": 44.69,
+  "seconds": 117.91,
+  "t": 1792404403.6851027
+ },
+ {
+  "branch": "task-intersperse_leading",
+  "result": "landed",
+  "waited_s": 0.0,
+  "test_s": 19.76,
+  "seconds": 20.05,
+  "t": 1792405635.5444286
+ }
+]

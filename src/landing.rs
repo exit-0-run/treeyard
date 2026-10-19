@@ -276,8 +276,8 @@ impl Inner {
         Ok(spec)
     }
 
-    /// Queue mode with `parallel` > 1: each queued change (up to `batch`) rebased alone onto main, so
-    /// they can be tested side by side before the batch. Returns (change, head alone, head now).
+    /// Queue mode with `parallel` > 1, after a batch failed: each queued change (up to `batch`)
+    /// rebased alone onto main, to be tested side by side. Returns (change, head alone, head now).
     fn preflight(&mut self) -> Result<Vec<(String, String, String)>> {
         let main = self.main()?;
         let mut out = Vec::new();
@@ -425,25 +425,12 @@ fn test_all(repo: &Repo, heads: &[String], parallel: usize) -> Result<Vec<Outcom
     Ok(outs)
 }
 
-/// One queue step: speculate, test, bisect a failing batch, land what passed. With `parallel` > 1
-/// the queued changes are first tested one by one on main, side by side, and the failing ones go
-/// back to their owners, so one broken change no longer holds up a whole batch.
+/// One queue step: speculate, test the batch, land it when it passes. A failing batch with
+/// `parallel` > 1 tests its changes alone on main, side by side, and sends the failing ones back,
+/// so one broken change costs one more round and no longer holds up its batch-mates; with
+/// `parallel` = 1 (or when every change passes alone) the first failing prefix is searched.
 pub fn queue_step(repo: &Repo) -> Result<Value> {
     let parallel = repo.with(|r| Ok(r.cfg.landing.parallel.max(1)))?;
-    let mut preflight = Vec::new();
-    if parallel > 1 {
-        let pre = repo.with(|r| r.preflight())?;
-        if pre.len() > 1 {
-            let heads: Vec<String> = pre.iter().map(|p| p.1.clone()).collect();
-            let outs = test_all(repo, &heads, parallel)?;
-            for ((id, alone, head), out) in pre.iter().zip(&outs) {
-                preflight.push(json!({"change": id, "changeset": alone, "ok": out.ok, "seconds": out.seconds}));
-                if !out.ok {
-                    repo.with(|r| r.reject_preflight(id, head, out))?;
-                }
-            }
-        }
-    }
     let spec = repo.with(|r| r.speculate())?;
     if spec.items.is_empty() {
         let notes = spec.notes.clone();
@@ -459,6 +446,29 @@ pub fn queue_step(repo: &Repo) -> Result<Value> {
     };
     let n = heads.len();
     let top = run(n)?;
+    if !top.ok && parallel > 1 && n > 1 {
+        // The batch failed: test each of its changes alone on main, side by side, and send the
+        // failing ones back. The rest are batched again by the next step. (Testing every change
+        // alone first, before the batch, cost one run per change: 44 runs for 50 changes in the
+        // wide50e cloud run, as many as the git queue.)
+        let pre = repo.with(|r| r.preflight())?;
+        let alone_heads: Vec<String> = pre.iter().map(|p| p.1.clone()).collect();
+        let outs = test_all(repo, &alone_heads, parallel)?;
+        let mut alone = Vec::new();
+        let mut rejected = Vec::new();
+        for ((id, cs, head), out) in pre.iter().zip(&outs) {
+            alone.push(json!({"change": id, "changeset": cs, "ok": out.ok, "seconds": out.seconds}));
+            if !out.ok
+                && let Some(r) = repo.with(|r| r.reject_preflight(id, head, out))?
+            {
+                rejected.push(r);
+            }
+        }
+        if !rejected.is_empty() {
+            return Ok(json!({"status": "done", "landed": [], "rejected": rejected, "tests": tests, "alone": alone}));
+        }
+        // Every change passes alone: they break each other. Find the first failing prefix below.
+    }
     let (passing, culprit) = if top.ok {
         (n, None)
     } else if parallel > 1 && n > 2 {
@@ -489,9 +499,6 @@ pub fn queue_step(repo: &Repo) -> Result<Value> {
     let notes = spec.notes.clone();
     let mut out = repo.with(|r| r.commit_speculation(spec, passing, culprit.as_ref(), tests))?;
     out["notes"] = json!(notes);
-    if !preflight.is_empty() {
-        out["preflight"] = json!(preflight);
-    }
     Ok(out)
 }
 

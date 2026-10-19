@@ -746,3 +746,20 @@ result records the CPU time of `serve` and the daemon, and `land.py` logs its te
 
 Across the three runs, TreeYard was never faster than a plain git merge queue with 50 Claude Code agents on a
 4-core VM: 2.9x, 1.17x and 2.2x the git time.
+
+Run 5 (`wide50e`, main at edb3ae3): TreeYard in `queue` mode with `parallel` (2 on 4 cores; at that commit
+every queued change was tested alone before its batch) and land and go (`DEMO_LAND_AND_GO=1`: agents land
+with `--wait-s 0`; a rejected, reverted or unlanded change resumes its agent's session). Results
+`bench/results/live-agents/wide50e/`. The VM was nearly idle this time (load 0.4 and 2.4).
+
+| Arm | Every change landed and tested | Hidden checks | Final suite | Agent turns | Cost | Test runs |
+|---|---|---|---|---|---|---|
+| git worktrees + merge queue | 708 s for 49 agents; the 50th hung for an hour on a stray `cat` | 60 / 60 | passes | 452 | $6.67 | 53 (689 s) |
+| TreeYard, queue + land and go | **579 s** | 60 / 60 | passes | 450 | $7.47 | 44 (706 s) |
+
+The first 50-agent run TreeYard won: 18 % sooner than the git arm without its hung agent. The 50 agents
+were done after 202 s; then the queue's tests took 270 s, one fix-up round resumed 11 agents (10 changes of
+the 10 pairs that met their pair-mate's conflict in the queue, 1 rejected) and took about 60 s, and the last
+settle 42 s. TreeYard cost 12 % more: resumed sessions read their context again. The queue ran as many tests
+as the git queue (44 against 53), because every change was tested alone first; since then a batch is tested
+first and its changes alone only when it fails (scripted: 8 test runs for 40 passing changes).

@@ -393,11 +393,11 @@ fn e_queue_mode_tests_batches_and_bisects() {
 }
 
 #[test]
-fn e_queue_mode_with_parallel_tests_each_change_first() {
+fn e_queue_mode_with_parallel_tests_changes_alone_when_a_batch_fails() {
     // Scripted 40-agent runs with 1 change in 4 broken: serial bisects made the batch queue slower
-    // than a plain git queue, because one broken change held up its whole batch. With parallel = 4
-    // every queued change is tested alone first, side by side; the broken one goes back at once and
-    // the rest land together.
+    // than a plain git queue, because one broken change held up its whole batch. With parallel = 4 a
+    // failing batch tests its changes alone, side by side; the broken one goes back at once and the
+    // rest land together in the next step. A passing batch costs one run.
     let tmp = tempfile::tempdir().unwrap();
     // Each test run takes 1 s, so the step's wall time shows whether the runs were side by side.
     let cfg = "[landing]\nmode = \"queue\"\ntest = \"sleep 1; ! grep -rq BROKEN .\"\nbatch = 4\nparallel = 4\n";
@@ -409,17 +409,19 @@ fn e_queue_mode_with_parallel_tests_each_change_first() {
     let t0 = std::time::Instant::now();
     let step = call(&url, "queue_run", json!({}));
     let wall = t0.elapsed().as_secs_f64();
-    let pre = step["preflight"].as_array().unwrap();
-    assert_eq!(pre.len(), 4, "{step}");
-    assert_eq!(pre.iter().filter(|p| p["ok"] == false).count(), 1, "{step}");
-    // 4 preflight runs at once, then one run of the batch of 3: about 2 s, not 5.
-    assert!(wall < 2.9, "preflight runs were not side by side: {wall:.1} s");
     assert_eq!(step["tests"].as_array().unwrap().len(), 1, "{step}");
+    let alone = step["alone"].as_array().unwrap();
+    assert_eq!(alone.len(), 4, "{step}");
+    assert_eq!(alone.iter().filter(|p| p["ok"] == false).count(), 1, "{step}");
+    // The batch, then 4 runs at once: about 2 s, not 5.
+    assert!(wall < 2.9, "the changes were not tested side by side: {wall:.1} s");
+    assert_eq!(step["landed"].as_array().unwrap().len(), 0, "{step}");
+    assert_eq!(step["rejected"][0]["change"], ch[1].as_str(), "{step}");
+    assert_eq!(call(&url, "land_status", json!({"change": ch[1]}))["verdict"], "rejected");
+    let step = call(&url, "queue_run", json!({}));
     let landed: Vec<&str> = step["landed"].as_array().unwrap().iter().map(|l| l["change"].as_str().unwrap()).collect();
     assert_eq!(landed, [ch[0].as_str(), ch[2].as_str(), ch[3].as_str()], "{step}");
-    let reviews = call(&url, "reviews", json!({"change": ch[1]}))["reviews"].clone();
-    assert_eq!(reviews[0]["kind"], "tests_failed", "{reviews}");
-    assert_eq!(call(&url, "land_status", json!({"change": ch[1]}))["verdict"], "rejected");
+    assert_eq!(step["tests"].as_array().unwrap().len(), 1, "{step}");
 }
 
 #[test]
