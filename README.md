@@ -54,20 +54,22 @@ repository.
 
 ## 50 agents, one branch
 
-50 agents land 5 changes each on one branch; 20 % of the changes conflict on purpose
-(`sh bench/landbench.sh`). Plain git: every agent pushes, and a rejected push fetches, rebases and tries
-again, up to 20 times.
+50 agents land 5 changes each on one branch; 20 % of the changes conflict on purpose. The same test on
+one machine against plain git, against [gitai](https://github.com/feder-cr/git-ai) with its own benchmark
+script, and against TreeYard (`sh bench/landbench.sh`).
 
-| 50 agents, 250 changes | plain git | TreeYard | |
+| 50 agents, 250 changes | plain git | gitai (batching on) | TreeYard |
 |---|---|---|---|
-| Changes landed | 93 | **197** | the other 53 are the planned conflicts |
-| Time for all 250 | 132 s | **1.1 s** | **120× faster** |
-| Lands per minute | 42 | **10 777** | **256× more** |
-| p99 wait of a landed change | 30.2 s | **0.29 s** | **104× shorter** |
-| Push attempts per landed change | 35.7 | **1.27** | every change lands at its first attempt or hits a real conflict |
+| Time for all 250 | 132 s | 22.2 s | **1.1 s** |
+| Lands per minute | 42 | 540 | **10 777** |
+| p99 wait of a landed change | 30.2 s | 5.9 s | **0.29 s** |
+| Changes landed (the rest are planned conflicts) | 93 | 200 | 197 |
 
-Plain git livelocks: most pushes lose the race, fetch, rebase and lose again. In a second run it landed 5
-changes. TreeYard rebases on the server, so there is no race to lose.
+**120× faster than plain git. 20× faster than gitai.** Plain git livelocks: most pushes lose the race,
+fetch, rebase and lose again. TreeYard rebases on the server, so there is no race to lose.
+
+One macOS machine, 15-core CPU, 48 GB RAM. gitai ran its own `acceptance-phase4.sh`. Every command:
+[docs/benchmarks.md](docs/benchmarks.md).
 
 <details>
 <summary><b>Why: what hurts with git worktrees</b></summary>
@@ -111,7 +113,7 @@ Sources: [docs/comparison.md](docs/comparison.md).
 |---|---|---|---|
 | 50 workspaces ready to build, ripgrep | 69.66 s, 7 789 MB | 1.22 s, 48.3 MB | **57× faster, 161× less disk** |
 | 50 workspaces with node_modules, astro (warm pool) | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
-| 50 agents land 250 changes on one branch, 20 % conflicting | 132 s, 93 landed, p99 30.2 s | 1.1 s, 197 landed, p99 0.29 s | **120× faster, 104× shorter p99** |
+| 50 agents land 250 changes on one branch, 20 % conflicting | 132 s, 93 landed, p99 30.2 s (gitai: 22.2 s, p99 5.9 s) | 1.1 s, 197 landed, p99 0.29 s | **120× faster than git, 20× faster than gitai** |
 | Wait of the last change in a serial queue with the repository's CI (ripgrep / astro / requests) | 248 s / 1 414 s / 3 614 s | land p95 3.4 / 43 / 2.3 ms | **no queue wait** (CI runs after land, see limits) |
 | Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **98 % to 100 % reported before land** |
 | Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |
