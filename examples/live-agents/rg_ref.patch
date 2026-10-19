@@ -1,0 +1,1772 @@
+diff --git a/crates/cli/src/decompress.rs b/crates/cli/src/decompress.rs
+index 3616a38..34ca5f2 100644
+--- a/crates/cli/src/decompress.rs
++++ b/crates/cli/src/decompress.rs
+@@ -6,7 +6,7 @@ use std::{
+     process::Command,
+ };
+ 
+-use globset::{Glob, GlobSet, GlobSetBuilder};
++use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
+ 
+ use crate::process::{CommandError, CommandReader, CommandReaderBuilder};
+ 
+@@ -55,10 +55,17 @@ impl DecompressionMatcherBuilder {
+         };
+         let mut glob_builder = GlobSetBuilder::new();
+         let mut commands = vec![];
+-        for decomp_cmd in defaults.iter().chain(&self.commands) {
+-            let glob = Glob::new(&decomp_cmd.glob).map_err(|err| {
+-                CommandError::io(io::Error::new(io::ErrorKind::Other, err))
+-            })?;
++        for (i, decomp_cmd) in
++            defaults.iter().chain(&self.commands).enumerate()
++        {
++            // The default rules match file extensions, which are matched
++            // case insensitively (e.g., `foo.GZ`).
++            let glob = GlobBuilder::new(&decomp_cmd.glob)
++                .case_insensitive(i < defaults.len())
++                .build()
++                .map_err(|err| {
++                    CommandError::io(io::Error::new(io::ErrorKind::Other, err))
++                })?;
+             glob_builder.add(glob);
+             commands.push(decomp_cmd.clone());
+         }
+@@ -518,6 +525,7 @@ fn default_decompression_commands() -> Vec<DecompressionCommand> {
+     let mut cmds = vec![];
+     add("*.gz", ARGS_GZIP, &mut cmds);
+     add("*.tgz", ARGS_GZIP, &mut cmds);
++    add("*.svgz", ARGS_GZIP, &mut cmds);
+     add("*.bz2", ARGS_BZIP, &mut cmds);
+     add("*.tbz2", ARGS_BZIP, &mut cmds);
+     add("*.xz", ARGS_XZ, &mut cmds);
+diff --git a/crates/cli/src/human.rs b/crates/cli/src/human.rs
+index 61b430d..f453313 100644
+--- a/crates/cli/src/human.rs
++++ b/crates/cli/src/human.rs
+@@ -48,8 +48,8 @@ impl std::fmt::Display for ParseSizeError {
+             InvalidFormat => write!(
+                 f,
+                 "invalid format for size '{}', which should be a non-empty \
+-                 sequence of digits followed by an optional 'K', 'M' or 'G' \
+-                 suffix",
++                 sequence of digits followed by an optional 'K', 'M', 'G' or 'T' \
++                 suffix (in either case)",
+                 self.original
+             ),
+             InvalidInt(ref err) => write!(
+@@ -70,10 +70,10 @@ impl From<ParseSizeError> for std::io::Error {
+ 
+ /// Parse a human readable size like `2M` into a corresponding number of bytes.
+ ///
+-/// Supported size suffixes are `K` (for kilobyte), `M` (for megabyte) and `G`
+-/// (for gigabyte). If a size suffix is missing, then the size is interpreted
+-/// as bytes. If the size is too big to fit into a `u64`, then this returns an
+-/// error.
++/// Supported size suffixes are `K` (for kilobyte), `M` (for megabyte), `G`
++/// (for gigabyte) and `T` (for terabyte), in upper or lower case. If a size
++/// suffix is missing, then the size is interpreted as bytes. If the size is
++/// too big to fit into a `u64`, then this returns an error.
+ ///
+ /// Additional suffixes may be added over time.
+ pub fn parse_human_readable_size(size: &str) -> Result<u64, ParseSizeError> {
+@@ -91,9 +91,10 @@ pub fn parse_human_readable_size(size: &str) -> Result<u64, ParseSizeError> {
+         return Ok(value);
+     }
+     let bytes = match suffix {
+-        "K" => value.checked_mul(1 << 10),
+-        "M" => value.checked_mul(1 << 20),
+-        "G" => value.checked_mul(1 << 30),
++        "K" | "k" => value.checked_mul(1 << 10),
++        "M" | "m" => value.checked_mul(1 << 20),
++        "G" | "g" => value.checked_mul(1 << 30),
++        "T" | "t" => value.checked_mul(1 << 40),
+         _ => return Err(ParseSizeError::format(size)),
+     };
+     bytes.ok_or_else(|| ParseSizeError::overflow(size))
+@@ -144,6 +145,6 @@ mod tests {
+ 
+     #[test]
+     fn invalid_suffix() {
+-        assert!(parse_human_readable_size("123T").is_err());
++        assert!(parse_human_readable_size("123X").is_err());
+     }
+ }
+diff --git a/crates/cli/src/pattern.rs b/crates/cli/src/pattern.rs
+index f246688..7238e4e 100644
+--- a/crates/cli/src/pattern.rs
++++ b/crates/cli/src/pattern.rs
+@@ -141,8 +141,13 @@ pub fn patterns_from_stdin() -> io::Result<Vec<String>> {
+ pub fn patterns_from_reader<R: io::Read>(rdr: R) -> io::Result<Vec<String>> {
+     let mut patterns = vec![];
+     let mut line_number = 0;
+-    io::BufReader::new(rdr).for_byte_line(|line| {
++    io::BufReader::new(rdr).for_byte_line(|mut line| {
+         line_number += 1;
++        // Like Git does for gitignore files, drop a UTF-8 byte order mark
++        // at the start of the first line.
++        if line_number == 1 {
++            line = line.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(line);
++        }
+         match pattern_from_bytes(line) {
+             Ok(pattern) => {
+                 patterns.push(pattern.to_string());
+diff --git a/crates/cli/src/process.rs b/crates/cli/src/process.rs
+index bc166d6..5498511 100644
+--- a/crates/cli/src/process.rs
++++ b/crates/cli/src/process.rs
+@@ -10,6 +10,9 @@ use std::{
+ #[derive(Debug)]
+ pub struct CommandError {
+     kind: CommandErrorKind,
++    /// The exit status of the command, when the error comes from a command
++    /// that exited unsuccessfully.
++    status: Option<process::ExitStatus>,
+ }
+ 
+ #[derive(Debug)]
+@@ -21,12 +24,18 @@ enum CommandErrorKind {
+ impl CommandError {
+     /// Create an error from an I/O error.
+     pub(crate) fn io(ioerr: io::Error) -> CommandError {
+-        CommandError { kind: CommandErrorKind::Io(ioerr) }
++        CommandError { kind: CommandErrorKind::Io(ioerr), status: None }
+     }
+ 
+     /// Create an error from the contents of stderr (which may be empty).
+     pub(crate) fn stderr(bytes: Vec<u8>) -> CommandError {
+-        CommandError { kind: CommandErrorKind::Stderr(bytes) }
++        CommandError { kind: CommandErrorKind::Stderr(bytes), status: None }
++    }
++
++    /// Attach the exit status of the command that produced this error.
++    fn with_status(mut self, status: process::ExitStatus) -> CommandError {
++        self.status = Some(status);
++        self
+     }
+ 
+     /// Returns true if and only if this error has empty data from stderr.
+@@ -46,13 +55,22 @@ impl std::fmt::Display for CommandError {
+             CommandErrorKind::Io(ref e) => e.fmt(f),
+             CommandErrorKind::Stderr(ref bytes) => {
+                 let msg = String::from_utf8_lossy(bytes);
++                let status = match self.status {
++                    Some(status) => format!("{status}"),
++                    None => String::new(),
++                };
+                 if msg.trim().is_empty() {
+-                    write!(f, "<stderr is empty>")
++                    if status.is_empty() {
++                        write!(f, "<stderr is empty>")
++                    } else {
++                        write!(f, "{status} (stderr is empty)")
++                    }
+                 } else {
+                     let div = "-".repeat(79);
+                     write!(
+                         f,
+-                        "\n{div}\n{msg}\n{div}",
++                        "{status}\n{div}\n{msg}\n{div}",
++                        status = status,
+                         div = div,
+                         msg = msg.trim()
+                     )
+@@ -64,7 +82,7 @@ impl std::fmt::Display for CommandError {
+ 
+ impl From<io::Error> for CommandError {
+     fn from(ioerr: io::Error) -> CommandError {
+-        CommandError { kind: CommandErrorKind::Io(ioerr) }
++        CommandError::io(ioerr)
+     }
+ }
+ 
+@@ -224,10 +242,11 @@ impl CommandReader {
+             Some(stdout) => stdout,
+         };
+         drop(stdout);
+-        if self.child.wait()?.success() {
++        let status = self.child.wait()?;
++        if status.success() {
+             Ok(())
+         } else {
+-            let err = self.stderr.read_to_end();
++            let err = self.stderr.read_to_end().with_status(status);
+             // In the specific case where we haven't consumed the full data
+             // from the child process, then closing stdout above results in
+             // a pipe signal being thrown in most cases. But I don't think
+diff --git a/crates/core/flags/config.rs b/crates/core/flags/config.rs
+index c49716e..ddfa153 100644
+--- a/crates/core/flags/config.rs
++++ b/crates/core/flags/config.rs
+@@ -13,8 +13,11 @@ use std::{
+ use bstr::{ByteSlice, io::BufReadExt};
+ 
+ /// Return a sequence of arguments derived from ripgrep rc configuration files.
++///
++/// `RIPGREP_CONFIG_PATH` may name several files, separated like the entries
++/// of `PATH` (`:` on Unix, `;` on Windows). They are read in order.
+ pub fn args() -> Vec<OsString> {
+-    let config_path = match std::env::var_os("RIPGREP_CONFIG_PATH") {
++    let config_paths = match std::env::var_os("RIPGREP_CONFIG_PATH") {
+         None => {
+             log::debug!(
+                 "RIPGREP_CONFIG_PATH environment variable is not set, \
+@@ -22,13 +25,25 @@ pub fn args() -> Vec<OsString> {
+             );
+             return vec![];
+         }
+-        Some(config_path) => {
+-            if config_path.is_empty() {
++        Some(config_paths) => {
++            if config_paths.is_empty() {
+                 return vec![];
+             }
+-            PathBuf::from(config_path)
++            config_paths
+         }
+     };
++    let mut args = vec![];
++    for config_path in std::env::split_paths(&config_paths) {
++        if config_path.as_os_str().is_empty() {
++            continue;
++        }
++        args.extend(args_from_file(expand_tilde(config_path)));
++    }
++    args
++}
++
++/// Return the arguments from one ripgrep rc configuration file.
++fn args_from_file(config_path: PathBuf) -> Vec<OsString> {
+     let (args, errs) = match parse(&config_path) {
+         Ok((args, errs)) => (args, errs),
+         Err(err) => {
+@@ -52,6 +67,17 @@ pub fn args() -> Vec<OsString> {
+     args
+ }
+ 
++/// Replaces a leading `~/` in the given path with the home directory.
++fn expand_tilde(path: PathBuf) -> PathBuf {
++    let Ok(rest) = path.strip_prefix("~") else { return path };
++    let home =
++        std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
++    match home {
++        Some(home) if !home.is_empty() => PathBuf::from(home).join(rest),
++        _ => path,
++    }
++}
++
+ /// Parse a single ripgrep rc file from the given path.
+ ///
+ /// On success, this returns a set of shell arguments, in order, that should
+diff --git a/crates/core/flags/defs.rs b/crates/core/flags/defs.rs
+index 671a929..86e3375 100644
+--- a/crates/core/flags/defs.rs
++++ b/crates/core/flags/defs.rs
+@@ -90,6 +90,7 @@ pub(super) const FLAGS: &[&dyn Flag] = &[
+     &IndexPath,
+     &InvertMatch,
+     &JSON,
++    &Label,
+     &LineBuffered,
+     &LineNumber,
+     &LineNumberNo,
+@@ -817,6 +818,12 @@ Colors will always be used regardless of where output is sent.
+ .sp
+ .IP \fBansi\fP 10n
+ Like 'always', but emits ANSI escapes (even in a Windows console).
++.sp
++For compatibility with GNU grep, \fByes\fP and \fBforce\fP are accepted as
++synonyms of \fBalways\fP.
++.sp
++For compatibility with GNU grep, \fBno\fP and \fBnone\fP are accepted as
++synonyms of \fBnever\fP.
+ .
+ .PP
+ This flag also controls whether hyperlinks are emitted. For example, when
+@@ -840,9 +847,9 @@ the \flag{colors} flag to manually set all color styles to \fBnone\fP:
+ 
+     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+         args.color = match convert::str(&v.unwrap_value())? {
+-            "never" => ColorChoice::Never,
++            "never" | "no" | "none" => ColorChoice::Never,
+             "auto" => ColorChoice::Auto,
+-            "always" => ColorChoice::Always,
++            "always" | "yes" | "force" => ColorChoice::Always,
+             "ansi" => ColorChoice::Ansi,
+             unk => anyhow::bail!("choice '{unk}' is unrecognized"),
+         };
+@@ -913,7 +920,9 @@ provided multiple times. Settings are applied iteratively. Pre-existing color
+ labels are limited to one of eight choices: \fBred\fP, \fBblue\fP, \fBgreen\fP,
+ \fBcyan\fP, \fBmagenta\fP, \fByellow\fP, \fBwhite\fP and \fBblack\fP. Styles
+ are limited to \fBnobold\fP, \fBbold\fP, \fBnointense\fP, \fBintense\fP,
+-\fBnounderline\fP, \fBunderline\fP, \fBnoitalic\fP or \fBitalic\fP.
++\fBnounderline\fP, \fBunderline\fP, \fBnoitalic\fP, \fBitalic\fP,
++\fBnodimmed\fP, \fBdimmed\fP,
++\fBnostrikethrough\fP, \fBstrikethrough\fP.
+ .sp
+ The format of the flag is
+ \fB{\fP\fItype\fP\fB}:{\fP\fIattribute\fP\fB}:{\fP\fIvalue\fP\fB}\fP.
+@@ -1814,7 +1823,7 @@ flags.
+         let string = convert::str(&v)?;
+         args.engine = match string {
+             "default" => EngineChoice::Default,
+-            "pcre2" => EngineChoice::PCRE2,
++            "pcre2" | "pcre" => EngineChoice::PCRE2,
+             "auto" => EngineChoice::Auto,
+             _ => anyhow::bail!("unrecognized regex engine '{string}'"),
+         };
+@@ -3907,6 +3916,53 @@ fn test_json() {
+     assert_eq!(Mode::Search(SearchMode::FilesWithMatches), args.mode);
+ }
+ 
++/// --label
++#[derive(Debug)]
++struct Label;
++
++impl Flag for Label {
++    fn is_switch(&self) -> bool {
++        false
++    }
++    fn name_long(&self) -> &'static str {
++        "label"
++    }
++    fn doc_variable(&self) -> Option<&'static str> {
++        Some("LABEL")
++    }
++    fn doc_category(&self) -> Category {
++        Category::Output
++    }
++    fn doc_short(&self) -> &'static str {
++        r"Show LABEL as the file name for stdin."
++    }
++    fn doc_long(&self) -> &'static str {
++        r"
++When searching standard input, show ILABELP as its file name instead of
++B<stdin>P. This is useful when the contents of a file are piped to ripgrep,
++for example together with lag{with-filename}.
++"
++    }
++
++    fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
++        args.stdin_label = Some(PathBuf::from(v.unwrap_value()));
++        Ok(())
++    }
++}
++
++#[cfg(test)]
++#[test]
++fn test_label() {
++    let args = parse_low_raw(None::<&str>).unwrap();
++    assert_eq!(None, args.stdin_label);
++
++    let args = parse_low_raw(["--label", "foo"]).unwrap();
++    assert_eq!(Some(PathBuf::from("foo")), args.stdin_label);
++
++    let args = parse_low_raw(["--label=foo"]).unwrap();
++    assert_eq!(Some(PathBuf::from("foo")), args.stdin_label);
++}
++
+ /// --line-buffered
+ #[derive(Debug)]
+ struct LineBuffered;
+@@ -6714,6 +6770,14 @@ Sort by the last accessed time on a file. Always single-threaded.
+ .TP 12
+ \fBcreated\fP
+ Sort by the creation time on a file. Always single-threaded.
++.TP 12
++\fBsize\fP
++Sort by file size in bytes. Always single-threaded.
++.TP 12
++\fBextension\fP
++Sort by file extension (the text after the last \fB.\fP in the file name;
++files without one come first), and by path for files with the same extension.
++Always single-threaded.
+ .PP
+ If the chosen (manually or by-default) sorting criteria isn't available on your
+ system (for example, creation time is not available on ext4 file systems), then
+@@ -6727,7 +6791,15 @@ parallelism and run in a single thread.
+ "
+     }
+     fn doc_choices(&self) -> &'static [&'static str] {
+-        &["none", "path", "modified", "accessed", "created"]
++        &[
++            "none",
++            "path",
++            "modified",
++            "accessed",
++            "created",
++            "size",
++            "extension",
++        ]
+     }
+ 
+     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+@@ -6740,6 +6812,8 @@ parallelism and run in a single thread.
+             "modified" => SortModeKind::LastModified,
+             "accessed" => SortModeKind::LastAccessed,
+             "created" => SortModeKind::Created,
++            "size" => SortModeKind::Size,
++            "extension" => SortModeKind::Extension,
+             unk => anyhow::bail!("choice '{unk}' is unrecognized"),
+         };
+         args.sort = Some(SortMode { reverse: false, kind });
+@@ -6816,6 +6890,14 @@ Sort by the last accessed time on a file. Always single-threaded.
+ .TP 12
+ \fBcreated\fP
+ Sort by the creation time on a file. Always single-threaded.
++.TP 12
++\fBsize\fP
++Sort by file size in bytes. Always single-threaded.
++.TP 12
++\fBextension\fP
++Sort by file extension (the text after the last \fB.\fP in the file name;
++files without one come first), and by path for files with the same extension.
++Always single-threaded.
+ .PP
+ If the chosen (manually or by-default) sorting criteria isn't available on your
+ system (for example, creation time is not available on ext4 file systems), then
+@@ -6829,7 +6911,15 @@ parallelism and run in a single thread.
+ "
+     }
+     fn doc_choices(&self) -> &'static [&'static str] {
+-        &["none", "path", "modified", "accessed", "created"]
++        &[
++            "none",
++            "path",
++            "modified",
++            "accessed",
++            "created",
++            "size",
++            "extension",
++        ]
+     }
+ 
+     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+@@ -6842,6 +6932,8 @@ parallelism and run in a single thread.
+             "modified" => SortModeKind::LastModified,
+             "accessed" => SortModeKind::LastAccessed,
+             "created" => SortModeKind::Created,
++            "size" => SortModeKind::Size,
++            "extension" => SortModeKind::Extension,
+             unk => anyhow::bail!("choice '{unk}' is unrecognized"),
+         };
+         args.sort = Some(SortMode { reverse: true, kind });
+@@ -7277,9 +7369,12 @@ To see the list of available file types, use the \flag{type-list} flag.
+     }
+ 
+     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+-        args.type_changes.push(TypeChange::Select {
+-            name: convert::string(v.unwrap_value())?,
+-        });
++        // A comma separated list selects several types at once.
++        let names = convert::string(v.unwrap_value())?;
++        for name in names.split(',').filter(|name| !name.is_empty()) {
++            args.type_changes
++                .push(TypeChange::Select { name: name.to_string() });
++        }
+         Ok(())
+     }
+ }
+@@ -7499,9 +7594,12 @@ To see the list of available file types, use the \flag{type-list} flag.
+     }
+ 
+     fn update(&self, v: FlagValue, args: &mut LowArgs) -> anyhow::Result<()> {
+-        args.type_changes.push(TypeChange::Negate {
+-            name: convert::string(v.unwrap_value())?,
+-        });
++        // A comma separated list selects several types at once.
++        let names = convert::string(v.unwrap_value())?;
++        for name in names.split(',').filter(|name| !name.is_empty()) {
++            args.type_changes
++                .push(TypeChange::Negate { name: name.to_string() });
++        }
+         Ok(())
+     }
+ }
+diff --git a/crates/core/flags/hiargs.rs b/crates/core/flags/hiargs.rs
+index fb56698..8ce7a62 100644
+--- a/crates/core/flags/hiargs.rs
++++ b/crates/core/flags/hiargs.rs
+@@ -98,10 +98,13 @@ pub(crate) struct HiArgs {
+     search_zip: bool,
+     sort: Option<SortMode>,
+     stats: Option<grep::printer::Stats>,
++    stdin_label: Option<PathBuf>,
+     stop_on_nonmatch: bool,
+     threads: usize,
+     trim: bool,
+     types: ignore::types::Types,
++    type_list_select: Vec<String>,
++    type_list_negate: Vec<String>,
+     vimgrep: bool,
+     with_filename: bool,
+ }
+@@ -158,6 +161,24 @@ impl HiArgs {
+         let hyperlink_config = take_hyperlink_config(&mut state, &mut low)?;
+         let stats = stats(&low);
+         let types = types(&low)?;
++        // The types selected with -t, which filter the output of --type-list.
++        let type_list_select = low
++            .type_changes
++            .iter()
++            .filter_map(|change| match change {
++                TypeChange::Select { name } => Some(name.clone()),
++                _ => None,
++            })
++            .collect();
++        // The types negated with -T, which --type-list leaves out.
++        let type_list_negate = low
++            .type_changes
++            .iter()
++            .filter_map(|change| match change {
++                TypeChange::Negate { name } => Some(name.clone()),
++                _ => None,
++            })
++            .collect();
+         let globs = globs(&state, &low)?;
+         let pre_globs = preprocessor_globs(&state, &low)?;
+ 
+@@ -292,7 +313,10 @@ impl HiArgs {
+             invert_match: low.invert_match,
+             is_terminal_stdout: state.is_terminal_stdout,
+             line_number,
+-            max_columns: low.max_columns,
++            // A preview without a column limit uses a limit of 150 columns.
++            max_columns: low
++                .max_columns
++                .or(low.max_columns_preview.then_some(150)),
+             max_columns_preview: low.max_columns_preview,
+             max_count: low.max_count,
+             max_depth: low.max_depth,
+@@ -323,10 +347,13 @@ impl HiArgs {
+             search_zip: low.search_zip,
+             sort: low.sort,
+             stats,
++            stdin_label: low.stdin_label.clone(),
+             stop_on_nonmatch: low.stop_on_nonmatch,
+             threads,
+             trim: low.trim,
+             types,
++            type_list_select,
++            type_list_negate,
+             vimgrep: low.vimgrep,
+             with_filename,
+         })
+@@ -368,6 +395,7 @@ impl HiArgs {
+     pub(crate) fn haystack_builder(&self) -> HaystackBuilder {
+         let mut builder = HaystackBuilder::new();
+         builder.strip_dot_prefix(self.paths.has_implicit_path);
++        builder.stdin_label(self.stdin_label.clone());
+         builder
+     }
+ 
+@@ -609,7 +637,7 @@ impl HiArgs {
+     ) -> grep::printer::JSON<W> {
+         grep::printer::JSONBuilder::new()
+             .pretty(false)
+-            .always_begin_end(false)
++            .always_begin_end(self.include_zero)
+             .replacement(self.replace.clone().map(|r| r.into()))
+             .build(wtr)
+     }
+@@ -670,7 +698,7 @@ impl HiArgs {
+             .kind(kind)
+             .path(self.with_filename)
+             .path_terminator(self.path_terminator.clone())
+-            .separator_field(b":".to_vec())
++            .separator_field(self.field_match_separator.clone().into_bytes())
+             .separator_path(self.path_separator.clone())
+             .stats(self.stats.is_some())
+             .build(wtr)
+@@ -808,6 +836,42 @@ impl HiArgs {
+             SortModeKind::Created => {
+                 attach_timestamps(haystacks, |md| md.created()).collect()
+             }
++            SortModeKind::Size => {
++                let mut sized: Vec<(Haystack, Option<u64>)> = haystacks
++                    .map(|h| {
++                        let size = h.path().metadata().map(|md| md.len());
++                        (h, size.ok())
++                    })
++                    .collect();
++                // Files whose size is unknown come last (when ascending).
++                sized.sort_by_key(|(_, size)| (size.is_none(), *size));
++                if sort.reverse {
++                    sized.reverse();
++                }
++                return Box::new(sized.into_iter().map(|(h, _)| h));
++            }
++            SortModeKind::Extension => {
++                fn extension(path: &std::path::Path) -> String {
++                    let Some(name) = path.file_name() else {
++                        return String::new();
++                    };
++                    let name = name.to_string_lossy();
++                    match name.rfind('.') {
++                        None => String::new(),
++                        Some(i) => name[i + 1..].to_string(),
++                    }
++                }
++                let mut haystacks = haystacks
++                    .map(|h| (extension(h.path()), h))
++                    .collect::<Vec<(String, Haystack)>>();
++                haystacks.sort_by(|(e1, h1), (e2, h2)| {
++                    e1.cmp(e2).then_with(|| h1.path().cmp(h2.path()))
++                });
++                if sort.reverse {
++                    haystacks.reverse();
++                }
++                return Box::new(haystacks.into_iter().map(|(_, h)| h));
++            }
+         };
+         with_timestamps.sort_by(|(_, t1), (_, t2)| {
+             let ordering = match (*t1, *t2) {
+@@ -873,6 +937,14 @@ impl HiArgs {
+         &self.types
+     }
+ 
++    /// Returns true when `--type-list` should print the type with the given
++    /// name, given the types selected or negated with `-t` and `-T`.
++    pub(crate) fn type_list_shows(&self, name: &str) -> bool {
++        (self.type_list_select.is_empty()
++            || self.type_list_select.iter().any(|n| n == name || n == "all"))
++            && !self.type_list_negate.iter().any(|n| n == name || n == "all")
++    }
++
+     /// Create a new builder for recursive directory traversal.
+     ///
+     /// The builder returned can be used to start a single threaded or multi
+@@ -890,7 +962,13 @@ impl HiArgs {
+         if !self.no_ignore_files {
+             for path in self.ignore_file.iter() {
+                 if let Some(err) = builder.add_ignore(path) {
+-                    ignore_message!("{err}");
++                    // An ignore file the user asked for explicitly that can't
++                    // be read is an error, not just a warning.
++                    if err.is_io() {
++                        err_message!("{err}");
++                    } else {
++                        ignore_message!("{err}");
++                    }
+                 }
+             }
+         }
+@@ -1116,7 +1194,7 @@ impl Paths {
+ 
+         let mut paths = Vec::with_capacity(low.positional.len());
+         for osarg in low.positional.drain(..) {
+-            let path = PathBuf::from(osarg);
++            let path = collapse_trailing_slashes(PathBuf::from(osarg));
+             if state.stdin_consumed && path == Path::new("-") {
+                 anyhow::bail!(
+                     "error: attempted to read patterns from stdin \
+@@ -1175,6 +1253,18 @@ impl Paths {
+     }
+ }
+ 
++/// Replaces repeated trailing slashes in a path given by the user with a
++/// single slash, so that `dir//` prints its files as `dir/file` and not as
++/// `dir//file`.
++fn collapse_trailing_slashes(path: PathBuf) -> PathBuf {
++    let Some(s) = path.to_str() else { return path };
++    let trimmed = s.trim_end_matches('/');
++    if s.len() - trimmed.len() < 2 {
++        return path;
++    }
++    PathBuf::from(format!("{trimmed}/"))
++}
++
+ /// The "binary detection" configuration that ripgrep should use.
+ ///
+ /// ripgrep actually uses two different binary detection heuristics depending
+@@ -1275,6 +1365,10 @@ fn preprocessor_globs(
+         return Ok(ignore::overrides::Override::empty());
+     }
+     let mut builder = ignore::overrides::OverrideBuilder::new(&state.cwd);
++    // --glob-case-insensitive applies to --pre-glob too.
++    if low.glob_case_insensitive {
++        builder.case_insensitive(true).unwrap();
++    }
+     for glob in low.pre_glob.iter() {
+         builder.add(glob)?;
+     }
+diff --git a/crates/core/flags/lowargs.rs b/crates/core/flags/lowargs.rs
+index 08775d0..ec6b515 100644
+--- a/crates/core/flags/lowargs.rs
++++ b/crates/core/flags/lowargs.rs
+@@ -103,6 +103,7 @@ pub(crate) struct LowArgs {
+     pub(crate) search_zip: bool,
+     pub(crate) sort: Option<SortMode>,
+     pub(crate) stats: bool,
++    pub(crate) stdin_label: Option<PathBuf>,
+     pub(crate) stop_on_nonmatch: bool,
+     pub(crate) threads: Option<usize>,
+     pub(crate) trim: bool,
+@@ -499,7 +500,7 @@ impl ContextSeparator {
+                  to provide a separator that is not valid UTF-8)"
+             )
+         };
+-        Ok(ContextSeparator(Some(Vec::unescape_bytes(string).into())))
++        Ok(ContextSeparator(Some(unescape_separator(string).into())))
+     }
+ 
+     /// Creates a new separator that instructs the printer to disable contextual
+@@ -577,7 +578,7 @@ impl FieldContextSeparator {
+                  to provide a separator that is not valid UTF-8)"
+             )
+         };
+-        Ok(FieldContextSeparator(Vec::unescape_bytes(string).into()))
++        Ok(FieldContextSeparator(unescape_separator(string).into()))
+     }
+ 
+     /// Return the raw bytes of this separator.
+@@ -611,7 +612,7 @@ impl FieldMatchSeparator {
+                  to provide a separator that is not valid UTF-8)"
+             )
+         };
+-        Ok(FieldMatchSeparator(Vec::unescape_bytes(string).into()))
++        Ok(FieldMatchSeparator(unescape_separator(string).into()))
+     }
+ 
+     /// Return the raw bytes of this separator.
+@@ -622,6 +623,30 @@ impl FieldMatchSeparator {
+     }
+ }
+ 
++/// Unescapes a separator given by the user.
++///
++/// This supports the same escapes as `Vec::unescape_bytes` (`\t`, `\n`,
++/// `\r`, `\xHH` and so on), plus `\e` for the ESC byte (`0x1B`).
++fn unescape_separator(string: &str) -> Vec<u8> {
++    let mut expanded = String::with_capacity(string.len());
++    let mut chars = string.chars();
++    while let Some(ch) = chars.next() {
++        if ch != '\\' {
++            expanded.push(ch);
++            continue;
++        }
++        match chars.next() {
++            Some('e') => expanded.push_str("\\x1B"),
++            Some(next) => {
++                expanded.push('\\');
++                expanded.push(next);
++            }
++            None => expanded.push('\\'),
++        }
++    }
++    Vec::unescape_bytes(&expanded)
++}
++
+ /// The type of logging to do. `Debug` emits some details while `Trace` emits
+ /// much more.
+ #[derive(Debug, Eq, PartialEq)]
+@@ -681,6 +706,10 @@ pub(crate) enum SortModeKind {
+     LastAccessed,
+     /// Sort by creation time.
+     Created,
++    /// Sort by file size.
++    Size,
++    /// Sort by file extension, then by path.
++    Extension,
+ }
+ 
+ impl SortMode {
+@@ -689,6 +718,8 @@ impl SortMode {
+     pub(crate) fn supported(&self) -> anyhow::Result<()> {
+         match self.kind {
+             SortModeKind::Path => Ok(()),
++            SortModeKind::Size => Ok(()),
++            SortModeKind::Extension => Ok(()),
+             SortModeKind::LastModified => {
+                 let md = std::env::current_exe()
+                     .and_then(|p| p.metadata())
+diff --git a/crates/core/flags/parse.rs b/crates/core/flags/parse.rs
+index edda40a..f0c6662 100644
+--- a/crates/core/flags/parse.rs
++++ b/crates/core/flags/parse.rs
+@@ -242,6 +242,31 @@ impl Parser {
+                     args.special = Some(SpecialMode::VersionShort);
+                     continue;
+                 }
++                lexopt::Arg::Short(ch)
++                    if ch.is_ascii_digit()
++                        && matches!(
++                            self.find_short(ch),
++                            FlagLookup::UnrecognizedShort(_)
++                        ) =>
++                {
++                    // Like GNU grep, -NUM is a shorthand for --context=NUM.
++                    // (Digits that are flags of their own, like -0 for
++                    // --null, keep their meaning.)
++                    let mut num = String::from(ch);
++                    if let Some(rest) = p.optional_value() {
++                        num.push_str(&rest.to_string_lossy());
++                    }
++                    let FlagLookup::Match(mat) = self.find_long("context")
++                    else {
++                        unreachable!("--context flag always exists")
++                    };
++                    mat.flag
++                        .update(FlagValue::Value(num.clone().into()), args)
++                        .with_context(|| {
++                            format!("error parsing flag -{num}")
++                        })?;
++                    continue;
++                }
+                 lexopt::Arg::Short(ch) => self.find_short(ch),
+                 lexopt::Arg::Long(name) if name == "help" => {
+                     // Special case -h/--help since behavior is different
+diff --git a/crates/core/haystack.rs b/crates/core/haystack.rs
+index f88b6de..165b531 100644
+--- a/crates/core/haystack.rs
++++ b/crates/core/haystack.rs
+@@ -9,18 +9,19 @@ Effectively, a haystack wraps a directory entry and adds some light application
+ level logic around it.
+ */
+ 
+-use std::path::Path;
++use std::path::{Path, PathBuf};
+ 
+ /// A builder for constructing things to search over.
+ #[derive(Clone, Debug)]
+ pub(crate) struct HaystackBuilder {
+     strip_dot_prefix: bool,
++    stdin_label: Option<PathBuf>,
+ }
+ 
+ impl HaystackBuilder {
+     /// Return a new haystack builder with a default configuration.
+     pub(crate) fn new() -> HaystackBuilder {
+-        HaystackBuilder { strip_dot_prefix: false }
++        HaystackBuilder { strip_dot_prefix: false, stdin_label: None }
+     }
+ 
+     /// Create a new haystack from a possibly missing directory entry.
+@@ -47,7 +48,13 @@ impl HaystackBuilder {
+     /// searched, then this returns `None` after emitting any relevant log
+     /// messages.
+     fn build(&self, dent: ignore::DirEntry) -> Option<Haystack> {
+-        let hay = Haystack { dent, strip_dot_prefix: self.strip_dot_prefix };
++        let stdin_label =
++            if dent.is_stdin() { self.stdin_label.clone() } else { None };
++        let hay = Haystack {
++            dent,
++            strip_dot_prefix: self.strip_dot_prefix,
++            stdin_label,
++        };
+         if let Some(err) = hay.dent.error() {
+             ignore_message!("{err}");
+         }
+@@ -89,6 +96,15 @@ impl HaystackBuilder {
+         self.strip_dot_prefix = yes;
+         self
+     }
++
++    /// When set, stdin is shown with this name instead of `<stdin>`.
++    pub(crate) fn stdin_label(
++        &mut self,
++        label: Option<PathBuf>,
++    ) -> &mut HaystackBuilder {
++        self.stdin_label = label;
++        self
++    }
+ }
+ 
+ /// A haystack is a thing we want to search.
+@@ -98,6 +114,7 @@ impl HaystackBuilder {
+ pub(crate) struct Haystack {
+     dent: ignore::DirEntry,
+     strip_dot_prefix: bool,
++    stdin_label: Option<PathBuf>,
+ }
+ 
+ impl Haystack {
+@@ -106,6 +123,9 @@ impl Haystack {
+     /// If this haystack corresponds to stdin, then a special `<stdin>` path
+     /// is returned instead.
+     pub(crate) fn path(&self) -> &Path {
++        if let Some(ref label) = self.stdin_label {
++            return label;
++        }
+         if self.strip_dot_prefix && self.dent.path().starts_with("./") {
+             self.dent.path().strip_prefix("./").unwrap()
+         } else {
+diff --git a/crates/core/main.rs b/crates/core/main.rs
+index f5fef53..ee88d1d 100644
+--- a/crates/core/main.rs
++++ b/crates/core/main.rs
+@@ -336,6 +336,9 @@ fn types(args: &HiArgs) -> anyhow::Result<ExitCode> {
+     let mut count = 0;
+     let mut stdout = args.stdout();
+     for def in args.types().definitions() {
++        if !args.type_list_shows(def.name()) {
++            continue;
++        }
+         count += 1;
+         stdout.write_all(def.name().as_bytes())?;
+         stdout.write_all(b": ")?;
+@@ -464,24 +467,45 @@ fn print_stats<W: Write>(
+         )?;
+         write!(wtr, "\n")
+     } else {
++        // Use the singular noun for a count of exactly 1.
++        fn count(n: u64, singular: &str, plural: &str) -> String {
++            format!("{n} {}", if n == 1 { singular } else { plural })
++        }
+         write!(
+             wtr,
+             "
+-{matches} matches
+-{lines} matched lines
+-{searches_with_match} files contained matches
+-{searches} files searched
+-{bytes_printed} bytes printed
+-{bytes_searched} bytes searched
++{matches}
++{lines}
++{searches_with_match}
++{searches_without_match}
++{searches}
++{bytes_printed}
++{bytes_searched}
+ {search_time:0.6} seconds spent searching
+ {process_time:0.6} seconds total
+ ",
+-            matches = stats.matches(),
+-            lines = stats.matched_lines(),
+-            searches_with_match = stats.searches_with_match(),
+-            searches = stats.searches(),
+-            bytes_printed = stats.bytes_printed(),
+-            bytes_searched = stats.bytes_searched(),
++            matches = count(stats.matches(), "match", "matches"),
++            lines =
++                count(stats.matched_lines(), "matched line", "matched lines"),
++            searches_with_match = count(
++                stats.searches_with_match(),
++                "file contained matches",
++                "files contained matches"
++            ),
++            searches_without_match = count(
++                stats.searches() - stats.searches_with_match(),
++                "file contained no matches",
++                "files contained no matches"
++            ),
++            searches =
++                count(stats.searches(), "file searched", "files searched"),
++            bytes_printed =
++                count(stats.bytes_printed(), "byte printed", "bytes printed"),
++            bytes_searched = count(
++                stats.bytes_searched(),
++                "byte searched",
++                "bytes searched"
++            ),
+             search_time = stats.elapsed().as_secs_f64(),
+             process_time = elapsed.as_secs_f64(),
+         )
+diff --git a/crates/globset/src/glob.rs b/crates/globset/src/glob.rs
+index ac1dd6d..4ee0fca 100644
+--- a/crates/globset/src/glob.rs
++++ b/crates/globset/src/glob.rs
+@@ -701,10 +701,12 @@ impl Tokens {
+                     re.push_str(&char_to_escaped_literal(c));
+                 }
+                 Token::Any => {
++                    // `?` matches one whole UTF-8 encoded character, or one
++                    // byte that isn't part of valid UTF-8.
+                     if options.literal_separator {
+-                        re.push_str("[^/]");
++                        re.push_str(r"(?:(?u:[^/])|[\x80-\xFF])");
+                     } else {
+-                        re.push_str(".");
++                        re.push_str(r"(?:(?u:.)|[\x80-\xFF])");
+                     }
+                 }
+                 Token::ZeroOrMore => {
+@@ -723,6 +725,29 @@ impl Tokens {
+                 Token::RecursiveZeroOrMore => {
+                     re.push_str("(?:/|/.*/)");
+                 }
++                Token::Class { negated, ref ranges }
++                    if negated
++                        || ranges
++                            .iter()
++                            .any(|r| !r.0.is_ascii() || !r.1.is_ascii()) =>
++                {
++                    // A class that can match a non-ASCII character must
++                    // match a whole UTF-8 encoded character, not one byte.
++                    re.push_str("(?u:[");
++                    if negated {
++                        re.push('^');
++                    }
++                    for r in ranges {
++                        re.push_str(&regex_syntax::escape(&r.0.to_string()));
++                        if r.0 != r.1 {
++                            re.push('-');
++                            re.push_str(&regex_syntax::escape(
++                                &r.1.to_string(),
++                            ));
++                        }
++                    }
++                    re.push_str("])");
++                }
+                 Token::Class { negated, ref ranges } => {
+                     re.push('[');
+                     if negated {
+@@ -1004,15 +1029,37 @@ impl<'a> Parser<'a> {
+                     Err(self.error(ErrorKind::UnclosedClass))
+                 };
+             };
++            // When backslash escapes are enabled, a backslash escapes the
++            // next character inside a class too (e.g., `[\]]`).
++            let mut escaped = false;
++            let c = if c == '\\' && self.opts.backslash_escape {
++                if self.chars.peek().is_none() {
++                    // Let the next iteration report the unclosed class.
++                    continue;
++                }
++                escaped = true;
++                self.bump().unwrap()
++            } else {
++                c
++            };
++            // POSIX character classes like `[:digit:]`.
++            if c == '[' && !escaped {
++                if let Some(class) = self.parse_posix_class() {
++                    ranges.extend(class);
++                    in_range = false;
++                    first = false;
++                    continue;
++                }
++            }
+             match c {
+-                ']' => {
++                ']' if !escaped => {
+                     if first {
+                         ranges.push((']', ']'));
+                     } else {
+                         break;
+                     }
+                 }
+-                '-' => {
++                '-' if !escaped => {
+                     if first {
+                         ranges.push(('-', '-'));
+                     } else if in_range {
+@@ -1051,6 +1098,50 @@ impl<'a> Parser<'a> {
+         self.push_token(Token::Class { negated, ranges })
+     }
+ 
++    /// Parses a POSIX character class like `[:alpha:]` right after the
++    /// `[` that opens it (inside a bracket expression) and returns its ASCII
++    /// ranges. If the input doesn't start a known class, nothing is consumed
++    /// and `None` is returned.
++    fn parse_posix_class(&mut self) -> Option<Vec<(char, char)>> {
++        let mut lookahead = self.chars.clone();
++        if lookahead.next() != Some(':') {
++            return None;
++        }
++        let mut name = String::new();
++        loop {
++            match lookahead.next()? {
++                ':' => break,
++                c if c.is_ascii_lowercase() => name.push(c),
++                _ => return None,
++            }
++        }
++        if lookahead.next() != Some(']') {
++            return None;
++        }
++        let ranges = match name.as_str() {
++            "alnum" => vec![('0', '9'), ('A', 'Z'), ('a', 'z')],
++            "alpha" => vec![('A', 'Z'), ('a', 'z')],
++            "blank" => vec![(' ', ' '), ('\t', '\t')],
++            "cntrl" => vec![('\x00', '\x1F'), ('\x7F', '\x7F')],
++            "digit" => vec![('0', '9')],
++            "graph" => vec![('!', '~')],
++            "lower" => vec![('a', 'z')],
++            "print" => vec![(' ', '~')],
++            "punct" => {
++                vec![('!', '/'), (':', '@'), ('[', '`'), ('{', '~')]
++            }
++            "space" => vec![('\t', '\r'), (' ', ' ')],
++            "upper" => vec![('A', 'Z')],
++            "xdigit" => vec![('0', '9'), ('A', 'F'), ('a', 'f')],
++            _ => return None,
++        };
++        // Consume `:name:]`.
++        for _ in 0..name.len() + 3 {
++            self.bump();
++        }
++        Some(ranges)
++    }
++
+     fn bump(&mut self) -> Option<char> {
+         self.prev = self.cur;
+         self.cur = self.chars.next();
+@@ -1351,14 +1442,14 @@ mod tests {
+ 
+     toregex!(re_casei, "a", "(?i)^a$", &CASEI);
+ 
+-    toregex!(re_slash1, "?", r"^[^/]$", SLASHLIT);
++    toregex!(re_slash1, "?", r"^(?:(?u:[^/])|[\x80-\xFF])$", SLASHLIT);
+     toregex!(re_slash2, "*", r"^[^/]*$", SLASHLIT);
+ 
+     toregex!(re1, "a", "^a$");
+-    toregex!(re2, "?", "^.$");
++    toregex!(re2, "?", r"^(?:(?u:.)|[\x80-\xFF])$");
+     toregex!(re3, "*", "^.*$");
+-    toregex!(re4, "a?", "^a.$");
+-    toregex!(re5, "?a", "^.a$");
++    toregex!(re4, "a?", r"^a(?:(?u:.)|[\x80-\xFF])$");
++    toregex!(re5, "?a", r"^(?:(?u:.)|[\x80-\xFF])a$");
+     toregex!(re6, "a*", "^a.*$");
+     toregex!(re7, "*a", "^.*a$");
+     toregex!(re8, "[*]", r"^[\*]$");
+diff --git a/crates/ignore/src/default_types.rs b/crates/ignore/src/default_types.rs
+index 6b5bba0..bfc5cdc 100644
+--- a/crates/ignore/src/default_types.rs
++++ b/crates/ignore/src/default_types.rs
+@@ -198,6 +198,7 @@ pub(crate) const DEFAULT_TYPES: &[(&[&str], &[&str])] = &[
+     (&["objc"], &["*.h", "*.m"]),
+     (&["objcpp"], &["*.h", "*.mm"]),
+     (&["ocaml"], &["*.ml", "*.mli", "*.mll", "*.mly"]),
++    (&["odin"], &["*.odin"]),
+     (&["org"], &["*.org", "*.org_archive"]),
+     (&["pants"], &["BUILD"]),
+     (&["pascal"], &["*.pas", "*.dpr", "*.lpr", "*.pp", "*.inc"]),
+diff --git a/crates/ignore/src/dir.rs b/crates/ignore/src/dir.rs
+index 72faf48..6d0d1e1 100644
+--- a/crates/ignore/src/dir.rs
++++ b/crates/ignore/src/dir.rs
+@@ -240,7 +240,9 @@ impl Ignore {
+             igtmp.is_absolute_parent = true;
+             igtmp.has_git =
+                 if self.inner.opts.require_git && self.inner.opts.git_ignore {
+-                    parent.join(".git").exists() || parent.join(".jj").exists()
++                    parent.join(".git").exists()
++                        || parent.join(".jj").exists()
++                        || parent.join(".sl").exists()
+                 } else {
+                     false
+                 };
+@@ -315,6 +317,7 @@ impl Ignore {
+             has_git_ignore: false,
+             has_git_dir: false,
+             has_jj_dir: false,
++            has_sl_dir: false,
+             custom_ignore_files: vec![false; custom_ignore_filenames.len()],
+         };
+         for entry in entries {
+@@ -327,6 +330,8 @@ impl Ignore {
+                 files.has_git_dir = true;
+             } else if file_name == OsStr::new(".jj") {
+                 files.has_jj_dir = true;
++            } else if file_name == OsStr::new(".sl") {
++                files.has_sl_dir = true;
+             }
+             for (i, name) in custom_ignore_filenames.iter().enumerate() {
+                 if file_name == name.as_os_str() {
+@@ -354,7 +359,12 @@ impl Ignore {
+         let has_jj = check_vcs_dir
+             && ignore_files_list.is_none_or(|i| i.has_jj_dir)
+             && dir.join(".jj").exists();
+-        let has_git = check_vcs_dir && (git_type.is_some() || has_jj);
++        // A Sapling checkout has a `.sl` directory and uses .gitignore files.
++        let has_sl = check_vcs_dir
++            && ignore_files_list.is_none_or(|i| i.has_sl_dir)
++            && dir.join(".sl").exists();
++        let has_git =
++            check_vcs_dir && (git_type.is_some() || has_jj || has_sl);
+ 
+         let mut errs = PartialErrorBuilder::default();
+         let custom_ig_matcher = if self
+@@ -709,6 +719,7 @@ struct IgnoreFilesFound {
+     has_git_ignore: bool,
+     has_git_dir: bool,
+     has_jj_dir: bool,
++    has_sl_dir: bool,
+     custom_ignore_files: Vec<bool>,
+ }
+ 
+diff --git a/crates/ignore/src/gitignore.rs b/crates/ignore/src/gitignore.rs
+index 7b017c7..2572d55 100644
+--- a/crates/ignore/src/gitignore.rs
++++ b/crates/ignore/src/gitignore.rs
+@@ -467,8 +467,20 @@ impl GitignoreBuilder {
+         if line.starts_with("#") {
+             return Ok(self);
+         }
+-        if !line.ends_with("\\ ") {
+-            line = line.trim_right();
++        // Trailing spaces are ignored unless they are escaped with a
++        // backslash. An escaped space may itself be followed by unescaped
++        // spaces, which are dropped (`foo\  ` is `foo\ `).
++        let trimmed = line.trim_end();
++        if trimmed.ends_with('\\') && trimmed.len() < line.len() {
++            let backslashes =
++                trimmed.bytes().rev().take_while(|&b| b == b'\\').count();
++            line = if backslashes % 2 == 1 {
++                &line[..trimmed.len() + 1]
++            } else {
++                trimmed
++            };
++        } else {
++            line = trimmed;
+         }
+         if line.is_empty() {
+             return Ok(self);
+diff --git a/crates/ignore/src/overrides.rs b/crates/ignore/src/overrides.rs
+index 005cae8..15d6208 100644
+--- a/crates/ignore/src/overrides.rs
++++ b/crates/ignore/src/overrides.rs
+@@ -140,7 +140,22 @@ impl OverrideBuilder {
+     /// namely, `!` at the beginning of a glob will ignore a file. Without `!`,
+     /// all matches of the glob provided are treated as whitelist matches.
+     pub fn add(&mut self, glob: &str) -> Result<&mut OverrideBuilder, Error> {
+-        self.builder.add_line(None, glob)?;
++        // Paths are matched relative to the root, without a `./` prefix. So
++        // a leading `./` (after an optional `!`) means the root, just like
++        // a leading `/` does.
++        let (negation, mut rest) = match glob.strip_prefix('!') {
++            Some(rest) => ("!", rest),
++            None => ("", glob),
++        };
++        if rest.starts_with("./") {
++            while let Some(stripped) = rest.strip_prefix("./") {
++                rest = stripped.trim_start_matches('/');
++            }
++            let anchored = format!("{negation}/{rest}");
++            self.builder.add_line(None, &anchored)?;
++        } else {
++            self.builder.add_line(None, glob)?;
++        }
+         Ok(self)
+     }
+ 
+diff --git a/crates/ignore/src/types.rs b/crates/ignore/src/types.rs
+index 313cf5c..f5068ba 100644
+--- a/crates/ignore/src/types.rs
++++ b/crates/ignore/src/types.rs
+@@ -447,23 +447,47 @@ impl TypesBuilder {
+         let parts: Vec<&str> = def.split(':').collect();
+         match parts.len() {
+             2 => {
+-                let name = parts[0];
+-                let glob = parts[1];
+-                if name.is_empty() || glob.is_empty() {
++                // Whitespace around the parts of a definition is ignored.
++                let name = parts[0].trim();
++                let globs = parts[1].trim();
++                if name.is_empty() || globs.is_empty() {
+                     return Err(Error::InvalidDefinition);
+                 }
+-                self.add(name, glob)
++                // A definition may list several globs separated by commas.
++                // Commas inside `{...}` belong to the glob.
++                let (mut depth, mut start) = (0usize, 0);
++                let mut list = vec![];
++                for (i, ch) in globs.char_indices() {
++                    match ch {
++                        '{' => depth += 1,
++                        '}' => depth = depth.saturating_sub(1),
++                        ',' if depth == 0 => {
++                            list.push(&globs[start..i]);
++                            start = i + 1;
++                        }
++                        _ => {}
++                    }
++                }
++                list.push(&globs[start..]);
++                for glob in list {
++                    let glob = glob.trim();
++                    if glob.is_empty() {
++                        return Err(Error::InvalidDefinition);
++                    }
++                    self.add(name, glob)?;
++                }
++                Ok(())
+             }
+             3 => {
+-                let name = parts[0];
+-                let types_string = parts[2];
++                let name = parts[0].trim();
++                let types_string = parts[2].trim();
+                 if name.is_empty()
+-                    || parts[1] != "include"
++                    || parts[1].trim() != "include"
+                     || types_string.is_empty()
+                 {
+                     return Err(Error::InvalidDefinition);
+                 }
+-                let types = types_string.split(',');
++                let types = types_string.split(',').map(|t| t.trim());
+                 // Check ahead of time to ensure that all types specified are
+                 // present and fail fast if not.
+                 if types.clone().any(|t| !self.types.contains_key(t)) {
+diff --git a/crates/ignore/src/walk.rs b/crates/ignore/src/walk.rs
+index 2b0300e..b99c8bf 100644
+--- a/crates/ignore/src/walk.rs
++++ b/crates/ignore/src/walk.rs
+@@ -1148,6 +1148,17 @@ impl Walk {
+ 
+     fn skip_entry(&self, ent: &DirEntry) -> Result<bool, Error> {
+         if ent.depth() == 0 {
++            // Explicitly given paths are never filtered, except by their size
++            // when a maximum file size is set.
++            if let Some(max_filesize) = self.max_filesize {
++                if !ent.is_dir() && !ent.is_stdin() {
++                    return Ok(skip_filesize(
++                        max_filesize,
++                        ent.path(),
++                        &ent.metadata().ok(),
++                    ));
++                }
++            }
+             return Ok(false);
+         }
+         // We ensure that trivial skipping is done before any other potentially
+@@ -1479,7 +1490,21 @@ impl WalkParallel {
+                     };
+                     match DirEntryRaw::from_path(0, path, false) {
+                         Ok(dent) => {
+-                            (DirEntry::new_raw(dent, None), root_device)
++                            let dent = DirEntry::new_raw(dent, None);
++                            // Like in the single threaded walker, a maximum
++                            // file size applies to explicitly given files.
++                            if let Some(max_filesize) = self.max_filesize {
++                                if !dent.is_dir()
++                                    && skip_filesize(
++                                        max_filesize,
++                                        dent.path(),
++                                        &dent.metadata().ok(),
++                                    )
++                                {
++                                    continue;
++                                }
++                            }
++                            (dent, root_device)
+                         }
+                         Err(err) => {
+                             if visitor.visit(Err(err)).is_quit() {
+diff --git a/crates/matcher/src/interpolate.rs b/crates/matcher/src/interpolate.rs
+index 2c66bcd..4db819d 100644
+--- a/crates/matcher/src/interpolate.rs
++++ b/crates/matcher/src/interpolate.rs
+@@ -106,7 +106,16 @@ fn find_cap_ref(replacement: &[u8]) -> Option<CaptureRef<'_>> {
+         i += 1;
+     }
+     let mut cap_end = i;
+-    while replacement.get(cap_end).map_or(false, is_valid_cap_letter) {
++    // `$&` is the whole match, like `$0`.
++    if !brace && replacement.get(i) == Some(&b'&') {
++        return Some(CaptureRef { cap: Ref::Number(0), end: i + 1 });
++    }
++    // Without braces, a reference starting with a digit is a group number
++    // made of the longest run of digits, so `$1a` is group 1 followed by `a`.
++    let is_number = !brace && replacement[i].is_ascii_digit();
++    while replacement.get(cap_end).map_or(false, |b| {
++        if is_number { b.is_ascii_digit() } else { is_valid_cap_letter(b) }
++    }) {
+         cap_end += 1;
+     }
+     if cap_end == i {
+@@ -172,7 +181,7 @@ mod tests {
+     find!(find_cap_ref3, "$0", c!(0, 2));
+     find!(find_cap_ref4, "$5", c!(5, 2));
+     find!(find_cap_ref5, "$10", c!(10, 3));
+-    find!(find_cap_ref6, "$42a", c!("42a", 4));
++    find!(find_cap_ref6, "$42a", c!(42, 3));
+     find!(find_cap_ref7, "${42}a", c!(42, 5));
+     find!(find_cap_ref8, "${42");
+     find!(find_cap_ref9, "${42 ");
+@@ -180,6 +189,7 @@ mod tests {
+     find!(find_cap_ref11, "$");
+     find!(find_cap_ref12, " ");
+     find!(find_cap_ref13, "");
++    find!(find_cap_ref_amp, "$&", c!(0, 2));
+ 
+     // A convenience routine for using interpolate's unwieldy but flexible API.
+     fn interpolate_string(
+@@ -246,7 +256,7 @@ mod tests {
+         vec![("foo", 2)],
+         vec!["", "", "xxx"],
+         "test$2test",
+-        "test",
++        "testxxxtest",
+     );
+ 
+     interp!(
+diff --git a/crates/printer/src/color.rs b/crates/printer/src/color.rs
+index 49fb769..cdc528a 100644
+--- a/crates/printer/src/color.rs
++++ b/crates/printer/src/color.rs
+@@ -65,7 +65,7 @@ impl std::fmt::Display for ColorError {
+                 f,
+                 "unrecognized style attribute '{}'. Choose from: \
+                  nobold, bold, nointense, intense, nounderline, \
+-                 underline, noitalic, italic.",
++                 underline, noitalic, italic, nodimmed, dimmed, nostrikethrough, strikethrough.",
+                 name,
+             ),
+             ColorError::InvalidFormat(ref original) => write!(
+@@ -122,7 +122,7 @@ pub struct ColorSpecs {
+ /// `0x`.
+ ///
+ /// Valid style instructions are `nobold`, `bold`, `intense`, `nointense`,
+-/// `underline`, `nounderline`, `italic`, `noitalic`.
++/// `underline`, `nounderline`, `italic`, `noitalic`, `dimmed`, `nodimmed`, `strikethrough`, `nostrikethrough`.
+ ///
+ /// ## Example
+ ///
+@@ -205,6 +205,10 @@ enum Style {
+     NoUnderline,
+     Italic,
+     NoItalic,
++    Dimmed,
++    NoDimmed,
++    Strikethrough,
++    NoStrikethrough,
+ }
+ 
+ impl ColorSpecs {
+@@ -303,6 +307,18 @@ impl SpecValue {
+                 Style::NoItalic => {
+                     cspec.set_italic(false);
+                 }
++                Style::Dimmed => {
++                    cspec.set_dimmed(true);
++                }
++                Style::NoDimmed => {
++                    cspec.set_dimmed(false);
++                }
++                Style::Strikethrough => {
++                    cspec.set_strikethrough(true);
++                }
++                Style::NoStrikethrough => {
++                    cspec.set_strikethrough(false);
++                }
+             },
+         }
+     }
+@@ -390,6 +406,10 @@ impl std::str::FromStr for Style {
+             "nounderline" => Ok(Style::NoUnderline),
+             "italic" => Ok(Style::Italic),
+             "noitalic" => Ok(Style::NoItalic),
++            "dimmed" => Ok(Style::Dimmed),
++            "nodimmed" => Ok(Style::NoDimmed),
++            "strikethrough" => Ok(Style::Strikethrough),
++            "nostrikethrough" => Ok(Style::NoStrikethrough),
+             _ => Err(ColorError::UnrecognizedStyle(s.to_string())),
+         }
+     }
+diff --git a/crates/printer/src/hyperlink/aliases.rs b/crates/printer/src/hyperlink/aliases.rs
+index 3db34e0..37bfbe7 100644
+--- a/crates/printer/src/hyperlink/aliases.rs
++++ b/crates/printer/src/hyperlink/aliases.rs
+@@ -65,6 +65,8 @@ pub(super) const HYPERLINK_PATTERN_ALIASES: &[HyperlinkAlias] = &[
+         "VSCodium scheme (vscodium://)",
+         "vscodium://file{path}:{line}:{column}",
+     ),
++    // https://zed.dev/docs/command-line-interface
++    alias("zed", "Zed scheme (zed://)", "zed://file{path}:{line}:{column}"),
+ ];
+ 
+ /// Creates a [`HyperlinkAlias`].
+diff --git a/crates/printer/src/hyperlink/mod.rs b/crates/printer/src/hyperlink/mod.rs
+index 52862bf..4c531ad 100644
+--- a/crates/printer/src/hyperlink/mod.rs
++++ b/crates/printer/src/hyperlink/mod.rs
+@@ -233,8 +233,10 @@ impl HyperlinkAlias {
+     ///
+     /// If one does not exist, `None` is returned.
+     fn find(name: &str) -> Option<&HyperlinkAlias> {
++        // Alias names are all lowercase, and are matched case insensitively.
++        let name = name.to_ascii_lowercase();
+         HYPERLINK_PATTERN_ALIASES
+-            .binary_search_by_key(&name, |alias| alias.name())
++            .binary_search_by_key(&name.as_str(), |alias| alias.name())
+             .map(|i| &HYPERLINK_PATTERN_ALIASES[i])
+             .ok()
+     }
+diff --git a/crates/printer/src/standard.rs b/crates/printer/src/standard.rs
+index 35c6e93..95f8e53 100644
+--- a/crates/printer/src/standard.rs
++++ b/crates/printer/src/standard.rs
+@@ -1340,10 +1340,13 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
+                     self.write(b"[Omitted long matching line]")?;
+                 }
+             } else {
++                let count = self.sunk.original_matches().len();
++                let noun = if count == 1 { "match" } else { "matches" };
+                 write!(
+                     self.wtr().borrow_mut(),
+-                    "[Omitted long line with {} matches]",
+-                    self.sunk.original_matches().len(),
++                    "[Omitted long line with {} {}]",
++                    count,
++                    noun,
+                 )?;
+             }
+         }
+@@ -1385,6 +1388,20 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
+         Ok(())
+     }
+ 
++    /// Writes the path prefix of a binary file message: the path followed by
++    /// `: `, or by the path terminator if one is set (e.g., with `--null`).
++    fn write_binary_message_path(&self) -> io::Result<()> {
++        if let Some(path) = self.path() {
++            self.write_path_hyperlink(path)?;
++            if let Some(term) = self.config().path_terminator {
++                self.write(&[term])?;
++            } else {
++                self.write(b": ")?;
++            }
++        }
++        Ok(())
++    }
++
+     fn write_binary_message(&self, offset: u64) -> io::Result<()> {
+         if !self.sink.has_match() {
+             return Ok(());
+@@ -1392,10 +1409,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
+ 
+         let bin = self.searcher.binary_detection();
+         if let Some(byte) = bin.quit_byte() {
+-            if let Some(path) = self.path() {
+-                self.write_path_hyperlink(path)?;
+-                self.write(b": ")?;
+-            }
++            self.write_binary_message_path()?;
+             let remainder = format!(
+                 "WARNING: stopped searching binary file after match \
+                  (found {:?} byte around offset {})\n",
+@@ -1404,10 +1418,7 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
+             );
+             self.write(remainder.as_bytes())?;
+         } else if let Some(byte) = bin.convert_byte() {
+-            if let Some(path) = self.path() {
+-                self.write_path_hyperlink(path)?;
+-                self.write(b": ")?;
+-            }
++            self.write_binary_message_path()?;
+             let remainder = format!(
+                 "binary file matches (found {:?} byte around offset {})\n",
+                 [byte].as_bstr(),
+@@ -1559,8 +1570,15 @@ impl<'a, M: Matcher, W: WriteColor> StandardImpl<'a, M, W> {
+ 
+     /// Returns true if and only if the given line exceeds the maximum number
+     /// of columns set. If no maximum is set, then this always returns false.
++    ///
++    /// Columns are counted in characters (invalid UTF-8 counts as one column
++    /// per byte), so a line of non-ASCII text isn't penalized for its
++    /// encoding.
+     fn exceeds_max_columns(&self, line: &[u8]) -> bool {
+-        self.config().max_columns.map_or(false, |m| line.len() as u64 > m)
++        self.config().max_columns.map_or(false, |m| {
++            // A line can't have more characters than bytes.
++            line.len() as u64 > m && line.chars().count() as u64 > m
++        })
+     }
+ 
+     /// Returns true if and only if the searcher may report matches over
+diff --git a/crates/printer/src/summary.rs b/crates/printer/src/summary.rs
+index e553f8d..6001642 100644
+--- a/crates/printer/src/summary.rs
++++ b/crates/printer/src/summary.rs
+@@ -720,7 +720,6 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for SummarySink<'p, 's, M, W> {
+                 stats.add_searches_with_match(1);
+             }
+             stats.add_bytes_searched(finish.byte_count());
+-            stats.add_bytes_printed(self.summary.wtr.borrow().count());
+         }
+         // If our binary detection method says to quit after seeing binary
+         // data, then we shouldn't print any results at all, even if we've
+@@ -784,6 +783,11 @@ impl<'p, 's, M: Matcher, W: WriteColor> Sink for SummarySink<'p, 's, M, W> {
+             }
+             SummaryKind::QuietWithMatch | SummaryKind::QuietWithoutMatch => {}
+         }
++        // Count the bytes printed only now that this search's summary has
++        // been written.
++        if let Some(ref mut stats) = self.stats {
++            stats.add_bytes_printed(self.summary.wtr.borrow().count());
++        }
+         Ok(())
+     }
+ }
+diff --git a/crates/printer/src/util.rs b/crates/printer/src/util.rs
+index 557d18d..7f3ea37 100644
+--- a/crates/printer/src/util.rs
++++ b/crates/printer/src/util.rs
+@@ -1,7 +1,7 @@
+ use std::{borrow::Cow, cell::OnceCell, fmt, io, path::Path, time};
+ 
+ use {
+-    bstr::ByteVec,
++    bstr::{ByteSlice, ByteVec},
+     grep_matcher::{Captures, LineTerminator, Match, Matcher},
+     grep_searcher::{
+         LineIter, Searcher, SinkContext, SinkContextKind, SinkError, SinkMatch,
+@@ -444,9 +444,12 @@ impl DecimalFormatter {
+     }
+ }
+ 
+-/// Trim prefix ASCII spaces from the given slice and return the corresponding
++/// Trim prefix whitespace from the given slice and return the corresponding
+ /// range.
+ ///
++/// Whitespace is ASCII whitespace plus any Unicode whitespace (such as
++/// U+00A0 NO-BREAK SPACE) when the slice is valid UTF-8 at that point.
++///
+ /// This stops trimming a prefix as soon as it sees non-whitespace or a line
+ /// terminator.
+ pub(crate) fn trim_ascii_prefix(
+@@ -461,12 +464,19 @@ pub(crate) fn trim_ascii_prefix(
+         }
+     }
+ 
+-    let count = slice[range]
+-        .iter()
+-        .take_while(|&&b| -> bool {
++    let mut count = 0;
++    for (start, end, ch) in slice[range].char_indices() {
++        let is_whitespace = if end - start == 1 {
++            let b = slice[range][start];
+             is_space(b) && !line_term.as_bytes().contains(&b)
+-        })
+-        .count();
++        } else {
++            ch != '\u{FFFD}' && ch.is_whitespace()
++        };
++        if !is_whitespace {
++            break;
++        }
++        count = end;
++    }
+     range.with_start(range.start() + count)
+ }
+ 
+diff --git a/crates/regex/src/config.rs b/crates/regex/src/config.rs
+index d2f71c2..67219e4 100644
+--- a/crates/regex/src/config.rs
++++ b/crates/regex/src/config.rs
+@@ -179,26 +179,45 @@ impl ConfiguredHIR {
+             let hir = Hir::alternation(alts);
+             hir
+         } else {
++            let parse = |pattern: &str| {
++                ast::parse::ParserBuilder::new()
++                    .nest_limit(config.nest_limit)
++                    .octal(config.octal)
++                    .ignore_whitespace(config.ignore_whitespace)
++                    .build()
++                    .parse(pattern)
++                    .map_err(Error::generic)
++            };
++            // With smart case and several patterns, each pattern decides on
++            // its own whether it is matched case insensitively.
++            let per_pattern_case = config.case_smart
++                && !config.case_insensitive
++                && patterns.len() > 1;
+             let mut alts = vec![];
+             for p in patterns.iter() {
+-                alts.push(if config.fixed_strings {
+-                    format!("(?:{})", regex_syntax::escape(p.as_ref()))
++                let p = if config.fixed_strings {
++                    regex_syntax::escape(p.as_ref())
++                } else {
++                    p.as_ref().to_string()
++                };
++                let flags = if per_pattern_case
++                    && config.is_case_insensitive(&AstAnalysis::from_ast(
++                        &parse(&format!("(?:{p})"))?,
++                    )) {
++                    "?i:"
+                 } else {
+-                    format!("(?:{})", p.as_ref())
+-                });
++                    "?:"
++                };
++                alts.push(format!("({flags}{p})"));
+             }
+             let pattern = alts.join("|");
+-            let ast = ast::parse::ParserBuilder::new()
+-                .nest_limit(config.nest_limit)
+-                .octal(config.octal)
+-                .ignore_whitespace(config.ignore_whitespace)
+-                .build()
+-                .parse(&pattern)
+-                .map_err(Error::generic)?;
++            let ast = parse(&pattern)?;
+             let analysis = AstAnalysis::from_ast(&ast);
+             let mut hir = hir::translate::TranslatorBuilder::new()
+                 .utf8(false)
+-                .case_insensitive(config.is_case_insensitive(&analysis))
++                .case_insensitive(
++                    !per_pattern_case && config.is_case_insensitive(&analysis),
++                )
+                 .multi_line(config.multi_line)
+                 .dot_matches_new_line(config.dot_matches_new_line)
+                 .crlf(config.crlf)
+diff --git a/crates/searcher/src/searcher/mod.rs b/crates/searcher/src/searcher/mod.rs
+index 6e4ff94..fcbf583 100644
+--- a/crates/searcher/src/searcher/mod.rs
++++ b/crates/searcher/src/searcher/mod.rs
+@@ -134,7 +134,17 @@ impl Encoding {
+     /// [Encoding Standard](https://encoding.spec.whatwg.org/#concept-encoding-get).
+     /// If the given label does not correspond to a valid encoding, then this
+     /// returns an error.
++    ///
++    /// In addition to the labels of the Encoding Standard, the dash-less
++    /// spellings `utf16`, `utf16le` and `utf16be` are accepted (`utf8` is
++    /// already a standard label).
+     pub fn new(label: &str) -> Result<Encoding, ConfigError> {
++        let label = match label.trim().to_ascii_lowercase().as_str() {
++            "utf16" => "utf-16",
++            "utf16le" => "utf-16le",
++            "utf16be" => "utf-16be",
++            _ => label,
++        };
+         let label = label.as_bytes();
+         match encoding_rs::Encoding::for_label_no_replacement(label) {
+             Some(encoding) => Ok(Encoding(encoding)),
+diff --git a/tests/feature.rs b/tests/feature.rs
+index 1424249..ebd65c1 100644
+--- a/tests/feature.rs
++++ b/tests/feature.rs
+@@ -425,8 +425,8 @@ rgtest!(
+         let lines = cmd.arg("-j1").arg("--stats").arg("Sherlock").stdout();
+         assert!(lines.contains("Sherlock"));
+         assert!(lines.contains("2 matched lines"));
+-        assert!(lines.contains("1 files contained matches"));
+-        assert!(lines.contains("1 files searched"));
++        assert!(lines.contains("1 file contained matches"));
++        assert!(lines.contains("1 file searched"));
+         assert!(lines.contains("seconds"));
+     }
+ );
+@@ -455,8 +455,8 @@ rgtest!(
+             .stdout();
+         assert!(!lines.contains("Sherlock"));
+         assert!(lines.contains("2 matched lines"));
+-        assert!(lines.contains("1 files contained matches"));
+-        assert!(lines.contains("1 files searched"));
++        assert!(lines.contains("1 file contained matches"));
++        assert!(lines.contains("1 file searched"));
+         assert!(lines.contains("seconds"));
+     }
+ );
+diff --git a/tests/regression.rs b/tests/regression.rs
+index dcca01f..e084b85 100644
+--- a/tests/regression.rs
++++ b/tests/regression.rs
+@@ -404,7 +404,7 @@ rgtest!(r428_unrecognized_style, |dir: Dir, mut cmd: TestCommand| {
+     let expected = "\
+ rg: error parsing flag --colors: \
+ unrecognized style attribute ''. Choose from: nobold, bold, nointense, \
+-intense, nounderline, underline, noitalic, italic.
++intense, nounderline, underline, noitalic, italic, nodimmed, dimmed, nostrikethrough, strikethrough.
+ ";
+     eqnice!(expected, stderr);
+ });
