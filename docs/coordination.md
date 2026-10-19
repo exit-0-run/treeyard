@@ -174,8 +174,15 @@ mode = "queue"                   # or "optimistic"; default "direct"
 test = "cargo test --offline"    # sh -c in a temp copy of the tree; exit 0 = pass
 batch = 8
 parallel = 4                     # test runs side by side; default half the cores, at most 4
+warm = true                      # default: one kept test dir per slot, only changed files written
 timeout_s = 600
 ```
+
+Tests run in `<data>/scratch/test-slot-N`, one kept directory per parallel slot (`TREEYARD_TEST_SLOT=N`).
+Each run writes only the paths that changed since that slot's last run (and tracked files a test edited),
+deletes paths that left the tree, and keeps untracked files, so `target/`, `node_modules` or a `.venv` built
+by an earlier run stay warm and `cargo test` rebuilds only what changed. `warm = false` tests in a fresh
+copy each time (test `e_warm_test_dirs_…`).
 
 - `direct` (default): `land` moves main at once. No tests.
 - `queue`: `land` returns `queued`. A step takes up to `batch` changes, rebases them one on top of the

@@ -425,6 +425,42 @@ fn e_queue_mode_with_parallel_tests_changes_alone_when_a_batch_fails() {
 }
 
 #[test]
+fn e_warm_test_dirs_keep_build_output_and_write_only_changes() {
+    // Landing tests of a Rust or Node repo in a fresh copy rebuild everything every run. Warm slots
+    // keep untracked build output, rewrite only changed files, and still drop deleted ones.
+    let tmp = tempfile::tempdir().unwrap();
+    let test = "test -f built || touch built; ! grep -rq BROKEN --exclude=built .";
+    let cfg = format!("[landing]\nmode = \"queue\"\nbatch = 1\nparallel = 1\ntest = \"{test}\"\n");
+    let (repo, url) = setup(tmp.path(), &cfg, &[]);
+    let scratch = repo.with(|r| Ok(r.scratch())).unwrap();
+    let ch = id(&open(&url, "a", json!({})));
+    write(&url, &ch, "new.txt", "one\n");
+    call(&url, "land", json!({"change": ch}));
+    assert_eq!(call(&url, "queue_run", json!({}))["landed"].as_array().unwrap().len(), 1);
+    let slot = scratch.join("test-slot-0");
+    let built = std::fs::metadata(slot.join("built")).unwrap().modified().unwrap();
+    let f00 = std::fs::metadata(slot.join("f00.txt")).unwrap().modified().unwrap();
+    // A second change: deletes new.txt, edits f01.txt. Untracked `built` stays, unchanged f00.txt
+    // is not rewritten, new.txt is gone.
+    let ch = id(&open(&url, "b", json!({})));
+    call(&url, "apply", json!({"change": ch, "edits": [{"path": "new.txt", "delete": true}]}));
+    write(&url, &ch, "f01.txt", "edited\n");
+    call(&url, "land", json!({"change": ch}));
+    assert_eq!(call(&url, "queue_run", json!({}))["landed"].as_array().unwrap().len(), 1);
+    assert_eq!(std::fs::metadata(slot.join("built")).unwrap().modified().unwrap(), built);
+    assert_eq!(std::fs::metadata(slot.join("f00.txt")).unwrap().modified().unwrap(), f00);
+    assert!(!slot.join("new.txt").exists());
+    assert_eq!(std::fs::read_to_string(slot.join("f01.txt")).unwrap(), "edited\n");
+    // A test that edits a tracked file does not leak into the next run.
+    std::fs::write(slot.join("f02.txt"), "BROKEN\n").unwrap();
+    let ch = id(&open(&url, "c", json!({})));
+    write(&url, &ch, "f03.txt", "fine\n");
+    call(&url, "land", json!({"change": ch}));
+    let step = call(&url, "queue_run", json!({}));
+    assert_eq!(step["landed"].as_array().unwrap().len(), 1, "{step}");
+}
+
+#[test]
 fn e_optimistic_mode_bisects_and_reverts_through_the_api() {
     let tmp = tempfile::tempdir().unwrap();
     let (_repo, url) = setup(tmp.path(), &NOT_BROKEN.replace("{mode}", "optimistic"), &[]);

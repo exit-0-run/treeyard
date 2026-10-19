@@ -36,6 +36,7 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 # test = "cargo test --offline"  # runs in a temp copy of the tree; exit 0 = pass
 # batch = 8
 # parallel = 4                   # queue mode: test runs side by side (default: half the cores, at most 4)
+# warm = true                    # reuse one test dir per slot: only changed files are written, build output stays
 # timeout_s = 600
 
 # [bisect]                       # commands the bisect operation may run (agents pick by name)
@@ -163,6 +164,9 @@ pub struct Landing {
     /// Queue mode: test runs side by side. Above 1, each queued change is first tested alone on
     /// main and a failing batch tests its prefixes at once; 1 = one run at a time, bisecting.
     pub parallel: usize,
+    /// Test in one kept directory per parallel slot, writing only the files that changed since its
+    /// last run, so build output (`target/`, `node_modules`) stays warm. `false`: a fresh copy each run.
+    pub warm: bool,
     pub timeout_s: u64,
 }
 
@@ -173,7 +177,7 @@ fn default_parallel() -> usize {
 
 impl Default for Landing {
     fn default() -> Self {
-        Self { mode: Mode::Direct, test: None, batch: 8, parallel: default_parallel(), timeout_s: 600 }
+        Self { mode: Mode::Direct, test: None, batch: 8, parallel: default_parallel(), warm: true, timeout_s: 600 }
     }
 }
 

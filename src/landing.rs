@@ -47,6 +47,105 @@ pub fn materialize(r: &mut Inner, m: &Manifest, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Brings a kept test directory to `m`, writing only what changed since the state file `state` was
+/// written: new or changed paths, and tracked files whose size or mtime differ from what was written
+/// (a test that edited one). Removes paths that left the tree. Untracked files (build output) stay.
+/// Without a readable state the directory is emptied and written in full.
+pub fn materialize_warm(r: &mut Inner, m: &Manifest, dir: &Path, state: &Path) -> Result<usize> {
+    use std::collections::BTreeMap;
+    use std::os::unix::fs::MetadataExt;
+    crate::safety::check_tree(m.keys().map(String::as_str))?;
+    type Seen = BTreeMap<String, (String, u64, i64)>; // path -> (mode:blob, size, mtime ns)
+    let old: Option<Seen> = std::fs::read(state).ok().and_then(|b| serde_json::from_slice(&b).ok());
+    let mut old = match old {
+        Some(o) if dir.is_dir() => o,
+        _ => {
+            let _ = std::fs::remove_dir_all(dir);
+            std::fs::create_dir_all(dir)?;
+            Seen::new()
+        }
+    };
+    let _ = std::fs::remove_file(state); // a crash mid-sync leaves no state: the next run starts clean
+    let stat = |p: &Path| {
+        std::fs::symlink_metadata(p).ok().map(|md| (md.size(), md.mtime() * 1_000_000_000 + md.mtime_nsec()))
+    };
+    let mut seen = Seen::new();
+    let mut written = 0;
+    for (path, e) in m.iter() {
+        if e.mode == MODE_GITLINK {
+            continue;
+        }
+        let key = format!("{:o}:{}", e.mode, e.blob);
+        let dest = crate::safety::dest(dir, path)?;
+        if let Some((k, size, mtime)) = old.remove(path)
+            && k == key
+            && stat(&dest) == Some((size, mtime))
+        {
+            seen.insert(path.clone(), (k, size, mtime));
+            continue;
+        }
+        if let Some(p) = dest.parent() {
+            std::fs::create_dir_all(p)?;
+        }
+        if std::fs::symlink_metadata(&dest).is_ok() {
+            if dest.is_dir() && !dest.is_symlink() {
+                std::fs::remove_dir_all(&dest)?;
+            } else {
+                std::fs::remove_file(&dest)?;
+            }
+        }
+        let data = r.blob(&e.blob)?;
+        if e.mode == MODE_LINK {
+            std::os::unix::fs::symlink(String::from_utf8_lossy(&data).as_ref(), &dest)?;
+        } else {
+            std::fs::write(&dest, &data)?;
+            if e.mode == MODE_EXEC {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755))?;
+            }
+        }
+        let (size, mtime) = stat(&dest).context("stat after write")?;
+        seen.insert(path.clone(), (key, size, mtime));
+        written += 1;
+    }
+    for path in old.keys() {
+        let dest = crate::safety::dest(dir, path)?;
+        let _ = std::fs::remove_file(&dest);
+    }
+    std::fs::write(state, serde_json::to_vec(&seen)?)?;
+    Ok(written)
+}
+
+type SlotMap = std::collections::HashMap<PathBuf, Vec<bool>>;
+
+/// Test slots in use per repo scratch dir (warm mode): one kept directory per slot, one test at a time in each.
+static SLOTS: std::sync::Mutex<Option<SlotMap>> = std::sync::Mutex::new(None);
+
+struct Slot(PathBuf, usize);
+
+impl Slot {
+    fn take(scratch: PathBuf) -> Slot {
+        let mut g = SLOTS.lock().unwrap_or_else(|e| e.into_inner());
+        let s = g.get_or_insert_with(SlotMap::new).entry(scratch.clone()).or_default();
+        let i = s.iter().position(|busy| !busy).unwrap_or(s.len());
+        if i == s.len() {
+            s.push(true);
+        } else {
+            s[i] = true;
+        }
+        Slot(scratch, i)
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        let mut g = SLOTS.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(s) = g.as_mut().and_then(|m| m.get_mut(&self.0)) {
+            s[self.1] = false;
+        }
+    }
+}
+
 pub struct Outcome {
     pub ok: bool,
     pub output: String,
@@ -91,17 +190,30 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
 
 /// Materializes changeset `cs` and runs the repo's test command on it.
 fn test(repo: &Repo, cs: &str) -> Result<Outcome> {
-    let (dir, cmd, timeout) = repo.with(|r| {
+    let slot = Slot::take(repo.with(|r| Ok(r.scratch()))?);
+    let (dir, cmd, timeout, warm) = repo.with(|r| {
         let cmd = r.cfg.landing.test.clone().context("landing.test is not set in treeyard.toml")?;
-        let dir = r.scratch().join(format!("test-{}-{:08x}", &cs[..12], rand::random::<u32>()));
-        std::fs::create_dir_all(&dir)?;
         let m = r.manifest(cs)?;
-        materialize(r, &m, &dir)?;
-        Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s)))
+        let warm = r.cfg.landing.warm;
+        let dir = if warm {
+            let dir = r.scratch().join(format!("test-slot-{}", slot.1));
+            materialize_warm(r, &m, &dir, &dir.with_extension("state.json"))?;
+            dir
+        } else {
+            let dir = r.scratch().join(format!("test-{}-{:08x}", &cs[..12], rand::random::<u32>()));
+            std::fs::create_dir_all(&dir)?;
+            materialize(r, &m, &dir)?;
+            dir
+        };
+        Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s), warm))
     })?;
     let started = std::time::Instant::now();
-    let out = run_cmd(&cmd, &dir, timeout, &[("TREEYARD_CHANGESET", cs)]);
-    let _ = std::fs::remove_dir_all(&dir);
+    let slot_s = slot.1.to_string();
+    let out = run_cmd(&cmd, &dir, timeout, &[("TREEYARD_CHANGESET", cs), ("TREEYARD_TEST_SLOT", &slot_s)]);
+    if !warm {
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    drop(slot);
     // One event per test run, so a slow landing loop shows where its time goes.
     let (ok, seconds) = match &out {
         Ok(o) => (Some(o.ok), o.seconds),
