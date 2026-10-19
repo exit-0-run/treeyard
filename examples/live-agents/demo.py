@@ -341,7 +341,7 @@ def arm_treeyard():
         # Rust: the first workspace builds the tests once and saves target/ as a layer (keyed by Cargo.lock);
         # every other workspace gets a copy-on-write clone of it, already built.
         setup = ["--setup", "cargo test --workspace --no-run -q"] if RUST else []
-        out = json.loads(sh([TY, "workspace", "create", ws, "--agent", ws, "--intent", title, *setup], env=env).stdout)
+        out = json.loads(sh([TY, "workspace", "create", ws, "--agent", ws, f"--intent={title}", *setup], env=env).stdout)
         w = json.loads(open(os.path.join(home, "meta", f"{ws}.json")).read())
         dirs.append(w["dir"])
         envs.append({**env, "TREEYARD_WORKSPACE": ws, "TREEYARD_AGENT": ws})
