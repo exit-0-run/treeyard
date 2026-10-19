@@ -19,12 +19,17 @@ import json, os, shutil, subprocess, sys, time, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 D = os.environ.get("DEMO_DIR", os.path.expanduser("~/.cache/treeyard-live-agents"))  # made by setup.sh
-SRC = os.path.join(D, "src")
 PY = os.path.join(D, "venv", "bin", "python")
 TY = os.environ.get("TREEYARD_BIN") or shutil.which("treeyard") or os.path.join(HERE, "..", "..", "target", "release", "treeyard")
-SET = os.environ.get("DEMO_SET", "bugs")  # bugs: 8 real bugs; hard: 4 pairs on one function; wide: 50 tasks
-BASE = {"bugs": "2fe1b2e", "hard": "4aeb433", "wide": "4aeb433"}[SET]
-PROBES = {"bugs": "probes.py", "hard": "probes_hard.py", "wide": "probes_wide.py"}[SET]
+SET = os.environ.get("DEMO_SET", "bugs")  # bugs: 8 real bugs; hard: 4 pairs; wide: 50 tasks; rg: 50 ripgrep tasks
+RUST = SET == "rg"
+SRC = os.path.join(D, "src-rg" if RUST else "src")
+BASE = {"bugs": "2fe1b2e", "hard": "4aeb433", "wide": "4aeb433", "rg": "3fce3b5bb0236da2df6d99672afb8a719642eca7"}[SET]
+PROBES = {"bugs": "probes.py", "hard": "probes_hard.py", "wide": "probes_wide.py", "rg": "probes_rg.py"}[SET]
+# The suite the merge queue (land.py) and TreeYard's landing run; the same command in both arms.
+TEST_CMD = "cargo test --workspace -q" if RUST else f"{PY} -m pytest -q -x tests"
+if RUST:  # both arms: at most this many rustc jobs per build, so 10 agents building at once fit in memory
+    os.environ.setdefault("CARGO_BUILD_JOBS", os.environ.get("DEMO_CARGO_JOBS", "4"))
 MODEL = os.environ.get("DEMO_MODEL", "sonnet")
 URL = "http://127.0.0.1:7431"
 
@@ -93,6 +98,9 @@ if SET == "hard":
 if SET == "wide":  # 10 pairs on one function each and 30 single tasks (tasks_wide.py)
     sys.path.insert(0, HERE)
     from tasks_wide import TASKS
+if RUST:  # 10 pairs and 30 single tasks on ripgrep (tasks_rg.py)
+    sys.path.insert(0, HERE)
+    from tasks_rg import TASKS
 TASKS = TASKS[:int(os.environ.get("DEMO_N", len(TASKS)))]
 POOL = int(os.environ.get("DEMO_POOL", len(TASKS)))
 LANDING = os.environ.get("DEMO_LANDING", "optimistic")
@@ -112,6 +120,15 @@ same repository. Your task: {title}.
 Make the change in {where[0]} with the smallest clean change, update the docstring, and add tests in
 {where[1]} next to the existing tests of that function. Follow the existing style. Run the tests
 with `{py} -m pytest -q -x tests{only}. Do not change anything else.
+"""
+
+COMMON_RG = """You are one of {n} coding agents that work on ripgrep (Rust) at the same time, in the same
+repository. Your task: {title}.
+{desc}
+Make the smallest clean change that does it, update the documentation or help text where the behaviour is
+described, and add a test next to the existing tests of that code. Follow the existing style. Build and test
+with `cargo test -p <the crate you changed>` (and `cargo build` for the rg binary); landing runs
+`cargo test --workspace`. Do not change anything else.
 """
 
 GIT_FINISH = """When the tests pass, commit (`git add -A && git commit -m "Fix {name}"`) and run `python3 ../land.py`.
@@ -166,9 +183,17 @@ NOT_LANDED = """Your change is not landed yet. Finish it, run the tests, and run
 "already_on_main".
 """
 
+ALLOWED_RUST = ["Bash(cargo:*)", "Bash(./target/debug/rg:*)", "Bash(target/debug/rg:*)", "Bash(echo:*)",
+                "Bash(printf:*)", "Bash(mkdir:*)", "Bash(cd:*)"]
 ALLOWED = ["Read", "Edit", "Write", "Glob", "Grep", "Bash(git:*)", "Bash(python3:*)", f"Bash({PY}:*)",
            "Bash(treeyard:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(grep:*)", "Bash(sed:*)", "Bash(head:*)",
            "Bash(tail:*)", "Bash(wc:*)", "Bash(diff:*)"]
+
+
+def common(title, desc):
+    if RUST:
+        return COMMON_RG.format(n=len(TASKS), title=title, desc=desc)
+    return COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY, where=WHERE)
 
 
 def sh(cmd, **kw):
@@ -188,7 +213,7 @@ def run_agents(arm, dirs, prompts, env, only=None, resume=None, tag=""):
         out = open(os.path.join(D, "agents", f"{SET}-{arm}{tag}-{i}.json"), "w")
         err = open(os.path.join(D, "agents", f"{SET}-{arm}{tag}-{i}.err"), "w")
         cmd = ["claude", "-p", prompts[i], "--output-format", "json", "--model", MODEL, "--max-turns", "80",
-               "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED,
+               "--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED, *(ALLOWED_RUST if RUST else []),
                "--mcp-config", '{"mcpServers":{}}', "--strict-mcp-config"]
         if i in resume:
             cmd += ["--resume", resume[i]]
@@ -235,8 +260,14 @@ def cpu_s(pid):
 
 
 def final_tests(repo):
-    r = subprocess.run([PY, "-m", "pytest", "-q", "tests"], cwd=repo, capture_output=True, text=True)
-    p = subprocess.run([PY, os.path.join(HERE, PROBES), repo], capture_output=True, text=True)
+    if RUST:
+        env = {**os.environ, "CARGO_TARGET_DIR": os.path.join(D, "final-target"), "PROBES_TARGET_DIR": os.path.join(D, "final-target")}
+        r = subprocess.run(["cargo", "test", "--workspace", "-q"], cwd=repo, capture_output=True, text=True, env=env)
+        r.stdout = r.stdout + r.stderr[-2000:]
+        p = subprocess.run(["python3", os.path.join(HERE, PROBES), repo], capture_output=True, text=True, env=env)
+    else:
+        r = subprocess.run([PY, "-m", "pytest", "-q", "tests"], cwd=repo, capture_output=True, text=True)
+        p = subprocess.run([PY, os.path.join(HERE, PROBES), repo], capture_output=True, text=True)
     try:
         probes = json.loads(p.stdout)
     except ValueError:
@@ -262,8 +293,8 @@ def arm_git():
         sh(["git", "worktree", "add", "-q", "-b", f"task-{name}", wt, "master"], cwd=os.path.join(G, "repo"))
         dirs.append(wt)
     setup_s = round(time.time() - t0, 2)
-    base_env = {**os.environ, "DEMO_PY": PY}
-    prompts = [COMMON.format(n=len(TASKS), title=t, desc=d, py=PY, only=ONLY, where=WHERE) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
+    base_env = {**os.environ, "DEMO_PY": PY, "DEMO_TEST": TEST_CMD}
+    prompts = [common(t, d) + GIT_FINISH.format(name=n) for n, t, d in TASKS]
     agents, wall = run_agents("git", dirs, prompts, [base_env] * len(TASKS))
     log = [json.loads(l) for l in open(os.path.join(G, "land.log"))] if os.path.exists(os.path.join(G, "land.log")) else []
     json.dump(log, open(os.path.join(D, "results", f"{SET}-git-land-log.json"), "w"), indent=1)
@@ -292,7 +323,7 @@ def arm_treeyard():
     sh(["git", "checkout", "-q", "-B", "master", BASE], cwd=tmp)
     sh([TY, "init", "--data", data, "--from", tmp, "--branch", "master"])
     with open(os.path.join(data, "treeyard.toml"), "w") as f:
-        f.write(f'[landing]\nmode = "{LANDING}"\ntest = "{PY} -m pytest -q -x tests"\nbatch = 8\ntimeout_s = 300\n')
+        f.write(f'[landing]\nmode = "{LANDING}"\ntest = "{TEST_CMD}"\nbatch = 8\ntimeout_s = {1800 if RUST else 300}\n')
     env = {**os.environ, "TREEYARD_URL": URL, "TREEYARD_HOME": home, "PATH": os.path.dirname(TY) + ":" + os.environ["PATH"]}
     serve = subprocess.Popen([TY, "serve", "--data", data, "--addr", URL.split("//")[1]],
                              stdout=open(os.path.join(T, "serve.log"), "w"), stderr=subprocess.STDOUT)
@@ -307,12 +338,15 @@ def arm_treeyard():
     dirs, envs, prompts = [], [], []
     for i, (name, title, desc) in enumerate(TASKS):
         ws = f"agent-{i}"
-        out = json.loads(sh([TY, "workspace", "create", ws, "--agent", ws, "--intent", title], env=env).stdout)
+        # Rust: the first workspace builds the tests once and saves target/ as a layer (keyed by Cargo.lock);
+        # every other workspace gets a copy-on-write clone of it, already built.
+        setup = ["--setup", "cargo test --workspace --no-run -q"] if RUST else []
+        out = json.loads(sh([TY, "workspace", "create", ws, "--agent", ws, "--intent", title, *setup], env=env).stdout)
         w = json.loads(open(os.path.join(home, "meta", f"{ws}.json")).read())
         dirs.append(w["dir"])
         envs.append({**env, "TREEYARD_WORKSPACE": ws, "TREEYARD_AGENT": ws})
         finish = TY_GO.format(ws=ws) if LAND_AND_GO else TY_FINISH.format(ws=ws, change=w["change"])
-        prompts.append(COMMON.format(n=len(TASKS), title=title, desc=desc, py=PY, only=ONLY, where=WHERE) + finish)
+        prompts.append(common(title, desc) + finish)
     setup_s = round(time.time() - t0, 2)
     t_agents = time.time()
     agents, wall = run_agents("treeyard", dirs, prompts, envs)

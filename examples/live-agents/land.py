@@ -44,7 +44,8 @@ def main():
             print("  git add <files> && git rebase --continue   # then run the tests, then: python3 ../land.py")
             return 1
         t_test = time.time()
-        tests = subprocess.run([PY, "-m", "pytest", "-q", "-x", "tests"], capture_output=True, text=True)
+        cmd = os.environ.get("DEMO_TEST") or f"{PY} -m pytest -q -x tests"
+        tests = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         test_s = round(time.time() - t_test, 2)
         if tests.returncode != 0:
             log({"branch": branch, "result": "tests_failed", "waited_s": round(waited, 2), "test_s": test_s})
