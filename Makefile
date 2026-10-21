@@ -1,4 +1,4 @@
-# Checks run locally (no GitHub Actions on appnice repos).
+# Checks run locally (no GitHub Actions).
 # Rust comes from Homebrew rustup, which is not on the default PATH.
 CARGO ?= $(shell command -v cargo 2>/dev/null || echo /opt/homebrew/opt/rustup/bin/cargo)
 export PATH := $(dir $(CARGO)):$(PATH)

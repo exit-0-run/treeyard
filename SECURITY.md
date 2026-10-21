@@ -5,7 +5,8 @@ TreeYard has, the tests that check them, and the limits that are known.
 
 ## Report a problem
 
-Send the report to 320388883+exit0-run@users.noreply.github.com. Do not open a public issue for a security problem.
+Report it privately on GitHub: https://github.com/exit-0-run/treeyard/security/advisories/new. Do not open a
+public issue for a security problem.
 
 ## Assets
 

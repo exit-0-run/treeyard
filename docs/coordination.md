@@ -272,8 +272,7 @@ then calls `apply_assigned` for each agent.
 `assign` replies with hunks per change and `unassigned` hunks; each hunk has `id`, `path`, `old` and
 `new` line ranges (1-based, half-open), `owner`, `why` (`claim`, `intent`, `sticky`, `none`,
 `ambiguous`, `landed`) and the first 40 diff lines. The idea comes from GitButler's hunk assignment
-and hunk dependency locks (static inspection, `projects/rootstock/research/competitors-re.md` in the appnice
-workspace, 2026-10-18); the code here is our own.
+and hunk dependency locks (static inspection, 2026-10-18); the code here is our own.
 
 Limits of (g): text files only (binary files and symlinks are skipped); file modes stay as in the
 head; every sync hashes every tracked file of the directory; the server keeps the directory's changed

@@ -2,8 +2,7 @@
 
 TreeYard (binary `treeyard`) is a server under your agent orchestrator, not one more
 orchestrator. This page compares it with the tools teams use today. The facts about other tools
-come from the stage-1 research of 2026-10-17 (`projects/treeyard/research/pain.md` in the appnice
-workspace; each page was opened on that date, links below). Numbers about TreeYard come from
+come from research done on 2026-10-17 (each page was opened on that date, links below). Numbers about TreeYard come from
 [benchmarks.md](benchmarks.md). Where another tool is the better choice, this page says so.
 
 ## In one table
