@@ -42,6 +42,9 @@ A server MUST offer the HTTP binding. It SHOULD offer the MCP binding.
 - Auth: `Authorization: Bearer <token>`. For git clients, HTTP Basic with the token as the password
   MUST also work. A server MAY run without tokens on a loopback address only.
 - `GET /health` returns `200`. `GET /api/events` is the server-sent event stream of `events`.
+- `POST /mcp` is MCP over Streamable HTTP, stateless: a JSON-RPC message or batch gets a JSON reply,
+  notifications alone get `202`, `GET` and `DELETE` get `405`. A missing or unknown token is `401`
+  with `WWW-Authenticate: Bearer`, `initialize` included. `Authorization` MAY also carry a bare token.
 - `POST /api/tools` returns `{"tools": [...]}`: every operation as an MCP tool definition (name,
   description, JSON Schema of the parameters).
 

@@ -1,6 +1,6 @@
 [package]
 name = "treeyard"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "Version control server for agent swarms, with git underneath as the source of truth"
 license = "Apache-2.0"

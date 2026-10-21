@@ -12,7 +12,7 @@ Every operation has three transports. All three take the same JSON parameters an
 
 Error statuses: `400` invalid JSON, `401` no valid token, `403` the token has no right, `404` an operation name that is not lowercase letters and `_`, `422` the operation failed (also an unknown operation), `503` the server is busy (retry). The protocol is described in [spec/rpc.md](spec/rpc.md).
 
-Other routes: `GET /health` answers `ok`; `GET /api/events` is the server-sent event stream of [`events`](#events); `POST /api/tools` returns this table as JSON (the MCP `tools/list` reply, also `treeyard api-doc --json`); `/git` serves git smart HTTP ([git-http.md](git-http.md)).
+Other routes: `GET /health` answers `ok`; `GET /api/events` is the server-sent event stream of [`events`](#events); `POST /api/tools` returns this table as JSON (the MCP `tools/list` reply, also `treeyard api-doc --json`); `POST /mcp` is MCP over Streamable HTTP with the same tools ([mcp.md](mcp.md)); `/git` serves git smart HTTP ([git-http.md](git-http.md)).
 
 A revision (`at`, `from`, `to`, `base`, `good`, `bad`, `changeset`) is `main`, a change id `ch_...`, a changeset id or a unique prefix of one, or a 40-hex git commit id.
 

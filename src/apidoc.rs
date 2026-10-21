@@ -83,7 +83,8 @@ pub fn markdown(tools: &[Value]) -> String {
         out,
         "Other routes: `GET /health` answers `ok`; `GET /api/events` is the server-sent event stream of \
          [`events`](#events); `POST /api/tools` returns this table as JSON (the MCP `tools/list` reply, also \
-         `treeyard api-doc --json`); `/git` serves git smart HTTP ([git-http.md](git-http.md)).\n"
+         `treeyard api-doc --json`); `POST /mcp` is MCP over Streamable HTTP with the same tools ([mcp.md](mcp.md)); \
+         `/git` serves git smart HTTP ([git-http.md](git-http.md)).\n"
     );
     let _ = writeln!(
         out,

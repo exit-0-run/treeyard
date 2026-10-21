@@ -124,3 +124,34 @@ fn a_kept_conflict_that_main_resolves_clears_itself() {
     assert_eq!(ch["conflicts"], json!([]), "{ch}");
     assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
 }
+
+#[test]
+fn a_resolution_that_keeps_the_markers_is_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let f00 = read(&url, "f00.txt", "main");
+    let a = open(&url, "a");
+    write(&url, &a, "f00.txt", &set_line(&f00, 3, "a's line 3"));
+    let b = open(&url, "b");
+    write(&url, &b, "f00.txt", &set_line(&f00, 3, "b's line 3"));
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "conflict");
+    let with_markers = read(&url, "f00.txt", &a);
+    assert!(with_markers.contains("<<<<<<< main\n") && with_markers.contains(">>>>>>> change\n"), "{with_markers}");
+
+    // Seen with a real agent: a replace inside one side left the markers, and land put them on main.
+    let e = treeyard::client::call(
+        &url,
+        "apply",
+        json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": "a's line 3", "new": "a and b's line 3"}}]}),
+    )
+    .unwrap_err();
+    assert!(format!("{e:#}").contains("still holds the conflict marker `<<<<<<< main`"), "{e:#}");
+    assert_eq!(call(&url, "change", json!({"change": a}))["conflicted"], true, "a refused write resolves nothing");
+
+    let main_f00 = read(&url, "f00.txt", "main");
+    write(&url, &a, "f00.txt", &set_line(&main_f00, 3, "a and b's line 3"));
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    let landed = read(&url, "f00.txt", "main");
+    assert!(!landed.contains("<<<<<<<") && landed.contains("a and b's line 3\n"), "{landed}");
+}

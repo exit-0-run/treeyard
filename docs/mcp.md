@@ -5,7 +5,7 @@ Every agent reaches the server in one of three ways. All three use the one opera
 
 | Way | When | How |
 |---|---|---|
-| MCP tools | the agent edits through the API, no checkout | `treeyard mcp --url URL --agent NAME` (stdio) |
+| MCP tools | the agent edits through the API, no checkout | `treeyard mcp --url URL --agent NAME` (stdio), or `URL/mcp` (HTTP) |
 | A workspace directory | the agent must build or run tests | `treeyard workspace create NAME` + `treeyard daemon` |
 | CLI | scripts and orchestrators | `treeyard call <op> '<json>'` |
 
@@ -141,6 +141,28 @@ Check with `opencode mcp list`. For a directory, start OpenCode inside a workspa
 - Agents learn about each other through `apply` replies (`collisions`) and the `events` tool.
   Tell your agents to call `events` with `wait_ms` before a long task, or let the orchestrator
   watch `GET /api/events`.
+
+## MCP over HTTP: `POST /mcp`
+
+The server also speaks MCP itself, over Streamable HTTP at `/mcp`, with the same tools and the same
+token rules as `/api`. Use it when the client cannot start a process: a remote agent, or an MCP
+gateway that serves a company's own MCP servers to its members.
+
+```text
+claude mcp add --transport http treeyard https://HOST/mcp --header "Authorization: Bearer $TREEYARD_TOKEN"
+```
+
+- Stateless: every POST is answered with JSON; there is no session id and no server-sent stream
+  (`GET` and `DELETE` are `405`). Notifications alone get `202`. A batch gets an array.
+- No or unknown token: `401` with `WWW-Authenticate: Bearer`, already on `initialize`, so a
+  gateway's connection check sees at once that each member needs a key.
+- `Authorization` may hold `Bearer <token>`, HTTP Basic, or the bare token: a gateway that
+  forwards a member's key verbatim needs no prefix.
+- A non-admin token acts as its own agent, as on `/api`. Its write globs hold for `apply`.
+
+Tested in `tests/mcp_http.rs`. An MCP gateway that stores one key per member and sends it in
+`Authorization` reached it end to end on 2026-10-21: each member's agent acted as that member,
+with no bridge in between.
 
 ## A raw MCP session
 

@@ -5,6 +5,18 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-21
+
+### Added
+- `POST /mcp`: MCP over Streamable HTTP on the server itself, stateless, same tools and token rules as
+  `/api`. No or unknown token is `401` with a Bearer challenge, `initialize` included (docs/mcp.md).
+- `Authorization` also accepts a bare token, as an MCP gateway sends a member's key verbatim.
+
+### Fixed
+- `apply` refuses a resolution of a conflicted path that still holds the server's own conflict
+  markers (`<<<<<<< main`, `>>>>>>> change`). In `direct` mode, `land` used to put them on main.
+  Behaviour change: an agent that writes the markers back now gets an error from apply, not a land.
+
 ## [0.1.2] - 2026-10-19
 
 Found by runs with 50 real Claude Code agents (docs/benchmarks.md, "50 agents, wide set").

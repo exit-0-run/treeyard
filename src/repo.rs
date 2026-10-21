@@ -641,12 +641,19 @@ impl Inner {
         } else {
             BTreeSet::new()
         };
+        let conflicted: BTreeSet<String> = ch.conflicts.iter().map(|c| c.path.clone()).collect();
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
             check_path(&e.path)?;
             let cur = work.get(&e.path).cloned();
             let mut new = self.edit_entry(e, cur.as_ref())?;
+            // A write to a conflicted path is its resolution; one that keeps the markers would land them.
+            if conflicted.contains(&e.path)
+                && let Some(n) = &new
+            {
+                check_no_markers(&e.path, &self.blob(&n.blob)?)?;
+            }
             if let Some(v) = &view
                 && e.replace.is_none()
                 && !kept.contains(&e.path)
@@ -1773,6 +1780,23 @@ pub fn check_group(group: &str) -> Result<&str> {
         bail!("group must be a name of 1 to 100 characters on one line");
     }
     Ok(group)
+}
+
+/// Refuses a resolution that still holds this server's conflict markers (`merge.rs` labels them
+/// `main` and `change`); `direct` landing would otherwise put them on main.
+fn check_no_markers(path: &str, bytes: &[u8]) -> Result<()> {
+    let text = String::from_utf8_lossy(bytes);
+    for (i, line) in text.lines().enumerate() {
+        let line = line.trim_end_matches('\r');
+        if line == "<<<<<<< main" || line == ">>>>>>> change" {
+            bail!(
+                "{path} line {}: the resolution still holds the conflict marker `{line}`; write the final \
+                 content without the markers (or call resolve), then land",
+                i + 1
+            );
+        }
+    }
+    Ok(())
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

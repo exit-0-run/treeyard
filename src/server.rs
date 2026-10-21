@@ -58,6 +58,7 @@ pub fn router_with(repo: Arc<Repo>, limits: Limits) -> Router {
         .route("/health", get(|| async { "ok" }))
         .route("/api/events", get(events).post(post_events))
         .route("/api/{op}", post(handle).layer(DefaultBodyLimit::max(API_BODY)))
+        .route("/mcp", post(mcp_http).get(mcp_no_stream).delete(mcp_no_stream).layer(DefaultBodyLimit::max(API_BODY)))
         .layer(Extension(limits))
         .merge(githttp::routes())
         .with_state(repo)
@@ -85,14 +86,17 @@ async fn post_events(State(repo): State<Arc<Repo>>, headers: HeaderMap, body: By
     run(repo, "events".into(), &headers, body, None).await
 }
 
-/// The token of a request: `Authorization: Bearer <token>`, or the password (else the user)
-/// of HTTP Basic, which is what git sends.
+/// The token of a request: `Authorization: Bearer <token>`, the password (else the user) of HTTP
+/// Basic, which is what git sends, or a bare token, which is what an MCP gateway sends when it
+/// forwards a member's key verbatim.
 pub fn token_of(headers: &HeaderMap) -> Option<String> {
     let v = headers.get(axum::http::header::AUTHORIZATION)?.to_str().ok()?.trim();
     if let Some(t) = v.strip_prefix("Bearer ").or_else(|| v.strip_prefix("bearer ")) {
         return Some(t.trim().to_string());
     }
-    let b = v.strip_prefix("Basic ").or_else(|| v.strip_prefix("basic "))?;
+    let Some(b) = v.strip_prefix("Basic ").or_else(|| v.strip_prefix("basic ")) else {
+        return (!v.is_empty() && !v.contains(char::is_whitespace)).then(|| v.to_string());
+    };
     use base64::Engine as _;
     let raw = base64::engine::general_purpose::STANDARD.decode(b.trim()).ok()?;
     let raw = String::from_utf8(raw).ok()?;
@@ -140,6 +144,66 @@ async fn run(
         Ok(Err(e)) => (status_of(&e), Json(json!({"error": format!("{e:#}")}))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))),
     }
+}
+
+/// `POST /mcp`: MCP over Streamable HTTP, stateless (no session id, no stream). A JSON-RPC message or
+/// batch gets a JSON reply; notifications alone get `202`. The token names the caller as on `/api`,
+/// and a missing or unknown one is `401` with a Bearer challenge, `initialize` included, so a client
+/// (or an MCP gateway's connection check) learns at once that the server wants a key.
+async fn mcp_http(
+    State(repo): State<Arc<Repo>>,
+    Extension(limits): Extension<Limits>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let msg: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => {
+            let err = json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": e.to_string()}});
+            return (StatusCode::BAD_REQUEST, Json(err)).into_response();
+        }
+    };
+    let Ok(permit) = limits.inflight.clone().try_acquire_owned() else {
+        let msg = format!("server busy: {} API calls are running; retry after a short wait", limits.max);
+        return (StatusCode::SERVICE_UNAVAILABLE, Json(json!({"error": msg, "retry": true}))).into_response();
+    };
+    let token = token_of(&headers);
+    let run = move || -> Result<Option<Value>> {
+        let _permit = permit;
+        let caller = repo.auth.authenticate(token.as_deref())?;
+        let mut call = |op: &str, args: Value| rpc::call_as(&repo, &caller, op, args);
+        Ok(match msg {
+            Value::Array(batch) => {
+                let replies: Vec<Value> = batch.iter().filter_map(|m| crate::mcp::reply(m, &mut call)).collect();
+                (!replies.is_empty()).then_some(Value::Array(replies))
+            }
+            m => crate::mcp::reply(&m, &mut call),
+        })
+    };
+    match tokio::task::spawn_blocking(run).await {
+        Ok(Ok(Some(v))) => (StatusCode::OK, Json(v)).into_response(),
+        Ok(Ok(None)) => StatusCode::ACCEPTED.into_response(),
+        Ok(Err(e)) => {
+            let status = status_of(&e);
+            let body = Json(json!({"error": format!("{e:#}")}));
+            if status == StatusCode::UNAUTHORIZED {
+                (status, [(axum::http::header::WWW_AUTHENTICATE, "Bearer realm=\"treeyard\"")], body).into_response()
+            } else {
+                (status, body).into_response()
+            }
+        }
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e.to_string()}))).into_response(),
+    }
+}
+
+/// `GET` and `DELETE /mcp`: the endpoint keeps no session and opens no server-sent stream.
+async fn mcp_no_stream() -> (StatusCode, [(axum::http::HeaderName, &'static str); 1], Json<Value>) {
+    (
+        StatusCode::METHOD_NOT_ALLOWED,
+        [(axum::http::header::ALLOW, "POST")],
+        Json(json!({"error": "stateless MCP endpoint: POST JSON-RPC to /mcp"})),
+    )
 }
 
 #[derive(Deserialize)]
@@ -268,7 +332,9 @@ pub async fn serve_with(repo: Arc<Repo>, addr: &str, opts: ServeOptions) -> Resu
     check_bind(&repo, addr, opts.insecure_open)?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let at = listener.local_addr()?;
-    eprintln!("treeyard listening on http://{at} (API /api/<op>, events /api/events, git clone http://{at}/git)");
+    eprintln!(
+        "treeyard listening on http://{at} (API /api/<op>, events /api/events, MCP /mcp, git clone http://{at}/git)"
+    );
     if landing::spawn_worker(repo.clone()).is_some() {
         eprintln!("treeyard landing worker started");
     }
