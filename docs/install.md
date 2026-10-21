@@ -17,14 +17,14 @@ A release is a directory (or URL) with one archive per platform, `SHA256SUMS` an
 ```text
 curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh   # newest GitHub release
 sh dist/install.sh --from dist                 # a local release directory
-sh install.sh --from https://HOST/PATH/v0.1.2  # any URL that serves the same files
+sh install.sh --from https://HOST/PATH/v0.1.3  # any URL that serves the same files
 ```
 
 | Archive | Platform | Built with |
 |---|---|---|
-| `treeyard-0.1.2-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
-| `treeyard-0.1.2-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
-| `treeyard-0.1.2-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.3-aarch64-apple-darwin.tar.gz` | macOS on Apple Silicon | `cargo build --release` |
+| `treeyard-0.1.3-x86_64-unknown-linux-musl.tar.gz` | Linux x86_64, static (musl) | `cargo zigbuild` |
+| `treeyard-0.1.3-aarch64-unknown-linux-musl.tar.gz` | Linux arm64, static (musl) | `cargo zigbuild` |
 
 Published releases: https://github.com/exit-0-run/treeyard/releases. To build one yourself, see the next section.
 
@@ -75,3 +75,5 @@ clippy and all tests.
   `scripts/check-quickstart.sh docs/quickstart.md` and `examples/swarm-demo.sh --agents 10 --pairs 2`
   passed. 0.1.0 failed the same demo there (`unknown option 'diff-algorithm'`).
 - 0.1.2: the same checks passed on macOS arm64 and in `ubuntu:24.04` (git 2.43.0), installed from `dist/`.
+- 0.1.3: the same checks passed on macOS arm64 and in `ubuntu:24.04` (git 2.43.0); on macOS, `POST /mcp`
+  answered 401 with `WWW-Authenticate` without a token, accepted a bare token, and answered `GET` with 405.
