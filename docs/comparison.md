@@ -103,7 +103,10 @@ checkout and storage for very large monorepos with many CI jobs. CarterT27/scion
 API: it rebases a stack onto the ref and moves the ref with a compare-and-swap, with retries. It lists
 git protocol compatibility and two-way git sync as out of scope. At small size the extra tiers cost
 time: on a real repository with 28,068 files, CarterT27/scion reports 14.5 s for a full checkout and
-2.5 to 3 s for git (its README, measured 2026-10-14).
+2.5 to 3 s for git (its README, measured 2026-10-14). In our landing test (50 agents, 250 changes, 20 %
+conflicting, one machine), CarterT27/scion with CockroachDB took 10.5 s and TreeYard 1.1 s; its
+in-memory test backend took 0.3 s
+([benchmarks.md](benchmarks.md#same-test-against-cartert27scion-2026-10-24)).
 
 TreeYard shares the model: changesets and rebase on the server, agents as the main clients, `land`
 as one call. It aims at another problem: many agents that write to one branch at the same time. It

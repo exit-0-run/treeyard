@@ -56,20 +56,23 @@ repository.
 
 50 agents land 5 changes each on one branch; 20 % of the changes conflict on purpose. The same test on
 one machine against plain git, against [gitai](https://github.com/feder-cr/git-ai) with its own benchmark
-script, and against TreeYard (`sh bench/landbench.sh`).
+script, against [CarterT27/scion](https://github.com/CarterT27/scion) (an open-source take on Anthropic's
+Scion design), and against TreeYard (`sh bench/landbench.sh`).
 
-| 50 agents, 250 changes | plain git | gitai (batching on) | TreeYard |
-|---|---|---|---|
-| Time for all 250 | 132 s | 22.2 s | **1.1 s** |
-| Lands per minute | 42 | 540 | **10 777** |
-| p99 wait of a landed change | 30.2 s | 5.9 s | **0.29 s** |
-| Changes landed (the rest are planned conflicts) | 93 | 200 | 197 |
+| 50 agents, 250 changes | plain git | gitai (batching on) | Scion (CockroachDB) | TreeYard |
+|---|---|---|---|---|
+| Time for all 250 | 132 s | 22.2 s | 10.5 s | **1.1 s** |
+| Lands per minute | 42 | 540 | 1 142 | **10 777** |
+| p99 wait of a landed change | 30.2 s | 5.9 s | 7.2 s | **0.29 s** |
+| Changes landed (the rest are planned conflicts) | 93 | 200 | 200 | 197 |
 
-**120× faster than plain git. 20× faster than gitai.** Plain git livelocks: most pushes lose the race,
-fetch, rebase and lose again. TreeYard rebases on the server, so there is no race to lose.
+**120× faster than plain git. 20× faster than gitai. 9× faster than Scion.** Plain git livelocks: most
+pushes lose the race, fetch, rebase and lose again. TreeYard rebases on the server, so there is no race to
+lose.
 
-One macOS machine, 15-core CPU, 48 GB RAM. gitai ran its own `acceptance-phase4.sh`. Every command:
-[docs/benchmarks.md](docs/benchmarks.md).
+One macOS machine, 15-core CPU, 48 GB RAM. gitai ran its own `acceptance-phase4.sh`; Scion ran with its
+production storage (`sh bench/scion/run.sh external`). Every command, and Scion's in-memory test backend:
+[docs/benchmarks.md](docs/benchmarks.md#same-test-against-cartert27scion-2026-10-24).
 
 <details>
 <summary><b>Why: what hurts with git worktrees</b></summary>

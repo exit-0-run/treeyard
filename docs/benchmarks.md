@@ -829,3 +829,41 @@ Durability differs too: TreeYard keeps its state in SQLite with `journal_mode = 
 (safe when the process dies, not on power loss), while gitai fsyncs a pack per batch. With
 `synchronous = FULL` (a sync on every commit; on macOS without `F_FULLFSYNC`) the same TreeYard run took
 1.19 s: 197 landed, 9 936 lands a minute, p99 0.35 s.
+
+### Same test against CarterT27/scion (2026-10-24)
+
+CarterT27/scion (https://github.com/CarterT27/scion, commit e0ffadf, Apache-2.0) is an open-source
+version of the design in Anthropic's "Redesigning source control". It lands like TreeYard: one `Land`
+call, the server rebases the change onto the ref and moves the ref with a compare-and-swap, and it
+retries a lost CAS itself (its SPEC 8.4, `land.max_attempts = 32`). `sh bench/scion/run.sh
+[memory|external]` builds it with `bench/scion/landrace.rs` added as an example of its
+`scion-conformance` crate. Each agent has its own gRPC client over loopback TLS to an in-process server
+(scion's `TestCluster`, no daemon, its raised test rate limits). One change: `ResolveRef main`,
+`ReadPath shared.txt` when it appends to it, `UploadObjects`, `CreateChangeset` on the tip, `Land main`.
+The seed, the files and the seeded choice of conflicting changes are the same as in landbench. No
+conflict resolver: `MERGE_CONFLICT` fails the change. `UNAVAILABLE` is retried (up to 30 times, like
+landbench's failed git fetches). Raw results: `bench/results/scion/`.
+
+Backends:
+
+- **external**: scion's production storage, CockroachDB + S3. CockroachDB v26.3.3 ran natively on the
+  Mac (`cockroach start-single-node --insecure`); MinIO ran in a colima VM (4 CPU, 8 GiB) from scion's
+  `docker/compose.test.yml`, as the native MinIO binary crashed on this macOS. The test blobs are far
+  below scion's 64 KiB inline threshold, so they live in CockroachDB, not in S3.
+- **memory**: scion's in-memory test backend. It keeps nothing on disk and cannot run as a service;
+  `scion-server` needs CockroachDB and S3.
+
+| 50 agents, 250 changes, 20 % conflicting | scion, CockroachDB (3 runs) | scion, in-memory (3 runs) | TreeYard (same day) |
+|---|---|---|---|
+| Landed | 200, 201, 197 | 219, 219, 213 | 197 |
+| Failed: merge conflict | 50, 49, 53 | 31, 31, 37 | 53 |
+| Run time | 10.51 s, 10.49 s, 10.43 s | 0.42 s, 0.29 s, 0.47 s | 1.21 s |
+| Lands per minute | 1 142, 1 150, 1 134 | 31 648, 45 429, 27 004 | 9 784 |
+| p50 / p99 of landed changes | 0.59 / 7.19 s, 0.90 / 7.29 s, 0.81 / 7.77 s | 1.0 / 243 ms, 1.0 / 209 ms, 4.7 / 249 ms | 0.19 / 0.32 s |
+| `UNAVAILABLE` retries | 2, 2, 0 | 0 | none |
+
+With its production storage, scion took 10.5 s, and TreeYard about 9× less. In memory, with nothing kept,
+scion was faster than TreeYard, which writes SQLite (WAL) and git objects. With CockroachDB in the colima
+VM as well, scion took 45.1 to 46.8 s with about 1 000 `UNAVAILABLE` retries per run
+(`crdb-colima-*.json`); those numbers are not used above. In memory, fewer changes conflict: a change
+that lands within a few milliseconds of its read leaves less room for another change to the shared file.

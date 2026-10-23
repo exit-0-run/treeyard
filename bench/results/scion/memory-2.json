@@ -1,0 +1,1 @@
+{"agents":50,"attempts_per_land":1.0,"changes":250,"conflicts":31,"duration_seconds":0.29,"failed":31,"failure_kinds":{"merge conflict":31},"landed":219,"lands_per_minute":45429.0,"mode":"scion-memory","p50_ms":1.0,"p95_ms":132.3,"p99_ms":209.4,"unavailable_retries":0}

@@ -5,6 +5,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Added
+- `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in
+  docs/benchmarks.md.
+
 ## [0.1.3] - 2026-10-21
 
 ### Added
