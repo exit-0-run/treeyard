@@ -128,3 +128,9 @@ The first version that is complete end to end on one node.
   comparison, open RPC spec v0 (`docs/spec/rpc.md`), install.
 - `examples/swarm-demo.sh`: N scripted agents against git worktrees and against the server.
 - `site/index.html`: a static page with the measured numbers.
+
+[Unreleased]: https://github.com/exit-0-run/treeyard/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/exit-0-run/treeyard/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/exit-0-run/treeyard/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/exit-0-run/treeyard/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/exit-0-run/treeyard/releases/tag/v0.1.0
