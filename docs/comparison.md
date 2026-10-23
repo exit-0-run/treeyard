@@ -89,11 +89,33 @@ Foremerge says "Coordination across machines is out of scope". TreeYard does the
 server for every machine, and measures its own precision: trial-merge warnings 0.395 precision at
 0.975 recall (ripgrep, 16 agents, [benchmarks.md](benchmarks.md#early-warnings-precision-next-to-recall)).
 
-## Sapling and Mononoke, Scion
+## Scion and its open-source versions
+
+Anthropic described Scion, its internal version control system, on 2026-10-13 ("Redesigning source
+control"). The server does history, blame, merge and rebase. Clients fetch only the paths they need.
+The unit of work is a changeset, and a ref move is a compare-and-swap. There is no global merge
+queue: tests after the merge find conflicts, and Claude fixes them. Scion is not public, and the post
+says it is not a general replacement for git.
+
+Two open-source projects follow that design: CarterT27/scion (Rust, Apache-2.0, gRPC over TLS,
+CockroachDB and S3-compatible storage) and OpenScion (Rust, GPL-3.0). They aim at what Scion aims at:
+checkout and storage for very large monorepos with many CI jobs. CarterT27/scion also lands through an
+API: it rebases a stack onto the ref and moves the ref with a compare-and-swap, with retries. It lists
+git protocol compatibility and two-way git sync as out of scope. At small size the extra tiers cost
+time: on a real repository with 28,068 files, CarterT27/scion reports 14.5 s for a full checkout and
+2.5 to 3 s for git (its README, measured 2026-10-14).
+
+TreeYard shares the model: changesets and rebase on the server, agents as the main clients, `land`
+as one call. It aims at another problem: many agents that write to one branch at the same time. It
+adds the parts that Scion leaves to tests after the merge: trial-merge conflict warnings while agents
+work, and queue or optimistic test modes at land. It is one binary with SQLite and a normal git
+repository, so people keep `git clone/pull/push`. It has no sparse or virtual checkout and no storage
+tier for a 100 GB monorepo. At that size, choose the Scion design.
+
+## Sapling and Mononoke
 
 Mononoke is Meta's server with server-side rebase; the Sapling docs say the "server and virtual
-filesystem are not yet available publicly". Anthropic's Scion is internal. Both prove the model
-of a server-first VCS for agents. TreeYard is a self-hosted, git-backed take on it, at v0.1.
+filesystem are not yet available publicly". Like Scion, it proves the model of a server-first VCS.
 
 ## What TreeYard does not do yet
 
@@ -101,8 +123,8 @@ of a server-first VCS for agents. TreeYard is a self-hosted, git-backed take on 
 - No TLS (put it behind a TLS proxy) and no token expiry.
 - Two-way workspace sync is not built: a workspace sends edits to the server, the server does not
   push other agents' edits into it.
-- No real Claude Code, Codex or OpenCode session ran against it in the tests; the agents in every
-  measurement are scripts.
+- Real-agent runs used Claude Code only ([benchmarks.md](benchmarks.md)). Codex and OpenCode have not
+  run against it in a measured test.
 
 ## Sources
 
@@ -119,4 +141,5 @@ panozzaj (https://www.panozzaj.com/blog/2025/11/22/avoid-losing-work-with-jujuts
 (https://www.aviator.co/pricing) · claude-code-merge-queue (https://github.com/funador/claude-code-merge-queue)
 · Clash (https://github.com/clash-sh/clash) · Foremerge (https://github.com/naw103/foremerge) ·
 Sapling (https://sapling-scm.com/docs/introduction/) · Anthropic
-(https://anthropic.com/engineering/redesigning-source-control).
+(https://anthropic.com/engineering/redesigning-source-control). Opened 2026-10-23: CarterT27/scion
+(https://github.com/CarterT27/scion) · OpenScion (https://github.com/tinyhumansai/openscion).
