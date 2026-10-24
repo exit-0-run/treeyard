@@ -12,7 +12,7 @@ pub trait Blobs {
     fn read_blob(&mut self, id: &str) -> Result<Vec<u8>>;
     fn write_blob(&mut self, data: &[u8]) -> Result<String>;
     /// Line merge of three texts: `Ok(merged)` when clean, `Err(text with markers)` otherwise.
-    /// The default is the fast built-in merge (`diffy`); the repo uses `git_merge_file`.
+    /// The default is the fast built-in merge (`diffy`); the repo uses `line_merge`.
     fn merge_text(&mut self, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
         Ok(diffy::merge(base, ours, theirs))
     }
@@ -23,6 +23,15 @@ pub const GIT_MERGE_DIFF: &str = "histogram";
 
 /// Set once git rejects `merge-file --diff-algorithm` (added in git 2.44; Ubuntu 24.04 ships 2.43).
 static NO_DIFF_ALGORITHM: AtomicBool = AtomicBool::new(false);
+
+/// The repo's line merge: `xmerge` in process (git's histogram merge, same output as
+/// `git_merge_file` with git 2.44+), and `git merge-file` for the rare input xmerge cannot take.
+pub fn line_merge(dir: &Path, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
+    match crate::xmerge::merge(base, ours, theirs) {
+        Ok(r) => Ok(r),
+        Err(crate::xmerge::Unsupported) => git_merge_file(dir, base, ours, theirs),
+    }
+}
 
 /// Line merge by `git merge-file`, so a clean merge is exactly what git's merge gives. Main
 /// (`theirs`) goes first, like `git merge-tree <main> <change>`; markers name main and change.

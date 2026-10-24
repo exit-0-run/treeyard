@@ -34,7 +34,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/model.rs` | Entry, Manifest (im::OrdMap), Changeset (content-addressed), Change, Conflict |
 | `src/store.rs` | SQLite: blobs written by agents, changesets, changes, refs, changeset → git commit |
 | `src/git.rs` | object ids, loose writes, tree/commit encoding, incremental trees, cat-file readers, lazy object cache |
-| `src/merge.rs` | per-path 3-way merge: entry level, then `git merge-file` (the repo) or `diffy` (dry trial merges) |
+| `src/merge.rs`, `src/xmerge.rs` | per-path 3-way merge: entry level, then `xmerge` (git's histogram merge in process; the repo) or `diffy` (dry trial merges) |
 | `src/safety.rs`, `src/failpoint.rs` | path/size limits, hostile trees, no write through a symlink, loopback check; crash points |
 | `src/repo.rs` | changes, rebase, land, revert, export, read queries |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
@@ -55,7 +55,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `tests/coordination.rs`, `tests/conflicts.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard; `keep_conflicted` |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
 | `tests/workspace.rs`, `tests/workspace_lifecycle.rs`, `tests/checkpoints.rs` | create/sync/remove, clone strategies, layers, ports, daemon, CLI; overlay (Linux, root); repo config, gc, mirror, sparse; checkpoints and restore |
-| `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/attachments.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; notes |
+| `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/xmerge_git.rs`, `tests/attachments.rs` | blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; merges = git merge-file; notes |
 | `tests/hardening.rs`, `tests/fuzz_history.rs`, `tests/old_git.rs` | git < 2.44 merges; kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
 | `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py`, `bench/landbench.sh`, `bench/scion/` | landing load test vs git (`src/bin/landbench.rs`) and vs CarterT27/scion (`run.sh`, `landrace.rs`); phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git |
 | `tests/docs.rs`, `tests/swarm_demo.rs`, `tests/claude_hooks.rs` | api.md, spec, links, demo SVG, README demo table; demo end to end; Claude Code worktree and checkpoint hooks |
@@ -67,8 +67,8 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 - A change's `head` equals `base` while empty, else its only parent is `base`. Stacked on an open change: `land` = `waiting`.
 - Keep the commit message across amend, resolve and rebase (`head_message`); replay caught it being dropped.
 - New operation: dispatch + `tools()` in rpc.rs, a group in `apidoc::GROUPS`, a name in docs/spec/rpc.md, regenerate docs/api.md.
-- Line merges run `git merge-file --diff-algorithm histogram` (merge-ort's choice): the fuzz test found
-  `diffy` merging cleanly where git conflicts. Land writes objects, then one SQLite tx, then the ref.
+- Line merges must equal `git merge-file --diff-algorithm histogram` (merge-ort's choice; `diffy` once merged
+  cleanly where git conflicts): `xmerge.rs` ports it, `xmerge_git` checks it. Land writes objects, then one SQLite tx, then the ref.
 - Cold `manifest`: `ls-tree` of a mapped commit after `MANIFEST_WALK` steps (mapped tree == manifest, always).
 - Export is incremental (`write_tree_changed` from the parent commit's tree); `verify_export` compares it
   with a full `write_tree`. A shallow local source is imported by cloning `objects/` copy-on-write.

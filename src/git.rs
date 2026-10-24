@@ -4,7 +4,7 @@
 use anyhow::{Context, Result, bail};
 use flate2::{Compression, write::ZlibEncoder};
 use sha1::{Digest, Sha1};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -275,15 +275,21 @@ fn raw_id(id: &str) -> Option<RawId> {
 pub struct Odb {
     dir: PathBuf,
     known: HashSet<RawId>,
+    /// Trees and commits this process wrote lately: the next land reads its parent's commit and
+    /// trees from here instead of a `cat-file` round trip. Cleared when it grows past `RECENT_MAX`.
+    recent: HashMap<String, (&'static str, Vec<u8>)>,
     cat: CatFile,
     check: CatFile,
 }
+
+const RECENT_MAX: usize = 4096;
 
 impl Odb {
     pub fn open(dir: &Path) -> Result<Self> {
         Ok(Self {
             dir: dir.to_path_buf(),
             known: HashSet::new(),
+            recent: HashMap::new(),
             cat: CatFile::spawn(dir)?,
             check: CatFile::spawn_check(dir)?,
         })
@@ -305,6 +311,13 @@ impl Odb {
             }
             _ => false,
         }
+    }
+
+    /// `has` without asking git: known, or a loose file. A miss may still be packed; writing it
+    /// loose again is valid git.
+    pub fn has_cheap(&mut self, id: &str) -> bool {
+        let Some(raw) = raw_id(id) else { return false };
+        self.known.contains(&raw) || self.dir.join("objects").join(&id[..2]).join(&id[2..]).exists()
     }
 
     /// Records objects that arrived outside `write` (a pushed pack).
@@ -332,6 +345,9 @@ impl Odb {
     /// Reads one object. A miss or a broken answer restarts the readers and asks once more:
     /// a long-lived `cat-file` can lose its place or miss a pack that appeared after it started.
     pub fn read(&mut self, id: &str) -> Result<Option<(String, Vec<u8>)>> {
+        if let Some((kind, data)) = self.recent.get(id) {
+            return Ok(Some((kind.to_string(), data.clone())));
+        }
         if let Ok(Some(found)) = self.cat.read(id) {
             return Ok(Some(found));
         }
@@ -342,14 +358,17 @@ impl Odb {
 
     pub fn write(&mut self, kind: &str, data: &[u8]) -> Result<String> {
         let id = object_id(kind, data);
-        if self.has(&id) {
+        let Some(raw) = raw_id(&id) else { anyhow::bail!("bad object id {id}") };
+        if self.known.contains(&raw) {
             return Ok(id);
         }
+        // No `cat-file --batch-check` round trip here: a loose copy of an object that is also in a
+        // pack is valid git, and costs less than asking git first on every land.
         let dir = self.dir.join("objects").join(&id[..2]);
-        fs::create_dir_all(&dir)?;
         let path = dir.join(&id[2..]);
         if !path.exists() {
-            let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
+            fs::create_dir_all(&dir)?;
+            let mut enc = ZlibEncoder::new(Vec::new(), Compression::fast());
             enc.write_all(format!("{kind} {}\0", data.len()).as_bytes())?;
             enc.write_all(data)?;
             let tmp = dir.join(format!("tmp_obj_{}", &id[2..]));
@@ -357,7 +376,18 @@ impl Odb {
             crate::failpoint::hit("odb:after-tmp");
             fs::rename(&tmp, &path)?;
         }
-        self.known.extend(raw_id(&id));
+        self.known.insert(raw);
+        let kind = match kind {
+            "tree" => Some("tree"),
+            "commit" => Some("commit"),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            if self.recent.len() >= RECENT_MAX {
+                self.recent.clear();
+            }
+            self.recent.insert(id.clone(), (kind, data.to_vec()));
+        }
         Ok(id)
     }
 

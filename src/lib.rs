@@ -33,3 +33,4 @@ pub mod store;
 pub mod symbols;
 pub mod workspace;
 pub mod xdiff;
+pub mod xmerge;

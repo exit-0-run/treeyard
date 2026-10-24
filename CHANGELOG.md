@@ -5,6 +5,14 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Changed
+- Line merges run in process (`src/xmerge.rs`, a port of git's histogram diff and `xdl_merge`) instead of
+  one `git merge-file` process per merge. Same text and the same clean or conflict answer as
+  `git merge-file --diff-algorithm histogram` (`tests/xmerge_git.rs` compares them); `git merge-file` stays
+  as the fallback. On git before 2.44 merges now match git 2.44+ too.
+- Export: a land reads its parent's commit and trees from memory, and new objects skip the `cat-file`
+  existence check (a loose copy of a packed object is valid git). Loose objects use zlib level 1.
+
 ### Added
 - `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in
   docs/benchmarks.md.

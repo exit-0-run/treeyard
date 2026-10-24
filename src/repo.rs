@@ -299,7 +299,7 @@ impl Blobs for Inner {
         self.put_blob(data)
     }
     fn merge_text(&mut self, base: &str, ours: &str, theirs: &str) -> Result<std::result::Result<String, String>> {
-        crate::merge::git_merge_file(&self.scratch(), base, ours, theirs)
+        crate::merge::line_merge(&self.scratch(), base, ours, theirs)
     }
 }
 
@@ -1516,9 +1516,15 @@ impl Inner {
         let cs = self.changeset(id)?;
         let parents = cs.parents.iter().map(|p| self.commit_for(p)).collect::<Result<Vec<_>>>()?;
         for e in cs.changes.values().flatten() {
-            if e.mode != MODE_GITLINK && !self.odb.has(&e.blob) {
-                let data = self.store.blob(&e.blob)?.with_context(|| format!("missing blob {}", e.blob))?;
-                self.odb.write("blob", &data)?;
+            if e.mode != MODE_GITLINK && !self.odb.has_cheap(&e.blob) {
+                // Agents' blobs are in SQLite; one that is not came from git (a pack), so ask git.
+                match self.store.blob(&e.blob)? {
+                    Some(data) => {
+                        self.odb.write("blob", &data)?;
+                    }
+                    None if self.odb.has(&e.blob) => {}
+                    None => bail!("missing blob {}", e.blob),
+                }
             }
         }
         // Incremental export: only the directories on the changed paths are written again;

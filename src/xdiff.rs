@@ -51,12 +51,12 @@ fn bogosqrt(mut n: i64) -> i64 {
     i
 }
 
-struct File<'a> {
-    recs: Vec<&'a [u8]>,
+pub(crate) struct File<'a> {
+    pub(crate) recs: Vec<&'a [u8]>,
     /// Class (equal-content id) per record.
-    class: Vec<usize>,
+    pub(crate) class: Vec<usize>,
     /// `changed[i + 1]` for record i; entries 0 and nrec + 1 are sentinels (false).
-    changed: Vec<bool>,
+    pub(crate) changed: Vec<bool>,
     /// Records kept for the Myers pass (xdf->reference_index).
     rindex: Vec<usize>,
     dstart: i64,
@@ -64,17 +64,17 @@ struct File<'a> {
 }
 
 impl<'a> File<'a> {
-    fn new(recs: Vec<&'a [u8]>, class: Vec<usize>) -> Self {
+    pub(crate) fn new(recs: Vec<&'a [u8]>, class: Vec<usize>) -> Self {
         let n = recs.len();
         File { recs, class, changed: vec![false; n + 2], rindex: Vec::new(), dstart: 0, dend: n as i64 - 1 }
     }
-    fn nrec(&self) -> i64 {
+    pub(crate) fn nrec(&self) -> i64 {
         self.recs.len() as i64
     }
-    fn ch(&self, i: i64) -> bool {
+    pub(crate) fn ch(&self, i: i64) -> bool {
         self.changed[(i + 1) as usize]
     }
-    fn set(&mut self, i: i64, v: bool) {
+    pub(crate) fn set(&mut self, i: i64, v: bool) {
         self.changed[(i + 1) as usize] = v;
     }
     fn hash(&self, i: i64) -> usize {
@@ -580,11 +580,14 @@ fn group_slide_up(f: &mut File, g: &mut Group) -> bool {
     }
 }
 
-fn change_compact(f: &mut File, o: &File) {
+/// xdl_change_compact. `indent` is XDF_INDENT_HEURISTIC (diff and blame set it, merge-file does
+/// not); `histogram` re-diffs a group that sliding changed, as git does for histogram diffs.
+pub(crate) fn change_compact(f: &mut File, o: &mut File, indent: bool, histogram: bool) {
     let mut g = group_init(f);
     let mut go = group_init(o);
     loop {
         if g.end != g.start {
+            let g_orig = g;
             let mut groupsize;
             let mut earliest_end;
             let mut end_matching_other;
@@ -618,7 +621,7 @@ fn change_compact(f: &mut File, o: &File) {
                     group_slide_up(f, &mut g);
                     group_previous(o, &mut go);
                 }
-            } else {
+            } else if indent {
                 let mut shift = earliest_end;
                 if g.end - groupsize - 1 > shift {
                     shift = g.end - groupsize - 1;
@@ -642,6 +645,12 @@ fn change_compact(f: &mut File, o: &File) {
                     group_slide_up(f, &mut g);
                     group_previous(o, &mut go);
                 }
+            }
+            if histogram && go.end != go.start && (g.start != g_orig.start || g.end != g_orig.end) {
+                let (sa, sb) = (g.start as usize..g.end as usize, go.start as usize..go.end as usize);
+                let (ca, cb) = myers_changed(&f.recs[sa.clone()], &o.recs[sb.clone()]);
+                f.changed[sa.start + 1..sa.end + 1].copy_from_slice(&ca);
+                o.changed[sb.start + 1..sb.end + 1].copy_from_slice(&cb);
             }
         }
         if !group_next(f, &mut g) {
@@ -682,7 +691,15 @@ fn trim_common_tail(a: &[u8], b: &[u8]) -> usize {
 }
 
 fn diff_records(a: &[u8], b: &[u8]) -> Vec<Hunk> {
-    let (ra, rb) = (lines(a), lines(b));
+    let (mut f1, mut f2) = myers(lines(a), lines(b));
+    change_compact(&mut f1, &mut f2, true, false);
+    change_compact(&mut f2, &mut f1, true, false);
+    build_script(&f1, &f2)
+}
+
+/// xdl_do_diff with Myers (xdl_prepare_env: trim ends, discard lines; then xdl_recs_cmp), before
+/// any compaction.
+fn myers<'a>(ra: Vec<&'a [u8]>, rb: Vec<&'a [u8]>) -> (File<'a>, File<'a>) {
     let mut classes: HashMap<&[u8], usize> = HashMap::new();
     let mut counts: Vec<[usize; 2]> = Vec::new();
     let ca = classify(&ra, &mut classes, &mut counts, 0);
@@ -714,9 +731,17 @@ fn diff_records(a: &[u8], b: &[u8]) -> Vec<Hunk> {
     let mut kb = Kv { v: vec![0; ndiags as usize + 1], off: n2 + 1 };
     let mxcost = bogosqrt(ndiags).max(MAX_COST_MIN);
     recs_cmp(&mut f1, 0, n1, &mut f2, 0, n2, &mut kf, &mut kb, false, mxcost);
-    change_compact(&mut f1, &f2);
-    change_compact(&mut f2, &f1);
-    // xdl_build_script, in forward order
+    (f1, f2)
+}
+
+/// Changed flags of a Myers diff of two record ranges (xdl_fall_back_diff).
+pub(crate) fn myers_changed(a: &[&[u8]], b: &[&[u8]]) -> (Vec<bool>, Vec<bool>) {
+    let (f1, f2) = myers(a.to_vec(), b.to_vec());
+    (f1.changed[1..=a.len()].to_vec(), f2.changed[1..=b.len()].to_vec())
+}
+
+/// xdl_build_script, in forward order: `before` ranges are in `f1`, `after` ranges in `f2`.
+pub(crate) fn build_script(f1: &File, f2: &File) -> Vec<Hunk> {
     let mut out = Vec::new();
     let (mut i1, mut i2) = (f1.nrec(), f2.nrec());
     while i1 >= 0 || i2 >= 0 {
@@ -738,7 +763,7 @@ fn diff_records(a: &[u8], b: &[u8]) -> Vec<Hunk> {
 }
 
 /// Gives each distinct line a class id and counts its occurrences per side.
-fn classify<'a>(
+pub(crate) fn classify<'a>(
     recs: &[&'a [u8]],
     classes: &mut HashMap<&'a [u8], usize>,
     counts: &mut Vec<[usize; 2]>,
