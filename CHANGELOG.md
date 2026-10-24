@@ -12,6 +12,8 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   as the fallback. On git before 2.44 merges now match git 2.44+ too.
 - Export: a land reads its parent's commit and trees from memory, and new objects skip the `cat-file`
   existence check (a loose copy of a packed object is valid git). Loose objects use zlib level 1.
+- Landing load test (50 agents x 5 changes, 20 % conflicting): 0.46 s instead of 1.1 s, p99 0.11 s
+  instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
 - `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in

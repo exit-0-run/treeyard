@@ -12,7 +12,7 @@ RUN = 0.7  # share of the loop the slow bar takes to fill
 
 CARDS = [
     # file, big number, word, what, repo, git (value, label), treeyard (value, label)
-    ("landing", "120×", "faster", "50 agents land 250 changes", "one branch", (132.01, "132 s"), (1.10, "1.1 s")),
+    ("landing", "270×", "faster", "50 agents land 250 changes", "one branch", (124.13, "124 s"), (0.46, "0.46 s")),
     ("workspaces", "57×", "faster", "50 workspaces, ready to build", "ripgrep", (69.66, "69.7 s"), (1.22, "1.2 s")),
     ("disk", "161×", "less disk", "disk for 50 workspaces", "ripgrep", (7789, "7.8 GB"), (48.3, "48 MB")),
     ("astro", "13×", "faster", "50 workspaces + node_modules", "astro", (352.53, "353 s"), (26.19, "26 s")),

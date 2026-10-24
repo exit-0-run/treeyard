@@ -40,7 +40,7 @@ repository.
 - **No merge queue; git stays the truth.** Every land is a normal git commit. People keep `git clone`, `pull`, `push`.
 
 <p align="center">
-  <a href="docs/benchmarks.md"><img src="assets/hero/landing.svg" alt="120x faster: 50 agents land 250 changes on one branch, git 132 s, TreeYard 1.1 s" width="640"></a>
+  <a href="docs/benchmarks.md"><img src="assets/hero/landing.svg" alt="270x faster: 50 agents land 250 changes on one branch, git 124 s, TreeYard 0.46 s" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/workspaces.svg" alt="57x faster: 50 workspaces ready to build on ripgrep, git 69.7 s, TreeYard 1.2 s" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/disk.svg" alt="161x less disk: 50 workspaces on ripgrep, git 7.8 GB, TreeYard 48 MB" width="640"></a>
   <a href="docs/benchmarks.md"><img src="assets/hero/blame.svg" alt="43x faster blame on ripgrep, git 24.8 ms, TreeYard 0.6 ms" width="640"></a>
@@ -61,18 +61,18 @@ Scion design), and against TreeYard (`sh bench/landbench.sh`).
 
 | 50 agents, 250 changes | plain git | gitai (batching on) | Scion (CockroachDB) | TreeYard |
 |---|---|---|---|---|
-| Time for all 250 | 132 s | 22.2 s | 10.5 s | **1.1 s** |
-| Lands per minute | 42 | 540 | 1 142 | **10 777** |
-| p99 wait of a landed change | 30.2 s | 5.9 s | 7.2 s | **0.29 s** |
-| Changes landed (the rest are planned conflicts) | 93 | 200 | 200 | 197 |
+| Time for all 250 | 124 s | 22.2 s | 10.5 s | **0.46 s** |
+| Lands per minute | 20 | 540 | 1 142 | **25 642** |
+| p99 wait of a landed change | 38.8 s | 5.9 s | 7.2 s | **0.11 s** |
+| Changes landed (the rest are planned conflicts) | 41 | 200 | 200 | 197 |
 
-**120× faster than plain git. 20× faster than gitai. 9× faster than Scion.** Plain git livelocks: most
+**270× faster than plain git. 48× faster than gitai. 22× faster than Scion.** Plain git livelocks: most
 pushes lose the race, fetch, rebase and lose again. TreeYard rebases on the server, so there is no race to
 lose.
 
 One macOS machine, 15-core CPU, 48 GB RAM. gitai ran its own `acceptance-phase4.sh`; Scion ran with its
 production storage (`sh bench/scion/run.sh external`). Every command, and Scion's in-memory test backend:
-[docs/benchmarks.md](docs/benchmarks.md#same-test-against-cartert27scion-2026-10-24).
+[docs/benchmarks.md](docs/benchmarks.md#after-the-in-process-line-merge-2026-10-24).
 
 <details>
 <summary><b>Why: what hurts with git worktrees</b></summary>
@@ -116,7 +116,7 @@ Sources: [docs/comparison.md](docs/comparison.md).
 |---|---|---|---|
 | 50 workspaces ready to build, ripgrep | 69.66 s, 7 789 MB | 1.22 s, 48.3 MB | **57× faster, 161× less disk** |
 | 50 workspaces with node_modules, astro (warm pool) | 352.53 s, 5 859 MB | 26.19 s, 1 506 MB | **13× faster, 3.9× less disk** |
-| 50 agents land 250 changes on one branch, 20 % conflicting | 132 s, 93 landed, p99 30.2 s (gitai: 22.2 s, p99 5.9 s) | 1.1 s, 197 landed, p99 0.29 s | **120× faster than git, 20× faster than gitai** |
+| 50 agents land 250 changes on one branch, 20 % conflicting | 124 s, 41 landed, p99 38.8 s (gitai: 22.2 s, p99 5.9 s) | 0.46 s, 197 landed, p99 0.11 s | **270× faster than git, 48× faster than gitai** |
 | Wait of the last change in a serial queue with the repository's CI (ripgrep / astro / requests) | 248 s / 1 414 s / 3 614 s | land p95 3.4 / 43 / 2.3 ms | **no queue wait** (CI runs after land, see limits) |
 | Changes that conflict at merge time (500 real commits, stale bases) | 26 % to 37 % | the same conflicts | **98 % to 100 % reported before land** |
 | Changes thrown away (replay, ripgrep, 16 agents) | 111 | 0 with declared intents | **111 to 0** (upper bound) |

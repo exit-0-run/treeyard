@@ -862,8 +862,29 @@ Backends:
 | p50 / p99 of landed changes | 0.59 / 7.19 s, 0.90 / 7.29 s, 0.81 / 7.77 s | 1.0 / 243 ms, 1.0 / 209 ms, 4.7 / 249 ms | 0.19 / 0.32 s |
 | `UNAVAILABLE` retries | 2, 2, 0 | 0 | none |
 
-With its production storage, scion took 10.5 s, and TreeYard about 9× less. In memory, with nothing kept,
+With its production storage, scion took 10.5 s, and TreeYard about 9× less (22× less after the
+in-process line merge, next section). In memory, with nothing kept,
 scion was faster than TreeYard, which writes SQLite (WAL) and git objects. With CockroachDB in the colima
 VM as well, scion took 45.1 to 46.8 s with about 1 000 `UNAVAILABLE` retries per run
-(`crdb-colima-*.json`); those numbers are not used above. In memory, fewer changes conflict: a change
+(`crdb-colima-*.json`); those numbers are not used above.
+
+### After the in-process line merge (2026-10-24)
+
+The same `sh bench/landbench.sh --runs 2`, after line merges moved in process (`src/xmerge.rs`) and the
+export stopped its `cat-file` checks. Before, every rebased change ran one `git merge-file` process
+under the lock.
+
+| 50 agents, 250 changes, 20 % conflicting | plain git, run A | plain git, run B | TreeYard, run A | TreeYard, run B |
+|---|---|---|---|---|
+| Landed | 41 | 32 | 197 | 197 |
+| Failed: merge conflict | 31 | 34 | 53 | 53 |
+| Lands per minute | 20 | 17 | 25 642 | 23 896 |
+| Run time | 124.1 s | 115.7 s | **0.46 s** | **0.49 s** |
+| p50 / p99 of landed changes | 5.3 s / 38.8 s | 2.5 s / 36.1 s | **76 ms / 108 ms** | **82 ms / 125 ms** |
+
+Runs A and B are from two invocations on an idle machine. A third TreeYard run, with another process
+loading the machine (load average 39), took 0.53 s; its git run lost fetches ("not our ref") and is not
+used. Plain git varies from run to run (97 to 132 s across all runs on this page): how many pushes lose
+depends on timing. TreeYard's land path did not change in what it writes: the same commits, trees and
+SQLite rows (`tests/xmerge_git.rs`, `tests/fuzz_history.rs`). In memory, fewer changes conflict: a change
 that lands within a few milliseconds of its read leaves less room for another change to the shared file.
