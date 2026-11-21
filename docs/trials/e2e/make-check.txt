@@ -1,0 +1,366 @@
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s bench
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 20.412s
+
+OK
+{
+ "pilot_runs": 2,
+ "pilot_repo": "requests",
+ "mean_cost_usd_per_run": 2.0,
+ "mean_tokens_per_run": 110,
+ "repo_factors": {
+  "requests": 1.0,
+  "ripgrep": 0.952,
+  "astro": 0.738
+ },
+ "full_budget_usd": 80.71,
+ "formula": "mean cost per run x 12 x sum(repo factors) x 1.25"
+}
+/opt/homebrew/opt/rustup/bin/cargo fmt --check
+/opt/homebrew/opt/rustup/bin/cargo clippy --all-targets -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+/opt/homebrew/opt/rustup/bin/cargo test
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/lib.rs (target/debug/deps/treeyard-0b9d48c8803d43d3)
+
+running 47 tests
+test connect::tests::markdown_block_round_trip_keeps_bytes ... ok
+test connect::tests::json_entry_add_and_remove ... ok
+test apidoc::tests::every_tool_is_in_one_group ... ok
+test blame::tests::unused_origins_are_dropped ... ok
+test blame::tests::carry_keeps_old_lines_and_claims_new_ones ... ok
+test cow::tests::overlay_options_name_the_three_dirs ... ok
+test daemon::tests::events_map_to_workspaces_except_quiet_dirs ... ok
+test drivers::tests::union_keeps_both_sides ... ok
+test githttp::tests::parses_commands_caps_and_pack ... ok
+test connect::tests::codex_block_is_valid_toml ... ok
+test githttp::tests::report_is_framed_in_band_one ... ok
+test hook::tests::names ... ok
+test bisect::tests::a_rewrite_moves_mtime_on_by_at_least_one_second ... ok
+test hunks::tests::ids_ignore_line_numbers_and_ranges_meet ... ok
+test drivers::tests::cargo_lock_conflicts_when_both_sides_pick_a_different_version ... ok
+test merge::tests::delete_against_edit_conflicts ... ok
+test cow::tests::auto_uses_a_clone_on_apfs ... ok
+test merge::tests::mode_change_and_content_change_combine ... ok
+test merge::tests::disjoint_line_edits_merge ... ok
+test drivers::tests::cargo_lock_merges_independent_bumps_and_new_deps ... ok
+test config::tests::unknown_driver_is_rejected ... ok
+test merge::tests::same_line_edits_conflict_with_markers ... ok
+test safety::tests::loopback_addresses ... ok
+test safety::tests::tree_with_a_file_over_a_directory_is_refused ... ok
+test safety::tests::hostile_paths_are_refused ... ok
+test search::tests::varint_round_trip ... ok
+test workspace::tests::layer_specs_parse_and_auto_detect ... ok
+test search::tests::literals_need_their_trigrams ... ok
+test search::tests::concat_and_alternation ... ok
+test workspace::tests::sparse_cone_is_git_cone_mode ... ok
+test workspace::tests::unsafe_server_paths_are_refused ... ok
+test xdiff::tests::indent_heuristic_keeps_the_function_whole ... ok
+test xdiff::tests::simple_edits ... ok
+test xmerge::tests::disjoint_edits_merge ... ok
+test xmerge::tests::two_appends_conflict ... ok
+test safety::tests::dest_never_writes_through_a_symlink ... ok
+test config::tests::template_parses_to_defaults_and_globs_match_at_any_depth ... ok
+test workspace::tests::git_busy_sees_operations_and_fresh_index_locks ... ok
+test workspace::tests::find_dirs_skips_tracked_directories ... ok
+test cow::tests::hardlink_shares_files_with_a_read_only_base ... ok
+test cow::tests::every_strategy_clones_and_keeps_the_source ... ok
+test auth::tests::tokens_check_hash_name_and_revocation ... ok
+test coord::tests::ranges_and_symbols ... ok
+test attach::tests::redact_drops_secret_lines_and_key_blocks ... ok
+test git::tests::git_children_never_start_auto_maintenance ... ok
+test coord::tests::event_poll_filters_and_waits ... ok
+test symbols::tests::every_language_finds_its_definitions ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running unittests src/bin/landbench.rs (target/debug/deps/landbench-cfe46d68fc505ae6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/treeyard-8aff7cd42669a910)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/attachments.rs (target/debug/deps/attachments-21480254467ea303)
+
+running 2 tests
+test queue_landing_writes_notes_too ... ok
+test attachments_are_redacted_and_land_as_a_git_note ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/best_of_n.rs (target/debug/deps/best_of_n-55ce5fd96173af6f)
+
+running 1 test
+test land_one_of_lands_the_pick_and_abandons_the_rest ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/checkpoints.rs (target/debug/deps/checkpoints-2b3a9209ca710643)
+
+running 3 tests
+test restore_after_a_rebase_keeps_mains_work ... ok
+test workspace_restore_rewrites_only_differing_files ... ok
+test checkpoints_mark_turns_and_restore_keeps_history ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/claude_hooks.rs (target/debug/deps/claude_hooks-1636c67d5b6cb60f)
+
+running 2 tests
+test worktree_hooks_create_a_workspace_and_keep_its_edits ... ok
+test prompt_hook_checkpoints_each_turn_of_a_workspace_session ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+
+     Running tests/conflicts.rs (target/debug/deps/conflicts-5d53d89ff2e23701)
+
+running 4 tests
+test a_resolution_that_keeps_the_markers_is_refused ... ok
+test by_default_a_conflicted_change_stays_until_resolved ... ok
+test a_kept_conflict_that_main_resolves_clears_itself ... ok
+test kept_conflicts_rebase_and_land_waits_until_resolved ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/connect.rs (target/debug/deps/connect-de408edeb952dc72)
+
+running 9 tests
+test connect_refuses_outside_a_git_repo ... ok
+test mirror_starts_only_with_the_flag ... ok
+test disconnect_keeps_edits_made_after_connect ... ok
+test disconnect_restores_a_repo_without_agent_files ... ok
+test disconnect_restores_a_repo_with_agent_files_and_configs ... ok
+test instruction_block_leaves_the_rest_of_the_file_byte_identical ... ok
+test connect_initialises_serves_on_loopback_and_runs_twice_without_change ... ok
+test status_shows_two_agents_that_edit_one_file ... ok
+test connect_writes_project_scoped_config_for_three_harnesses ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s
+
+     Running tests/coordination.rs (target/debug/deps/coordination-20bdc60bf5dd7281)
+
+running 12 tests
+test mcp_agent_declares_intent_and_polls_events_over_stdio ... ok
+test c_continuous_rebase_surfaces_conflicts_early_and_keeps_stale_writes ... ok
+test b_collision_names_the_side_that_already_conflicts_with_main ... ok
+test a_intents_report_overlaps_at_open ... ok
+test e_warm_test_dirs_keep_build_output_and_write_only_changes ... ok
+test f_guard_flags_an_edit_that_a_rebase_makes_vanish ... ok
+test e_optimistic_mode_bisects_and_reverts_through_the_api ... ok
+test e_optimistic_mode_waits_for_a_fix_when_the_culprit_cannot_be_reverted ... ok
+test d_merge_drivers_resolve_lockfiles_changelogs_generated_files_and_syntax ... ok
+test e_queue_mode_tests_batches_and_bisects ... ok
+test b_live_collisions_trial_merge_and_events ... ok
+test e_queue_mode_with_parallel_tests_changes_alone_when_a_batch_fails ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.81s
+
+     Running tests/derived.rs (target/debug/deps/derived-2c9c401ec4b95d33)
+
+running 8 tests
+test blame_equals_git_blame_on_a_real_repo ... ignored
+test bisect_finds_a_planted_bad_change_and_revert_removes_it ... ok
+test indexed_grep_equals_the_scan_on_main_and_on_a_change ... ok
+test index_built_outside_the_lock_follows_later_lands ... ok
+test symbols_are_found_at_main_and_in_an_open_change ... ok
+test derived_data_is_persisted_and_grows_incrementally ... ok
+test log_index_equals_scan_and_git_log ... ok
+test blame_equals_git_blame_on_imported_history_and_after_agents_land ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.74s
+
+     Running tests/docs.rs (target/debug/deps/docs-feecb0cb33c670d8)
+
+running 5 tests
+test readme_and_site_show_the_recorded_swarm_demo ... ok
+test rpc_spec_names_every_operation ... ok
+test api_reference_matches_the_operation_table ... ok
+test relative_links_in_docs_resolve ... ok
+test demo_svg_is_generated_from_the_transcript ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/fuzz_history.rs (target/debug/deps/fuzz_history-26764a91e7fdddc3)
+
+running 1 test
+test random_histories_match_git ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.75s
+
+     Running tests/git_bridge.rs (target/debug/deps/git_bridge-5549d04071d57910)
+
+running 4 tests
+test mcp_bridge_lists_and_calls_tools ... ok
+test commit_message_survives_rebase_and_resolve ... ok
+test import_tree_matches_git_byte_for_byte ... ok
+test landed_changes_become_valid_git_history ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/git_http.rs (target/debug/deps/git_http-2075fce8df36c762)
+
+running 8 tests
+test real_repo_round_trip ... ignored
+test dumb_http_is_refused ... ok
+test mirror_pushes_main_to_a_bare_remote ... ok
+test push_of_a_merge_from_a_side_branch_lands ... ok
+test agent_land_after_a_human_push_stays_consistent ... ok
+test clone_then_push_lands_and_agents_read_it ... ok
+test non_fast_forward_push_is_rejected_with_a_hint ... ok
+test agents_and_people_land_together ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.76s
+
+     Running tests/hardening.rs (target/debug/deps/hardening-82f8484c3d8456c6)
+
+running 12 tests
+test second_server_on_the_same_data_is_refused ... ok
+test open_server_refuses_a_public_address ... ok
+test lost_land_reply_is_retried_and_lands_once ... ok
+test duplicate_lands_race_and_land_once ... ok
+test shallow_source_is_imported_without_a_transport_clone ... ok
+test hostile_push_is_refused ... ok
+test hostile_repo_content_is_refused_at_import ... ok
+test busy_server_answers_503_and_clients_retry ... ok
+test client_retries_until_the_server_comes_up ... ok
+test hostile_paths_and_sizes_are_refused_over_the_api ... ok
+test crash_during_land_recovers_at_every_failpoint ... ok
+test cold_manifest_from_git_equals_a_full_replay ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.80s
+
+     Running tests/iam.rs (target/debug/deps/iam-325df6830305f82d)
+
+running 3 tests
+test tokens_scope_reads_and_writes_and_every_write_is_audited ... ok
+test mcp_bridge_sends_the_token_from_the_environment ... ok
+test git_over_http_needs_a_token_and_push_obeys_write_globs ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+     Running tests/mcp_http.rs (target/debug/deps/mcp_http-79739f111f9bdc75)
+
+running 4 tests
+test without_a_token_initialize_is_401_with_a_bearer_challenge ... ok
+test a_bare_token_works_as_a_gateway_sends_it ... ok
+test get_and_delete_are_405 ... ok
+test a_session_lists_and_calls_tools_as_the_tokens_agent ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/old_git.rs (target/debug/deps/old_git-ac948a0cb038de6a)
+
+running 1 test
+test line_merges_work_without_merge_file_diff_algorithm ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+
+     Running tests/replay.rs (target/debug/deps/replay-b9de6ea5bd8d092f)
+
+running 3 tests
+test stacked_replay_reproduces_history ... ok
+test stale_replay_merges_match_git ... ok
+test intents_replay_throws_nothing_away_and_keeps_history ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.55s
+
+     Running tests/share.rs (target/debug/deps/share-1ed406b852109222)
+
+running 5 tests
+test hunk_ids_survive_edits_elsewhere_in_the_file ... ok
+test a_claim_moves_a_hunk_and_follows_it_while_it_grows ... ok
+test a_hunk_that_builds_on_another_changes_lines_is_held ... ok
+test two_agents_in_one_file_become_two_changes_and_both_land ... ok
+test share_cli_joins_and_syncs_a_directory ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/swarm.rs (target/debug/deps/swarm-d4a4e00d5adf9e0b)
+
+running 1 test
+test fifty_agents_land_and_git_agrees_with_every_merge ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.44s
+
+     Running tests/swarm_demo.rs (target/debug/deps/swarm_demo-59bc6a24e578d632)
+
+running 1 test
+test swarm_demo_runs_and_keeps_every_edit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.70s
+
+     Running tests/workspace.rs (target/debug/deps/workspace-b009ff17143a1c72)
+
+running 9 tests
+test env_file_and_port_blocks ... ok
+test create_snapshot_and_remove ... ok
+test every_clone_strategy_makes_a_working_workspace ... ok
+test spare_pool_hands_out_a_ready_directory ... ok
+test dependency_layer_is_built_once_and_reused ... ok
+test shell_flow_through_the_cli ... ok
+test git_in_a_workspace_shows_the_agent_its_own_diff ... ok
+test daemon_streams_edits_as_changesets ... ok
+test remove_sends_unsent_edits_and_keeps_them_when_it_cannot ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.64s
+
+     Running tests/workspace_hook.rs (target/debug/deps/workspace_hook-2eddcc3f16cad734)
+
+running 5 tests
+test env_only_create_and_remove_by_path_with_abandon ... ok
+test no_url_and_no_connect_state_is_exit_2 ... ok
+test missing_server_writes_nothing ... ok
+test create_then_repeat_then_remove_then_repeat ... ok
+test connect_state_gives_the_url_in_a_linked_worktree ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests/workspace_lifecycle.rs (target/debug/deps/workspace_lifecycle-93a15ca816046b9f)
+
+running 12 tests
+test workspaces_see_collisions_with_reasons_and_status_is_fresh ... ok
+test create_records_state_counts_and_logs ... ok
+test land_conflict_updates_the_workspace_to_the_rebased_change ... ok
+test mirror_keeps_one_directory_in_step_with_the_change ... ok
+test repo_config_drives_setup_copy_ports_run_and_teardown ... ok
+test from_dir_seeds_the_change_with_a_checkouts_uncommitted_edits ... ok
+test copy_without_a_source_is_reported ... ok
+test sparse_workspace_holds_only_its_cone_and_never_deletes_the_rest ... ok
+test daemon_waits_while_git_is_busy_in_a_workspace ... ok
+test optimistic_revert_reaches_the_agent_and_the_workspace_carries_on ... ok
+test stacking_moves_the_conflict_from_land_time_to_now ... ok
+test gc_removes_finished_then_oldest_and_never_unsynced_work ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.87s
+
+     Running tests/xdiff_git.rs (target/debug/deps/xdiff_git-b3c4275625ab90ef)
+
+running 1 test
+test xdiff_matches_git_diff_on_real_history ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/xmerge_git.rs (target/debug/deps/xmerge_git-3bd181889741ff62)
+
+running 2 tests
+test xmerge_matches_git_on_long_repetitive_files ... ok
+test xmerge_matches_git_merge_file ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.06s
+
+   Doc-tests treeyard
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+real 117,74
+user 54,90
+sys 94,19

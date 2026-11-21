@@ -1,0 +1,8 @@
+# shasum -a 256 before and after the codex-4 run (host paths shown as ~)
+before:
+9e227c854c6d5660fc005a587d04f07bd25f8c980a4c6c8a0fd95502afe20ffe  ~/.codex/config.toml
+1d049ddfa9ee544157bbc59e92869d624cf868fb94177fc2a58d21534e2dd436  ~/.codex/auth.json
+after:
+9e227c854c6d5660fc005a587d04f07bd25f8c980a4c6c8a0fd95502afe20ffe  ~/.codex/config.toml
+1d049ddfa9ee544157bbc59e92869d624cf868fb94177fc2a58d21534e2dd436  ~/.codex/auth.json
+grep -c 'codex-4' ~/.codex/config.toml: 0

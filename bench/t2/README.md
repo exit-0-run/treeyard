@@ -27,14 +27,14 @@ python3 bench/t2/t2.py run --scratch S --arm B --repo requests --set colliding -
 | `block-b.md` | the instruction block that `treeyard connect` writes; arm B refuses another one |
 | `astro_hook.mjs` | node resolve hook: astro tests run on the `.ts` sources with no install and no build |
 | `t2.py` | setup, generate, validate, run, rehearse, pilot, collect, budget; the scripted agents |
-| `test_t2.py` | stop tests with stub agents (`make bench-test`) |
+| `test_t2.py` | 8 stop tests with stub agents and 5 kit tests (`make bench-test` runs them with the other bench tests) |
 | `results/` | `validate.txt`, one JSON per rehearsal run, `metrics.json`, `rehearsal-summary.txt`, `stop-tests.txt` |
 
 ## Harnesses
 
 - `oracle`: applies `reference.patch`. Arm A: it commits; on the hand-back it merges `main` and applies
-  `resolved-<k>.patch`. Arm B: it syncs its workspace, lands in the fixed order 1 to 5, and on a land
-  conflict writes main plus `resolved-<k>.patch`, then lands again.
+  `resolved-<k>.patch`. Arm B: it syncs its workspace and lands in the fixed order 1 to 5. On a land
+  conflict it writes main plus `resolved-<k>.patch`, then lands again.
 - `noop`: changes nothing and makes one tool call, so the zero-tool-call stop does not fire.
 - `stub`: scripted misbehaviour for the stop tests (`T2_STUB_MODES`).
 - `real`: 2 Claude Code, 2 Codex, 1 OpenCode. It needs `--yes-real`: the owner's yes and a budget.
@@ -42,9 +42,15 @@ python3 bench/t2/t2.py run --scratch S --arm B --repo requests --set colliding -
 ## Stops
 
 Per agent, the runner kills the process group at the turn limit, the token limit or the wall-clock
-timeout, and the run goes on. The whole run stops with exit 3 and a `stop_reason` when the agent count
-is not 5, the arm B server does not answer `/health`, or an agent makes zero tool calls. `test_t2.py`
-has one test per stop.
+timeout, and the run goes on. The whole run stops with exit 3 and a `stop_reason` on one of these
+anomalies:
+
+- the agent count is not 5;
+- the arm B server does not answer `/health`;
+- an agent makes zero tool calls.
+
+`test_t2.py` has 8 `StopTests` for these stops and 5 `KitTests`. Run only these 13 tests with
+`cd bench && python3 -m unittest t2.test_t2`.
 
 ## Gotchas
 

@@ -1,0 +1,73 @@
+{
+  "prompt": "Fix the bug in slugify in text.py so that `python3 -m unittest` passes. Finish the work completely.",
+  "limits": {
+    "max_turns": 30,
+    "timeout_s": 600
+  },
+  "connect_s": 0.24,
+  "connect_exit": 0,
+  "second_connect_same_tree": true,
+  "second_connect_output": "already connected: http://127.0.0.1:63727 (pid 61169)",
+  "url_loopback": true,
+  "agent": {
+    "exit": 0,
+    "killed": null,
+    "wall_s": 10.8,
+    "codex_tool_events": null,
+    "tool_calls": {
+      "ToolSearch": 1,
+      "Read": 1,
+      "mcp__treeyard__open_change": 1,
+      "Bash": 2,
+      "mcp__treeyard__apply": 1,
+      "mcp__treeyard__read": 1,
+      "mcp__treeyard__land": 1
+    },
+    "result_event": {
+      "subtype": "success",
+      "num_turns": 9,
+      "duration_ms": 10205,
+      "is_error": false,
+      "total_cost_usd": 0.06906230000000001
+    }
+  },
+  "audit_sequence": [
+    [
+      "claude-1",
+      "open_change",
+      "ok"
+    ],
+    [
+      "claude-1",
+      "apply",
+      "ok"
+    ],
+    [
+      "claude-1",
+      "land",
+      "landed"
+    ]
+  ],
+  "tests_exit": 0,
+  "disconnect_s": 0.07,
+  "second_disconnect_output": "not connected",
+  "server_alive_after": false,
+  "curl_after": [
+    "000",
+    7
+  ],
+  "tree": {
+    "before": "05ce3ef77421af7b452543461e5901fbc635c79c8d1f8944d4ec4b5bb5526ba9",
+    "after": "ed5714255c62c5931b5e3468183e55b7b8586dc3a75f8332c69fc157cb7edbf4",
+    "expected": "ed5714255c62c5931b5e3468183e55b7b8586dc3a75f8332c69fc157cb7edbf4",
+    "changed_by_land": [
+      "text.py"
+    ],
+    "equal": true,
+    "extra_files": [],
+    "missing_files": []
+  },
+  "userconfig_changed_lines": [
+    "28218c4e60c9c94a1e567db178f5f185610c3ee7ec106987f94bbd7ddff533d4  ~/.claude.json"
+  ]
+}

@@ -46,6 +46,17 @@
    ty:read (completed)
    sh:/bin/zsh -lc 'slug_test_dir=$(mktemp -d) || exit 1 cd "$slug_test_dir" || exit 1 printf '"'%s' '\"\"\"Small
    ty:land (completed)
+== codex-4
+   ty:list (completed)
+   ty:read (completed)
+   ty:read (completed)
+   ty:read (completed)
+   ty:open_change (completed)
+   ty:apply (completed)
+   ty:read (completed)
+   ty:read (completed)
+   sh:/bin/zsh -lc 'test_dir=$(mktemp -d) && cd "$test_dir" && printf '"'%s' '\"\"\"Small text helpers.\"\"\" imp
+   ty:land (completed)
 == opencode-1
 == opencode-2
    sh:ls -la

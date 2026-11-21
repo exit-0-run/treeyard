@@ -1,0 +1,64 @@
+# treeyard 0.1.3 | Darwin arm64 | 2026-11-21T13:48Z | fresh dir treeyard-quickstart.EBRhsx
+$ mkdir my-repo
+$ git -C my-repo init -q -b main
+$ printf 'hello\n' > my-repo/greeting.txt
+$ printf '# My project\n' > my-repo/AGENTS.md
+$ git -C my-repo add greeting.txt AGENTS.md
+$ git -C my-repo -c user.name=me -c user.email=me@example.com commit -q -m "first commit"
+$ cd my-repo
+$ treeyard connect --harness all --agents 2
+imported main as changeset 90719a29fde1
+server: http://127.0.0.1:65406 (pid 46007, data .git/treeyard/data)
+claude: .mcp.json (agents claude-1, claude-2)
+codex: .codex/config.toml (agents codex-1, codex-2)
+opencode: opencode.json (agents opencode-1, opencode-2)
+wrote: .mcp.json, .codex/config.toml, opencode.json, AGENTS.md, CLAUDE.md, .git/info/exclude
+landed work: git pull http://127.0.0.1:65406/git main
+claude: approve the project server `treeyard` when Claude Code asks (or `/mcp`)
+codex: reads .codex/config.toml only in a trusted project
+undo: treeyard disconnect
+$ git status --short
+ M AGENTS.md
+$ python3 -c 'import json; s=json.load(open(".mcp.json"))["mcpServers"]["treeyard"]; print(s["args"][:3])'
+['mcp', '--agent-pool', 'claude-1,claude-2']
+$ tail -n 3 AGENTS.md
+5. Finish with `land`. On status `conflict`, write the final content of each task in `change.conflicts` with `apply` (or `resolve`), then `land` again.
+6. The files in this directory do not change when you land. To see landed work, use `read`.
+<!-- treeyard:connect:end -->
+$ URL=$(treeyard connect status --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])')
+$ A=$(treeyard call --url "$URL" open_change '{"agent": "claude-1", "intent": "shout the greeting", "paths": ["greeting.txt"]}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+$ B=$(treeyard call --url "$URL" open_change '{"agent": "codex-1", "intent": "translate the greeting", "paths": ["greeting.txt"]}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+$ treeyard call --url "$URL" apply "{\"change\": \"$A\", \"edits\": [{\"path\": \"greeting.txt\", \"replace\": {\"old\": \"hello\", \"new\": \"HELLO\"}}]}" > /dev/null
+$ treeyard call --url "$URL" apply "{\"change\": \"$B\", \"edits\": [{\"path\": \"greeting.txt\", \"replace\": {\"old\": \"hello\", \"new\": \"hola\"}}]}" | python3 -c 'import json,sys; print("collision:", json.load(sys.stdin)["collisions"][0]["kind"])'
+collision: conflict
+$ treeyard connect status
+server: http://127.0.0.1:65406 (pid 46007, running)
+claude: .mcp.json, agents claude-1, claude-2
+codex: .codex/config.toml, agents codex-1, codex-2
+opencode: opencode.json, agents opencode-1, opencode-2
+instructions: AGENTS.md, CLAUDE.md
+mirror: off
+open changes: 2
+  ch_0ddd620898d3 claude-1 "shout the greeting" paths: greeting.txt
+    shares greeting.txt with ch_789a641ec39a (codex-1)
+  ch_789a641ec39a codex-1 "translate the greeting" paths: greeting.txt
+    shares greeting.txt with ch_0ddd620898d3 (claude-1)
+warnings: 2
+  conflict: claude-1 ch_0ddd620898d3 in greeting.txt with ch_789a641ec39a (codex-1)
+  conflict: codex-1 ch_789a641ec39a in greeting.txt with ch_0ddd620898d3 (claude-1)
+$ treeyard call --url "$URL" land "{\"change\": \"$A\"}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])'
+landed
+$ treeyard call --url "$URL" abandon "{\"change\": \"$B\"}" > /dev/null
+$ git pull -q "$URL/git" main
+$ cat greeting.txt
+HELLO
+$ treeyard disconnect --purge
+stopped server http://127.0.0.1:65406 (pid 46007)
+removed the TreeYard data (.git/treeyard)
+disconnected: 6 files restored
+$ git status --short
+$ cat AGENTS.md
+# My project
+$ treeyard disconnect
+not connected
+check-quickstart: ok

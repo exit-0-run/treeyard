@@ -12,7 +12,7 @@ and with block v2. No harness was blocked by spend or by a login.
 | Harness | Version | Model | Runs | Passed runs |
 |---|---|---|---|---|
 | Claude Code | claude 2.1.330 | default of the subscription (`claude-sonnet-5-5` in the init event) | claude-1 (v1), claude-2 (v2) | 2 of 2 |
-| Codex | codex-cli 0.167.0 | default of the existing login | codex-1, codex-2 (v1), codex-3 (v2) | 2 of 3 |
+| Codex | codex-cli 0.167.0 | default of the existing login | codex-1, codex-2 (v1), codex-3, codex-4 (v2) | 3 of 4 |
 | OpenCode | opencode 2.2.6 | `opencode/deepseek-v4.1-flash-free` (free, no login) | opencode-1 to opencode-3 (v1), opencode-4 (v2) | 2 of 4 |
 
 Per run ([summary.txt](summary.txt), output of `python3 docs/trials/t1/run.py summary`):
@@ -24,6 +24,7 @@ Per run ([summary.txt](summary.txt), output of `python3 docs/trials/t1/run.py su
 | codex-1 | v1 | default | 0 | no | 20.7 | (none) | no | red | unchanged | no |
 | codex-2 | v1 | default | 0 | no | 28.7 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
 | codex-3 | v2 | default | 0 | no | 25.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| codex-4 | v2 | default | 0 | no | 29.5 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
 | opencode-1 | v1 | opencode/glm-5.3-flash-free | 1 | no | 0.8 | (none) | no | red | unchanged | no |
 | opencode-2 | v1 | opencode/deepseek-v4.1-flash-free | 0 | no | 100.0 | open_change:ok -> apply:ok -> land:landed | no | green | unchanged | no |
 | opencode-3 | v1 | opencode/deepseek-v4.1-flash-free | 0 | no | 73.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
@@ -86,7 +87,7 @@ Commands (from the worktree root, after `make build`):
 
 ```
 T1_FORBIDDEN=<comma list of words> python3 docs/trials/t1/run.py run claude 2 <scratch> --block v2
-T1_FORBIDDEN=<...> python3 docs/trials/t1/run.py run codex 3 <scratch> --block v2
+T1_FORBIDDEN=<...> python3 docs/trials/t1/run.py run codex 4 <scratch> --block v2
 T1_FORBIDDEN=<...> python3 docs/trials/t1/run.py run opencode 4 <scratch> --block v2 --model opencode/deepseek-v4.1-flash-free
 python3 docs/trials/t1/run.py summary
 T1_SCRATCH=<scratch> python3 docs/trials/t1/run.py snapshot docs/trials/t1/userconfig-after.txt
@@ -101,7 +102,10 @@ The agent commands (the driver writes the exact list into `result.json` of each 
   `CLAUDE_CODE_OAUTH_TOKEN` variable of the child process only.
 - Codex: `codex exec --json --ephemeral --skip-git-repo-check --ignore-user-config -s workspace-write
   -C <repo> -c approval_policy="never"` and `-c mcp_servers.treeyard.*` overrides from the
-  `.codex/config.toml` that connect wrote. Auth stays in the existing Codex home.
+  `.codex/config.toml` that connect wrote. From codex-4 on, `CODEX_HOME` points to
+  `<run dir>/codexhome`. The driver copies the existing `~/.codex/auth.json` there (mode 0600) and
+  deletes the copy after the run. The copy stays in the scratch dir: `copy_out` takes a fixed list of
+  files, and `codexhome/` is not in it. codex-1 to codex-3 used the real Codex home.
 - OpenCode: `opencode run --standalone --format json --auto --model <free model> <prompt>`, with
   `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME` and `XDG_STATE_HOME` in the run dir.
   `--standalone` is necessary: the background service of the user already holds port 49374.
@@ -111,26 +115,42 @@ The agent commands (the driver writes the exact list into `result.json` of each 
 - Each run had a wall-clock limit of 600 s. On timeout the driver kills the process group. No run hit it.
 - Turn limits: Claude `--max-turns 30`; Codex: the driver kills it after 40 tool-call events; OpenCode:
   agent `build` with `steps` = 30 in the run-dir config. No run hit a turn limit.
-- The driver runs one agent at a time. 9 real-agent runs in total (limit 12). Spend: 0 USD (existing
+- The driver runs one agent at a time. 10 real-agent runs in total (limit 12). Spend: 0 USD (existing
   subscription and login, free OpenCode models). Claude reports `total_cost_usd` 0.079 for claude-1:
   this is a list-price figure, not a charge.
 
 ## User configuration
 
+Criterion S3.C4: no user-level configuration changes. codex-1 to codex-3 broke it; codex-4 meets it.
+
 [userconfig-before.txt](userconfig-before.txt) and [userconfig-after.txt](userconfig-after.txt) hold
 the sha256 of `~/.claude.json`, `~/.claude/settings*.json`, `~/.claude/CLAUDE.md`,
-`~/.codex/config.toml` and each file in `~/.config/opencode/`. Each run dir has the same pair.
+`~/.codex/config.toml` and each file in `~/.config/opencode/`. Each run dir has the same pair. From
+codex-4 on, the snapshot also holds the sha256 of `~/.codex/auth.json` (the hash only, not the content).
 
 - `~/.claude/settings.json` and `~/.config/opencode/service.json`: equal before and after.
 - `~/.claude.json`: the hash changes, because other sessions on this machine write it. Its top-level
   keys are equal, it has 4 `projects` entries before and after, and 0 entries under the scratch dir.
-- `~/.codex/config.toml`: **changed**. Each `codex exec` run added one entry
-  `[projects."<scratch>/t1/runs/codex-<n>/repo"] trust_level = "trusted"` (codex-1, codex-2, codex-3).
-  The driver did not write it; `--ignore-user-config` and `--ephemeral` do not stop it. When the 3
-  entries are removed in memory, the hash equals the hash from before
-  ([userconfig-codex-proof.txt](userconfig-codex-proof.txt)). So these 3 entries are the only change.
-  The file is not edited back here, because this trial must not edit user configuration. The owner
-  can remove the 3 entries.
+- `~/.codex/config.toml`: **changed by codex-1, codex-2 and codex-3**. Each of these `codex exec`
+  runs used the real Codex home. Each added one entry
+  `[projects."<scratch>/t1/runs/codex-<n>/repo"] trust_level = "trusted"`. The driver did not write
+  it; `--ignore-user-config` and `--ephemeral` do not stop it.
+- Proof that these 3 entries are the only change: a script removes them in memory, and the hash then
+  equals the hash from before ([userconfig-codex-proof.txt](userconfig-codex-proof.txt)). This trial
+  does not edit the file back, because it must not edit user configuration. The owner can remove
+  the 3 entries.
+- `~/.codex/config.toml` in codex-4: **unchanged**. The run used a scratch `CODEX_HOME`, and codex
+  wrote its trust entry into `<run dir>/codexhome/config.toml` (1 entry). The sha256 of
+  `~/.codex/config.toml` is `9e227c85...` before and after the run, and `grep -c 'codex-4'` on it
+  prints 0 ([codex-4/codex-sha.txt](codex-4/codex-sha.txt)). The value still holds the 3 old entries.
+- `~/.codex/auth.json` in codex-4: unchanged (equal sha256 before and after). Codex did not rewrite
+  the copy either (`auth_copy_rewritten_by_codex: false` in [codex-4/result.json](codex-4/result.json)).
+  The copied login worked with no new login.
+- The run-dir pair [codex-4/userconfig-before.txt](codex-4/userconfig-before.txt) and
+  [codex-4/userconfig-after.txt](codex-4/userconfig-after.txt) is equal in each line, `~/.claude.json` included.
+  The same is true for the pair around the full driver call:
+  [userconfig-codex-4-before.txt](userconfig-codex-4-before.txt) and
+  [userconfig-codex-4-after.txt](userconfig-codex-4-after.txt).
 
 ## Not covered
 

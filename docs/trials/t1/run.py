@@ -92,7 +92,7 @@ def sh(args, cwd=None, env=None, check=True, timeout=120):
 
 
 def user_config_files():
-    files = [HOME / ".claude.json", HOME / ".claude" / "CLAUDE.md", HOME / ".codex" / "config.toml"]
+    files = [HOME / ".claude.json", HOME / ".claude" / "CLAUDE.md", HOME / ".codex" / "config.toml", HOME / ".codex" / "auth.json"]
     files += sorted((HOME / ".claude").glob("settings*.json"))
     oc = HOME / ".config" / "opencode"
     if oc.is_dir():
@@ -193,6 +193,17 @@ def build(harness, run_dir, repo, model):
         shown = [c if c != PROMPT else "<prompt>" for c in cmd]
         return cmd, env, shown
     if harness == "codex":
+        # codex exec writes a trust entry for the run repo into $CODEX_HOME/config.toml, even with
+        # --ignore-user-config and --ephemeral. So the run gets its own CODEX_HOME in the run dir,
+        # with a private copy of the existing login. The copy never leaves the scratch dir.
+        home = run_dir / "codexhome"
+        home.mkdir(mode=0o700)
+        real_auth = HOME / ".codex" / "auth.json"
+        if not real_auth.is_file():
+            return None, None, "no ~/.codex/auth.json to copy (codex is not logged in)"
+        shutil.copyfile(real_auth, home / "auth.json")
+        os.chmod(home / "auth.json", 0o600)
+        env["CODEX_HOME"] = str(home)
         mcmd, margs, url = parse_codex_config(repo)
         cmd = [
             "codex", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--ignore-user-config",
@@ -240,6 +251,25 @@ def build(harness, run_dir, repo, model):
         )
         return [sys.executable, "-c", script], env, ["python3", "-c", "<stub protocol script>"]
     raise SystemExit(f"unknown harness {harness}")
+
+
+def codex_home_report(home):
+    """Facts about the scratch CODEX_HOME after the run. Deletes the auth copy; never prints it."""
+    copy = home / "auth.json"
+    real = HOME / ".codex" / "auth.json"
+    sha = lambda f: hashlib.sha256(f.read_bytes()).hexdigest() if f.is_file() else None
+    cfg = home / "config.toml"
+    text = cfg.read_text() if cfg.is_file() else ""
+    report = {
+        "codex_home": "<run dir>/codexhome",
+        "auth_copy_rewritten_by_codex": sha(copy) != sha(real),
+        "scratch_config_toml_exists": cfg.is_file(),
+        "scratch_config_toml_trust_entries": len(re.findall(r'^trust_level = "trusted"$', text, re.M)),
+    }
+    if copy.exists():
+        copy.unlink()
+    report["auth_copy_deleted"] = not copy.exists()
+    return report
 
 
 def run_agent(harness, cmd, env, repo, out_path, err_path):
@@ -436,6 +466,8 @@ def run(harness, attempt, scratch, model, block):
         result["limits"] = {"timeout_s": TIMEOUT_S, "claude_max_turns": CLAUDE_MAX_TURNS, "codex_max_tool_events": CODEX_MAX_TOOL_EVENTS, "opencode_steps": OPENCODE_STEPS}
         result["run"] = run_agent(harness, cmd, env, repo, run_dir / "transcript.jsonl", run_dir / "stderr.txt")
         result["tool_calls"] = tool_calls(harness, run_dir / "transcript.jsonl")
+        if harness == "codex":
+            result["codex_home"] = codex_home_report(run_dir / "codexhome")
 
     audit = json.loads(sh([str(BIN), "call", "--url", url, "audit", '{"limit": 1000}']).stdout)
     events = json.loads(sh([str(BIN), "call", "--url", url, "events", '{"since": 0, "limit": 5000}']).stdout)
