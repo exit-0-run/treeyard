@@ -35,6 +35,8 @@ struct ReadP {
     start: Option<u32>,
     /// Last line to return (1-based, inclusive).
     end: Option<u32>,
+    /// Without a range: return only the first whole lines up to this many bytes (`truncated`).
+    max_bytes: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +48,8 @@ struct Grep {
     max: Option<usize>,
     /// false = scan every file (no trigram index).
     index: Option<bool>,
+    /// Lines before and after each match (`before`, `after`), at most 20.
+    context: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -522,7 +526,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: ReadP = params(p)?;
             c.require_read(&a.path)?;
             let range = (a.start.is_some() || a.end.is_some()).then_some((a.start, a.end));
-            r.read(&a.path, a.at.as_deref(), range)
+            r.read_max(&a.path, a.at.as_deref(), range, a.max_bytes)
         }
         "list" => {
             let a: At = params(p)?;
@@ -574,11 +578,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: Grep = params(p)?;
             let allow = |p: &str| c.can_read(p);
             let max = a.max.unwrap_or(100);
-            if a.index == Some(false) || r.cfg.index.search == IndexMode::Off {
-                r.grep_scan(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)
+            let mut v = if a.index == Some(false) || r.cfg.index.search == IndexMode::Off {
+                r.grep_scan(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)?
             } else {
-                r.grep_indexed(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)
-            }
+                r.grep_indexed(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)?
+            };
+            r.grep_context(&mut v, a.context.unwrap_or(0).min(20))?;
+            Ok(v)
         }
         "symbols" => {
             let a: SymbolsP = params(p)?;
@@ -1009,14 +1015,14 @@ pub fn agent_tools() -> Vec<Value> {
     vec![
         tool(
             "read",
-            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; the reply has total_lines.",
+            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; a file over 50 KB without a range returns its first lines, truncated and total_lines.",
             json!({"path": {"type": "string"}, "at": at, "start": int, "end": int}),
             &["path"],
         ),
         tool(
             "grep",
-            "Regex search over file contents, per line.",
-            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "directory or file"}, "at": at, "max": {"type": "integer", "description": "default 100"}}),
+            "Regex search over file contents, per line; context = lines before and after each match.",
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "default 100"}, "context": {"type": "integer", "minimum": 0, "maximum": 20}}),
             &["pattern"],
         ),
         tool(
@@ -1092,7 +1098,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "read",
             "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.",
-            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}}),
+            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}, "max_bytes": {"type": "integer", "minimum": 1, "description": "without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither"}}),
             &["path"],
         ),
         tool(
@@ -1116,7 +1122,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "grep",
             "Search file contents with a regular expression (per line), server side, through a trigram index.",
-            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}}),
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}, "context": {"type": "integer", "minimum": 0, "maximum": 20, "description": "lines before and after each match (before, after)"}}),
             &["pattern"],
         ),
         tool(

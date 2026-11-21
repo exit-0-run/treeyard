@@ -547,6 +547,35 @@ impl Inner {
         }))
     }
 
+    /// Adds `before` and `after` (up to `n` lines each, as arrays of strings) to every match of a
+    /// grep reply, from the files at the reply's `at`.
+    pub fn grep_context(&mut self, v: &mut Value, n: usize) -> Result<()> {
+        if n == 0 {
+            return Ok(());
+        }
+        let m = self.manifest(v["at"].as_str().unwrap_or_default())?;
+        let mut files: HashMap<String, Vec<String>> = HashMap::new();
+        let Some(matches) = v["matches"].as_array_mut() else { return Ok(()) };
+        for x in matches {
+            let path = x["path"].as_str().unwrap_or_default().to_string();
+            if !files.contains_key(&path) {
+                let lines = match m.get(&path) {
+                    Some(e) => as_text(&self.blob(&e.blob)?).map(|t| t.lines().map(str::to_string).collect()),
+                    None => None,
+                };
+                files.insert(path.clone(), lines.unwrap_or_default());
+            }
+            let lines = &files[&path];
+            let i = x["line"].as_u64().unwrap_or(1).saturating_sub(1) as usize;
+            if i >= lines.len() {
+                continue;
+            }
+            x["before"] = json!(lines[i.saturating_sub(n)..i]);
+            x["after"] = json!(lines[i + 1..(i + 1 + n).min(lines.len())]);
+        }
+        Ok(())
+    }
+
     fn verify(&mut self, re: &Regex, files: &[(String, String)], max: usize) -> Result<(Vec<Value>, bool)> {
         let mut matches = Vec::new();
         for (path, blob) in files {

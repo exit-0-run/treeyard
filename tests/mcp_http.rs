@@ -86,7 +86,7 @@ fn a_session_lists_and_calls_tools_as_the_tokens_agent() {
     assert_eq!(tools.len(), treeyard::rpc::tools().len());
 
     let (failed, text) = tool(&s.url, &bearer, "whoami", json!({}));
-    assert!(!failed && text.contains("\"name\": \"alice\""), "{text}");
+    assert!(!failed && text.contains("\"name\":\"alice\""), "{text}");
     let (failed, text) = tool(&s.url, &bearer, "land", json!({"change": "ch_nope"}));
     assert!(failed && text.contains("unknown change"), "{text}");
 
@@ -103,7 +103,7 @@ fn a_session_lists_and_calls_tools_as_the_tokens_agent() {
 fn a_bare_token_works_as_a_gateway_sends_it() {
     let s = setup();
     let (failed, text) = tool(&s.url, &s.agent, "whoami", json!({}));
-    assert!(!failed && text.contains("\"name\": \"alice\""), "{text}");
+    assert!(!failed && text.contains("\"name\":\"alice\""), "{text}");
 }
 
 #[test]

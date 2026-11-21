@@ -22,6 +22,7 @@ pub mod hook;
 pub mod hunks;
 pub mod indexer;
 pub mod landing;
+pub mod lean;
 pub mod mcp;
 pub mod merge;
 pub mod model;

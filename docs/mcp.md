@@ -44,9 +44,48 @@ them still works: the set changes only what is listed. `--tools all` (the defaul
 lists every operation. `treeyard connect` writes `--tools agent` unless `--all-tools`. The HTTP endpoint
 takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
 
-Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 075 bytes with
-`--tools all` now, 5 784 bytes with `--tools agent` (13 tools). Tests: `src/mcp.rs` (the set and its
+Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 378 bytes with
+`--tools all` now, 5 948 bytes with `--tools agent` (13 tools). Tests: `src/mcp.rs` (the set and its
 size), `tests/mcp_http.rs` (`tools_agent_lists_the_agent_tool_set`), `tests/connect.rs` (the args).
+
+### The agent view of replies
+
+With the agent set, replies are shaped for a model to read (`src/lean.rs`); `--tools all` returns the
+server's replies as they are. Both send compact JSON (pretty printing was 21 to 29 % of a reply).
+
+- Change replies (`open_change`, `apply`, `change`, `rebase`, `resolve`, `declare`, `abandon`, the
+  change in `land` and `restore_change`) drop `base`, `head`, `created`, `group`, `landed_as`, `model`,
+  `session`, `view` and `revisions` (no agent referenced them in 110 recorded sessions) and every null,
+  `[]` and `{}`. An empty change is `{"agent", "conflicted", "id", "intent", "state"}` plus what it
+  declared.
+- `apply`: `collisions` and `overlaps` come in full when they are new or changed since the last
+  `apply` or `change` reply of that change; otherwise one line in `collisions_unchanged` /
+  `overlaps_unchanged` (count, kinds, change ids). `change` always lists them in full. The bridge keeps
+  this memory per process; the HTTP endpoint keeps one per server.
+- `grep` drops `at` and the `index` statistics.
+
+For every MCP client (both sets), a `read` without `start`, `end` or `max_bytes` gets `max_bytes`
+51 200: a larger file returns its first whole lines with `truncated: true`, `lines`, `total_lines`
+and a `note` that says how to read on (one whole-file read of a 60 000-line file returned 938 KB).
+`grep` takes `context` for lines around each match.
+
+Reply bytes through the stdio bridge, on a clone of this repository (an 87 KB `src/repo.rs`, plus
+a 60 000-line file; two agents change the same line; measured with a script outside the repository):
+
+| Call | before | `--tools all` | `--tools agent` |
+|---|---:|---:|---:|
+| `open_change` (empty change) | 565 | 461 | 141 |
+| first `apply` | 604 | 488 | 165 |
+| `apply` with a new collision | 1 460 | 903 | 610 |
+| `apply` with the same collision again | 1 480 | 918 | 465 |
+| `grep` (1 match) | 398 | 305 | 141 |
+| `grep` (2 matches) | 511 | 384 | 221 |
+| `read` of the 60 000-line file | 2 618 012 | 55 666 | 55 666 |
+| `land` with a conflict | 262 246 | 2 072 | 1 793 |
+| `change` with that conflict | 261 935 | 1 915 | 1 594 |
+
+"before" is the build before this series (pretty JSON, whole conflict texts). Tests: `src/lean.rs`,
+`tests/read.rs` (`max_bytes`, `context`).
 
 ## Claude Code
 

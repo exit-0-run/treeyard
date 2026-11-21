@@ -48,6 +48,7 @@ Read one file without a checkout. Give start and/or end (1-based, inclusive) to 
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
 | `end` | integer | no | last line to return (inclusive); default the last line |
+| `max_bytes` | integer | no | without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither |
 | `path` | string | yes |  |
 | `start` | integer | no | first line to return (1-based); default 1 |
 
@@ -100,6 +101,7 @@ Search file contents with a regular expression (per line), server side, through 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
+| `context` | integer | no | lines before and after each match (before, after) |
 | `index` | boolean | no | false = scan every file |
 | `max` | integer | no | max matches, default 100 |
 | `path` | string | no | limit to this directory |

@@ -6,6 +6,15 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- Leaner MCP replies. The bridge and `POST /mcp` send compact JSON. With `--tools agent`, change
+  replies drop `base`, `head`, `created`, `group`, `landed_as`, `model`, `session`, `view`, `revisions`
+  and every null or empty value; `apply` sends `collisions` / `overlaps` in full only when they changed
+  since the last reply of the change, else one line (`collisions_unchanged`, `overlaps_unchanged`);
+  `grep` drops `at` and `index`. A `read` through MCP without a range gets `max_bytes` 51 200: bigger
+  files return their first lines with `truncated` and a `note` (new `read` parameter `max_bytes` for
+  every client). New `grep` parameter `context` (`before`, `after` per match). Bytes with
+  `--tools agent`: empty `open_change` 565 to 141, `apply` with a repeated collision 1 480 to 465,
+  `grep` 398 to 141, `change` with a conflict 261 935 to 1 594 (docs/mcp.md).
 - `undoes` is precise (shape change): a removed line counts only when its text (without whitespace) is
   gone from all paths the change edits and no added line of the same hunk keeps all its words, so moves,
   re-indents, renames, CRLF to LF and the no-final-newline case are quiet, and so are rewrites like
@@ -59,8 +68,8 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ### Added
 - `treeyard mcp --tools agent|all` and `POST /mcp?tools=agent`: the agent tool set lists 12 operations
   (`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
-  `resolve`, `land`) plus `checkout`, with short descriptions: `tools/list` 5 784 bytes instead of
-  22 075. Every operation still answers `tools/call`. `treeyard connect` writes `--tools agent` by
+  `resolve`, `land`) plus `checkout`, with short descriptions: `tools/list` 5 948 bytes instead of
+  22 378. Every operation still answers `tools/call`. `treeyard connect` writes `--tools agent` by
   default; `connect --all-tools` writes the full list (state field `all_tools`).
 - `checkout` (a tool of the stdio bridge `treeyard mcp`, and `treeyard checkout CHANGE [--into DIR]`):
   writes the tree of a change into a directory of its own under the temp directory, so an agent runs

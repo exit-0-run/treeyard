@@ -1755,6 +1755,18 @@ impl Inner {
     /// `size` is always the byte size of the whole file. A range from line 1 of an empty file is
     /// empty content with `lines` [1, 0].
     pub fn read(&mut self, path: &str, at: Option<&str>, range: Option<(Option<u32>, Option<u32>)>) -> Result<Value> {
+        self.read_max(path, at, range, None)
+    }
+
+    /// `read`; without a range, a text file over `max_bytes` returns only its first whole lines
+    /// that fit, with `truncated`, `lines` and a `note` that says how to read on.
+    pub fn read_max(
+        &mut self,
+        path: &str,
+        at: Option<&str>,
+        range: Option<(Option<u32>, Option<u32>)>,
+        max_bytes: Option<usize>,
+    ) -> Result<Value> {
         let cs = self.resolve_at(at)?;
         let e =
             self.manifest(&cs)?.get(path).cloned().with_context(|| format!("no such file {path} at {}", &cs[..12]))?;
@@ -1785,6 +1797,24 @@ impl Inner {
         let total = lines.len() as u32;
         v["total_lines"] = json!(total);
         let Some((start, end)) = range else {
+            if let Some(max) = max_bytes.filter(|m| text.len() > *m) {
+                let (mut n, mut size) = (0, 0);
+                while n < lines.len() && size + lines[n].len() <= max {
+                    size += lines[n].len();
+                    n += 1;
+                }
+                let n = n.max(1);
+                v["content"] = Value::String(lines[..n].concat());
+                v["lines"] = json!([1, n]);
+                v["truncated"] = json!(true);
+                v["note"] = json!(format!(
+                    "{path} has {total} lines ({} bytes); this is lines 1-{n}. Read on with start = {} and end, or find \
+                     the place first with grep or symbols",
+                    data.len(),
+                    n + 1
+                ));
+                return Ok(v);
+            }
             v["content"] = Value::String(text);
             return Ok(v);
         };

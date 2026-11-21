@@ -143,3 +143,39 @@ fn read_range_on_an_empty_file_and_on_a_change() {
     assert_eq!((got[0]["content"].as_str(), got[0]["lines"].clone()), (Some(""), json!([1, 0])));
     assert_eq!(got[1]["content"], "changed\n");
 }
+
+#[test]
+fn max_bytes_cuts_a_whole_file_read_at_a_line_and_says_so() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = serve(tmp.path());
+    let one = lines(1, 1).len();
+    let v = call(&url, "read", json!({"path": "f00.txt", "max_bytes": one * 3 + 2}));
+    assert_eq!(v["content"], lines(1, 3), "whole lines only: {v}");
+    assert_eq!(
+        (v["lines"].clone(), v["truncated"].clone(), v["total_lines"].clone()),
+        (json!([1, 3]), json!(true), json!(30))
+    );
+    assert!(v["note"].as_str().unwrap().contains("start = 4"), "{v}");
+    // A range is never cut; a file that fits is not marked.
+    let r = call(&url, "read", json!({"path": "f00.txt", "start": 1, "max_bytes": 10}));
+    assert_eq!(r["content"], lines(1, 30));
+    let small = call(&url, "read", json!({"path": "f00.txt", "max_bytes": 1 << 20}));
+    assert!(small.get("truncated").is_none() && small["content"] == lines(1, 30), "{small}");
+}
+
+#[test]
+fn grep_context_adds_the_lines_around_each_match() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = serve(tmp.path());
+    for index in [true, false] {
+        let v = call(&url, "grep", json!({"pattern": "line (0|15)\\b", "context": 2, "index": index}));
+        let m = v["matches"].as_array().unwrap();
+        assert_eq!(m.len(), 2, "{v}");
+        assert_eq!(m[0]["before"], json!([]), "nothing before line 1");
+        assert_eq!(m[0]["after"], json!(["file 0 line 1", "file 0 line 2"]));
+        assert_eq!(m[1]["before"], json!(["file 0 line 13", "file 0 line 14"]));
+        assert_eq!(m[1]["after"], json!(["file 0 line 16", "file 0 line 17"]));
+    }
+    let plain = call(&url, "grep", json!({"pattern": "line 15"}));
+    assert!(plain["matches"][0].get("before").is_none(), "{plain}");
+}

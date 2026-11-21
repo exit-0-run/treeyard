@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
+use crate::lean::Lean;
 use crate::{client, rpc, workspace};
 
 const INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/list/grep/log \
@@ -42,17 +43,27 @@ impl std::str::FromStr for ToolSet {
     }
 }
 
+/// A whole-file `read` (no range, no `max_bytes`) through MCP returns at most this many bytes of
+/// whole lines, with `truncated` and a note (a 60 000-line file once returned 938 KB to an agent).
+pub const READ_CAP: usize = 50 * 1024;
+
+/// The agent view's memory for the stateless HTTP endpoint (one per server process).
+static HTTP_LEAN: std::sync::LazyLock<std::sync::Mutex<Lean>> = std::sync::LazyLock::new(Default::default);
+
 /// The reply to one JSON-RPC message, or `None` for a notification. `call` runs one operation;
-/// its error becomes a tool result with `isError`, so the agent reads it.
+/// its error becomes a tool result with `isError`, so the agent reads it. Used by `POST /mcp`.
 pub fn reply(msg: &Value, set: ToolSet, call: &mut dyn FnMut(&str, Value) -> Result<Value>) -> Option<Value> {
-    reply_with(msg, set, &[], call)
+    let mut lean = HTTP_LEAN.lock().unwrap_or_else(|e| e.into_inner());
+    reply_with(msg, set, &[], &mut lean, call)
 }
 
-/// `reply` with `extra` tools after the operation table in `tools/list` (the stdio bridge's own).
+/// `reply` with `extra` tools after the operation table in `tools/list` (the stdio bridge's own),
+/// and its own agent-view memory.
 pub fn reply_with(
     msg: &Value,
     set: ToolSet,
     extra: &[Value],
+    lean: &mut Lean,
     call: &mut dyn FnMut(&str, Value) -> Result<Value>,
 ) -> Option<Value> {
     let method = msg["method"].as_str().unwrap_or_default();
@@ -77,13 +88,19 @@ pub fn reply_with(
         }
         "tools/call" => {
             let name = msg["params"]["name"].as_str().unwrap_or_default();
-            let args = match &msg["params"]["arguments"] {
+            let mut args = match &msg["params"]["arguments"] {
                 Value::Object(_) => msg["params"]["arguments"].clone(),
                 _ => json!({}),
             };
+            if name == "read" && ["start", "end", "max_bytes"].iter().all(|k| args.get(*k).is_none_or(Value::is_null)) {
+                args["max_bytes"] = json!(READ_CAP);
+            }
             Ok(match call(name, args) {
-                Ok(v) => {
-                    json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}]})
+                Ok(mut v) => {
+                    if set == ToolSet::Agent {
+                        lean.shape(name, &mut v);
+                    }
+                    json!({"content": [{"type": "text", "text": serde_json::to_string(&v).unwrap_or_default()}]})
                 }
                 Err(e) => json!({"content": [{"type": "text", "text": format!("{e:#}")}], "isError": true}),
             })
@@ -127,6 +144,7 @@ pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     let extra = [checkout_tool()];
+    let mut lean = Lean::default();
     // Checkout directories made through this bridge, per change.
     let mut checkouts: HashMap<String, PathBuf> = HashMap::new();
     let mut call = |name: &str, mut args: Value| -> Result<Value> {
@@ -167,7 +185,7 @@ pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
             continue;
         }
         let reply = match serde_json::from_str::<Value>(&line) {
-            Ok(msg) => match reply_with(&msg, set, &extra, &mut call) {
+            Ok(msg) => match reply_with(&msg, set, &extra, &mut lean, &mut call) {
                 Some(r) => r,
                 None => continue,
             },
@@ -190,6 +208,7 @@ mod tests {
                 &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
                 set,
                 &[checkout_tool()],
+                &mut Lean::default(),
                 &mut |_, _| Ok(json!({})),
             );
             r.unwrap()["result"].clone()

@@ -71,9 +71,9 @@ A server declares one or more profiles. The core profile is required.
 | Operation | Reply, in short |
 |---|---|
 | `status` | `main`, `commit`, `files`, `open_changes` |
-| `read` | `content` (UTF-8) or `content_b64`, `blob`, `mode`, `at`, `size` (whole file), `total_lines`; with `start`/`end` only those lines and `lines` (`[1, 0]` for an empty file) |
+| `read` | `content` (UTF-8) or `content_b64`, `blob`, `mode`, `at`, `size` (whole file), `total_lines`; with `start`/`end` only those lines and `lines` (`[1, 0]` for an empty file); without a range, `max_bytes` keeps the first whole lines (`truncated`, `lines`, `note`) |
 | `list` | `entries` of one directory (`name`, `kind` = `file` or `dir`) |
-| `grep` | `matches` (`path`, `line`, `text`) |
+| `grep` | `matches` (`path`, `line`, `text`; with `context` N also `before` and `after`, up to 20 lines each) |
 | `diff` | unified diff of a change, or between two revisions |
 | `log` | mainline changesets, newest first, with their metadata |
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
