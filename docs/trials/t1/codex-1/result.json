@@ -1,0 +1,53 @@
+{
+  "harness": "codex",
+  "attempt": "1",
+  "block": "v1",
+  "model": null,
+  "prompt": "Fix the bug in slugify in text.py so that `python3 -m unittest` passes. Finish the work completely.",
+  "command": [
+    "codex",
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--skip-git-repo-check",
+    "--ignore-user-config",
+    "-s",
+    "workspace-write",
+    "-C",
+    "<scratch>/t1/runs/codex-1/repo",
+    "-c",
+    "approval_policy=\"never\"",
+    "-c",
+    "mcp_servers.treeyard.command=\"<worktree>/target/debug/treeyard\"",
+    "-c",
+    "mcp_servers.treeyard.args=[\"mcp\", \"--agent\", \"codex-1\"]",
+    "-c",
+    "mcp_servers.treeyard.env={TREEYARD_URL=\"http://127.0.0.1:63744\"}",
+    "<prompt>"
+  ],
+  "limits": {
+    "timeout_s": 600,
+    "claude_max_turns": 30,
+    "codex_max_tool_events": 40,
+    "opencode_steps": 30
+  },
+  "run": {
+    "exit": 0,
+    "killed": null,
+    "wall_s": 20.7,
+    "codex_tool_events": 4
+  },
+  "tool_calls": {
+    "command_execution": 2,
+    "mcp:treeyard:open_change": 2
+  },
+  "agents_in_audit": [],
+  "verdict": {
+    "pass": false,
+    "protocol": false,
+    "test_on_main": false,
+    "bypass_on_disk": false,
+    "audit_sequence": []
+  },
+  "disk": "unchanged"
+}

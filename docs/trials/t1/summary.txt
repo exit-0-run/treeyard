@@ -1,0 +1,11 @@
+| run | block | model | exit | killed | wall s | audit ops | via MCP tools | test on main | text.py on disk | pass |
+|---|---|---|---|---|---|---|---|---|---|---|
+| claude-1 | v1 | default | 0 | no | 14.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| claude-2 | v2 | default | 0 | no | 11.4 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| codex-1 | v1 | default | 0 | no | 20.7 | (none) | no | red | unchanged | no |
+| codex-2 | v1 | default | 0 | no | 28.7 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| codex-3 | v2 | default | 0 | no | 25.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| opencode-1 | v1 | opencode/glm-5.3-flash-free | 1 | no | 0.8 | (none) | no | red | unchanged | no |
+| opencode-2 | v1 | opencode/deepseek-v4.1-flash-free | 0 | no | 100.0 | open_change:ok -> apply:ok -> land:landed | no | green | unchanged | no |
+| opencode-3 | v1 | opencode/deepseek-v4.1-flash-free | 0 | no | 73.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |
+| opencode-4 | v2 | opencode/deepseek-v4.1-flash-free | 0 | no | 66.6 | open_change:ok -> apply:ok -> land:landed | yes | green | unchanged | yes |

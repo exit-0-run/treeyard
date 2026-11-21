@@ -17,7 +17,9 @@ runs them in a new empty directory and stops at the first error. You need `git`,
    `.codex/config.toml` (Codex), `opencode.json` (OpenCode). Each entry runs `treeyard mcp` with
    `TREEYARD_URL`. It never edits `~/.claude.json`, `~/.claude/`, `~/.codex/` or `~/.config/opencode`.
 4. It adds one marked block to `AGENTS.md` and `CLAUDE.md`: open a change with an intent, edit
-   through `apply`, fix an overlap or a conflict at once, finish with `land`.
+   through `apply`, fix an overlap or a conflict at once, test the change on a copy, finish with
+   `land`. The block also says that the files on disk do not change at land. Real agents followed
+   it with no other hint: [trials/t1/README.md](trials/t1/README.md).
 5. It turns the mirror to `origin` on only with `--mirror`, or after a yes at the prompt in a terminal.
 
 The state lives outside the working tree, in `.git/treeyard/`: `data/`, `connect.json` (pid, port,
@@ -59,7 +61,9 @@ tail -n 3 AGENTS.md
 Each harness asks once before it uses a project server:
 
 - Claude Code asks you to approve the `treeyard` server of `.mcp.json` (or use `/mcp`).
-- Codex reads `.codex/config.toml` only when you trust the project.
+- Codex reads `.codex/config.toml` only when you trust the project. `codex exec` has no one to ask,
+  so it refuses each MCP call until the server entry has `default_tools_approval_mode = "approve"`
+  (for example `-c mcp_servers.treeyard.default_tools_approval_mode="approve"`).
 - OpenCode reads `opencode.json` at the project root. `opencode mcp list` shows the entry.
 
 ## 3. Two agents on one file

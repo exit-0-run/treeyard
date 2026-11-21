@@ -1,0 +1,6 @@
+imported main as changeset ccb283518805
+server: http://127.0.0.1:49628 (pid 13804, data .git/treeyard/data)
+opencode: opencode.json (agents opencode-1)
+wrote: opencode.json, AGENTS.md, .git/info/exclude
+landed work: git pull http://127.0.0.1:49628/git main
+undo: treeyard disconnect

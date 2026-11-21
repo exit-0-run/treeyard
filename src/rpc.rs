@@ -1038,7 +1038,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "open_change",
             "Start a change on top of main (no branch). Declare the paths and symbols you plan to touch: the reply lists open changes that overlap them, with advice. Edit with apply, then land.",
-            json!({"agent": {"type": "string"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}, "group": {"type": "string", "description": "best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest"}}),
+            json!({"agent": {"type": "string", "description": "leave it out when the MCP bridge names you (treeyard mcp --agent); a value here replaces that name"}, "intent": {"type": "string", "description": "what you are about to do, in one line"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string", "description": "main (default) or another revision; a change id ch_... stacks on that change, which then lands first"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}, "description": "function, type or class names you will change; name or path#name"}, "group": {"type": "string", "description": "best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest"}}),
             &["intent"],
         ),
         tool(

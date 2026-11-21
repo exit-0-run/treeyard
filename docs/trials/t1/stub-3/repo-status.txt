@@ -1,0 +1,4 @@
+text.py on disk: unchanged
+--- git status --porcelain
+--- git log
+ab46b74 text helpers with a slugify bug

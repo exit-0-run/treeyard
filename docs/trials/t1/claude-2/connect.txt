@@ -1,0 +1,7 @@
+imported main as changeset d1cd3fdd751a
+server: http://127.0.0.1:49365 (pid 12800, data .git/treeyard/data)
+claude: .mcp.json (agents claude-1)
+wrote: .mcp.json, CLAUDE.md, .git/info/exclude
+landed work: git pull http://127.0.0.1:49365/git main
+claude: approve the project server `treeyard` when Claude Code asks (or `/mcp`)
+undo: treeyard disconnect

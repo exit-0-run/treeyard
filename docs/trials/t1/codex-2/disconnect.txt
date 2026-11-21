@@ -1,0 +1,3 @@
+stopped server http://127.0.0.1:63945 (pid 7884)
+removed the TreeYard data (.git/treeyard)
+disconnected: 3 files restored

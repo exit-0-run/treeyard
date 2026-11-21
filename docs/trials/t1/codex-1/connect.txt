@@ -1,0 +1,7 @@
+imported main as changeset 3dd7874563c0
+server: http://127.0.0.1:63744 (pid 7225, data .git/treeyard/data)
+codex: .codex/config.toml (agents codex-1)
+wrote: .codex/config.toml, AGENTS.md, .git/info/exclude
+landed work: git pull http://127.0.0.1:63744/git main
+codex: reads .codex/config.toml only in a trusted project
+undo: treeyard disconnect

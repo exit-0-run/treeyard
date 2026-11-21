@@ -6,6 +6,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- The connect instruction block tells the agent to test its change on a copy before `land`, and that
+  the files on disk do not change at land (`read` shows landed work). In the T1 trial with the old
+  block, all 3 agents looked for the landed work in the checkout, and 2 of 3 ran the tests only after
+  land. With the new block, 3 of 3 tested on a copy before land, and 1 of 3 still looked in the checkout.
+- `open_change`: the `agent` field says that the MCP bridge sets the name and that a value replaces it.
 - Line merges run in process (`src/xmerge.rs`, a port of git's histogram diff and `xdl_merge`) instead of
   one `git merge-file` process per merge. Same text and the same clean or conflict answer as
   `git merge-file --diff-algorithm histogram` (`tests/xmerge_git.rs` compares them); `git merge-file` stays
@@ -24,6 +29,9 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   an agent's workspace (arguments and environment only, the path on stdout, safe to repeat, exit 3 when
   the server does not answer). docs/orchestrators.md: the hook points of Orca, Paradev and Agent
   Orchestrator, read from their source.
+- docs/trials/t1/: a smoke trial on real agents (Claude Code, Codex, OpenCode). Each one got a small
+  task that does not name TreeYard and went `open_change` -> `apply` -> `land` from the instruction
+  block alone (server audit log, test green on main). Driver: `docs/trials/t1/run.py`.
 - `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in
   docs/benchmarks.md.
 

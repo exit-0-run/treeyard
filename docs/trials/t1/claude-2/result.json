@@ -1,0 +1,69 @@
+{
+  "harness": "claude",
+  "attempt": "2",
+  "block": "v2",
+  "model": null,
+  "prompt": "Fix the bug in slugify in text.py so that `python3 -m unittest` passes. Finish the work completely.",
+  "command": [
+    "claude",
+    "-p",
+    "<prompt>",
+    "--mcp-config",
+    ".mcp.json",
+    "--strict-mcp-config",
+    "--max-turns",
+    "30",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--permission-mode",
+    "acceptEdits",
+    "--allowedTools",
+    "mcp__treeyard__*,Bash,Read,Edit,Write"
+  ],
+  "limits": {
+    "timeout_s": 600,
+    "claude_max_turns": 30,
+    "codex_max_tool_events": 40,
+    "opencode_steps": 30
+  },
+  "run": {
+    "exit": 0,
+    "killed": null,
+    "wall_s": 11.4,
+    "codex_tool_events": null
+  },
+  "tool_calls": {
+    "ToolSearch": 1,
+    "Read": 1,
+    "mcp__treeyard__open_change": 1,
+    "Bash": 2,
+    "mcp__treeyard__apply": 1,
+    "mcp__treeyard__read": 1,
+    "mcp__treeyard__land": 1
+  },
+  "agents_in_audit": [
+    "claude-1"
+  ],
+  "verdict": {
+    "pass": true,
+    "protocol": true,
+    "test_on_main": true,
+    "bypass_on_disk": false,
+    "audit_sequence": [
+      [
+        "open_change",
+        "ok"
+      ],
+      [
+        "apply",
+        "ok"
+      ],
+      [
+        "land",
+        "landed"
+      ]
+    ]
+  },
+  "disk": "unchanged"
+}

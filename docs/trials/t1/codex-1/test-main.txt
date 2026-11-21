@@ -1,0 +1,46 @@
+exit 1
+.FFF
+======================================================================
+FAIL: test_many_spaces (test_text.SlugifyTest.test_many_spaces)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<scratch>/t1/runs/codex-1/main-clone/test_text.py", line 11, in test_many_spaces
+    self.assertEqual(slugify("  Many   spaces here "), "many-spaces-here")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Many-spaces-here' != 'many-spaces-here'
+- Many-spaces-here
+? ^
++ many-spaces-here
+? ^
+
+
+======================================================================
+FAIL: test_punctuation_and_case (test_text.SlugifyTest.test_punctuation_and_case)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<scratch>/t1/runs/codex-1/main-clone/test_text.py", line 8, in test_punctuation_and_case
+    self.assertEqual(slugify("Hello, World!"), "hello-world")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'Hello,-World!' != 'hello-world'
+- Hello,-World!
+? ^    - ^    -
++ hello-world
+? ^     ^
+
+
+======================================================================
+FAIL: test_symbols_between_words (test_text.SlugifyTest.test_symbols_between_words)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<scratch>/t1/runs/codex-1/main-clone/test_text.py", line 14, in test_symbols_between_words
+    self.assertEqual(slugify("C++ & Rust: 2 tips"), "c-rust-2-tips")
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 'C++-&-Rust:-2-tips' != 'c-rust-2-tips'
+- C++-&-Rust:-2-tips
++ c-rust-2-tips
+
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+FAILED (failures=3)

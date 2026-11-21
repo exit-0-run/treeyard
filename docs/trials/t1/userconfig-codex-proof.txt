@@ -1,0 +1,5 @@
+sha256 now: 9e227c854c6d5660fc005a587d04f07bd25f8c980a4c6c8a0fd95502afe20ffe  ~/.codex/config.toml
+entry [projects."<scratch>/t1/runs/codex-1/repo"] trust_level = "trusted" present: True
+entry [projects."<scratch>/t1/runs/codex-2/repo"] trust_level = "trusted" present: True
+entry [projects."<scratch>/t1/runs/codex-3/repo"] trust_level = "trusted" present: True
+sha256 with the 3 entries removed (in memory, file not edited): 77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1

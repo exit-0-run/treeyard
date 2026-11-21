@@ -1,0 +1,6 @@
+text.py on disk: unchanged
+--- git status --porcelain
+?? __pycache__/test_text.cpython-315.pyc
+?? __pycache__/text.cpython-315.pyc
+--- git log
+260c7d2 text helpers with a slugify bug

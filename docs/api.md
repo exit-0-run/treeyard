@@ -210,7 +210,7 @@ Start a change on top of main (no branch). Declare the paths and symbols you pla
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `agent` | string | no |  |
+| `agent` | string | no | leave it out when the MCP bridge names you (treeyard mcp --agent); a value here replaces that name |
 | `base` | string | no | main (default) or another revision; a change id ch_... stacks on that change, which then lands first |
 | `group` | string | no | best-of-N: changes that try the same task share a group name; land_one_of lands one and abandons the rest |
 | `intent` | string | yes | what you are about to do, in one line |

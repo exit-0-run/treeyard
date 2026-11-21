@@ -1,0 +1,62 @@
+{
+  "before": 1,
+  "entries": [
+    {
+      "actor": "open",
+      "agent": "stub-1",
+      "change": "ch_b489b3125199",
+      "changeset": "998d8555113575af581466fc8481b1849898a1dda0452ff55ac331e50a62d4e1",
+      "commit": "eab837001178765a9a425f63fe85a0cdf65f99ac",
+      "detail": null,
+      "intent": "fix slugify",
+      "model": null,
+      "op": "land",
+      "paths": [
+        "text.py"
+      ],
+      "seq": 3,
+      "session": null,
+      "status": "landed",
+      "time_ms": 1795263692169,
+      "token": null
+    },
+    {
+      "actor": "open",
+      "agent": "stub-1",
+      "change": "ch_b489b3125199",
+      "changeset": null,
+      "commit": null,
+      "detail": null,
+      "intent": "fix slugify",
+      "model": null,
+      "op": "apply",
+      "paths": [
+        "text.py"
+      ],
+      "seq": 2,
+      "session": null,
+      "status": "ok",
+      "time_ms": 1795263692158,
+      "token": null
+    },
+    {
+      "actor": "open",
+      "agent": "stub-1",
+      "change": "ch_b489b3125199",
+      "changeset": null,
+      "commit": null,
+      "detail": null,
+      "intent": "fix slugify",
+      "model": null,
+      "op": "open_change",
+      "paths": [
+        "text.py"
+      ],
+      "seq": 1,
+      "session": null,
+      "status": "ok",
+      "time_ms": 1795263692149,
+      "token": null
+    }
+  ]
+}
