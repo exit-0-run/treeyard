@@ -286,6 +286,14 @@ class ArmA2Tests(StubBase):
         self.assertGreaterEqual(res["integrate_conflicts"], 1)
         self.assertEqual(res["interventions"], 0)
         self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text(), "".join(f"task {i}\n" for i in range(1, 6)))
+        # Every agent integrated itself, so the diff against main is empty at the end; the guard
+        # counts what each integration put on main.
+        self.assert_guard(res)
+
+    def assert_guard(self, res):
+        one = {"files": 1, "added": 1, "removed": 1, "test_added": 0, "paths": ["a.txt"]}
+        self.assertEqual(res["guard"], {str(i): one for i in range(1, 6)})
+        self.assertEqual(res["lost_lines"]["total"], 0)
 
     def test_oracle_arm_a_uses_the_hand_back(self):
         r, res = self.run_world("oracle", arm="A")
@@ -293,12 +301,14 @@ class ArmA2Tests(StubBase):
         self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
         self.assertEqual(res["merge_conflicts"], 4)
         self.assertEqual([m["handback"] for m in res["merges"]], [None, "resolved", "resolved", "resolved", "resolved"])
+        self.assert_guard(res)
 
     @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
     def test_oracle_arm_b(self):
         r, res = self.run_world("oracle", arm="B")
         self.assertEqual(res["status"], "done", res.get("stop_reason"))
         self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+        self.assert_guard(res)
 
     def test_stub_agents_integrate_and_settle_conflicts(self):
         r, res = self.run_world("stub", modes=",".join(["integrate"] * 5), dialects="claude,codex,claude,codex,stub")

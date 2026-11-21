@@ -9,6 +9,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 - `grep`: `^` and `$` are line anchors in the indexed and the scan path. A whole-file prefilter ran
   the pattern without multi-line mode, so `^x` matched only on the first line and `x$` only on the
   last; it now runs in multi-line mode (also before `\r\n`), and is skipped for `\A` / `\z`.
+- bench/t2: the `guard` metrics (and `lost_lines`) of arm A2 were 0 for every agent that had
+  integrated through `t2-integrate` (its diff against main was empty by then). An agent's own diff is
+  now what each of its integrations and the runner's merge put on main, in arms A and A2 alike (arm B:
+  its changes' diffs); work left out counts from the merge base.
 
 ### Changed
 - Leaner MCP replies. The bridge and `POST /mcp` send compact JSON. With `--tools agent`, change

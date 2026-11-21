@@ -1848,9 +1848,17 @@ class Run:
 
     # -------------------------------------------------------------- finalize, arm A
 
-    def own_diff_a(self, k, onto):
-        # Three dots: from the merge base, so only the agent's own work counts (not the reverse of main's).
-        return git("diff", f"{onto}...agent-{k}", cwd=self.repo_dir).stdout
+    def own_diff_a(self, a, rec, onto):
+        """The agent's own work, the same way in every arm: what each of its integrations (A2) and the
+        runner's merge put on main (`onto` to the new main), like the diff of a landed change in arm B.
+        Work that stays out of main counts from the merge base (three dots: not the reverse of main's).
+        A diff against main taken after the agent integrated is empty (guard 0 for every A2 agent)."""
+        parts = list(a.get("own_diffs") or [])
+        if rec.get("status") == "merged":
+            parts.append(git("diff", onto, "main", cwd=self.repo_dir).stdout)
+        elif rec.get("status") == "left out":
+            parts.append(git("diff", f"{onto}...agent-{a['k']}", cwd=self.repo_dir).stdout)
+        return "".join(parts)
 
     def merging(self, wt):
         return git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=wt, check=False).returncode == 0
@@ -1893,7 +1901,7 @@ class Run:
                         rec["handback_failure"] = why
                         rec.update(needs_human=True, intervention=True, left_out=True)
                         interventions += 1
-            rec["own_diff"] = self.own_diff_a(k, onto)
+            rec["own_diff"] = self.own_diff_a(a, rec, onto)
             merges.append(rec)
         return merges, interventions
 
@@ -2196,9 +2204,12 @@ class Run:
                            "between `=======` and `>>>>>>> change` are yours. Resolve them so that your work and the work on main are "
                            f"both kept, run {TEST_CMD}, then {INTEGRATE_CMD} again.\n"), "conflict"
             self.commit_work(wt, f"{br}: merge main")
+        before = git("rev-parse", "main", cwd=self.repo_dir).stdout.strip()
         r = git("merge", "-q", "--ff-only", br, cwd=self.repo_dir, check=False)
         if r.returncode != 0:
             return 1, f"{INTEGRATE_CMD}: main did not move: {tail(r.stdout + r.stderr, 300)}\n", "error"
+        # The agent's own work in this integration: what moving main put on it (the guard metrics).
+        a.setdefault("own_diffs", []).append(git("diff", before, "main", cwd=self.repo_dir).stdout)
         a.pop("integrate_files", None)
         head = git("rev-parse", "--short", "main", cwd=self.repo_dir).stdout.strip()
         return 0, f"{INTEGRATE_CMD}: integrated, main is now your work ({head})\n", "integrated"

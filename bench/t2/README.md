@@ -157,7 +157,7 @@ tool calls in its first invocation (a hand-back answered in words is not an anom
 | `integrations`, `integrate_conflicts`, `integrated_by_agent` | A2: each `t2-integrate` call and its outcome |
 | `warned`, `reacted`, `warnings`, `warned_pairs`, `false_alarms` | from each agent's own tool replies: warned = a reply of its own call held a file-level collision (`path`, kind overlap or conflict; with main counts); reacted = after it, before its next land, a `change`, `rebase`, `apply` or `resolve`. Descriptive only |
 | `legacy_warned_before_land`, `legacy_reacted`, `legacy_false_alarms`, ... | the event-stream metrics of preregistration v3 (in old run files: `warned_before_land`, `reacted`) |
-| `guard` | per agent: files, lines added and removed, test lines added, paths of its own diff |
+| `guard` | per agent: files, lines added and removed, test lines added, paths of its own diff: what its integrations (A2), the runner's merge (A, A2) or its landed changes (B) put on main; work left out counts from the merge base |
 | `test_command`, `test_passed_agents` | per agent: `t2-test` runs in its transcript, and whether one passed |
 | `tokens_in`, `tokens_out`, `tokens_fresh_in`, `tokens_cached_in`, `tokens_cache_write`, `by_harness` | all input (cached or not) and output; the price-free split; sums per harness |
 | `cost_usd_claude_only` (`cost_usd`) | what Claude Code reports; Codex reports no cost |
