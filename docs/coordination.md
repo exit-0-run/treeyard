@@ -138,7 +138,34 @@ until every conflict is resolved. With `[coordination] keep_conflicted = true` i
 - `land` answers `status: conflict` until every conflict is resolved. Writing the path with `apply`
   (taken as is, not merged with the stale `view`) or calling `resolve` clears it.
 
-Tests: `tests/conflicts.rs` (both modes).
+A write to a conflicted path is its resolution, and it must not keep the markers (`<<<<<<< main`,
+`>>>>>>> change`). The check runs once per path after all edits of one `apply`, so several `replace`
+edits in the same call may remove the markers together. A write that leaves some gets an error with
+the line, the number of conflict regions left, and the rule: one `apply` must remove every marker of
+that file (whole `content`, all the `replace` edits at once, or `resolve`).
+
+Tests: `tests/conflicts.rs` (both modes; several `replace` edits in one resolution).
+
+### Following main without continuous rebase
+
+`treeyard connect` leaves `continuous_rebase` off. With it on, the server would rewrite an agent's
+change while the agent works: a conflict would arrive as markers in a file the agent is editing, and
+its next `apply` there would be refused until it resolves them (in the pilots, 6 applies already failed
+on markers after `land`). Off, the agent decides when it takes main's work, with one `rebase` call.
+
+Instead, a `replace` whose old text the change lacks says why, in the error text:
+
+- main has the text and the change is N landings behind main: another agent changed the file after
+  the change's base; call `rebase`, then `read` with `at` = the change id, and apply again;
+- main has the text and the change is not behind: the change already replaced it; read the file with
+  `at` = the change id;
+- otherwise: how far main is ahead, and read with `at` = the change id.
+
+`read` with no `at` stays main, also in the MCP bridge. Defaulting it to the agent's open change would
+match `apply`, but `grep`, `symbols` and `outline` answer for main, so their line numbers would no
+longer fit what `read` returns, and the HTTP `/mcp` endpoint (no bridge) would differ from stdio. The
+error above names the fix instead. Test: `tests/conflicts.rs`
+(`a_replace_that_misses_says_how_far_behind_main_the_change_is`).
 
 ## (d) Merge drivers
 

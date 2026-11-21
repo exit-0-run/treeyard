@@ -592,6 +592,49 @@ impl Inner {
         Ok(Some(Entry { blob: self.put_blob(&data)?, mode }))
     }
 
+    /// Landings on main since `base` (0 when `base` is main or not on main's first-parent chain).
+    pub fn landings_behind(&mut self, base: &str) -> Result<u64> {
+        let main = self.main()?;
+        if base == main || !self.is_ancestor(base, &main)? {
+            return Ok(0);
+        }
+        Ok(self.height(&main)?.saturating_sub(self.height(base)?))
+    }
+
+    /// Adds what to do to a `replace` whose old text (or file) the change lacks: whether main has
+    /// it, and how many landings the change is behind main. Other errors pass through as they are.
+    fn edit_hint(&mut self, ch: &Change, e: &Edit, cur: Option<&Entry>, err: anyhow::Error) -> anyhow::Error {
+        let Some(r) = &e.replace else { return err };
+        let has = |me: &mut Self, en: Option<&Entry>| {
+            en.and_then(|en| me.blob(&en.blob).ok()).and_then(|b| as_text(&b)).map(|t| t.contains(&r.old))
+        };
+        if r.old.is_empty() || has(self, cur) == Some(true) {
+            return err; // found more than once, empty, or not text: the message says it all
+        }
+        let main_entry = self.main().and_then(|m| self.manifest(&m)).ok().and_then(|m| m.get(&e.path).cloned());
+        let on_main = has(self, main_entry.as_ref()) == Some(true);
+        let behind = self.landings_behind(&ch.base).unwrap_or(0);
+        let (id, path) = (&ch.id, &e.path);
+        let landings = if behind == 1 { "1 landing".to_string() } else { format!("{behind} landings") };
+        let hint = match (on_main, behind > 0) {
+            (true, true) => format!(
+                "your change {id} is {landings} behind main, and main has this text: another agent changed \
+                 {path} after your change's base. Call rebase with change {id} to take main's work, then read \
+                 {path} with at = {id} and apply again"
+            ),
+            (true, false) => format!(
+                "main has this text, but your change {id} already changed it. Read {path} with at = {id} (your \
+                 change, not main) and replace text from there"
+            ),
+            (false, true) => format!(
+                "main lacks it too (main is {landings} ahead of your change {id}). Read {path} with at = {id} for \
+                 the text your change holds"
+            ),
+            (false, false) => format!("read {path} with at = {id} for the text your change holds"),
+        };
+        anyhow!("{err:#}. {hint}")
+    }
+
     pub fn apply(&mut self, id: &str, edits: &[Edit], message: Option<String>) -> Result<Change> {
         self.apply_seen(id, edits, message, None)
     }
@@ -642,17 +685,19 @@ impl Inner {
             BTreeSet::new()
         };
         let conflicted: BTreeSet<String> = ch.conflicts.iter().map(|c| c.path.clone()).collect();
+        // The agent's last write to each conflicted path in this call: its resolution.
+        let mut resolutions: BTreeMap<String, Option<Entry>> = BTreeMap::new();
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
             check_path(&e.path)?;
             let cur = work.get(&e.path).cloned();
-            let mut new = self.edit_entry(e, cur.as_ref())?;
-            // A write to a conflicted path is its resolution; one that keeps the markers would land them.
-            if conflicted.contains(&e.path)
-                && let Some(n) = &new
-            {
-                check_no_markers(&e.path, &self.blob(&n.blob)?)?;
+            let mut new = match self.edit_entry(e, cur.as_ref()) {
+                Ok(n) => n,
+                Err(err) => return Err(self.edit_hint(&ch, e, cur.as_ref(), err)),
+            };
+            if conflicted.contains(&e.path) {
+                resolutions.insert(e.path.clone(), new.clone());
             }
             if let Some(v) = &view
                 && e.replace.is_none()
@@ -687,6 +732,13 @@ impl Inner {
                 }
             }
             out.push((e.path.clone(), new));
+        }
+        // A resolution that keeps the markers would land them. It is checked once per path, after
+        // all edits of this call: several `replace` edits in one apply may remove them together.
+        for (path, n) in &resolutions {
+            if let Some(n) = n {
+                check_no_markers(path, &self.blob(&n.blob)?)?;
+            }
         }
         self.set_entries(&mut ch, out, message)?;
         if explicit && up_to_date {
@@ -1820,17 +1872,20 @@ pub fn check_group(group: &str) -> Result<&str> {
 /// `main` and `change`); `direct` landing would otherwise put them on main.
 fn check_no_markers(path: &str, bytes: &[u8]) -> Result<()> {
     let text = String::from_utf8_lossy(bytes);
-    for (i, line) in text.lines().enumerate() {
-        let line = line.trim_end_matches('\r');
-        if line == "<<<<<<< main" || line == ">>>>>>> change" {
-            bail!(
-                "{path} line {}: the resolution still holds the conflict marker `{line}`; write the final \
-                 content without the markers (or call resolve), then land",
-                i + 1
-            );
-        }
-    }
-    Ok(())
+    let lines: Vec<&str> = text.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let Some(i) = lines.iter().position(|l| *l == "<<<<<<< main" || *l == ">>>>>>> change") else {
+        return Ok(());
+    };
+    let regions = lines.iter().filter(|l| **l == "<<<<<<< main").count().max(1);
+    bail!(
+        "{path} line {}: the resolution still holds the conflict marker `{}` ({regions} conflict region{} \
+         left). One apply must remove every conflict marker of {path}: send its whole final content \
+         (`content`), or all the `replace` edits for it in the same apply, or call resolve with take = ours | \
+         theirs | base | delete; then land",
+        i + 1,
+        lines[i],
+        if regions == 1 { "" } else { "s" }
+    )
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

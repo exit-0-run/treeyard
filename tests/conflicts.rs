@@ -155,3 +155,84 @@ fn a_resolution_that_keeps_the_markers_is_refused() {
     let landed = read(&url, "f00.txt", "main");
     assert!(!landed.contains("<<<<<<<") && landed.contains("a and b's line 3\n"), "{landed}");
 }
+
+#[test]
+fn one_apply_may_remove_the_markers_with_several_replace_edits() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let f00 = read(&url, "f00.txt", "main");
+    let a = open(&url, "a");
+    write(&url, &a, "f00.txt", &set_line(&f00, 3, "a's line 3"));
+    let b = open(&url, "b");
+    write(&url, &b, "f00.txt", &set_line(&f00, 3, "b's line 3"));
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "conflict");
+    let marked = read(&url, "f00.txt", &a);
+    assert!(marked.contains("<<<<<<< main\nb's line 3\n=======\na's line 3\n>>>>>>> change\n"), "{marked}");
+
+    // One edit that leaves markers: the error says that one apply must remove all of them.
+    let one = json!({"path": "f00.txt", "replace": {"old": ">>>>>>> change\n", "new": ""}});
+    let e = treeyard::client::call(&url, "apply", json!({"change": a, "edits": [one.clone()]})).unwrap_err();
+    let msg = format!("{e:#}");
+    assert!(msg.contains("One apply must remove every conflict marker of f00.txt"), "{msg}");
+    assert!(msg.contains("1 conflict region left"), "{msg}");
+
+    // Both edits in the same apply: the file is checked once, after both, and it is clean.
+    let two = json!({"path": "f00.txt", "replace": {"old": "<<<<<<< main\nb's line 3\n=======\n", "new": ""}});
+    let r = call(&url, "apply", json!({"change": a, "edits": [one, two]}));
+    assert_eq!(r["conflicted"], false, "{r}");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    assert_eq!(read(&url, "f00.txt", "main"), set_line(&f00, 3, "a's line 3"));
+}
+
+#[test]
+fn a_replace_that_misses_says_how_far_behind_main_the_change_is() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let a = open(&url, "a");
+    for (agent, new) in [("b", "b's line 3"), ("c", "c's line 4")] {
+        let ch = open(&url, agent);
+        let old = if agent == "b" { "file 0 line 3\n" } else { "file 0 line 4\n" };
+        call(
+            &url,
+            "apply",
+            json!({"change": ch, "edits": [{"path": "f00.txt", "replace": {"old": old, "new": format!("{new}\n")}}]}),
+        );
+        assert_eq!(call(&url, "land", json!({"change": ch}))["status"], "landed");
+    }
+    let miss = |old: &str| -> String {
+        let e = treeyard::client::call(
+            &url,
+            "apply",
+            json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": old, "new": "x"}}]}),
+        )
+        .unwrap_err();
+        format!("{e:#}")
+    };
+    // The agent read main, where another agent's text is; its change is two landings behind.
+    let m = miss("b's line 3");
+    assert!(m.starts_with("replace in f00.txt: old text not found"), "{m}");
+    assert!(m.contains(&format!("your change {a} is 2 landings behind main, and main has this text")), "{m}");
+    assert!(m.contains(&format!("Call rebase with change {a}")) && m.contains(&format!("at = {a}")), "{m}");
+    // Text that is nowhere.
+    let m = miss("no such text");
+    assert!(m.contains("main lacks it too (main is 2 landings ahead") && m.contains(&format!("at = {a}")), "{m}");
+
+    // After rebase: the text of main is found; text the change itself replaced gets its own hint.
+    call(&url, "rebase", json!({"change": a}));
+    call(
+        &url,
+        "apply",
+        json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": "b's line 3", "new": "a's line 3"}}]}),
+    );
+    let m = miss("b's line 3");
+    assert!(m.contains(&format!("main has this text, but your change {a} already changed it")), "{m}");
+    // Other errors keep their text.
+    let e = treeyard::client::call(
+        &url,
+        "apply",
+        json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": "file 0 line", "new": "x"}}]}),
+    )
+    .unwrap_err();
+    assert!(format!("{e:#}").ends_with("add context or set all=true"), "{e:#}");
+}

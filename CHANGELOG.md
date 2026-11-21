@@ -6,6 +6,14 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- `apply`: a `replace` whose old text (or file) the change lacks now says whether main has it and how
+  many landings the change is behind main, and what to do (`rebase`, or `read` with `at` = the change).
+  In the pilots, 5 such errors had no hint. `connect` keeps `continuous_rebase` off and `read` keeps
+  main as its default (reasons in docs/coordination.md).
+- A resolution of a conflicted path is checked for conflict markers once, after all edits of the
+  `apply`, so several `replace` edits in one call can remove them; before, the first edit was refused.
+  The refusal now says that one `apply` must remove every marker of the file, and how many regions
+  are left (6 refusals in the pilots).
 - The connect instruction block has two new points: read a line range in few calls, and keep the
   lines other agents landed (put them back when `apply` returns `undoes`). On a development set of 10
   tasks, the old block lost a task in 1 of 2 colliding runs although `apply` returned `undoes`; the new
