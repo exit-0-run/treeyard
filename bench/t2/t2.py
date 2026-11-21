@@ -1368,8 +1368,10 @@ def arm_b_test_note():
     """HOOK (arm B tests): extra preamble text for arm B on how the agent's edits reach the files that
     `t2-test` runs on. In arm B an agent edits through `apply`, so the files on disk do not hold its
     edits; a product feature that writes them is being built elsewhere. Until it exists this returns ""
-    and the preamble is the same text in all arms. Do not describe product behaviour here before it ships."""
-    return ""
+    The `checkout` tool of the bridge writes the change into a directory of its own; `t2-test` runs on the
+    tree it is called from."""
+    return (f"Your edits go through `apply`, so they are not in this directory: run `{TEST_CMD}` from the directory "
+            "that `checkout` returns.")
 
 
 def preamble(arm):

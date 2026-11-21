@@ -32,6 +32,9 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   `change {full: true}` returns `text` as before. The per-conflict `resolve` hint is now one `resolve`
   string per change; `conflicts_cut` says when regions were capped. A `land` conflict on an 87 KB file
   went from 262 246 to 2 718 bytes in the MCP bridge (`change`: 261 935 to 2 391).
+- The connect instruction block, step 6: test with `checkout` (run the tests in the directory it
+  returns; later `apply` calls update it; edits there do not count) instead of copying files into a
+  temporary directory by hand. The rest of the block is unchanged.
 - `read`: a range from line 1 of an empty file returns empty `content` with `lines` `[1, 0]` instead of
   an error. The docs and the tool description say that `size` is the byte size of the whole file, also
   for a range.

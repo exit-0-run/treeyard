@@ -17,9 +17,10 @@ runs them in a new empty directory and stops at the first error. You need `git`,
    `.codex/config.toml` (Codex), `opencode.json` (OpenCode). Each entry runs `treeyard mcp` with
    `TREEYARD_URL`. It never edits `~/.claude.json`, `~/.claude/`, `~/.codex/` or `~/.config/opencode`.
 4. It adds one marked block to `AGENTS.md` and `CLAUDE.md`: open a change with an intent, edit
-   through `apply`, fix an overlap or a conflict at once, test the change on a copy, finish with
-   `land`. The block also says that the files on disk do not change at land. Real agents followed
-   it with no other hint: [trials/t1/README.md](trials/t1/README.md).
+   through `apply`, fix an overlap or a conflict at once, run the tests in the directory that
+   `checkout` writes for the change ([mcp.md](mcp.md#test-a-change-checkout)), finish with `land`.
+   The block also says that the files on disk do not change at land. Real agents followed an earlier
+   version (tests on a hand-made copy) with no other hint: [trials/t1/README.md](trials/t1/README.md).
 5. It turns the mirror to `origin` on only with `--mirror`, or after a yes at the prompt in a terminal.
 
 The state lives outside the working tree, in `.git/treeyard/`: `data/`, `connect.json` (pid, port,

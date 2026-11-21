@@ -269,9 +269,11 @@ fn instruction_block_leaves_the_rest_of_the_file_byte_identical() {
         assert_eq!(now.matches(treeyard::connect::MD_START).count(), 1, "{f}: one block");
         let block = &now[now.find(treeyard::connect::MD_START).unwrap()..];
         assert!(block.trim_end().ends_with(treeyard::connect::MD_END), "{f}: the block is last");
-        for word in ["open_change", "intent", "apply", "overlap", "conflict", "land"] {
+        for word in ["open_change", "intent", "apply", "overlap", "conflict", "land", "checkout"] {
             assert!(block.contains(word), "{f}: the block names {word}");
         }
+        let body = &block[treeyard::connect::MD_START.len() + 1..block.find(treeyard::connect::MD_END).unwrap()];
+        assert_eq!(body, treeyard::connect::INSTRUCTIONS, "{f}: the block is the constant");
     }
     // More agents and one more harness: still one block per file.
     env.run(&["connect", "--harness", "codex,claude", "--agents", "2"]);

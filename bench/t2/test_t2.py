@@ -725,7 +725,7 @@ class DevTests(unittest.TestCase):
         self.assertEqual(res["run"], "B-mini-colliding-r1-stub-try-1")
         self.assertEqual(res["block_file"], "try-1.md")
         self.assertEqual(res["block_sha256"], k.hashlib.sha256(want.encode()).hexdigest())
-        self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n" + k.PREAMBLE + "\n\n# task 1"))
+        self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n" + k.preamble("B") + "\n\n# task 1"))
         self.assertTrue((self.tmp / "results" / "B-mini-colliding-r1-stub-try-1.json").exists())
 
 

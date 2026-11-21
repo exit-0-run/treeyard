@@ -3,12 +3,11 @@
 
 Use the tools of the `treeyard` MCP server for every change to this repository:
 
-1. Call `open_change` with a one-line `intent` and the `paths` you plan to edit. Read `overlaps` and `advice` in the reply.
-2. Read little, in few calls. Find the place with one `grep` or `symbols` call, then read it with one `read` call with `start` and `end` that covers the whole function and some lines around it. Every call costs: do not page through a file in small pieces, and do not read a whole file of more than 300 lines.
-3. Edit files only through `apply`, with `replace` edits where you can. Do not write the files on disk.
-4. Lines on main that you did not write are the work of another agent's task. Keep them, even when they seem to go against your task: make your change hold next to them. When `apply` returns a non-empty `undoes`, your edit removes such lines: put them back and apply again, unless your task names those lines for removal.
-5. When `apply` returns `collisions` of kind `overlap` or `conflict`, fix it at once: read the other change with `change`, adjust your edit, apply again.
-6. Test before you land. Copy the files that the tests need into a new temporary directory: your edited files come from `read` with `at` set to your change id. Run the tests there.
-7. Finish with `land`. On status `conflict`, write the final content of each task in `change.conflicts` with `apply` (or `resolve`), then `land` again.
-8. The files in this directory do not change when you land. To see landed work, use `read`.
+1. Call `open_change` with a one-line `intent` and the `paths` you plan to edit.
+2. Edit files only through `apply`, with `replace` edits where you can. Do not write the files on disk. `read` shows main; give `at` = your change id to see your own edits.
+3. When a reply has `undoes`, your edit removes lines that another agent landed for its own task. Put them back and apply again, unless your task names those lines for removal.
+4. When `apply` returns a collision of kind `conflict`, another open change edits the same lines: adjust your edit and apply again. A collision of kind `overlap` merges by itself and needs no action.
+5. Test before you land: call `checkout` with your change id. It writes your change into a directory of its own and returns its path in `dir`; run the repository's tests there. Later `apply` calls update that directory. Edits made in it do not count: fix code with `apply`.
+6. Finish with `land`. On status `conflict`, replace each region in `change.conflicts` with its final text, all regions of a file in one `apply`, then `land` again.
+7. The files in this directory do not change when you land. To see landed work, use `read`.
 <!-- treeyard:connect:end -->
