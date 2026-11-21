@@ -15,6 +15,21 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   its changes' diffs); work left out counts from the merge base.
 
 ### Changed
+- `land` holds a change that removes lines another agent landed (behaviour change): status `undoes`
+  with the entries (text included) and `advice` (put them back and land again; if both tasks cannot
+  hold, keep the other agent's lines, land the rest and say so; only if the task names the lines,
+  land with the override). Override: `land {change, undo: true, reason}` (a non-empty `reason` is
+  required). An overridden land is recorded as `undid` (who removed whose lines, which changes, why) in
+  the `land` reply and the change, the event `undo_override`, `status` (`undid`, `undid_total`), `log`
+  entries and the audit row; a held land publishes the event `undoes`. Not held: own lines, moved or
+  re-indented lines, lines of a change it is or was stacked on (`stacked_on` in the change), lines a
+  revert put back; revert, `git push` and `replay` never hold. Queue mode holds at enqueue and drops a
+  queued change before a batch when its head moved after the yes (review `undoes`, `land_status`
+  `undoes`). `[coordination] hold_undoes = false` turns it off. The agent tool set's `land` takes
+  `undo` and `reason`; `treeyard workspace land --undo REASON`. In a 5-agent run one agent removed
+  another's landed feature (8 lines) and rewrote its test although `undoes` was in two of its replies.
+  With no entries the land costs no more than before (`undoes` was computed after the land; now once
+  before it, reusing the change's scans when there is no rebase).
 - Leaner MCP replies. The bridge and `POST /mcp` send compact JSON. With `--tools agent`, change
   replies drop `base`, `head`, `created`, `group`, `landed_as`, `model`, `session`, `view`, `revisions`
   and every null or empty value; `apply` sends `collisions` / `overlaps` in full only when they changed

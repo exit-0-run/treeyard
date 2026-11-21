@@ -32,6 +32,24 @@ pub const MAX: usize = 20;
 pub const ADVICE: &str = "These lines were written by another agent for its own task (landed, or the open change you \
 are stacked on). Keep them unless your task says to remove them; if both tasks cannot hold, say so in your message \
 instead of removing its work.";
+/// The advice of a land held by `undoes` (status `undoes`).
+pub const HOLD_ADVICE: &str = "Not landed: your change removes these lines, which another agent landed for its own task. \
+Put them back (apply) and land again. If your task and these lines truly cannot both hold, keep the other agent's lines, \
+land the rest, and say so in your final message so a person decides. Only if your task names these lines for removal, \
+land again with undo = true and reason = why your task removes them.";
+
+/// What `land` does when the change removes lines other agents landed (`undoes` entries without
+/// `landed: false`, not of a change it was stacked on).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undo<'a> {
+    /// Do not check (revert, a human push, replay).
+    Off,
+    /// Hold the land: status `undoes` (unless `[coordination] hold_undoes = false`).
+    Hold,
+    /// The owner's explicit yes with its reason: land and record it (`undid`).
+    Yes(&'a str),
+}
+
 /// Removed text per entry: at most this many lines and bytes (`text_cut` past that).
 const TEXT_LINES: usize = 8;
 const TEXT_BYTES: usize = 800;
@@ -97,6 +115,40 @@ impl Report {
         }
         v["undoes"] = Value::Array(entries);
     }
+}
+
+/// Keeps only `undoes` entries whose path `can_read` allows in a reply that `Report::put` filled
+/// for every path (`land`); drops the advice when none is left and counts the rest in
+/// `undoes_hidden`.
+pub fn filter(v: &mut Value, can_read: &dyn Fn(&str) -> bool) {
+    let Some(list) = v.get_mut("undoes").and_then(Value::as_array_mut) else { return };
+    let before = list.len();
+    list.retain(|e| e["path"].as_str().is_some_and(can_read));
+    let (left, hidden) = (list.len(), before - list.len());
+    if hidden > 0 {
+        v["undoes_hidden"] = json!(hidden);
+    }
+    if left == 0
+        && let Some(m) = v.as_object_mut()
+    {
+        m.remove("undoes_advice");
+    }
+}
+
+/// An entry without its text, for events and lists.
+pub fn brief(e: &Value) -> Value {
+    json!({"path": e["path"], "lines": e["lines"], "agent": e["agent"], "change": e["change"]})
+}
+
+/// `id` and the changes whose lines `entries` name, once each (an event's `changes`).
+fn with_owners(id: &str, entries: &[Value]) -> Vec<String> {
+    let mut out = vec![id.to_string()];
+    for c in entries.iter().filter_map(|e| e["change"].as_str()) {
+        if !out.iter().any(|x| x == c) {
+            out.push(c.to_string());
+        }
+    }
+    out
 }
 
 /// The line without whitespace (ASCII whitespace, so line ends and indentation of any kind).
@@ -233,6 +285,60 @@ impl Inner {
             _ => return Ok(None),
         };
         Ok(Some(Owner { agent: cs.meta.agent, intent: cs.meta.intent, change: id, landed }))
+    }
+
+    /// The entries that hold a land: lines another agent landed (not `landed: false`), not of a
+    /// change `ch` was stacked on.
+    /// Lines a revert put back count as the work they restore, not the revert's, so they never hold.
+    pub fn held(&mut self, ch: &Change, entries: &[Value]) -> Result<Vec<Value>> {
+        let mut out = Vec::new();
+        let mut reverts: HashMap<String, bool> = HashMap::new();
+        for e in entries {
+            let Some(owner) = e["change"].as_str() else { continue };
+            if e.get("landed") == Some(&json!(false)) || ch.stacked_on.iter().any(|s| s == owner) {
+                continue;
+            }
+            if !reverts.contains_key(owner) {
+                let r = self.store.change(owner)?.is_some_and(|c| c.reverts.is_some());
+                reverts.insert(owner.to_string(), r);
+            }
+            if !reverts[owner] {
+                out.push(e.clone());
+            }
+        }
+        Ok(out)
+    }
+
+    /// The reply (and event) of a land held by `held` entries; `cause` = `land` or `queue`.
+    pub fn hold(&mut self, ch: &Change, held: Vec<Value>, cause: &str, merged_from: Value) -> Result<Value> {
+        let mut agents: Vec<&str> = vec![&ch.agent];
+        for a in held.iter().filter_map(|e| e["agent"].as_str()) {
+            if !agents.contains(&a) {
+                agents.push(a);
+            }
+        }
+        let changes = with_owners(&ch.id, &held);
+        let changes: Vec<&str> = changes.iter().map(String::as_str).collect();
+        let brief: Vec<Value> = held.iter().map(brief).collect();
+        self.emit("undoes", &changes, &agents, json!({"change": ch.id, "cause": cause, "undoes": brief}));
+        let mut v = json!({"status": "undoes", "change": ch.id, "undoes": held, "advice": HOLD_ADVICE});
+        if !merged_from.is_null() {
+            v["merged_from"] = merged_from;
+        }
+        Ok(v)
+    }
+
+    /// The `undo_override` event of a change that landed with `undid`.
+    pub fn emit_undid(&mut self, ch: &Change) {
+        let Some(u) = &ch.undid else { return };
+        let owners = u.agents();
+        let mut agents: Vec<&str> = vec![&ch.agent];
+        agents.extend(owners.iter().map(String::as_str).filter(|a| *a != ch.agent));
+        let changes = with_owners(&ch.id, &u.undoes);
+        let changes: Vec<&str> = changes.iter().map(String::as_str).collect();
+        let brief: Vec<Value> = u.undoes.iter().map(brief).collect();
+        let body = json!({"change": ch.id, "by": u.by, "reason": u.reason, "agents": owners, "undoes": brief});
+        self.emit("undo_override", &changes, &agents, body);
     }
 
     /// The `undoes` entries of `ch` (see the module docs). `Scope::New` sends only entries that no

@@ -427,6 +427,10 @@ enum WsCmd {
         /// Seconds to wait for the tests of queue or optimistic landing (0 = do not wait).
         #[arg(long, default_value_t = 600)]
         wait_s: u64,
+        /// Land although the change removes lines another agent landed (status `undoes`), with
+        /// this reason (why the task removes them); recorded as `undid`.
+        #[arg(long, value_name = "REASON")]
+        undo: Option<String>,
     },
     /// Sync, restore the change to a checkpoint, and rewrite only the files that differ.
     Restore {
@@ -604,7 +608,9 @@ fn workspace(node: Node, cmd: WsCmd) -> Result<()> {
         }
         WsCmd::List => print(&serde_json::to_value(node.list()?)?)?,
         WsCmd::Sync { name } => print(&node.sync(&name)?)?,
-        WsCmd::Land { name, wait_s } => print(&node.land_with(&name, std::time::Duration::from_secs(wait_s))?)?,
+        WsCmd::Land { name, wait_s, undo } => {
+            print(&node.land_undo(&name, std::time::Duration::from_secs(wait_s), undo.as_deref())?)?
+        }
         WsCmd::Restore { name, to } => print(&node.restore(&name, &to)?)?,
         WsCmd::Env { name } => {
             for (k, v) in node.get(&name)?.env() {

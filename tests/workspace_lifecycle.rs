@@ -470,7 +470,13 @@ fn land_conflict_updates_the_workspace_to_the_rebased_change() {
 
     // Resolving in the directory and landing again works; main has both agents' work.
     fs::write(b.dir.join("f00.txt"), line(&base, 3, "A and B were here")).unwrap();
-    assert_eq!(node.land("b").unwrap()["land"]["status"], "landed");
+    // The merged line drops a word of A's landed line ("was"): b's land is held until b says yes.
+    let r = node.land("b").unwrap();
+    assert_eq!(r["land"]["status"], "undoes", "{r}");
+    assert_eq!(r["land"]["undoes"][0]["text"], "A was here\n", "{r}");
+    let r = node.land_undo("b", Duration::from_secs(600), Some("both lines merged into one")).unwrap();
+    assert_eq!(r["land"]["status"], "landed", "{r}");
+    assert_eq!(r["land"]["undid"]["reason"], "both lines merged into one", "{r}");
     assert_eq!(read_at(&url, "main", "f00.txt")["content"], line(&base, 3, "A and B were here"));
     assert_eq!(read_at(&url, "main", "a.txt")["content"], "from a\n");
     // A second update finds nothing to write.

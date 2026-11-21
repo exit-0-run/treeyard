@@ -16,6 +16,7 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 # [coordination]
 # continuous_rebase = true       # rebase open changes onto main after every land
 # keep_conflicted = true         # a conflicted change still rebases; land waits until it is resolved
+# hold_undoes = false            # land even when it removes lines another agent landed (default: hold, status undoes)
 
 # Merge drivers run only where the line merge conflicts; first matching rule wins.
 # [merge]
@@ -113,13 +114,22 @@ impl Bisect {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Coordination {
     pub continuous_rebase: bool,
     /// A conflicted change keeps rebasing (each conflict is merged again from its own base and
     /// sides onto the new main); only `land` waits until every conflict is resolved.
     pub keep_conflicted: bool,
+    /// A land that removes lines another agent landed (`undoes`) does not land: status `undoes`,
+    /// until the lines are back or the owner lands with `undo` and a `reason`. Default on.
+    pub hold_undoes: bool,
+}
+
+impl Default for Coordination {
+    fn default() -> Self {
+        Self { continuous_rebase: false, keep_conflicted: false, hold_undoes: true }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

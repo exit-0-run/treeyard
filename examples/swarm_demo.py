@@ -281,7 +281,7 @@ def drive_treeyard(plan, binary, url, data):
         list(ex.map(work, range(plan.agents)))
     r["work_s"] = time.perf_counter() - t
 
-    lands, conflicts = [], [0]
+    lands, conflicts, undone = [], [0], [0]
 
     def land(i):
         out = call("land", {"change": ids[i]})
@@ -299,6 +299,11 @@ def drive_treeyard(plan, binary, url, data):
             edit = {"path": "hot.txt", "replace": {"old": old + "\n", "new": plan.hot_new(i) + "\n"}}
             call("apply", {"change": ids[i], "edits": [edit]})
             out = call("land", {"change": ids[i]})
+        if out["status"] == "undoes":
+            # The pairs set the same hot line on purpose: the second one replaces the first one's
+            # landed line, which takes its explicit yes.
+            undone[0] += 1
+            out = call("land", {"change": ids[i], "undo": True, "reason": "the demo pair sets the same line"})
         if out["status"] != "landed":
             raise RuntimeError(f"land of {plan.name(i)}: {out['status']}")
         lands.append(time.perf_counter() - t)

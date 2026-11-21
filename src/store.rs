@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
 
-use crate::model::{Change, Changeset, Checkpoint};
+use crate::model::{Change, Changeset, Checkpoint, Undid};
 
 pub struct Store {
     conn: Connection,
@@ -26,7 +26,9 @@ impl Store {
              CREATE TABLE IF NOT EXISTS reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT NOT NULL,
                  state TEXT NOT NULL, body TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS checkpoints (id TEXT PRIMARY KEY, change TEXT NOT NULL, n INTEGER NOT NULL,
-                 changeset TEXT NOT NULL, label TEXT, time INTEGER NOT NULL, UNIQUE (change, n));",
+                 changeset TEXT NOT NULL, label TEXT, time INTEGER NOT NULL, UNIQUE (change, n));
+             CREATE TABLE IF NOT EXISTS undid (seq INTEGER PRIMARY KEY AUTOINCREMENT, change TEXT UNIQUE NOT NULL,
+                 body TEXT NOT NULL);",
         )?;
         // Derived data (history index, blame cache, search and symbol indexes) and IAM tables.
         for schema in [
@@ -171,6 +173,27 @@ impl Store {
             [change],
             |r| r.get::<_, i64>(0),
         )? as usize)
+    }
+
+    /// Records a land that removed other agents' landed lines with its owner's yes.
+    pub fn put_undid(&self, change: &str, u: &Undid) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR REPLACE INTO undid (change, body) VALUES (?1, ?2)",
+            params![change, serde_json::to_string(u)?],
+        )?;
+        Ok(())
+    }
+
+    /// Every recorded `undid` land, newest first: (change, record).
+    pub fn undid(&self) -> Result<Vec<(String, Undid)>> {
+        let mut stmt = self.conn.prepare("SELECT change, body FROM undid ORDER BY seq DESC")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (c, b) = row?;
+            out.push((c, serde_json::from_str(&b)?));
+        }
+        Ok(out)
     }
 
     pub fn dequeue(&self, change: &str) -> Result<()> {

@@ -266,6 +266,28 @@ class HandbackTests(StubBase):
                 self.assertFalse(k.has_marker_text(p.read_text()))
 
 
+class ArmBUndoesTests(StubBase):
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_a_held_land_needs_a_person_and_the_runner_never_overrides(self):
+        res = self.run_stub("land-line,undo-line,ok,ok,ok", arm="B")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["interventions"], 1)
+        self.assertEqual(res["undoes_held"], 1)
+        l2 = res["lands"][1]
+        self.assertEqual((l2["needs_human"], l2["intervention"], l2["handback"]), (True, True, None))
+        self.assertEqual(len(l2["left_out"]), 1)
+        held = l2["undoes_held"][0]
+        self.assertEqual(held["change"], l2["left_out"][0])
+        self.assertEqual([e["text"] for e in held["undoes"]], ["kept by agent 1\n"])
+        self.assertTrue(held["undoes"][0]["agent"] and held["undoes"][0]["change"].startswith("ch_"), held)
+        self.assertIn({"change": held["change"], "workspace": False, "status": "undoes", "undoes": held["undoes"]}, l2["runner_landed"])
+        self.assertEqual([x["needs_human"] for x in res["lands"]], [False, True, False, False, False])
+        # agent 1's line stays on main; nothing was landed with an override
+        self.assertIn("kept by agent 1\n", (self.tmp / "run" / "final" / "a.txt").read_text())
+        run = json.loads(next((self.tmp / "results").glob("*.json")).read_text())
+        self.assertEqual((run["undoes_held"], run["lands"][1]["undoes_held"]), (1, l2["undoes_held"]), "in the run file")
+
+
 class ArmA2Tests(StubBase):
     """Arm A2: `t2-integrate` on PATH, answered by the runner; the runner merges only what is left."""
 

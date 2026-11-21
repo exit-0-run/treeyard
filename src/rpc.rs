@@ -11,7 +11,7 @@ use crate::config::IndexMode;
 use crate::coord::Filter;
 use crate::model::{Change, Intent};
 use crate::repo::{Edit, Inner, Repo};
-use crate::undoes::Scope;
+use crate::undoes::{Scope, Undo};
 use crate::{bisect, history, landing, search, symbols};
 
 fn params<T: DeserializeOwned>(p: Value) -> Result<T> {
@@ -216,6 +216,16 @@ struct Resolve {
 #[serde(deny_unknown_fields)]
 struct ChangeId {
     change: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LandP {
+    change: String,
+    /// Land although the change removes lines other agents landed (status `undoes`).
+    undo: Option<bool>,
+    /// Why the task removes those lines; required with `undo`.
+    reason: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -646,6 +656,17 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                 }
                 es.retain(|e| e["paths"].as_array().is_some_and(|p| !p.is_empty()));
             }
+            // A change that landed with `undo` (removed other agents' landed lines) says so.
+            if let Some(es) = v["entries"].as_array_mut() {
+                let ids: std::collections::HashSet<String> =
+                    es.iter().filter_map(|e| e["change"].as_str().map(str::to_string)).collect();
+                let undid = r.undid_of(&ids)?;
+                for e in es.iter_mut() {
+                    if let Some(u) = e["change"].as_str().and_then(|c| undid.get(c)) {
+                        e["undid"] = u.clone();
+                    }
+                }
+            }
             Ok(v)
         }
         "audit" => {
@@ -729,15 +750,21 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             Ok(v)
         }
         "land" => {
-            let a: ChangeId = params(p)?;
+            let a: LandP = params(p)?;
+            let reason = a.reason.as_deref().map(str::trim).filter(|s| !s.is_empty());
+            let undo = match (a.undo.unwrap_or(false), reason) {
+                (true, Some(r)) => Undo::Yes(r),
+                (true, None) => bail!(
+                    "land with undo = true needs a non-empty reason: why your task removes the other agents' lines"
+                ),
+                (false, Some(_)) => bail!("reason goes with undo = true"),
+                (false, None) => Undo::Hold,
+            };
             let ch = owned(r, c, &a.change)?;
             check_writes(r, c, &ch)?;
-            let mut v = r.land(&a.change)?;
-            // A land that removes another agent's lines says so; it is not blocked.
-            if matches!(v["status"].as_str(), Some("landed" | "queued")) && v.get("repeated").is_none() {
-                let ch = r.change(&a.change)?;
-                r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
-            }
+            let mut v = r.land_undo(&a.change, undo)?;
+            // `undoes` of a land (held, landed or queued) carries every path; keep the readable ones.
+            crate::undoes::filter(&mut v, &|p| c.can_read(p));
             Ok(v)
         }
         "abandon" => {
@@ -794,7 +821,9 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                     owned(r, c, &other.id)?;
                 }
             }
-            r.land_one_of(&a.group, &id)
+            let mut v = r.land_one_of(&a.group, &id)?;
+            crate::undoes::filter(&mut v["land"], &|p| c.can_read(p));
+            Ok(v)
         }
         "attach" => {
             let a: AttachP = params(p)?;
@@ -924,7 +953,36 @@ pub fn token_op(repo: &Repo, c: &Caller, op: &str, p: Value) -> Result<Value> {
 pub fn record(r: &mut Inner, c: &Caller, op: &str, p: &Value, out: &Result<Value>) -> Record {
     let mut rec = Record { actor: c.name.clone(), token: c.token.clone(), op: op.to_string(), ..Record::default() };
     match out {
-        Ok(v) => rec.status = v["status"].as_str().unwrap_or("ok").to_string(),
+        Ok(v) => {
+            rec.status = v["status"].as_str().unwrap_or("ok").to_string();
+            // A land with the owner's yes over other agents' landed lines: who, whose, why.
+            if let Some(u) = v.get("undid").filter(|u| u.is_object()) {
+                let whose: Vec<String> = u["undoes"]
+                    .as_array()
+                    .map(|a| {
+                        let mut w: Vec<String> = Vec::new();
+                        for e in a {
+                            let x = format!(
+                                "{} ({})",
+                                e["agent"].as_str().unwrap_or("?"),
+                                e["change"].as_str().unwrap_or("?")
+                            );
+                            if !w.contains(&x) {
+                                w.push(x);
+                            }
+                        }
+                        w
+                    })
+                    .unwrap_or_default();
+                let msg = format!(
+                    "undid: {} removed landed lines of {}; reason: {}",
+                    u["by"].as_str().unwrap_or("?"),
+                    whose.join(", "),
+                    u["reason"].as_str().unwrap_or("")
+                );
+                rec.detail = Some(msg.chars().take(500).collect());
+            }
+        }
         Err(e) => {
             rec.status = if e.downcast_ref::<Denied>().is_some() { "denied" } else { "error" }.to_string();
             let msg = format!("{e:#}");
@@ -1081,8 +1139,8 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "land",
-            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main.",
-            json!({"change": change}),
+            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main, undoes (not landed: your change removes lines another agent landed, listed in undoes; put them back and land again, follow advice). undo = true with reason only when your task names those lines for removal.",
+            json!({"change": change, "undo": {"type": "boolean", "description": "land although it removes other agents' landed lines"}, "reason": {"type": "string", "description": "required with undo: why your task removes them"}}),
             &["change"],
         ),
     ]
@@ -1240,8 +1298,8 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "land",
-            "Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), queued (landing mode queue), already_on_main (main had every edit; a review task is opened), waiting (stacked on a change that has not landed), or conflict (with tasks). Also lists merge drivers used and review tasks.",
-            json!({"change": change}),
+            "Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), queued (landing mode queue), already_on_main (main had every edit; a review task is opened), waiting (stacked on a change that has not landed), conflict (with tasks), or undoes (not landed: the change removes lines another agent landed, listed in undoes with advice; [coordination] hold_undoes). undo = true with a non-empty reason lands it anyway and records who removed whose lines and why (undid: in the change, the events, status, log and audit). Also lists merge drivers used and review tasks.",
+            json!({"change": change, "undo": {"type": "boolean", "description": "land although the change removes lines other agents landed (status undoes); needs reason"}, "reason": {"type": "string", "description": "why the task removes those lines; required with undo = true"}}),
             &["change"],
         ),
         tool("abandon", "Drop a change.", json!({"change": change}), &["change"]),

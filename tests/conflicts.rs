@@ -39,6 +39,11 @@ fn set_line(text: &str, j: usize, new: &str) -> String {
 
 /// a and b edit line 3 of f00; b lands, so continuous rebase gives a a conflict. a then edits
 /// f01, and c lands an edit to line 20 of f00 and to f02. Returns (url, a).
+/// A land that replaces another agent's landed line, with the owner's yes.
+fn land_yes(url: &str, ch: &str) -> Value {
+    call(url, "land", json!({"change": ch, "undo": true, "reason": "the test settles the conflict on one side"}))
+}
+
 fn conflicted(root: &Path, config: &str) -> (String, String) {
     let url = setup(root, config);
     let f00 = read(&url, "f00.txt", "main");
@@ -151,7 +156,9 @@ fn conflicts_come_as_regions_that_resolve_with_replace() {
         .collect();
     let after = call(&url, "apply", json!({"change": a, "edits": edits}));
     assert_eq!(after["conflicted"], false, "{after}");
-    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    // The merged text replaces b's landed lines: that takes the owner's yes (`undoes`).
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "undoes");
+    assert_eq!(land_yes(&url, &a)["status"], "landed");
     let main = read(&url, "f00.txt", "main");
     assert!(main.contains("merged 0\n") && main.contains("merged 1\n") && !main.contains("<<<<<<<"), "{main}");
 
@@ -160,7 +167,7 @@ fn conflicts_come_as_regions_that_resolve_with_replace() {
     write(&url, &c2, "f00.txt", &set_line(&f00, 3, "c's line 3"));
     let d = open(&url, "d");
     write(&url, &d, "f00.txt", &set_line(&main, 3, "d's line 3"));
-    call(&url, "land", json!({"change": d}));
+    assert_eq!(land_yes(&url, &d)["status"], "landed");
     assert_eq!(call(&url, "land", json!({"change": c2}))["status"], "conflict");
     let full = call(&url, "change", json!({"change": c2, "full": true}));
     assert!(full["conflicts"][0]["text"]["theirs"].as_str().unwrap().contains("d's line 3"), "{full}");
@@ -174,7 +181,7 @@ fn a_kept_conflict_that_main_resolves_clears_itself() {
     // d sets line 3 to exactly a's version: the next rebase merges cleanly.
     let d = open(&url, "d");
     write(&url, &d, "f00.txt", &set_line(&read(&url, "f00.txt", "main"), 3, "a's line 3"));
-    assert_eq!(call(&url, "land", json!({"change": d}))["status"], "landed");
+    assert_eq!(land_yes(&url, &d)["status"], "landed");
     let ch = call(&url, "change", json!({"change": a}));
     assert_eq!(ch["conflicts"], json!([]), "{ch}");
     assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
@@ -236,7 +243,7 @@ fn one_apply_may_remove_the_markers_with_several_replace_edits() {
     let two = json!({"path": "f00.txt", "replace": {"old": "<<<<<<< main\nb's line 3\n=======\n", "new": ""}});
     let r = call(&url, "apply", json!({"change": a, "edits": [one, two]}));
     assert_eq!(r["conflicted"], false, "{r}");
-    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    assert_eq!(land_yes(&url, &a)["status"], "landed");
     assert_eq!(read(&url, "f00.txt", "main"), set_line(&f00, 3, "a's line 3"));
 }
 

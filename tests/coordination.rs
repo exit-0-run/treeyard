@@ -445,7 +445,9 @@ fn e_warm_test_dirs_keep_build_output_and_write_only_changes() {
     let ch = id(&open(&url, "b", json!({})));
     call(&url, "apply", json!({"change": ch, "edits": [{"path": "new.txt", "delete": true}]}));
     write(&url, &ch, "f01.txt", "edited\n");
-    call(&url, "land", json!({"change": ch}));
+    // Deleting a's landed file takes b's yes (`undoes`).
+    assert_eq!(call(&url, "land", json!({"change": ch}))["status"], "undoes");
+    call(&url, "land", json!({"change": ch, "undo": true, "reason": "the test deletes new.txt"}));
     assert_eq!(call(&url, "queue_run", json!({}))["landed"].as_array().unwrap().len(), 1);
     assert_eq!(std::fs::metadata(slot.join("built")).unwrap().modified().unwrap(), built);
     assert_eq!(std::fs::metadata(slot.join("f00.txt")).unwrap().modified().unwrap(), f00);
@@ -497,7 +499,11 @@ fn e_optimistic_mode_waits_for_a_fix_when_the_culprit_cannot_be_reverted() {
     let land = |agent: &str, path: &str, body: &str| {
         let ch = id(&open(&url, agent, json!({})));
         write(&url, &ch, path, body);
-        let r = call(&url, "land", json!({"change": ch}));
+        let mut r = call(&url, "land", json!({"change": ch}));
+        if r["status"] == "undoes" {
+            // Overwriting another agent's landed line (the same line, a fix forward) takes a yes.
+            r = call(&url, "land", json!({"change": ch, "undo": true, "reason": "the test rewrites that line"}));
+        }
         assert_eq!(r["status"], "landed", "{r}");
         (ch, r["changeset"].as_str().unwrap().to_string())
     };

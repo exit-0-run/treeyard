@@ -126,6 +126,22 @@ fn the_agent_tool_set_over_stdio() {
     let (text, v) = b.tool("resolve", json!({"change": idb, "path": "f00.txt", "take": "ours"}));
     assert_eq!(v["undoes"][0]["text"], "a's line 3\n", "{v}");
     assert_eq!(text.matches("another agent").count(), 1, "{text}");
+    // ... and land holds it: status undoes, the entries with their text, the advice, nothing else.
+    let land = list["result"]["tools"].as_array().unwrap().iter().find(|t| t["name"] == "land").unwrap().clone();
+    assert!(
+        land["inputSchema"]["properties"]["undo"].is_object()
+            && land["inputSchema"]["properties"]["reason"].is_object()
+    );
+    assert!(land["description"].as_str().unwrap().contains("undoes (not landed"), "{land}");
+    let (text, l) = b.tool("land", json!({"change": idb}));
+    assert_eq!(l["status"], "undoes", "{l}");
+    assert_eq!(l["undoes"][0]["text"], "a's line 3\n", "{l}");
+    assert_eq!(l["undoes"][0]["agent"], "a", "{l}");
+    assert!(l["undoes"][0].get("changeset").is_none() && l.get("merged_from").is_none(), "{l}");
+    assert!(l["advice"].as_str().unwrap().contains("undo = true"), "{l}");
+    assert!(text.len() < 1200, "{} bytes: {text}", text.len());
+    let (_, l) = b.tool("land", json!({"change": idb, "undo": true, "reason": "my task replaces line 3"}));
+    assert_eq!((l["status"].as_str(), l["undid"]["by"].as_str()), (Some("landed"), Some("b")), "{l}");
     a.close();
     b.close();
 }

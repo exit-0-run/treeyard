@@ -78,7 +78,7 @@ A server declares one or more profiles. The core profile is required.
 | `log` | mainline changesets, newest first, with their metadata |
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
 | `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` (new entries; `undoes_advice`, `undoes_more`, `undoes_earlier`) |
-| `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict |
+| `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict, `undoes` when held; `undid` when landed with `undo` + `reason` |
 | `change` | one change: paths, conflict tasks, overlaps; `full: true` adds the whole texts of each conflict |
 | `changes` | changes in one state |
 | `resolve` | the change after one conflicted path takes `ours`, `theirs`, `base` or `delete`; `undoes` as in `apply` |
@@ -136,6 +136,7 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 | `waiting` | the change is stacked on an open change that has not landed | `land` again after that change lands (event `landed`) |
 | `queued` | landing mode `queue`: the change waits for a batch test | watch events `landed` or `rejected` |
 | `already_on_main` | main already holds every edit; a review task is opened | nothing to land |
+| `undoes` | not landed: the change removes lines another agent landed (`undoes`: path, lines, agent, intent, change, text; `advice`) | put the lines back and `land` again; if both tasks cannot hold, keep them, land the rest, and say so; only if the task names those lines for removal, `land` with `undo: true` and a non-empty `reason` |
 
 ## 4. Rules for a server
 
@@ -150,6 +151,9 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 5. A server MUST NOT run a command that a request names, unless an operator configured that
    command by name (TreeYard: `treeyard.toml`, never the repository tree).
 6. A token MAY limit reads and writes to path globs. A call outside the globs gets `403`.
+7. A server MAY hold a land that removes lines another agent landed (status `undoes`). It MUST then
+   take an explicit override with a reason (`undo`, `reason`) and record who removed whose lines and
+   why where people look without reading agent transcripts.
 
 ## 5. Versioning
 

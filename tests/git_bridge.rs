@@ -182,6 +182,9 @@ fn commit_message_survives_rebase_and_resolve() {
     // c conflicts with a; settling it with resolve keeps the message too.
     assert_eq!(call(&url, "land", json!({"change": c}))["status"], "conflict");
     call(&url, "resolve", json!({"change": c, "path": "f00.txt", "take": "ours"}));
-    assert_eq!(call(&url, "land", json!({"change": c}))["status"], "landed");
+    // Taking ours drops a's landed line: that takes c's yes (`undoes`).
+    assert_eq!(call(&url, "land", json!({"change": c}))["status"], "undoes");
+    let yes = json!({"change": c, "undo": true, "reason": "the test keeps c's side"});
+    assert_eq!(call(&url, "land", yes)["status"], "landed");
     assert_eq!(subject("main"), "Message C");
 }

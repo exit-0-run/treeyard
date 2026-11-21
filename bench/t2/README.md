@@ -82,6 +82,10 @@ The same mechanics in every arm. On a conflict at the runner's merge (A, A2) or 
 4. When the check or the merge or land fails, the agent is `needs_human`: its change stays out of main,
    the final tree is scored without it, and it counts as 1 intervention. Nothing is resolved by taking a
    side (no `-X theirs`, no `resolve take = ours`).
+5. Arm B: a land the server holds with status `undoes` (the change removes lines another agent landed)
+   is handled like a failed hand-back: not landed, `needs_human`, 1 intervention, no hand-back, and the
+   runner never lands it with `undo`. `lands[].undoes_held` lists the change and its entries (path,
+   lines, agent, change, text); `undoes_held` counts them per run.
 
 The limits hold over all invocations of an agent: a hand-back resumes the session with what is left of
 the turns, the tokens and the wall clock, and Claude Code gets the remaining `--max-turns` and
@@ -153,7 +157,8 @@ tool calls in its first invocation (a hand-back answered in words is not an anom
 | `tasks_on_main`, `done` | hidden deciding tests that pass on final main |
 | `merge_conflicts` | A, A2: runner merges with a conflict at the first try; B: `conflict` events with cause `land` |
 | `interventions` = `needs_human` | failed hand-backs (agents left out of main) |
-| `merges` / `lands` | per agent: conflict, `handback_files`, `handback`, `handback_failure`, `needs_human`, `skipped_paths`, `merge_output`; B: every runner land with its `status` and `error` text (`empty` = an idle workspace change) |
+| `merges` / `lands` | per agent: conflict, `handback_files`, `handback`, `handback_failure`, `needs_human`, `skipped_paths`, `merge_output`; B: every runner land with its `status` and `error` text (`empty` = an idle workspace change), `undoes_held` (lands held with status `undoes`) |
+| `undoes_held` | B: runner lands held because the change removes lines another agent landed (each is also `needs_human`) |
 | `integrations`, `integrate_conflicts`, `integrated_by_agent` | A2: each `t2-integrate` call and its outcome |
 | `warned`, `reacted`, `warnings`, `warned_pairs`, `false_alarms` | from each agent's own tool replies: warned = a reply of its own call held a file-level collision (`path`, kind overlap or conflict; with main counts); reacted = after it, before its next land, a `change`, `rebase`, `apply` or `resolve`. Descriptive only |
 | `legacy_warned_before_land`, `legacy_reacted`, `legacy_false_alarms`, ... | the event-stream metrics of preregistration v3 (in old run files: `warned_before_land`, `reacted`) |

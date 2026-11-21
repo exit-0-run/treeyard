@@ -1557,20 +1557,34 @@ impl Node {
     ///   agent sees the markers and the work that landed first.
     /// - In queue and optimistic mode it waits up to `wait` for the verdict of the tests
     ///   (`land_status`): passed, rejected or reverted, with the failing output.
+    /// - A change that removes lines another agent landed is not landed (status `undoes`); the
+    ///   workspace is updated to the change as the server holds it (rebased onto main).
     pub fn land_with(&self, name: &str, wait: Duration) -> Result<Value> {
+        self.land_undo(name, wait, None)
+    }
+
+    /// `land_with`; `undo_reason` = the owner's yes to land although the change removes lines
+    /// other agents landed (`land` `undo` with that `reason`).
+    pub fn land_undo(&self, name: &str, wait: Duration, undo_reason: Option<&str>) -> Result<Value> {
         let ws = self.get(name)?;
         let before = self.call("land_status", json!({"change": ws.change}))?;
         let reopened = if before["state"] != "open" { self.reopen(name)? } else { Value::Null };
         let sync = self.sync(name)?;
         let ws = self.get(name)?;
-        let mut land = self.call("land", json!({"change": ws.change}))?;
+        let mut args = json!({"change": ws.change});
+        if let Some(r) = undo_reason {
+            args["undo"] = json!(true);
+            args["reason"] = json!(r);
+        }
+        let mut land = self.call("land", args.clone())?;
         // Stacked on another agent's change: wait for it to land, then land on top of it.
         let t_wait = Instant::now();
         while land["status"] == "waiting" && !wait.is_zero() && t_wait.elapsed() < wait {
             std::thread::sleep(Duration::from_secs(1));
-            land = self.call("land", json!({"change": ws.change}))?;
+            land = self.call("land", args.clone())?;
         }
-        let update = if land["status"] == "conflict" { self.update(name)? } else { Value::Null };
+        let rebased = matches!(land["status"].as_str(), Some("conflict" | "undoes"));
+        let update = if rebased { self.update(name)? } else { Value::Null };
         let mut verdict = Value::Null;
         if matches!(land["status"].as_str(), Some("landed" | "queued" | "already_on_main")) && !wait.is_zero() {
             let t0 = Instant::now();

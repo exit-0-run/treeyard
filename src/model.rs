@@ -132,6 +132,45 @@ pub struct Change {
     /// them and abandons the others.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<String>,
+    /// Open changes this one was stacked on (`open_change` `base`, `rebase` `onto`), with theirs:
+    /// their lines never hold its land (`undoes`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stacked_on: Vec<String>,
+    /// The owner's yes to land although the change removes lines other agents landed
+    /// (`land` with `undo` and `reason`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undid: Option<Undid>,
+    /// The main changeset this change reverts (`revert`): the lines it puts back are not its
+    /// own work, so they never hold another change's land.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reverts: Option<String>,
+}
+
+/// A land that removed lines other agents had landed, with the owner's explicit yes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Undid {
+    /// The agent of the change that said yes.
+    pub by: String,
+    pub reason: String,
+    /// Unix seconds of the yes.
+    pub time: i64,
+    /// The change head the yes was given for (queue mode: a later edit needs a new yes).
+    pub head: String,
+    /// The `undoes` entries that held the land (path, lines, agent, intent, change, text).
+    pub undoes: Vec<serde_json::Value>,
+}
+
+impl Undid {
+    /// Agents whose lines were removed, in order, once each.
+    pub fn agents(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for a in self.undoes.iter().filter_map(|e| e["agent"].as_str()) {
+            if !out.iter().any(|x| x == a) {
+                out.push(a.to_string());
+            }
+        }
+        out
+    }
 }
 
 /// What an agent declares before it edits: path globs and symbol names (`name` or `path#name`).

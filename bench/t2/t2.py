@@ -976,7 +976,9 @@ def agent_stub(ctx, k, resume=False):
     markers), `conflict-markers` (on the hand-back it edits the file but leaves the markers),
     `mcp-conflict` (arm B: the edit goes into its own `open_change` + `apply` change; on the hand-back it
     settles the markers on disk). `integrate` (arm A2): edits line 1, runs `t2-integrate`, settles a
-    conflict and runs it again."""
+    conflict and runs it again. Undo modes (arm B): `land-line` sets line 1 in its own change and lands
+    it; `undo-line` waits until that line is on main, then puts line 1 back in its own change and stops
+    (the runner's land of it is held with status `undoes`)."""
     modes = os.environ.get("T2_STUB_MODES", "ok,ok,ok,ok,ok").split(",")
     mode = modes[k - 1] if k - 1 < len(modes) else "ok"
     dialects = os.environ.get("T2_STUB_AS", "").split(",")
@@ -1019,7 +1021,28 @@ def agent_stub(ctx, k, resume=False):
             talk.call([ctx_bin(c), "workspace", "sync", a["workspace"], "--url", c["url"], "--home", c["home"]], cwd)
         talk.end()
         return
-    if mode == "ok" or resume:
+    if mode in ("land-line", "undo-line") and not resume:
+        c = json.loads(Path(ctx).read_text())
+        a = c["agents"][k - 1]
+        talk = StubTalk(dialect, k, resume)
+        ty = ctx_bin(c)
+
+        def call(op, args):
+            return json.loads(talk.call([ty, "call", "--url", c["url"], op, json.dumps(args)], a["cwd"]).stdout or "{}")
+
+        old, new = ("line 1\n", "kept by agent 1\n") if mode == "land-line" else ("kept by agent 1\n", "line 1\n")
+        if mode == "undo-line":
+            for _ in range(200):
+                if old in (call("read", {"path": "a.txt"}).get("content") or ""):
+                    break
+                time.sleep(0.1)
+        ch = call("open_change", {"intent": f"stub {k}", "agent": a["agent"]})
+        call("apply", {"change": ch["id"], "edits": [{"path": "a.txt", "replace": {"old": old, "new": new}}]})
+        if mode == "land-line":
+            call("land", {"change": ch["id"]})
+        talk.end()
+        return
+    if mode == "ok" or resume or mode in ("land-line", "undo-line"):
         emit({"type": "turn"})
         emit({"type": "tool_use", "name": "noop"})
     elif mode == "loop-turns":
@@ -2014,25 +2037,37 @@ class Run:
         if status == "error" and re.search(r"\bis empty\b", str(land.get("error") or "")):
             status = "empty"  # an idle change (the agent's work went through another change)
         rec = {"change": cid, "workspace": is_ws, "status": status}
-        if status not in ("landed", "conflict", "already_on_main"):
+        if status == "undoes":
+            # Held: the change removes lines another agent landed. The runner never overrides.
+            rec["undoes"] = [{x: e.get(x) for x in ("path", "lines", "agent", "change", "text")} for e in land.get("undoes") or []]
+        elif status not in ("landed", "conflict", "already_on_main"):
             rec["error"] = land.get("error") or land.get("detail") or tail(json.dumps(land), 600)
         return rec
 
     def finalize_b(self):
         """Arm B: lands every open change of each agent in slot order. On a conflict the hand-back
         (`handback_b`) with the same file mechanics as arm A; when it fails the change stays open and
-        out of main (`needs_human`)."""
+        out of main (`needs_human`). A land held with status `undoes` (the change removes lines another
+        agent landed) counts like a conflict the hand-back could not settle: not landed, `needs_human`,
+        no hand-back and no override by the runner (`undoes_held` lists the change and its entries)."""
         lands, interventions = [], 0
         for a in self.agents:
             k = a["k"]
             rec = {"k": k, "conflict": False, "handback": None, "needs_human": False, "intervention": False,
-                   "runner_landed": [], "left_out": []}
+                   "runner_landed": [], "left_out": [], "undoes_held": []}
             rec["skipped_paths"] = self.clean_workspace(a)
             for ch in [c for c in self.changes_of(a["agent"]) if c.get("state") == "open"]:
                 cid = ch["id"]
                 is_ws = ch.get("session") == f"workspace:{a['workspace']}"
                 lr = self.land_b(a, cid, is_ws)
                 rec["runner_landed"].append(lr)
+                if lr["status"] == "undoes":
+                    rec["undoes_held"].append({"change": cid, "undoes": lr.get("undoes") or []})
+                    rec["left_out"].append(cid)
+                    if not rec["needs_human"]:
+                        interventions += 1
+                    rec.update(needs_human=True, intervention=True)
+                    continue
                 if lr["status"] != "conflict":
                     continue
                 rec["conflict"] = True
@@ -2097,6 +2132,10 @@ class Run:
         land = self.call("land", {"change": cid})
         rec["runner_landed"].append({"change": cid, "workspace": is_ws, "status": land.get("status") or "error",
                                      **({} if land.get("status") == "landed" else {"error": tail(json.dumps(land), 600)})})
+        if land.get("status") == "undoes":
+            # The hand-back dropped lines another agent landed: held, a person decides (no override).
+            rec.setdefault("undoes_held", []).append({"change": cid, "undoes": [
+                {x: e.get(x) for x in ("path", "lines", "agent", "change", "text")} for e in land.get("undoes") or []]})
         if land.get("status") != "landed":
             return False, f"land after the hand-back: {land.get('status') or land.get('error')}"
         return True, None
@@ -2444,6 +2483,7 @@ class Run:
             else:
                 lands, interventions = self.finalize_b()
                 result["lands"] = lands
+                result["undoes_held"] = sum(len(x.get("undoes_held") or []) for x in lands)
                 legacy = self.warnings(pairs_truth or {})
                 result["land_conflicts"] = legacy.pop("land_conflicts")
                 result.update({"legacy_" + x: v for x, v in legacy.items()})

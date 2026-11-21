@@ -9,7 +9,7 @@ the server runs: an agent's change must never change them.
 | Part | Operations and events | Code | Test |
 |---|---|---|---|
 | (a) Intents | `open_change` / `declare` with `paths` (globs) and `symbols`; reply `overlaps`, `advice`; event `intent_overlap` | `src/coord.rs` | `a_intents_report_overlaps_at_open` |
-| (b) Live collisions | `apply` reply `collisions`; `undoes` in `apply`, `resolve`, `change`, `land`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events`, `g_apply_warns_when_it_undoes_another_agents_landed_lines`, `tests/undoes.rs` |
+| (b) Live collisions | `apply` reply `collisions`; `undoes` in `apply`, `resolve`, `change`, `land` (a land that removes another agent's landed lines is held: status `undoes`, override `undo` + `reason`); events `collision`, `undoes`, `undo_override`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events`, `g_apply_warns_when_it_undoes_another_agents_landed_lines`, `tests/undoes.rs` |
 | (c) Continuous rebase | `land` reply `rebased`; events `rebased`, `conflict`; `apply` `seen` | `src/repo.rs` | `c_continuous_rebase_…` |
 | (d) Merge drivers | `land` reply `drivers` | `src/drivers.rs`, `src/repo.rs` | `d_merge_drivers_…`, unit tests in `src/drivers.rs` |
 | (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed`, `test_run` (one per test run, with `seconds`) | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
@@ -121,7 +121,54 @@ Which replies carry it:
   the lines back) and comes back is sent again. `resolve` with `take = ours` after a land conflict is the
   usual way to drop a line that just landed.
 - `change`: every entry that stands now.
-- `land` (`landed` or `queued`): every entry, after the rebase. A land is never blocked by it.
+- `land`: every entry, after the rebase. A land with entries of lines another agent landed is held
+  (see below); a `landed` or `queued` reply lists the entries that did not hold it (lines of a change
+  this one was stacked on) and those of an override.
+
+**The land hold.** A warning in a reply does not stop an agent: in a 5-agent run, agent B settled a
+conflict by removing the feature agent A had landed (8 lines) and rewrote A's test to assert the
+opposite; `undoes` was in B's `apply` reply and again in its `land` reply (status `landed`), and B said
+so only in its final message. So `land` does not land such a change. It answers
+
+```json
+{"status": "undoes", "change": "ch_b", "undoes": [{"path": "link.py", "lines": [5, 6], "agent": "a", "...": "..."}],
+ "advice": "Not landed: your change removes these lines, which another agent landed for its own task. ..."}
+```
+
+and main does not move (the change stays rebased onto main, like a conflict). The advice: put the lines
+back and land again; if the task and these lines truly cannot both hold, keep the other agent's lines,
+land the rest, and say so in the final message so a person decides; only if the task names these lines
+for removal, land again with `undo: true` and a non-empty `reason` (`land {change, undo, reason}`;
+`undo` without a reason, or a reason without `undo`, is an error). What holds a land: entries of a
+landed change of another agent. What does not: the agent's own lines (agent name or `session`), moved,
+re-indented or extended lines (they are no entries), lines of an open change this one is stacked on
+(`landed: false`) or was stacked on when it edited them (`stacked_on` in the change), and lines a
+`revert` put back. A revert and a human `git push` are never held.
+
+An overridden land lands and is recorded, so people see it without reading agent transcripts: `undid`
+(`by`, `reason`, `time`, `head`, `undoes`) in the `land` reply and in the change (`change`); the event
+`undo_override` (`by`, `reason`, `agents` whose lines went, `undoes` without text; `changes` names the
+landing change and the changes whose lines went); `status` lists the last 20 (`undid`, `undid_total`);
+`log` entries of such a change carry `undid`; the audit row of the land says `undid: B removed landed
+lines of A (ch_a); reason: ...`. A held land publishes the event `undoes` (`cause` = `land` or `queue`)
+and writes an audit row with status `undoes`. An entry whose path the caller may not read is left out
+of a held reply and counted in `undoes_hidden`.
+
+Queue mode: `land` holds at enqueue (not queued) or, with `undo` + `reason`, enqueues with the yes on the
+change's head. Before each batch the queue checks every change again (the per-path scans are kept, so an
+unchanged change costs no diff or blame): a change whose head moved after the yes, or that has entries
+without a yes, leaves the queue with the note `undoes`, the event `undoes` (`cause: queue`) and a review
+task `undoes`; `land_status` then says `undoes`.
+
+Cost: with no entries (the normal case) a land computes `undoes` once, before it moves main, where it
+was computed after the land before; with no rebase it now reuses the scans the change's `apply` calls
+kept. The hold adds one lookup per owner change only when there are entries.
+
+Setting: `[coordination] hold_undoes = false` in `treeyard.toml` turns the hold off: the land lands
+and its reply lists `undoes`, as before. CLI: `treeyard workspace land NAME --undo REASON` is the
+override; on status `undoes` it updates the workspace to the change as the server holds it and prints
+the reply (it never asks). Through `treeyard call land '{"change": ..., "undo": true, "reason": ...}'`
+as any other parameter.
 
 Cost: per open change, the diff and blame of each path are kept while the change's base and the path's
 head blob stay the same, so an `apply` to another file reuses them. With a 60 000-line file, the
@@ -140,7 +187,8 @@ per probed case, the 20-entry cut, the read-glob filter), `g_apply_warns_…` in
 
 Events: `opened`, `intent_overlap`, `collision`, `conflict` (`cause` = `land`, `continuous_rebase`,
 `stale_write` or `queue`), `rebased`, `landed`, `abandoned`, `review`, `queued`, `rejected`,
-`test_failed`, `reverted`, `test_passed`. Each event has `seq`, `time`, `kind`, `changes` and `agents`.
+`test_failed`, `reverted`, `test_passed`, `undoes` (a land held, `cause` = `land` or `queue`),
+`undo_override` (a land with `undo` + `reason`). Each event has `seq`, `time`, `kind`, `changes` and `agents`.
 
 - `events {since, change?, agent?, kinds?, limit?, wait_ms?}`: poll; `wait_ms` (max 30 000) makes it a
   long poll. Pass the reply's `next` as the next `since`. MCP clients use this one.

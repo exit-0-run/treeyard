@@ -282,6 +282,8 @@ fn run_seed(seed: u64) -> Stats {
     git(&src, &["commit", "-q", "-m", "fixture"]);
     let data = root.join("data");
     Repo::init(&data, &src, "main", None).unwrap();
+    // Random agents rewrite each other's lines on purpose: no `undoes` hold, the merges are the test.
+    std::fs::write(data.join("treeyard.toml"), "[coordination]\nhold_undoes = false\n").unwrap();
     let repo = Repo::open(&data).unwrap();
     let mut w =
         World { repo: &repo, root, gd: data.join("git").to_string_lossy().into_owned(), stats: Stats::default() };

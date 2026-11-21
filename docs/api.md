@@ -285,11 +285,13 @@ treeyard call rebase '{"change": "ch_..."}'
 
 ### land
 
-Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), queued (landing mode queue), already_on_main (main had every edit; a review task is opened), waiting (stacked on a change that has not landed), or conflict (with tasks). Also lists merge drivers used and review tasks.
+Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), queued (landing mode queue), already_on_main (main had every edit; a review task is opened), waiting (stacked on a change that has not landed), conflict (with tasks), or undoes (not landed: the change removes lines another agent landed, listed in undoes with advice; [coordination] hold_undoes). undo = true with a non-empty reason lands it anyway and records who removed whose lines and why (undid: in the change, the events, status, log and audit). Also lists merge drivers used and review tasks.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
+| `reason` | string | no | why the task removes those lines; required with undo = true |
+| `undo` | boolean | no | land although the change removes lines other agents landed (status undoes); needs reason |
 
 ```sh
 treeyard call land '{"change": "ch_..."}'

@@ -249,7 +249,11 @@ one call.
   the server is not on loopback: [access.md](access.md)).
 - Give each agent its own `--agent` name, or its own token. Blame, log and audit show that name.
 - Agents learn about each other through `apply` replies (`collisions`, and `undoes` when an edit
-  removes text another agent wrote; `resolve` and `land` say it too) and the `events` tool.
+  removes text another agent wrote; `resolve` and `land` say it too) and the `events` tool. A `land`
+  that removes lines another agent landed does not land: status `undoes` with the entries and advice
+  (agent view: `status`, `change`, `advice`, and per entry `path`, `lines`, `agent`, `intent`,
+  `change`, `text`). The `land` tool takes `undo` and `reason` for the case where the task names those
+  lines for removal; the land is then recorded (`undid`, event `undo_override`).
   Tell your agents to call `events` with `wait_ms` before a long task, or let the orchestrator
   watch `GET /api/events`.
 

@@ -19,8 +19,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::config::Mode;
-use crate::model::{Change, ChangeState, MODE_EXEC, MODE_GITLINK, MODE_LINK, Manifest};
+use crate::model::{Change, ChangeState, MODE_EXEC, MODE_GITLINK, MODE_LINK, Manifest, Undid};
 use crate::repo::{Inner, RebaseReport, Repo};
+use crate::undoes::{Scope, Undo};
 
 /// Writes every file of `m` under `dir` (submodules are skipped).
 pub fn materialize(r: &mut Inner, m: &Manifest, dir: &Path) -> Result<()> {
@@ -257,9 +258,10 @@ impl Inner {
         let (verdict, review) = match ch.state {
             ChangeState::Abandoned => ("abandoned", None),
             ChangeState::Open if self.store.queue()?.iter().any(|q| q == id) => ("queued", None),
-            ChangeState::Open => match last_of(&["tests_failed"]) {
-                Some(r) => ("rejected", Some(r)),
-                None => ("open", None),
+            ChangeState::Open => match last_of(&["tests_failed", "undoes"]) {
+                Some(r) if r["kind"] == "undoes" && r["state"] == "open" => ("undoes", Some(r)),
+                Some(r) if r["kind"] == "tests_failed" => ("rejected", Some(r)),
+                _ => ("open", None),
             },
             ChangeState::Landed => {
                 let landed = ch.landed_as.clone().context("landed change without landed_as")?;
@@ -309,9 +311,11 @@ impl Inner {
         }))
     }
 
-    /// Queue mode: validates the change and appends it to the landing queue.
-    pub fn enqueue(&mut self, id: &str) -> Result<Value> {
-        let ch = self.change(id)?;
+    /// Queue mode: validates the change and appends it to the landing queue. A change that
+    /// removes lines other agents landed is held (status `undoes`) unless `undo` says yes; the
+    /// queue checks again before each batch (`speculate`).
+    pub fn enqueue(&mut self, id: &str, undo: Undo) -> Result<Value> {
+        let mut ch = self.change(id)?;
         if ch.state != ChangeState::Open {
             bail!("change {id} is {}", ch.state.as_str());
         }
@@ -321,9 +325,57 @@ impl Inner {
         if ch.head == ch.base && ch.predecessors.is_empty() {
             bail!("change {id} is empty: apply edits before landing");
         }
+        let mut undoes = None;
+        if undo != Undo::Off {
+            let rep = self.undoes(&ch, Scope::All)?;
+            let held = self.held(&ch, &rep.entries)?;
+            match undo {
+                Undo::Hold if !held.is_empty() && self.cfg.coordination.hold_undoes => {
+                    return self.hold(&ch, held, "land", Value::Null);
+                }
+                Undo::Yes(reason) if !held.is_empty() => {
+                    ch.undid = Some(Undid {
+                        by: ch.agent.clone(),
+                        reason: reason.to_string(),
+                        time: crate::repo::now(),
+                        head: ch.head.clone(),
+                        undoes: held,
+                    });
+                    self.store.put_change(&ch)?;
+                }
+                _ => {}
+            }
+            undoes = Some(rep);
+        }
         let position = self.store.enqueue(id)?;
         self.emit("queued", &[id], &[&ch.agent], json!({"change": id, "position": position}));
-        Ok(json!({"status": "queued", "change": id, "position": position}))
+        let mut out = json!({"status": "queued", "change": id, "position": position});
+        if let Some(u) = &ch.undid {
+            out["undid"] = json!(u);
+        }
+        if let Some(rep) = undoes {
+            rep.put(&mut out, &|_| true);
+        }
+        Ok(out)
+    }
+
+    /// Queue mode, before a batch: a queued change that removes lines other agents landed and
+    /// has no yes for its current head leaves the queue (event `undoes`, review `undoes`).
+    /// Per-path scans are kept per change, so this repeats no diff or blame of an unchanged change.
+    fn queue_hold(&mut self, ch: &Change) -> Result<Option<Value>> {
+        if !self.cfg.coordination.hold_undoes {
+            return Ok(None);
+        }
+        let rep = self.undoes(ch, Scope::All)?;
+        let held = self.held(ch, &rep.entries)?;
+        if held.is_empty() || ch.undid.as_ref().is_some_and(|u| u.head == ch.head) {
+            return Ok(None);
+        }
+        self.store.dequeue(&ch.id)?;
+        let brief: Vec<Value> = held.iter().map(crate::undoes::brief).collect();
+        self.add_review(ch, "undoes", json!({"undoes": held, "advice": crate::undoes::HOLD_ADVICE}))?;
+        self.hold(ch, held, "queue", Value::Null)?;
+        Ok(Some(json!({"change": ch.id, "status": "undoes", "undoes": brief})))
     }
 
     pub fn queue_view(&mut self) -> Result<Value> {
@@ -357,6 +409,10 @@ impl Inner {
                 && !in_batch.contains(&dep)
             {
                 spec.notes.push(json!({"change": id, "status": "waiting", "waiting_for": dep}));
+                continue;
+            }
+            if let Some(note) = self.queue_hold(&before)? {
+                spec.notes.push(note);
                 continue;
             }
             let mut after = before.clone();
@@ -468,7 +524,11 @@ impl Inner {
             self.store.dequeue(&ch.id)?;
             self.guard(&ch, &item.report)?;
             self.forget(&ch.id);
+            if let Some(u) = &ch.undid {
+                self.store.put_undid(&ch.id, u)?;
+            }
             self.emit("landed", &[&ch.id], &[&ch.agent], json!({"change": ch.id, "changeset": ch.head, "queue": true}));
+            self.emit_undid(&ch);
             landed.push(json!({"change": ch.id, "status": "landed", "changeset": ch.head}));
             new_main = Some(ch.head.clone());
         }

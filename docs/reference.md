@@ -31,9 +31,15 @@ is the byte size of the whole file, also for a range. A range from line 1 of an 
 `lines` and a `note`; MCP clients get 50 KiB when they give neither a range nor `max_bytes`.
 `grep` matches per line: `^` and `$` anchor at each line (`\r\n` counts as one line end). It takes `context` (0 to 20): each match gets `before` and `after` line arrays.
 
-`land` answers with one of five statuses: `landed` (with the git commit), `queued` (landing mode
+`land` answers with one of six statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review
-task is opened), or `waiting`. A change opened with
+task is opened), `waiting`, or `undoes`: not landed, because the change removes lines another agent
+landed (the entries with their text, and `advice`: put them back and land again; if both tasks cannot
+hold, keep the other agent's lines, land the rest and say so; only if the task names those lines for
+removal, `land` again with `undo: true` and a non-empty `reason`). An overridden land records `undid`
+(who, whose lines, which changes, why) in the change, the events (`undo_override`), `status` (`undid`,
+`undid_total`), `log` entries and the audit row. `[coordination] hold_undoes = false` turns the hold off
+([docs/coordination.md](coordination.md#b-live-collisions-and-events)). A change opened with
 `base` set to another change id is stacked on it, and it waits until that change lands.
 
 Best-of-N: open N changes for one task with the same `group`. `group {group}` lists them with state
@@ -75,7 +81,7 @@ does not sync a `--git` workspace during a merge, rebase, cherry-pick or with a 
 retries after 1 s, 5 s, 30 s, 120 s. `workspace mirror NAME --into DIR` (`--off` stops it) writes the change's files into
 one fixed directory after every sync, touching only files that differ. `create --paths a/,b/` makes a sparse
 workspace (these directories plus root files, git cone mode); sync never treats the rest as deleted. `create
---from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ. `stack NAME --on CHANGE` builds the change on another agent's open change (its edits appear here; land waits for it). `status NAME` syncs and shows the change's collisions with other open changes now (also kept in `.treeyard/collisions.json`) and its land status. `update NAME` writes the change as the server holds it now (automatic after a land that hits a conflict). `land NAME [--wait-s N]` waits for the verdict of queue or optimistic tests (`land_status`) and, when the change has already landed or was reverted, lands the work as a follow-up change (from the workspace base, merged 3-way onto main).
+--from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ. `stack NAME --on CHANGE` builds the change on another agent's open change (its edits appear here; land waits for it). `status NAME` syncs and shows the change's collisions with other open changes now (also kept in `.treeyard/collisions.json`) and its land status. `update NAME` writes the change as the server holds it now (automatic after a land that hits a conflict). `land NAME [--wait-s N] [--undo REASON]` (on status `undoes` the workspace is updated to the change as the server holds it; `--undo REASON` lands it anyway, as `land` `undo` + `reason`) waits for the verdict of queue or optimistic tests (`land_status`) and, when the change has already landed or was reverted, lands the work as a follow-up change (from the workspace base, merged 3-way onto main).
 Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
@@ -112,6 +118,7 @@ output and limits: [docs/coordination.md](coordination.md). Tests: `tests/coordi
 [coordination]
 continuous_rebase = true          # rebase open changes after every land; conflicts show up at once
 keep_conflicted = true            # a conflicted change still rebases and takes edits; land waits for it
+hold_undoes = false               # default true: a land that removes another agent's landed lines is held (status undoes)
 [merge]
 syntax = "auto"                   # mergiraf on the remaining conflicts, when installed
 [[merge.driver]]

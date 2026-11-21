@@ -19,12 +19,24 @@ use crate::merge::{Blobs, Merged, merge3};
 use crate::model::*;
 use crate::safety::{self, check_path};
 use crate::store::Store;
+use crate::undoes::Undo;
 use crate::{drivers, landing};
 
 const TEXT_LIMIT: usize = 256 * 1024;
 
 pub fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}
+
+/// `status` lists at most this many `undid` lands, newest first (`undid_total` counts all).
+const UNDID_IN_STATUS: usize = 20;
+
+/// One `undid` land in a list (`status`, `log`): who removed whose lines, which change, why.
+pub fn undid_brief(change: &str, u: &Undid) -> Value {
+    json!({
+        "change": change, "by": u.by, "reason": u.reason, "time": u.time, "agents": u.agents(),
+        "undoes": u.undoes.iter().map(crate::undoes::brief).collect::<Vec<_>>(),
+    })
 }
 
 /// One edit in `apply`. Exactly one of `content`, `content_b64`, `delete`, `replace`, or only
@@ -472,6 +484,7 @@ impl Inner {
             bail!("open_change needs a non-empty agent and intent");
         }
         let base = self.resolve_at(base)?;
+        let stacked_on = self.stack_of(&base)?;
         let id = format!("ch_{:012x}", rand::thread_rng().r#gen::<u64>() & 0xffff_ffff_ffff);
         let ch = Change {
             id,
@@ -489,6 +502,9 @@ impl Inner {
             declared,
             view: None,
             group: None,
+            stacked_on,
+            undid: None,
+            reverts: None,
         };
         self.store.put_change(&ch)?;
         self.emit(
@@ -1070,14 +1086,51 @@ impl Inner {
                 o.head
             }
         };
+        for s in self.stack_of(&main)? {
+            if !ch.stacked_on.contains(&s) {
+                ch.stacked_on.push(s);
+            }
+        }
         let report = self.rebase_onto(&mut ch, &main)?;
         self.store.put_change(&ch)?;
         self.guard(&ch, &report)?;
         Ok(ch)
     }
 
+    /// When `base` is the head of an open change: that change and the ones it was stacked on.
+    fn stack_of(&mut self, base: &str) -> Result<Vec<String>> {
+        let Some(dep) = self.changeset(base)?.meta.change else { return Ok(vec![]) };
+        let Some(d) = self.store.change(&dep)?.filter(|d| d.state == ChangeState::Open && d.head == base) else {
+            return Ok(vec![]);
+        };
+        let mut out = vec![dep];
+        out.extend(d.stacked_on);
+        Ok(out)
+    }
+
+    /// The `undid` record of each landed change in `ids` that has one, by change id (`log`).
+    pub fn undid_of(&self, ids: &HashSet<String>) -> Result<HashMap<String, Value>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        Ok(self
+            .store
+            .undid()?
+            .into_iter()
+            .filter(|(c, _)| ids.contains(c))
+            .map(|(c, u)| (c.clone(), undid_brief(&c, &u)))
+            .collect())
+    }
+
     /// Lands by the repo's landing mode: `direct` and `optimistic` move main now, `queue` enqueues.
+    /// A change that removes lines other agents landed is held (status `undoes`).
     pub fn land(&mut self, id: &str) -> Result<Value> {
+        self.land_undo(id, Undo::Hold)
+    }
+
+    /// `land` with the `undoes` hold: `Undo::Yes(reason)` lands a change that removes lines other
+    /// agents landed and records it; `Undo::Off` skips the check (revert, push, replay).
+    pub fn land_undo(&mut self, id: &str, undo: Undo) -> Result<Value> {
         // Landing twice answers like the first time, so a client may retry a land whose
         // reply it lost (network error, server restart).
         let ch = self.change(id)?;
@@ -1088,14 +1141,19 @@ impl Inner {
             return Ok(json!({"status": status, "change": id, "changeset": cs, "commit": commit, "repeated": true}));
         }
         match self.cfg.landing.mode {
-            Mode::Queue => self.enqueue(id),
-            _ => self.land_direct(id),
+            Mode::Queue => self.enqueue(id, undo),
+            _ => self.land_direct_undo(id, undo),
         }
     }
 
     /// Rebases onto main when needed and moves main to the change's head. Conflicts come back
-    /// as typed tasks and leave main untouched.
+    /// as typed tasks and leave main untouched. No `undoes` hold (revert, human push).
     pub fn land_direct(&mut self, id: &str) -> Result<Value> {
+        self.land_direct_undo(id, Undo::Off)
+    }
+
+    /// `land_direct` with the `undoes` hold (see `land_undo`).
+    pub fn land_direct_undo(&mut self, id: &str, undo: Undo) -> Result<Value> {
         let mut ch = self.open_change_mut(id)?;
         if !ch.conflicts.is_empty() {
             return Ok(json!({"status": "conflict", "change": self.change_view(&ch)?}));
@@ -1133,6 +1191,28 @@ impl Inner {
                 );
             }
         }
+        // Lines other agents landed that this change removes hold the land, unless the owner said yes.
+        let mut undoes = None;
+        if undo != Undo::Off {
+            let rep = self.undoes(&ch, crate::undoes::Scope::All)?;
+            let held = self.held(&ch, &rep.entries)?;
+            match undo {
+                Undo::Hold if !held.is_empty() && self.cfg.coordination.hold_undoes => {
+                    return self.hold(&ch, held, "land", merged_from);
+                }
+                Undo::Yes(reason) if !held.is_empty() => {
+                    ch.undid = Some(Undid {
+                        by: ch.agent.clone(),
+                        reason: reason.to_string(),
+                        time: now(),
+                        head: ch.head.clone(),
+                        undoes: held,
+                    });
+                }
+                _ => {}
+            }
+            undoes = Some(rep);
+        }
         let mut reviews = self.guard(&ch, &report)?;
         if ch.head == ch.base {
             // The rebase found every edit already on main: nothing new to commit.
@@ -1164,6 +1244,9 @@ impl Inner {
         self.store.tx(|s| {
             s.set_ref("main", &ch.head)?;
             crate::failpoint::hit("land:in-tx");
+            if let Some(u) = &ch.undid {
+                s.put_undid(&ch.id, u)?;
+            }
             s.put_change(&ch)
         })?;
         crate::failpoint::hit("land:after-db");
@@ -1177,11 +1260,19 @@ impl Inner {
             &[&ch.agent],
             json!({"change": id, "status": "landed", "changeset": ch.head, "commit": commit}),
         );
+        self.emit_undid(&ch);
         let rebased = self.continuous_rebase()?;
-        Ok(json!({
+        let mut out = json!({
             "status": "landed", "change": ch.id, "changeset": ch.head, "commit": commit, "merged_from": merged_from,
             "drivers": report.drivers, "reviews": reviews, "rebased": rebased, "notes": notes,
-        }))
+        });
+        if let Some(u) = &ch.undid {
+            out["undid"] = json!(u);
+        }
+        if let Some(rep) = undoes {
+            rep.put(&mut out, &|_| true);
+        }
+        Ok(out)
     }
 
     /// Continuous rebase (`[coordination] continuous_rebase`): after main moved, rebase every
@@ -1246,6 +1337,7 @@ impl Inner {
         let parent_m = self.manifest(&parent)?;
         let intent = format!("revert {}: {}", &target[..12], cs.meta.intent);
         let mut ch = self.open_change(agent, &intent, None, None, Some(&target))?;
+        ch.reverts = Some(target.clone());
         let entries = cs.changes.keys().map(|p| (p.clone(), parent_m.get(p).cloned())).collect();
         self.set_entries(&mut ch, entries, None)?;
         // A revert never waits in the queue: it is the way back to a green main.
@@ -1530,6 +1622,9 @@ impl Inner {
                 declared: Intent::default(),
                 view: None,
                 group: None,
+                stacked_on: vec![],
+                undid: None,
+                reverts: None,
             };
             self.store.put_change(&ch)?;
             let out = self.land_direct(&id)?;
@@ -1693,6 +1788,12 @@ impl Inner {
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
             "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(), "group": ch.group,
         });
+        if !ch.stacked_on.is_empty() {
+            out["stacked_on"] = json!(ch.stacked_on);
+        }
+        if let Some(u) = &ch.undid {
+            out["undid"] = json!(u);
+        }
         if !ch.conflicts.is_empty() {
             out["resolve"] = json!(cv::help(&ch.id));
         }
@@ -1743,10 +1844,13 @@ impl Inner {
         let commit = self.commit_for(&main)?;
         let open = self.store.changes(Some("open"))?;
         let files = self.manifest(&main)?.len();
+        let undid = self.store.undid()?;
         Ok(json!({
             "main": main, "commit": commit, "branch": self.branch, "files": files,
             "cache": {"manifests": self.manifests.len(), "objects": self.odb.cached()},
             "open_changes": open.iter().map(|c| json!({"id": c.id, "agent": c.agent, "intent": c.intent, "conflicts": c.conflicts.len()})).collect::<Vec<_>>(),
+            "undid": undid.iter().take(UNDID_IN_STATUS).map(|(c, u)| undid_brief(c, u)).collect::<Vec<_>>(),
+            "undid_total": undid.len(),
         }))
     }
 

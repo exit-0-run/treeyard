@@ -104,6 +104,12 @@ impl Lean {
                 if v["change"].is_object() {
                     lean_change(&mut v["change"]);
                 }
+                // The entries of a held land: the agent needs path, lines, whose and the text.
+                if let Some(list) = v.get_mut("undoes").and_then(Value::as_array_mut) {
+                    for e in list.iter_mut().filter_map(Value::as_object_mut) {
+                        e.remove("changeset");
+                    }
+                }
                 if matches!(v["status"].as_str(), Some("landed" | "already_on_main"))
                     && let Some(id) = v["change"].as_str()
                 {
@@ -165,6 +171,19 @@ mod tests {
         let mut v = change(json!([{"change": "ch_2", "kind": "overlap", "path": "f"}]));
         lean.shape("change", &mut v);
         assert!(v["collisions"].is_array());
+    }
+
+    #[test]
+    fn a_held_land_is_compact() {
+        let mut v = json!({"status": "undoes", "change": "ch_b", "advice": "put them back", "merged_from": null,
+            "undoes": [{"path": "m.py", "lines": [2, 3], "agent": "a", "intent": "lower case", "changeset": "c0ffee",
+                "change": "ch_a", "text": "x\n"}]});
+        Lean::default().shape("land", &mut v);
+        assert_eq!(
+            v,
+            json!({"status": "undoes", "change": "ch_b", "advice": "put them back",
+                "undoes": [{"path": "m.py", "lines": [2, 3], "agent": "a", "intent": "lower case", "change": "ch_a", "text": "x\n"}]})
+        );
     }
 
     #[test]

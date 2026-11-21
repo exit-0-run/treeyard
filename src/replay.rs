@@ -335,7 +335,9 @@ pub fn run(o: &Options) -> Result<Value> {
                 opened.shuffle(&mut rng);
                 let mut land = |r: &mut Inner, i: usize, id: &str, n: &mut Counts| -> Result<bool> {
                     let t = Instant::now();
-                    let res = r.land(id).with_context(|| format!("landing the change for {}", commits[i]))?;
+                    let res = r
+                        .land_undo(id, crate::undoes::Undo::Off)
+                        .with_context(|| format!("landing the change for {}", commits[i]))?;
                     land_ms.push(t.elapsed().as_secs_f64() * 1000.0);
                     if res["status"] == "waiting" {
                         n.waits += 1;

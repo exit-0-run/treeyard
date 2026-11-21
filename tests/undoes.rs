@@ -115,7 +115,7 @@ fn crlf_to_lf_is_quiet() {
 }
 
 #[test]
-fn resolve_take_ours_says_it_removes_the_landed_line_and_land_says_it_too() {
+fn resolve_take_ours_says_it_removes_the_landed_line_and_land_holds_it() {
     let tmp = tempfile::tempdir().unwrap();
     let url = setup(tmp.path());
     let f = call(&url, "read", json!({"path": "f00.txt"}))["content"].as_str().unwrap().to_string();
@@ -131,10 +131,157 @@ fn resolve_take_ours_says_it_removes_the_landed_line_and_land_says_it_too() {
     assert_eq!(u.len(), 1, "take = ours drops a's landed line: {v}");
     assert_eq!(u[0]["text"], "a's line three\n");
     assert_eq!(u[0]["agent"], "a");
+    let main = call(&url, "status", json!({}))["main"].clone();
     let land = call(&url, "land", json!({"change": b}));
-    assert_eq!(land["status"], "landed", "a land is never blocked: {land}");
-    assert_eq!(land["undoes"].as_array().unwrap().len(), 1, "the land reply says so: {land}");
-    assert!(land["undoes_advice"].is_string());
+    assert_eq!(land["status"], "undoes", "the land is held: {land}");
+    assert_eq!(land["undoes"].as_array().unwrap().len(), 1, "{land}");
+    assert_eq!(land["undoes"][0]["text"], "a's line three\n", "{land}");
+    assert!(land["advice"].as_str().unwrap().contains("land again with undo = true"), "{land}");
+    assert_eq!(call(&url, "status", json!({}))["main"], main, "main did not move");
+    assert_eq!(call(&url, "change", json!({"change": b}))["state"], "open");
+    let ev = call(&url, "events", json!({"kinds": ["undoes"]}))["events"].clone();
+    assert_eq!(ev.as_array().unwrap().len(), 1, "{ev}");
+    assert_eq!(ev[0]["cause"], "land");
+    assert_eq!(ev[0]["agents"], json!(["b", "a"]), "{ev}");
+    assert_eq!(ev[0]["changes"], json!([b, a]), "{ev}");
+
+    // The override: undo needs a reason, a reason needs undo.
+    let e = treeyard::client::call(&url, "land", json!({"change": b, "undo": true})).unwrap_err();
+    assert!(format!("{e:#}").contains("needs a non-empty reason"), "{e:#}");
+    let e = treeyard::client::call(&url, "land", json!({"change": b, "undo": true, "reason": "  "})).unwrap_err();
+    assert!(format!("{e:#}").contains("needs a non-empty reason"), "{e:#}");
+    let e = treeyard::client::call(&url, "land", json!({"change": b, "reason": "x"})).unwrap_err();
+    assert!(format!("{e:#}").contains("reason goes with undo"), "{e:#}");
+    let why = "my task sets line 3 to b's text";
+    let land = call(&url, "land", json!({"change": b, "undo": true, "reason": why}));
+    assert_eq!(land["status"], "landed", "{land}");
+    assert_eq!((land["undid"]["by"].as_str(), land["undid"]["reason"].as_str()), (Some("b"), Some(why)), "{land}");
+    assert_eq!(land["undid"]["undoes"][0]["agent"], "a");
+    assert_eq!(land["undoes"].as_array().unwrap().len(), 1, "the reply still lists them: {land}");
+
+    // People see it without the transcripts: change, events, status, log, audit.
+    let ch = call(&url, "change", json!({"change": b}));
+    assert_eq!((ch["state"].as_str(), ch["undid"]["reason"].as_str()), (Some("landed"), Some(why)), "{ch}");
+    assert_eq!(ch["undid"]["undoes"][0]["change"], a.as_str(), "{ch}");
+    let ev = call(&url, "events", json!({"kinds": ["undo_override"]}))["events"].clone();
+    assert_eq!(ev.as_array().unwrap().len(), 1, "{ev}");
+    assert_eq!((ev[0]["by"].as_str(), ev[0]["reason"].as_str()), (Some("b"), Some(why)), "{ev}");
+    assert_eq!(ev[0]["agents"], json!(["a"]), "{ev}");
+    assert_eq!(ev[0]["undoes"][0]["lines"], json!([4, 4]), "{ev}");
+    assert!(ev[0]["undoes"][0].get("text").is_none(), "events stay small: {ev}");
+    let st = call(&url, "status", json!({}));
+    assert_eq!(st["undid_total"], 1, "{st}");
+    assert_eq!((st["undid"][0]["change"].as_str(), st["undid"][0]["by"].as_str()), (Some(b.as_str()), Some("b")));
+    assert_eq!(st["undid"][0]["agents"], json!(["a"]));
+    let log = call(&url, "log", json!({"limit": 5}));
+    let entry = log["entries"].as_array().unwrap().iter().find(|e| e["change"] == b.as_str()).unwrap().clone();
+    assert_eq!(entry["undid"]["reason"], why, "{entry}");
+    assert!(log["entries"].as_array().unwrap().iter().filter(|e| e.get("undid").is_some()).count() == 1);
+    let audit = call(&url, "audit", json!({"change": b, "op": "land"}));
+    let rows: Vec<&Value> = audit["entries"].as_array().unwrap().iter().collect();
+    let statuses: Vec<&str> = rows.iter().map(|r| r["status"].as_str().unwrap()).collect();
+    assert!(statuses.contains(&"undoes") && statuses.contains(&"landed"), "{audit}");
+    let landed = rows.iter().find(|r| r["status"] == "landed").unwrap();
+    let detail = landed["detail"].as_str().unwrap();
+    assert!(detail.contains("b removed landed lines of a (") && detail.contains(why), "{detail}");
+}
+
+#[test]
+fn own_lines_moved_lines_and_reindented_lines_do_not_hold_a_land() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = landed(tmp.path(), "m.py", A);
+    // a removes its own line: own work.
+    let a2 = open(&url, "a", json!({}));
+    write(&url, &a2, "m.py", &format!("{A}# a's note\n"));
+    assert_eq!(call(&url, "land", json!({"change": a2}))["status"], "landed");
+    let a3 = open(&url, "a", json!({}));
+    write(&url, &a3, "m.py", A);
+    assert_eq!(call(&url, "land", json!({"change": a3}))["status"], "landed");
+    // b moves a's function into another file, then re-indents it in a class.
+    let b = open(&url, "b", json!({}));
+    let v = call(
+        &url,
+        "apply",
+        json!({"change": b, "edits": [{"path": "m.py", "content": "from h import f\n"}, {"path": "h.py", "content": A}]}),
+    );
+    assert_eq!(v["undoes"], json!([]), "{v}");
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    let c = open(&url, "c", json!({}));
+    let indented: String = A.lines().map(|l| format!("    {l}\n")).collect();
+    write(&url, &c, "h.py", &format!("class H:\n{indented}"));
+    let land = call(&url, "land", json!({"change": c}));
+    assert_eq!(land["status"], "landed", "{land}");
+    assert_eq!(land["undoes"], json!([]), "{land}");
+    assert!(land.get("undid").is_none(), "{land}");
+}
+
+#[test]
+fn lines_of_the_change_it_was_stacked_on_do_not_hold_a_land() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path());
+    let p = open(&url, "a", json!({}));
+    write(&url, &p, "m.py", A);
+    let s = open(&url, "b", json!({"base": p}));
+    assert_eq!(call(&url, "change", json!({"change": s}))["stacked_on"], json!([p]));
+    write(&url, &s, "m.py", &A.replace("    value = value.lower()\n", ""));
+    assert_eq!(call(&url, "land", json!({"change": s}))["status"], "waiting");
+    assert_eq!(call(&url, "land", json!({"change": p}))["status"], "landed");
+    let land = call(&url, "land", json!({"change": s}));
+    assert_eq!(land["status"], "landed", "the parent's lines were removed while stacked on it: {land}");
+    assert_eq!(land["undoes"].as_array().unwrap().len(), 1, "still listed: {land}");
+}
+
+#[test]
+fn hold_undoes_false_lands_as_before() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 2, 10, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    std::fs::write(data.join("treeyard.toml"), "[coordination]\nhold_undoes = false\n").unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let a = open(&url, "a", json!({}));
+    write(&url, &a, "m.py", A);
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    let b = open(&url, "b", json!({}));
+    write(&url, &b, "m.py", &A.replace("    value = value.lower()\n", ""));
+    let land = call(&url, "land", json!({"change": b}));
+    assert_eq!(land["status"], "landed", "{land}");
+    assert_eq!(land["undoes"].as_array().unwrap().len(), 1, "the reply says so: {land}");
+    assert!(land["undoes_advice"].is_string() && land.get("undid").is_none(), "{land}");
+    assert_eq!(call(&url, "status", json!({}))["undid_total"], 0);
+}
+
+#[test]
+fn queue_mode_holds_at_land_and_again_before_the_batch() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 2, 10, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    std::fs::write(data.join("treeyard.toml"), "[landing]\nmode = \"queue\"\ntest = \"true\"\n").unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let a = open(&url, "a", json!({}));
+    write(&url, &a, "m.py", A);
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "queued");
+    assert_eq!(call(&url, "queue_run", json!({}))["landed"].as_array().unwrap().len(), 1);
+    let removed = A.replace("    value = value.lower()\n", "");
+    let b = open(&url, "b", json!({}));
+    write(&url, &b, "m.py", &removed);
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "undoes");
+    assert_eq!(call(&url, "queue", json!({}))["queue"], json!([]), "not queued");
+    let q = call(&url, "land", json!({"change": b, "undo": true, "reason": "the task drops lower()"}));
+    assert_eq!((q["status"].as_str(), q["undid"]["by"].as_str()), (Some("queued"), Some("b")), "{q}");
+    // A later edit is not covered by the yes: the queue drops the change before the batch.
+    write(&url, &b, "m.py", &format!("{removed}# more\n"));
+    let step = call(&url, "queue_run", json!({}));
+    assert_eq!(step["status"], "idle", "{step}");
+    assert_eq!(step["notes"][0]["status"], "undoes", "{step}");
+    assert_eq!(call(&url, "land_status", json!({"change": b}))["verdict"], "undoes");
+    assert_eq!(call(&url, "events", json!({"kinds": ["undoes"]}))["events"][1]["cause"], "queue");
+    // A new yes for this head: it lands and the record shows it.
+    call(&url, "land", json!({"change": b, "undo": true, "reason": "the task drops lower()"}));
+    assert_eq!(call(&url, "queue_run", json!({}))["landed"][0]["change"], b.as_str());
+    assert_eq!(call(&url, "status", json!({}))["undid"][0]["change"], b.as_str());
+    assert_eq!(call(&url, "events", json!({"kinds": ["undo_override"]}))["events"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -241,4 +388,9 @@ fn entries_obey_the_callers_read_globs() {
     assert_eq!(u.len(), 1, "only the path b may read: {v}");
     assert_eq!(u[0]["path"], "src/n.py");
     assert!(!v.to_string().contains("secret/"), "{v}");
+    // The held land shows only the readable entry and counts the other.
+    let land = ok(&tb, "land", json!({"change": b}));
+    assert_eq!(land["status"], "undoes", "{land}");
+    assert_eq!((land["undoes"].as_array().unwrap().len(), land["undoes_hidden"].clone()), (1, json!(1)), "{land}");
+    assert!(!land.to_string().contains("secret/"), "{land}");
 }
