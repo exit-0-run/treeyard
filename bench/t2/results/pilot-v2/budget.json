@@ -1,0 +1,13 @@
+{
+ "pilot_runs": 12,
+ "pilot_repo": "requests",
+ "mean_cost_usd_per_run": 0.4213,
+ "mean_tokens_per_run": 2140630,
+ "repo_factors": {
+  "requests": 1.0,
+  "ripgrep": 0.952,
+  "astro": 0.738
+ },
+ "full_budget_usd": 17.0,
+ "formula": "mean cost per run x 12 x sum(repo factors) x 1.25"
+}

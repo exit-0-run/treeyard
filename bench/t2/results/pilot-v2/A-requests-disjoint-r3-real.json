@@ -1,0 +1,186 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.103186,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 316960,
+   "tokens_out": 678,
+   "tool_calls": 11,
+   "turns": 14,
+   "wall_s": 23.88
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 364380,
+   "tokens_out": 1791,
+   "tool_calls": 14,
+   "turns": 14,
+   "wall_s": 74.52
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 277498,
+   "tokens_out": 1543,
+   "tool_calls": 12,
+   "turns": 12,
+   "wall_s": 58.87
+  },
+  {
+   "cost_usd": 0.070717,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 256095,
+   "tokens_out": 497,
+   "tool_calls": 9,
+   "turns": 12,
+   "wall_s": 16.32
+  },
+  {
+   "cost_usd": 0.075714,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 295857,
+   "tokens_out": 653,
+   "tool_calls": 10,
+   "turns": 14,
+   "wall_s": 15.63
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "d1-cid-union",
+   "k": 1
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "d2-status-reason",
+   "k": 2
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "d3-basic-auth-repr",
+   "k": 3
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "d4-netmask-range",
+   "k": 4
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "d5-native-memoryview",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.249617,
+ "done": {
+  "d1-cid-union": true,
+  "d2-status-reason": true,
+  "d3-basic-auth-repr": true,
+  "d4-netmask-range": true,
+  "d5-native-memoryview": true
+ },
+ "false_alarms": 0,
+ "harness": "real",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 3,
+ "repo": "requests",
+ "run": "A-requests-disjoint-r3-real",
+ "set": "disjoint",
+ "setup_s": 0.41,
+ "started": "2026-11-21T15:46:27",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 0.42,
+ "tasks_on_main": 5,
+ "tokens_in": 1510790,
+ "tokens_out": 5162,
+ "tool_calls": 56,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 75.21,
+ "warned_before_land": 0
+}
