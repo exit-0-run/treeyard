@@ -62,8 +62,10 @@ Each harness asks once before it uses a project server:
 
 - Claude Code asks you to approve the `treeyard` server of `.mcp.json` (or use `/mcp`).
 - Codex reads `.codex/config.toml` only when you trust the project. `codex exec` has no one to ask,
-  so it refuses each MCP call until the server entry has `default_tools_approval_mode = "approve"`
-  (for example `-c mcp_servers.treeyard.default_tools_approval_mode="approve"`).
+  so it refuses each MCP call unless the server entry approves its tools. Connect writes
+  `default_tools_approval_mode = "approve"` into its own `[mcp_servers.treeyard]` entry (key and value
+  as codex-cli 0.167.0 reads them), and only there; `connect status` shows it as
+  `tools approval approve`. Other servers in the file keep their settings.
 - OpenCode reads `opencode.json` at the project root. `opencode mcp list` shows the entry.
 
 ## 3. Two agents on one file
@@ -123,7 +125,8 @@ bridge uses `<h>-1-<pid>`.
 - Agents edit through the API (MCP tools). They run the tests in the directory that the bridge's
   `checkout` tool writes for their change ([mcp.md](mcp.md#test-a-change-checkout)). For an agent that
   edits files on disk, give it a workspace directory: [workspaces.md](workspaces.md).
-- Connect does not change trust or approval settings of a harness: these are user-level settings.
+- Connect does not change the trust settings of a harness (user-level settings). The one approval it
+  sets is for the tools of its own Codex server entry, in the project file that it writes and removes.
 
 Tests: `tests/connect.rs` (init and idempotency, the three configs, the instruction block, byte
-identity after disconnect, status with two agents on one file, the mirror flag).
+identity after disconnect, status with two agents on one file, the mirror flag, the Codex tool approval).

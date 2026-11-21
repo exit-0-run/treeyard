@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- `connect` writes `default_tools_approval_mode = "approve"` into its own Codex server entry
+  (`.codex/config.toml`; key as codex-cli 0.167.0 reads it): `codex exec` refused every TreeYard tool
+  call without it. `disconnect` removes it with the block (byte-identical file), and `connect status`
+  shows it (`tools approval approve`, JSON `tools_approval`).
 - `apply`: a `replace` whose old text (or file) the change lacks now says whether main has it and how
   many landings the change is behind main, and what to do (`rebase`, or `read` with `at` = the change).
   In the pilots, 5 such errors had no hint. `connect` keeps `continuous_rebase` off and `read` keeps

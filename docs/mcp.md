@@ -107,6 +107,7 @@ Or in `~/.codex/config.toml`:
 [mcp_servers.treeyard]
 command = "treeyard"
 args = ["mcp", "--agent", "codex-1"]
+default_tools_approval_mode = "approve"   # else `codex exec` refuses every tool call
 
 [mcp_servers.treeyard.env]
 TREEYARD_URL = "http://127.0.0.1:7420"
