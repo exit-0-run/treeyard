@@ -1394,7 +1394,7 @@ def arm_b_test_note():
     The `checkout` tool of the bridge writes the change into a directory of its own; `t2-test` runs on the
     tree it is called from."""
     return (f"Your edits go through `apply`, so they are not in this directory: run `{TEST_CMD}` from the directory "
-            "that `checkout` returns.")
+            "`checkout.dir` of your `apply` reply.")
 
 
 def preamble(arm):

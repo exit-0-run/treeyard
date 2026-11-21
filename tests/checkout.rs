@@ -134,7 +134,7 @@ fn checkout_runs_the_real_tests_on_the_change_and_follows_it_to_land() {
     let tools = b.rpc("tools/list", json!({}));
     assert!(tools["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "checkout"));
     assert!(!treeyard::rpc::tools().iter().any(|t| t["name"] == "checkout"), "only the local bridge has it");
-    assert!(treeyard::connect::INSTRUCTIONS.contains("call `checkout` with your change id"), "the block names it");
+    assert!(treeyard::connect::INSTRUCTIONS.contains("run the repository's tests in `checkout.dir`"), "the block names it");
 
     let id = b.tool("open_change", json!({"intent": "fix the status", "paths": ["lib.txt"]}))["id"]
         .as_str()
