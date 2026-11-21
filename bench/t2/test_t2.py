@@ -219,5 +219,96 @@ class KitTests(unittest.TestCase):
         self.assertEqual((st["turns"], st["tool_calls"], st["tokens_in"], st["tokens_out"], st["cost_usd"]), (2, 1, 128, 21, 0.5))
 
 
+KIT_GLOBALS = ("REPOS", "TASKS_DIR", "RESULTS", "TASKDEFS", "VENV", "TASK_TOTAL")
+
+
+class DevTests(unittest.TestCase):
+    """The development set (dev/) and `run --block`: neither may change a T2 run."""
+
+    def setUp(self):
+        self.saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        self.tmp = Path(tempfile.mkdtemp(prefix="t2-dev-"))
+
+    def tearDown_globals(self):
+        for n, v in self.saved.items():
+            setattr(k, n, v)
+
+    def tearDown(self):
+        self.tearDown_globals()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_dev_tasks_match_their_manifest_and_stay_apart_from_t2(self):
+        manifest = json.loads((k.DEV / "tasks" / "MANIFEST.json").read_text())
+        prompts = [p for p in manifest if p.endswith("prompt.md")]
+        self.assertEqual(len(prompts), 10)
+        t2_prompts = {(k.HERE / p).read_text() for p in json.loads((k.TASKS_DIR / "MANIFEST.json").read_text()) if p.endswith("prompt.md")}
+        for rel, digest in manifest.items():
+            self.assertTrue(rel.startswith("dev/tasks/"), rel)
+            f = k.HERE / rel
+            self.assertEqual(k.sha256(f), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", f.read_text().lower(), rel)
+                self.assertNotIn(f.read_text(), t2_prompts, rel)
+        self.assertFalse(set(k.DEV_REPOS) & set(k.REPOS), "a dev repository may not be a T2 one")
+
+    def test_a_dev_repo_name_switches_the_kit_and_t2_names_do_not(self):
+        self.assertFalse(k.select_kit(None))
+        self.assertFalse(k.select_kit(["requests"]))
+        self.assertEqual(k.TASKS_DIR, k.HERE / "tasks")
+        with self.assertRaises(SystemExit):
+            k.select_kit(["requests", "click"])
+        self.assertTrue(k.select_kit(["click"]))
+        self.assertEqual((k.TASKS_DIR, k.RESULTS, k.TASK_TOTAL), (k.DEV / "tasks", k.DEV / "results", 10))
+        self.assertEqual(list(k.REPOS), ["click"])
+        self.assertEqual(sorted(k.load_taskdefs().TASKS), ["click"])
+        self.assertEqual(k.test_path("click", {"id": "c1-strip-spaces"}), "tests/test_t2_c1_strip_spaces.py")
+        self.assertEqual(k.fill(["{python}"], self.tmp), [str(self.tmp / "t2" / "env" / "dev-venv" / "bin" / "python")])
+        self.assertEqual(k.repo_env("click", self.tmp)["PYTHONPATH"], "src")
+
+    def test_block_is_refused_for_arm_a_and_for_t2(self):
+        block = self.tmp / "b.md"
+        block.write_text("## Block\n")
+        common = ["run", "--scratch", str(self.tmp), "--set", "colliding", "--rep", "1", "--harness", "oracle", "--block", str(block)]
+        for arm, repo in (("A", "click"), ("B", "requests")):
+            self.tearDown_globals()
+            with self.assertRaises(SystemExit) as e:
+                k.main(common + ["--arm", arm, "--repo", repo])
+            self.assertIn("--block is for arm B on the development set only", str(e.exception))
+
+    def test_block_text_and_put_block(self):
+        plain = self.tmp / "plain.md"
+        plain.write_text("## Block\n\nline\n\n")
+        want = "<!-- treeyard:connect:start -->\n## Block\n\nline\n<!-- treeyard:connect:end -->"
+        self.assertEqual(k.block_text(plain), want)
+        marked = self.tmp / "marked.md"
+        marked.write_text(want + "\n")
+        self.assertEqual(k.block_text(marked), want)
+        self.assertEqual(k.block_text(k.FROZEN_BLOCK), k.FROZEN_BLOCK.read_text().rstrip("\n"))
+        (self.tmp / "AGENTS.md").write_text("# Repo\n\n" + k.FROZEN_BLOCK.read_text() + "tail\n")
+        k.put_block(self.tmp, want)
+        self.assertEqual((self.tmp / "AGENTS.md").read_text(), "# Repo\n\n" + want + "\ntail\n")
+        self.assertFalse((self.tmp / "CLAUDE.md").exists())
+
+    @unittest.skipUnless(k.treeyard_bin().exists(), "needs target/debug/treeyard")
+    def test_a_custom_block_reaches_the_agents_of_arm_b(self):
+        spec, tasks = mini_world(self.tmp)
+        block = self.tmp / "try-1.md"
+        block.write_text("## Another block\n\nRead line ranges with `read`.\n")
+        os.environ["T2_STUB_MODES"] = "ok,ok,ok,ok,ok"
+        try:
+            r = k.Run(self.tmp, "B", "mini", "colliding", 1, "stub", limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                      tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / "run", results=self.tmp / "results", block_file=block)
+            res = r.execute()
+        finally:
+            os.environ.pop("T2_STUB_MODES", None)
+        want = k.block_text(block)
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["run"], "B-mini-colliding-r1-stub-try-1")
+        self.assertEqual(res["block_file"], "try-1.md")
+        self.assertEqual(res["block_sha256"], k.hashlib.sha256(want.encode()).hexdigest())
+        self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n# task 1"))
+        self.assertTrue((self.tmp / "results" / "B-mini-colliding-r1-stub-try-1.json").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

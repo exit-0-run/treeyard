@@ -1,0 +1,21 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -480,8 +480,16 @@
+                 ]
+                 if len(prefixed) == 1:
+                     return prefixed[0]
++            import difflib
++
++            message = self.get_invalid_choice_message(value=value, ctx=ctx)
++            close = difflib.get_close_matches(
++                normed_value, list(normalized_mapping.values()), n=1, cutoff=0.8
++            )
++            if close:
++                message += " " + _("Did you mean {choice!r}?").format(choice=close[0])
+             self.fail(
+-                self.get_invalid_choice_message(value=value, ctx=ctx),
++                message,
+                 param=param,
+                 ctx=ctx,
+             )

@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "disjoint",
+  "k": 5,
+  "id": "d5-blank-editor",
+  "title": "Editor: skip a blank VISUAL or EDITOR",
+  "files": [
+    "src/click/_termui_impl.py"
+  ],
+  "test": "tests/test_t2_d5_blank_editor.py"
+}

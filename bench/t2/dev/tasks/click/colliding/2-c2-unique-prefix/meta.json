@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "colliding",
+  "k": 2,
+  "id": "c2-unique-prefix",
+  "title": "Choice: accept a unique prefix",
+  "files": [
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_c2_unique_prefix.py"
+}

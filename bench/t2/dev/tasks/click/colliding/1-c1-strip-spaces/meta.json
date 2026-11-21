@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "colliding",
+  "k": 1,
+  "id": "c1-strip-spaces",
+  "title": "Choice: ignore spaces around the value without case",
+  "files": [
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_c1_strip_spaces.py"
+}

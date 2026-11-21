@@ -1,0 +1,14 @@
+{
+  "click": {
+    "url": "https://github.com/pallets/click",
+    "rev": "cf19179e8e2fd54c601378cec9e0d21bb12b6fb1",
+    "size": "small",
+    "workdir": ".",
+    "setup": "one shared uv venv outside the tree (venv_packages), tests run with PYTHONPATH=src",
+    "venv_packages": ["pytest>=8,<10"],
+    "env": {"PYTHONPATH": "src", "PYTHONDONTWRITEBYTECODE": "1"},
+    "test_path": "tests/test_t2_{tid}.py",
+    "decide": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "{test}"],
+    "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests", "--ignore=tests/test_deprecations.py"]
+  }
+}

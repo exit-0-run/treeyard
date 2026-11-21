@@ -1,0 +1,12 @@
+diff --git a/src/click/_termui_impl.py b/src/click/_termui_impl.py
+--- a/src/click/_termui_impl.py
++++ b/src/click/_termui_impl.py
+@@ -696,7 +696,7 @@
+             return self.editor
+         for key in "VISUAL", "EDITOR":
+             rv = os.environ.get(key)
+-            if rv:
++            if rv and rv.strip():
+                 return rv
+         if WIN:
+             return "notepad"

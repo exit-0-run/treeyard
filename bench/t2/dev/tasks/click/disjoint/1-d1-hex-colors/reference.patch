@@ -1,0 +1,19 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -618,6 +618,15 @@
+     if isinstance(color, str) and color in _ansi_colors:
+         return str(_ansi_colors[color] + offset)
+ 
++    elif (
++        isinstance(color, str)
++        and len(color) == 7
++        and color[0] == "#"
++        and all(c in "0123456789abcdefABCDEF" for c in color[1:])
++    ):
++        r, g, b = (int(color[i : i + 2], 16) for i in (1, 3, 5))
++        return f"{38 + offset};2;{r:d};{g:d};{b:d}"
++
+     # bool is an int subclass: without the exclusion, True and False would
+     # silently render as the palette indices 1 and 0.
+     elif isinstance(color, int) and not isinstance(color, bool):

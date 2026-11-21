@@ -12,6 +12,9 @@ Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.m
   pilot     --scratch S [--yes-real]    the 12 pilot runs in the frozen order (without --yes-real: the order only)
   budget    --pilot DIR                 full budget from the pilot run files (formula only)
 
+Development set (dev/README.md, for tuning the arm B block): `--repo click` on setup, generate,
+validate, rehearse and run uses dev/ instead; `run --arm B --block FILE` swaps the instruction block.
+
 Harnesses: oracle (applies the reference patches), noop (changes nothing, one tool call),
 stub (scripted misbehaviour for the stop tests), real (3 Claude Code, 2 Codex).
 The `real` harness needs the owner's yes and a budget; this kit never starts it on its own.
@@ -41,6 +44,13 @@ RESULTS = HERE / "results"
 HOOK = HERE / "astro_hook.mjs"
 FROZEN_BLOCK = HERE / "block-b.md"  # the block that `treeyard connect` writes; arm B refuses any other
 REPOS = json.loads((HERE / "repos.json").read_text())
+# The development set (dev/README.md): its own repos.json, taskdefs.py, tasks/ and results/, for tuning
+# the arm B block. `use_dev` points the kit at it; without a dev repo name nothing here changes.
+DEV = HERE / "dev"
+DEV_REPOS = json.loads((DEV / "repos.json").read_text()) if (DEV / "repos.json").is_file() else {}
+TASKDEFS = HERE
+VENV = "requests-venv"
+TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
 ARMS = ("A", "B")
 AGENTS = 5
@@ -95,7 +105,48 @@ def sha256(path):
 # ===================================================================================== tasks
 
 
+def use_dev():
+    """Points the kit at the development set: dev/repos.json, dev/taskdefs.py, dev/tasks, dev/results."""
+    global REPOS, TASKS_DIR, RESULTS, TASKDEFS, VENV, TASK_TOTAL
+    REPOS, TASKS_DIR, RESULTS, TASKDEFS, VENV = DEV_REPOS, DEV / "tasks", DEV / "results", DEV, "dev-venv"
+    TASK_TOTAL = 10 * len(DEV_REPOS)
+
+
+def select_kit(repos):
+    """`use_dev` when the named repositories are dev ones; T2 and dev names do not mix in one command."""
+    dev = [r for r in repos or [] if r in DEV_REPOS]
+    if dev and len(dev) != len(repos):
+        raise SystemExit("T2 and development repositories do not mix in one command")
+    if dev:
+        use_dev()
+    return bool(dev)
+
+
+def block_text(path):
+    """The instruction block in `path`, between the connect markers (added when the file has none)."""
+    text = Path(path).read_text().rstrip("\n")
+    if "<!-- treeyard:connect:start -->" not in text:
+        text = f"<!-- treeyard:connect:start -->\n{text}\n<!-- treeyard:connect:end -->"
+    return text
+
+
+def put_block(repo, block):
+    """Writes `block` in place of the marked block that `treeyard connect` put in AGENTS.md and CLAUDE.md."""
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        f = repo / name
+        if f.is_file():
+            f.write_text(re.sub(r"<!-- treeyard:connect:start -->.*?<!-- treeyard:connect:end -->", lambda _: block,
+                                f.read_text(), count=1, flags=re.S))
+
+
 def load_taskdefs():
+    if TASKDEFS != HERE:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("t2_dev_taskdefs", TASKDEFS / "taskdefs.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
     sys.path.insert(0, str(HERE))
     import taskdefs  # noqa: E402
 
@@ -140,6 +191,8 @@ def unified(before, after):
 
 def test_path(repo, task):
     tid = task["id"].replace("-", "_")
+    if "test_path" in REPOS[repo]:
+        return REPOS[repo]["test_path"].format(tid=tid)
     if repo == "requests":
         return f"tests/test_t2_{tid}.py"
     if repo == "ripgrep":
@@ -221,11 +274,12 @@ def repo_env(repo, scratch):
     if repo == "ripgrep":
         env["CARGO_TARGET_DIR"] = str(scratch / "t2" / "env" / "rg-target")
         env["PATH"] = str(Path(CARGO).parent) + os.pathsep + env.get("PATH", "")
+    env.update(REPOS[repo].get("env", {}))
     return env
 
 
 def fill(cmd, scratch, m=None):
-    venv = scratch / "t2" / "env" / "requests-venv"
+    venv = scratch / "t2" / "env" / VENV
     vals = {"python": str(venv / "bin" / "python"), "hook": str(HOOK), "cargo": CARGO}
     if m:
         vals["test"] = m["test"]
@@ -317,7 +371,7 @@ def validate(scratch, repos):
                 pairs = pair_conflicts(scratch, repo, dirs)
                 lines.append(f"{repo} disjoint: {pairs} of 10 pairs of reference patches conflict in git")
     n = sum(1 for x in lines if x.endswith("-> ok") and " all 5 " not in x)
-    lines.append(f"tasks that fail on the pin and pass with the reference: {n}/30")
+    lines.append(f"tasks that fail on the pin and pass with the reference: {n}/{TASK_TOTAL}")
     lines.append("validate: " + ("ok" if ok_all else "FAILED"))
     text = "\n".join(lines) + "\n"
     RESULTS.mkdir(exist_ok=True)
@@ -717,13 +771,17 @@ def user_config_hashes():
 
 class Run:
     def __init__(self, scratch, arm, repo, s, rep, harness, limits=None, agents=None, tasks_dir=None, repo_spec=None,
-                 run_dir=None, health_url=None, results=None):
+                 run_dir=None, health_url=None, results=None, block_file=None):
         self.scratch, self.arm, self.repo, self.set, self.rep, self.harness = scratch, arm, repo, s, rep, harness
         self.limits = dict(LIMITS, **(limits or {}))
         self.n_agents = AGENTS if agents is None else agents
         self.tasks_dir = tasks_dir or TASKS_DIR
         self.spec = repo_spec or REPOS[repo]
         self.name = f"{arm}-{repo}-{s}-r{rep}-{harness}"
+        # --block: another instruction block for arm B (dev set only); the run name carries its file stem.
+        self.block_file = Path(block_file) if block_file else None
+        if self.block_file:
+            self.name += f"-{self.block_file.stem}"
         self.run_dir = run_dir or scratch / "t2" / "runs" / self.name
         self.results = results or RESULTS
         self.health_url = health_url
@@ -779,10 +837,15 @@ class Run:
             self.health_url = self.url + "/health"
             self.home = self.run_dir / "node"
             ctx.update(url=self.url, home=str(self.home))
+            if self.block_file:
+                put_block(self.repo_dir, block_text(self.block_file))
             block = (self.repo_dir / "AGENTS.md").read_text()
             m = re.search(r"<!-- treeyard:connect:start -->.*?<!-- treeyard:connect:end -->", block, re.S)
             self.block = m.group(0) if m else block
-            if self.block != FROZEN_BLOCK.read_text().rstrip("\n"):
+            if self.block_file:
+                if self.block != block_text(self.block_file):
+                    raise Stop(f"instruction block differs from {self.block_file.name} (--block); refused")
+            elif self.block != FROZEN_BLOCK.read_text().rstrip("\n"):
                 raise Stop("instruction block differs from bench/t2/block-b.md (frozen); refused")
             # The MCP command that connect registered, but with a fixed agent name per slot instead of
             # the name pool, so each change maps to one slot.
@@ -1106,6 +1169,8 @@ class Run:
             result["agents"] = [{k: a[k] for k in ("k", "agent", "harness", "id")} for a in self.agents]
             if self.arm == "B":
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
+                if self.block_file:
+                    result["block_file"] = self.block_file.name
             t_agents = time.time()
             self.run_agents()
             if self.arm == "A":
@@ -1291,6 +1356,14 @@ def setup(scratch):
             git("fetch", "-q", "--depth", "1", spec["url"], spec["rev"], cwd=d)
         git("checkout", "-q", "--detach", spec["rev"], cwd=d)
         print(f"{repo}: {git('rev-parse', 'HEAD', cwd=d).stdout.strip()}")
+    if REPOS is DEV_REPOS:
+        venv = scratch / "t2" / "env" / VENV
+        if not venv.exists():
+            sh(["uv", "venv", "-q", str(venv), "--python", "3.12"])
+            pkgs = sorted({p for spec in REPOS.values() for p in spec.get("venv_packages", [])})
+            sh(["uv", "pip", "install", "-q", "--python", str(venv / "bin" / "python"), *pkgs])
+        print("dev venv:", venv)
+        return
     venv = scratch / "t2" / "env" / "requests-venv"
     if not venv.exists():
         sh(["uv", "venv", "-q", str(venv), "--python", "3.12"])
@@ -1311,18 +1384,22 @@ def main(argv=None):
     for n in ("setup", "generate", "validate", "run", "rehearse", "pilot"):
         p = sub.add_parser(n)
         p.add_argument("--scratch", required=True, type=Path)
+        if n in ("setup", "generate") and DEV_REPOS:
+            p.add_argument("--repo", action="append", choices=list(DEV_REPOS),
+                           help="the development set (dev/README.md); without it, the T2 repositories")
         if n in ("validate", "rehearse"):
-            p.add_argument("--repo", action="append", choices=list(REPOS))
+            p.add_argument("--repo", action="append", choices=list(REPOS) + list(DEV_REPOS))
         if n == "pilot":
             p.add_argument("--yes-real", action="store_true")
         if n == "run":
             p.add_argument("--arm", required=True, choices=ARMS)
-            p.add_argument("--repo", required=True, choices=list(REPOS))
+            p.add_argument("--repo", required=True, choices=list(REPOS) + list(DEV_REPOS))
             p.add_argument("--set", required=True, choices=SETS)
             p.add_argument("--rep", required=True, type=int)
             p.add_argument("--harness", required=True, choices=["oracle", "noop", "stub", "real"])
             p.add_argument("--yes-real", action="store_true", help="needed for --harness real (owner's yes and budget)")
             p.add_argument("--dry-run", action="store_true", help="set up the arm and print the agent commands; start no agent")
+            p.add_argument("--block", type=Path, help="arm B, development set only: this instruction block instead of block-b.md")
     p = sub.add_parser("collect")
     p.add_argument("--results", type=Path, default=RESULTS)
     p.add_argument("--out", type=Path)
@@ -1349,6 +1426,13 @@ def main(argv=None):
         budget(a.pilot)
         return
     scratch = a.scratch.resolve()
+    dev = select_kit([a.repo] if isinstance(getattr(a, "repo", None), str) else getattr(a, "repo", None))
+    if getattr(a, "block", None):
+        if a.arm != "B" or not dev:
+            raise SystemExit("--block is for arm B on the development set only (dev/README.md); T2 runs use block-b.md")
+        if not a.block.is_file():
+            raise SystemExit(f"--block: no file {a.block}")
+        a.block = a.block.resolve()
     if a.cmd == "setup":
         return setup(scratch)
     if a.cmd == "generate":
@@ -1357,13 +1441,13 @@ def main(argv=None):
         sys.exit(0 if validate(scratch, a.repo or list(REPOS)) else 1)
     if a.cmd == "run":
         if a.dry_run:
-            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness).dry_run():
+            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block).dry_run():
                 print(line)
             return
         if a.harness == "real" and not a.yes_real:
             raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
         truth = pair_table(scratch, a.repo, a.set) if a.arm == "B" else None
-        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness).execute(truth)
+        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block).execute(truth)
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green", "merge_conflicts",
                                                  "warned_before_land", "interventions", "wall_s")}))
         sys.exit(0 if r["status"] == "done" else 3)

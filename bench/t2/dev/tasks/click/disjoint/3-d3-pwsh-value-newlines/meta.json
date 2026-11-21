@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "disjoint",
+  "k": 3,
+  "id": "d3-pwsh-value-newlines",
+  "title": "PowerShell completion: newlines in the value",
+  "files": [
+    "src/click/shell_completion.py"
+  ],
+  "test": "tests/test_t2_d3_pwsh_value_newlines.py"
+}

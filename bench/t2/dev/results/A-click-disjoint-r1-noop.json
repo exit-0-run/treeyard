@@ -1,0 +1,171 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.1
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.1
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.1
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.1
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.1
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "noop",
+   "id": "d1-hex-colors",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "noop",
+   "id": "d2-empty-xdg",
+   "k": 2
+  },
+  {
+   "agent": "claude-3",
+   "harness": "noop",
+   "id": "d3-pwsh-value-newlines",
+   "k": 3
+  },
+  {
+   "agent": "codex-1",
+   "harness": "noop",
+   "id": "d4-argument-dots",
+   "k": 4
+  },
+  {
+   "agent": "codex-2",
+   "harness": "noop",
+   "id": "d5-blank-editor",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.0,
+ "done": {
+  "d1-hex-colors": false,
+  "d2-empty-xdg": false,
+  "d3-pwsh-value-newlines": false,
+  "d4-argument-dots": false,
+  "d5-blank-editor": false
+ },
+ "false_alarms": 0,
+ "harness": "noop",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 1,
+ "repo": "click",
+ "run": "A-click-disjoint-r1-noop",
+ "set": "disjoint",
+ "setup_s": 0.37,
+ "started": "2026-11-21T16:30:35",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 3.98,
+ "tasks_on_main": 0,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 5,
+ "wall_s": 0.41,
+ "warned_before_land": 0
+}

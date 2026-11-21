@@ -1,0 +1,13 @@
+diff --git a/src/click/shell_completion.py b/src/click/shell_completion.py
+--- a/src/click/shell_completion.py
++++ b/src/click/shell_completion.py
+@@ -544,7 +544,8 @@
+             help_ = item.help.replace("\r", " ").replace("\n", " ")
+         else:
+             help_ = "_"
+-        return f"{item.type}\n{item.value}\n{help_}"
++        value = str(item.value).replace("\r", " ").replace("\n", " ")
++        return f"{item.type}\n{value}\n{help_}"
+ 
+ 
+ _available_shells: t.Final[dict[str, type[ShellComplete]]] = {

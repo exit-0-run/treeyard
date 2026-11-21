@@ -1,0 +1,13 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -420,6 +420,9 @@
+ 
+         if not self.case_sensitive:
+             normed_value = normed_value.casefold()
++
++        if not self.case_sensitive:
++            normed_value = normed_value.strip()
+ 
+         return normed_value
+ 

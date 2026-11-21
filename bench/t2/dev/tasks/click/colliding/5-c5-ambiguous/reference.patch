@@ -1,0 +1,24 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -461,6 +461,20 @@
+         """
+         normed_value = self.normalize_choice(choice=value, ctx=ctx)
+         normalized_mapping = self._normalized_mapping(ctx=ctx)
++
++        matches = [
++            original
++            for original, normalized in normalized_mapping.items()
++            if normalized == normed_value
++        ]
++        if len(matches) > 1:
++            self.fail(
++                _("{value!r} matches more than one choice: {choices}.").format(
++                    value=value, choices=", ".join(map(repr, matches))
++                ),
++                param=param,
++                ctx=ctx,
++            )
+ 
+         try:
+             return next(

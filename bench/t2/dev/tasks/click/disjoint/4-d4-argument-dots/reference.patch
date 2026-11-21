@@ -1,0 +1,12 @@
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -3766,7 +3766,7 @@
+             raise TypeError("Argument is marked as exposed, but does not have a name.")
+         if len(decls) == 1:
+             name = arg = decls[0]
+-            name = name.replace("-", "_").lower()
++            name = name.replace("-", "_").replace(".", "_").lower()
+         else:
+             raise TypeError(
+                 _(

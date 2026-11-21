@@ -1,0 +1,10 @@
+| run | status | suite | done | merge/land conflicts | warned | reacted | interv | lost | false alarms | tool calls | tokens | cost | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-click-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.42 |
+| A-click-colliding-r1-oracle | done | green | 5/5 | 1 | 0 | 0 | 0 | 0 | 0 | 19 | 0 | 0.0 | 0.96 |
+| A-click-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.41 |
+| A-click-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 0.62 |
+| B-click-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.41 |
+| B-click-colliding-r1-oracle | done | green | 5/5 | 1 | 4 | 1 | 0 | 0 | 2 | 18 | 0 | 0.0 | 1.25 |
+| B-click-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.45 |
+| B-click-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 1.29 |

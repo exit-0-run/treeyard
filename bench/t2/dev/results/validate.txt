@@ -1,0 +1,17 @@
+click pinned cf19179e8e suite: pass (4.09 s)
+click disjoint 1 d1-hex-colors: pinned fail (0.24 s), reference pass (0.25 s) -> ok
+click disjoint 2 d2-empty-xdg: pinned fail (0.25 s), reference pass (0.26 s) -> ok
+click disjoint 3 d3-pwsh-value-newlines: pinned fail (0.25 s), reference pass (0.25 s) -> ok
+click disjoint 4 d4-argument-dots: pinned fail (0.26 s), reference pass (0.27 s) -> ok
+click disjoint 5 d5-blank-editor: pinned fail (0.29 s), reference pass (0.25 s) -> ok
+click disjoint all 5 (reference 1..5): suite pass (4.08 s), tests 5/5 pass -> ok
+click disjoint: 0 of 10 pairs of reference patches conflict in git
+click colliding 1 c1-strip-spaces: pinned fail (0.28 s), reference pass (0.26 s) -> ok
+click colliding 2 c2-unique-prefix: pinned fail (0.29 s), reference pass (0.25 s) -> ok
+click colliding 3 c3-did-you-mean: pinned fail (0.29 s), reference pass (0.27 s) -> ok
+click colliding 4 c4-lower-only: pinned fail (0.29 s), reference pass (0.3 s) -> ok
+click colliding 5 c5-ambiguous: pinned fail (0.29 s), reference pass (0.3 s) -> ok
+click colliding all 5 (resolved-1..5): suite pass (4.02 s), tests 5/5 pass -> ok
+click colliding: 1 of 10 pairs of reference patches conflict in git
+tasks that fail on the pin and pass with the reference: 10/10
+validate: ok

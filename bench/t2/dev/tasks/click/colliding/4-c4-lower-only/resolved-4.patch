@@ -1,0 +1,12 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -419,7 +419,7 @@
+             normed_value = ctx.token_normalize_func(normed_value)
+ 
+         if not self.case_sensitive:
+-            normed_value = normed_value.casefold()
++            normed_value = normed_value.lower()
+ 
+         if not self.case_sensitive:
+             normed_value = normed_value.strip()

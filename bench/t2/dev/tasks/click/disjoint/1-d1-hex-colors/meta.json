@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "disjoint",
+  "k": 1,
+  "id": "d1-hex-colors",
+  "title": "style: hex colours",
+  "files": [
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_d1_hex_colors.py"
+}

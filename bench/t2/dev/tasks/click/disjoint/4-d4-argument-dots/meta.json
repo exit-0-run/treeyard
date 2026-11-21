@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "disjoint",
+  "k": 4,
+  "id": "d4-argument-dots",
+  "title": "Argument: dots in the name",
+  "files": [
+    "src/click/core.py"
+  ],
+  "test": "tests/test_t2_d4_argument_dots.py"
+}

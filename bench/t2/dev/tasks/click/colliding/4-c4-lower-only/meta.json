@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "colliding",
+  "k": 4,
+  "id": "c4-lower-only",
+  "title": "Choice: compare with lower(), not casefold()",
+  "files": [
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_c4_lower_only.py"
+}

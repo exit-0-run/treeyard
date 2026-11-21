@@ -1,0 +1,18 @@
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -472,6 +472,14 @@
+                 if normalized == normed_value
+             )
+         except StopIteration:
++            if len(normed_value) >= 3:
++                prefixed = [
++                    original
++                    for original, normalized in normalized_mapping.items()
++                    if normalized.startswith(normed_value)
++                ]
++                if len(prefixed) == 1:
++                    return prefixed[0]
+             self.fail(
+                 self.get_invalid_choice_message(value=value, ctx=ctx),
+                 param=param,

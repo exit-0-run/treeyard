@@ -27,8 +27,9 @@ python3 bench/t2/t2.py run --scratch S --arm B --repo requests --set colliding -
 | `block-b.md` | the instruction block that `treeyard connect` writes; arm B refuses another one |
 | `astro_hook.mjs` | node resolve hook: astro tests run on the `.ts` sources with no install and no build |
 | `t2.py` | setup, generate, validate, run, rehearse, pilot, collect, budget; the scripted agents |
-| `test_t2.py` | 8 stop tests with stub agents and 5 kit tests (`make bench-test` runs them with the other bench tests) |
+| `test_t2.py` | 8 stop tests with stub agents, 5 kit tests and 5 dev-set tests (`make bench-test` runs them with the other bench tests) |
 | `results/` | `validate.txt`, one JSON per rehearsal run, `metrics.json`, `rehearsal-summary.txt`, `stop-tests.txt` |
+| `dev/` | the development set (click, 10 tasks) for tuning the arm B block, never for a measurement: [dev/README.md](dev/README.md); `--repo click`, `run --block FILE` |
 
 ## Harnesses
 
@@ -49,7 +50,7 @@ anomalies:
 - the arm B server does not answer `/health`;
 - an agent makes zero tool calls.
 
-`test_t2.py` has 8 `StopTests` for these stops and 5 `KitTests`. Run only these 13 tests with
+`test_t2.py` has 8 `StopTests` for these stops, 5 `KitTests` and 5 `DevTests` (dev set, `--block`). Run only these 18 tests with
 `cd bench && python3 -m unittest t2.test_t2`.
 
 ## Gotchas

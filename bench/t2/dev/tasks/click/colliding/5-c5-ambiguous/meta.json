@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "colliding",
+  "k": 5,
+  "id": "c5-ambiguous",
+  "title": "Choice: refuse a value that matches two choices",
+  "files": [
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_c5_ambiguous.py"
+}

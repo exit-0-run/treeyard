@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "colliding",
+  "k": 3,
+  "id": "c3-did-you-mean",
+  "title": "Choice: suggest the closest choice",
+  "files": [
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_c3_did_you_mean.py"
+}

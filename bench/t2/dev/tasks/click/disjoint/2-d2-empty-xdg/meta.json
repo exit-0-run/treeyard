@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "disjoint",
+  "k": 2,
+  "id": "d2-empty-xdg",
+  "title": "get_app_dir: empty XDG_CONFIG_HOME",
+  "files": [
+    "src/click/utils.py"
+  ],
+  "test": "tests/test_t2_d2_empty_xdg.py"
+}

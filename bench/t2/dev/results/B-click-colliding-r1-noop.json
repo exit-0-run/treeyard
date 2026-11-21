@@ -1,0 +1,209 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.09
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.08
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.09
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.09
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.08
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "noop",
+   "id": "c1-strip-spaces",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "noop",
+   "id": "c2-unique-prefix",
+   "k": 2
+  },
+  {
+   "agent": "claude-3",
+   "harness": "noop",
+   "id": "c3-did-you-mean",
+   "k": 3
+  },
+  {
+   "agent": "codex-1",
+   "harness": "noop",
+   "id": "c4-lower-only",
+   "k": 4
+  },
+  {
+   "agent": "codex-2",
+   "harness": "noop",
+   "id": "c5-ambiguous",
+   "k": 5
+  }
+ ],
+ "arm": "B",
+ "block_sha256": "3fd268440d0b22471c232d768bcf667bcfc7606017fd15de21e5d19a4604f898",
+ "cost_usd": 0.0,
+ "done": {
+  "c1-strip-spaces": false,
+  "c2-unique-prefix": false,
+  "c3-did-you-mean": false,
+  "c4-lower-only": false,
+  "c5-ambiguous": false
+ },
+ "false_alarms": 0,
+ "harness": "noop",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "runner_landed": [
+    {
+     "change": "ch_3b26cfca180c",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "runner_landed": [
+    {
+     "change": "ch_8123e2ebb87e",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "runner_landed": [
+    {
+     "change": "ch_0e920be0f370",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "runner_landed": [
+    {
+     "change": "ch_a8161d5aa220",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "runner_landed": [
+    {
+     "change": "ch_56bd83cb42b3",
+     "status": "error"
+    }
+   ]
+  }
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "16:30:54 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "reacted": 0,
+ "rep": 1,
+ "repo": "click",
+ "run": "B-click-colliding-r1-noop",
+ "set": "colliding",
+ "setup_s": 0.96,
+ "started": "2026-11-21T16:30:54",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 3.68,
+ "tasks_on_main": 0,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 5,
+ "true_conflict_pairs": [
+  "2-3"
+ ],
+ "wall_s": 0.41,
+ "warned_before_land": 0,
+ "warned_pair_kinds": {},
+ "warned_pairs": []
+}
