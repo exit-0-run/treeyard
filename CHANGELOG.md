@@ -20,6 +20,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   repository to Claude Code, Codex and OpenCode (project-scoped MCP entries, an instruction block in
   AGENTS.md and CLAUDE.md, a loopback server), and one command restores every touched file byte for
   byte (docs/connect.md). `serve --port-file`, `mcp --agent-pool --pool-dir`.
+- `treeyard workspace-hook create|remove`: the command an orchestrator runs when it makes and removes
+  an agent's workspace (arguments and environment only, the path on stdout, safe to repeat, exit 3 when
+  the server does not answer). docs/orchestrators.md: the hook points of Orca, Paradev and Agent
+  Orchestrator, read from their source.
 - `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in
   docs/benchmarks.md.
 

@@ -69,6 +69,14 @@ workspace (these directories plus root files, git cone mode); sync never treats 
 Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
+`treeyard workspace-hook create [--name N] [--from-dir PATH] [--agent A] [--intent I] [--setup CMD] [--no-git]`
+and `workspace-hook remove [NAME|PATH] [--from-dir PATH] [--abandon] [--force]` are the commands an
+orchestrator runs when it makes and removes an agent's workspace. Inputs are arguments and environment
+variables only; stdout is the workspace path. The server address comes from `TREEYARD_URL` or the `connect`
+state, never a fixed port. Exit 2: bad name or no address; exit 3: the server does not answer. A repeated
+call is safe. Recipes for Orca, Paradev and Agent Orchestrator: [docs/orchestrators.md](orchestrators.md).
+Tests: `tests/workspace_hook.rs`.
+
 50 extra agents, each ready to build, on 15-core CPU, 48 GB RAM, 8 at once (`bench/bench.py cow` against
 `bench/bench.py workspaces`, 2026-10-17, [docs/benchmarks.md](benchmarks.md)):
 

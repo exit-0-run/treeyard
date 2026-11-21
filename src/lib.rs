@@ -17,6 +17,7 @@ pub mod failpoint;
 pub mod git;
 pub mod githttp;
 pub mod history;
+pub mod hook;
 pub mod hunks;
 pub mod indexer;
 pub mod landing;

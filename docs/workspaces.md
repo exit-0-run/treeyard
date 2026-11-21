@@ -16,6 +16,9 @@ treeyard workspace land fix-1                       # sync, then land on main
 treeyard workspace remove fix-1
 ```
 
+An orchestrator that runs a command when it makes and removes a workspace can call
+`treeyard workspace-hook create|remove` instead: see [orchestrators.md](orchestrators.md).
+
 ## What happens
 
 1. `create` opens a change on the server (`open_change`, base = main unless `--base`).

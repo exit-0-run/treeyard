@@ -155,6 +155,12 @@ enum Cmd {
         #[command(subcommand)]
         cmd: WsCmd,
     },
+    /// For orchestrators: run on workspace creation and removal. Only the path goes to stdout.
+    /// Exit 2: bad name or no server address (TREEYARD_URL or `connect` state); 3: server down.
+    WorkspaceHook {
+        #[command(subcommand)]
+        cmd: HookCmd,
+    },
     /// Watch every workspace of this node and sync each one after its edits settle.
     Daemon {
         #[command(flatten)]
@@ -198,6 +204,93 @@ enum Cmd {
         #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
         url: String,
     },
+}
+
+#[derive(clap::Args)]
+struct HookArgs {
+    /// Server URL. Default: the `treeyard connect` state of the repository here (never a fixed port).
+    #[arg(long, env = "TREEYARD_URL")]
+    url: Option<String>,
+    /// Node home (default ~/.treeyard).
+    #[arg(long, env = "TREEYARD_HOME")]
+    home: Option<PathBuf>,
+}
+
+impl HookArgs {
+    fn common(&self) -> Result<treeyard::hook::Common> {
+        Ok(treeyard::hook::Common {
+            url: self.url.clone(),
+            home: self.home.clone().unwrap_or_else(Node::default_home),
+            cwd: std::env::current_dir()?,
+        })
+    }
+}
+
+#[derive(Subcommand)]
+enum HookCmd {
+    /// Open a change and make its workspace; print the workspace path. A ready workspace of the
+    /// same name is reused (no second change).
+    Create {
+        /// Workspace name (letters, digits, . _ -). Default: the base name of --from-dir or of $PWD.
+        #[arg(long, env = "TREEYARD_HOOK_NAME")]
+        name: Option<String>,
+        /// Agent name of the change (default hook-<name>).
+        #[arg(long, env = "TREEYARD_AGENT")]
+        agent: Option<String>,
+        /// Declared intent of the change.
+        #[arg(long, env = "TREEYARD_INTENT")]
+        intent: Option<String>,
+        /// Shell command run once in the new workspace (for example `npm ci`).
+        #[arg(long, env = "TREEYARD_SETUP")]
+        setup: Option<String>,
+        /// No `.git` in the workspace (default: one, so git status and diff work).
+        #[arg(long)]
+        no_git: bool,
+        /// The orchestrator's checkout: its uncommitted edits seed the change, its gitignored
+        /// files (`.worktreeinclude`, `copy`) are copied, and its base name is the default name.
+        #[arg(long, env = "TREEYARD_HOOK_DIR", value_name = "PATH")]
+        from_dir: Option<PathBuf>,
+        #[command(flatten)]
+        hook: HookArgs,
+    },
+    /// Send the last edits to the change, delete the workspace, print its former path. The change
+    /// stays open. A workspace that is not there is not an error (exit 0).
+    Remove {
+        /// Workspace name or path. Default: the name that `create` derives from --from-dir or $PWD.
+        target: Option<String>,
+        #[arg(long, env = "TREEYARD_HOOK_DIR", value_name = "PATH")]
+        from_dir: Option<PathBuf>,
+        /// Drop the open change instead of keeping it.
+        #[arg(long)]
+        abandon: bool,
+        /// Delete even when the last edits cannot be sent.
+        #[arg(long)]
+        force: bool,
+        #[command(flatten)]
+        hook: HookArgs,
+    },
+}
+
+fn workspace_hook(cmd: HookCmd) -> Result<()> {
+    use treeyard::hook;
+    let out = match cmd {
+        HookCmd::Create { name, agent, intent, setup, no_git, from_dir, hook: h } => {
+            let a = hook::CreateArgs { name, agent, intent, setup, git: !no_git, from_dir };
+            hook::create(&h.common()?, &a).map(Some)
+        }
+        HookCmd::Remove { target, from_dir, abandon, force, hook: h } => {
+            hook::remove(&h.common()?, &hook::RemoveArgs { target, from_dir, abandon, force })
+        }
+    };
+    match out {
+        Ok(Some(dir)) => println!("{}", dir.display()),
+        Ok(None) => {}
+        Err(e) => {
+            eprintln!("workspace-hook: {e}");
+            std::process::exit(e.code);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Subcommand)]
@@ -641,6 +734,7 @@ fn main() -> Result<()> {
         }
         Cmd::Disconnect { purge } => connect::disconnect(&std::env::current_dir()?, purge)?,
         Cmd::Workspace { node, cmd } => workspace(node.node(), cmd)?,
+        Cmd::WorkspaceHook { cmd } => workspace_hook(cmd)?,
         Cmd::Daemon { node, debounce_ms, rescan_s, spares, gc_every, gc_max, gc_max_gb } => {
             let gc = GcOptions { max: Some(gc_max), max_bytes: Some(gb(gc_max_gb)), ..Default::default() };
             let o = daemon::Options {

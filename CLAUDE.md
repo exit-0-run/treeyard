@@ -13,7 +13,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`, `treeyard connect [--harness all] [--agents N] [--mirror]`, `connect status`, `disconnect [--purge]` (docs/connect.md; state in `.git/treeyard/`).
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
-  `remove [--abandon]`, `restore NAME --to N`, `gc`, `mirror NAME --into DIR`; repo config `.treeyard/workspace.toml`; `treeyard daemon [--gc-every H]`.
+  `remove [--abandon]`, `restore NAME --to N`, `gc`, `mirror NAME --into DIR`; repo config `.treeyard/workspace.toml`; `treeyard daemon [--gc-every H]`; `workspace-hook create|remove` (docs/orchestrators.md).
 - Coordination (docs/coordination.md): `<data>/treeyard.toml` (template written by `init`).
   `treeyard replay ... [--config TOML] [--intents] [--wave-base]`. `MERGIRAF=/path cargo test --test
   coordination` also runs the mergiraf branch of the drivers test.
@@ -44,7 +44,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
 | `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP, CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
-| `src/workspace.rs`, `src/daemon.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon |
+| `src/workspace.rs`, `src/daemon.rs`, `src/hook.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon; `workspace-hook` (`tests/workspace_hook.rs`) |
 | `src/hunks.rs`, `src/share.rs` | one shared directory, many agents: hunk ids, owners (claim, intent, sticky), `depends_on`; `treeyard share join\|sync\|claim` (`tests/share.rs`) |
 | `src/replay.rs` | `treeyard replay`: real history in waves of N agents, stale or stacked, checked against git |
 | `src/history.rs`, `src/blame.rs`, `src/xdiff.rs` | mainline + changed-path index, `log`; blame cached per (changeset, path); git's Myers diff port |
