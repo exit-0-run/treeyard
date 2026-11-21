@@ -37,7 +37,7 @@ python3 bench/t2/t2.py run --scratch S --arm B --repo requests --set colliding -
   conflict it writes main plus `resolved-<k>.patch`, then lands again.
 - `noop`: changes nothing and makes one tool call, so the zero-tool-call stop does not fire.
 - `stub`: scripted misbehaviour for the stop tests (`T2_STUB_MODES`).
-- `real`: 2 Claude Code, 2 Codex, 1 OpenCode. It needs `--yes-real`: the owner's yes and a budget.
+- `real`: 3 Claude Code, 2 Codex. It needs `--yes-real`: the owner's yes and a budget.
 
 ## Stops
 

@@ -1,0 +1,131 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": -9,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 0,
+   "turns": 0,
+   "wall_s": 0.85
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": -9,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 0,
+   "turns": 0,
+   "wall_s": 0.85
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": -9,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 0,
+   "turns": 0,
+   "wall_s": 0.85
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": -9,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 0,
+   "turns": 0,
+   "wall_s": 0.85
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 1,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 0,
+   "turns": 0,
+   "wall_s": 0.85
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "c1-rel-lower",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "c2-skip-empty-url",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "c3-lower-keys",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "c4-drop-duplicates",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "opencode",
+   "id": "c5-valueless-params",
+   "k": 5
+  }
+ ],
+ "arm": "B",
+ "block_sha256": "3fd268440d0b22471c232d768bcf667bcfc7606017fd15de21e5d19a4604f898",
+ "cost_usd": 0.0,
+ "harness": "real",
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "15:29:35 connect: imported main as changeset 117d57bf6ea3"
+ ],
+ "rep": 1,
+ "repo": "requests",
+ "run": "B-requests-colliding-r1-real",
+ "set": "colliding",
+ "started": "2026-11-21T15:29:34",
+ "status": "stopped",
+ "stop_reason": "zero tool calls: agent-5 (opencode-1) made no tool call",
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 0,
+ "user_config_after": {
+  "~/.claude.json": "eac4c60a8811c5e528406dec7f1687f50b5a9e7579c35ea734e0ed7c3691203f",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "eac4c60a8811c5e528406dec7f1687f50b5a9e7579c35ea734e0ed7c3691203f",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 1.67
+}

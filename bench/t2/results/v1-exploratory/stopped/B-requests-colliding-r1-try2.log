@@ -1,0 +1,2 @@
+{"run": "B-requests-colliding-r1-real", "status": "stopped", "stop_reason": "zero tool calls: agent-5 (opencode-1) made no tool call", "tasks_on_main": null, "suite_green": null, "merge_conflicts": null, "warned_before_land": null, "interventions": null, "wall_s": 1.67}
+exit=3

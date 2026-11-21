@@ -13,7 +13,7 @@ Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.m
   budget    --pilot DIR                 full budget from the pilot run files (formula only)
 
 Harnesses: oracle (applies the reference patches), noop (changes nothing, one tool call),
-stub (scripted misbehaviour for the stop tests), real (2 Claude Code, 2 Codex, 1 OpenCode).
+stub (scripted misbehaviour for the stop tests), real (3 Claude Code, 2 Codex).
 The `real` harness needs the owner's yes and a budget; this kit never starts it on its own.
 """
 
@@ -44,8 +44,9 @@ REPOS = json.loads((HERE / "repos.json").read_text())
 SETS = ("disjoint", "colliding")
 ARMS = ("A", "B")
 AGENTS = 5
-# Agent slots per repetition: 2 Claude Code, 2 Codex, 1 OpenCode, rotated by one slot per repetition.
-MIX = ["claude", "claude", "codex", "codex", "opencode"]
+# Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
+# v1 had an OpenCode slot; its free tier ran out of quota during the v1 pilot (results/v1-exploratory).
+MIX = ["claude", "claude", "claude", "codex", "codex"]
 
 # Frozen per-agent limits (PREREGISTRATION.md). Tests pass smaller ones.
 LIMITS = {"max_turns": 80, "max_tokens": 4_000_000, "timeout_s": 1800, "claude_budget_usd": 3.0}
@@ -696,10 +697,18 @@ USER_CONFIG = [".claude.json", ".claude/settings.json", ".claude/CLAUDE.md", ".c
 
 
 def user_config_hashes():
+    """One value per user config file: its sha256. `~/.claude.json` is the exception: every open Claude Code
+    session of the operator writes it (counters, session state), so its value is the count of entries that
+    name a run directory. A run must leave that count as it was."""
     out = {}
     for rel in USER_CONFIG:
         p = Path.home() / rel
-        out["~/" + rel] = sha256(p) if p.is_file() else "missing"
+        if not p.is_file():
+            out["~/" + rel] = "missing"
+        elif rel == ".claude.json":
+            out["~/" + rel] = "run-path entries: %d" % p.read_text(errors="replace").count("/t2/runs/")
+        else:
+            out["~/" + rel] = sha256(p)
     return out
 
 

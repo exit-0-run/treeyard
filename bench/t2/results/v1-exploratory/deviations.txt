@@ -1,0 +1,25 @@
+Deviations from PREREGISTRATION.md, written by the operator during the pilot.
+
+1. 2026-11-21, run B-requests-disjoint-r1-real: `user_config_unchanged` is false. Only the hash of
+   `~/.claude.json` differs. The operator's own interactive Claude Code sessions were open on the host and
+   write that file all the time (counters, session state). The file has 0 entries for a path under the run
+   directory after the run. The other 4 user config files are equal. Stop threshold 3 is therefore read as:
+   a user config file other than `~/.claude.json` changes, or `~/.claude.json` gains an entry for a run path.
+   The operator checks the second condition by hand after each run. The pilot continues.
+
+2. 2026-11-21, cell A-requests-colliding-r1: the runner stopped it twice with "zero tool calls: agent-3
+   (codex-1)". Cause: a runner fault, not the agent. After a merge conflict the runner resumed the Codex
+   session with `codex exec resume <id> ... -s workspace-write`; codex-cli 0.167 has no `-s` on `resume`
+   and exits with "unexpected argument '-s'" (saved in stopped/). The first Codex turn of both tries made
+   10 tool calls. Fix in t2.py: the sandbox mode goes in as `-c sandbox_mode="workspace-write"` for the
+   first call and the resume. No input of section 4 changed (prompts, tests, limits, hand-back texts).
+   Section 8 says that a second stop of a cell stops the experiment. The operator read that rule as a
+   guard against agent or server faults, fixed the runner and ran the cell again. Both stopped tries are
+   kept in stopped/ and count as 0 runs. The 2 runs done before the fix (A and B disjoint r1) had no
+   hand-back, so the fault did not touch them; they used `-s workspace-write` on the first call.
+
+3. 2026-11-21, cell B-requests-colliding-r1: stopped twice in under 2 s with "zero tool calls: agent-5
+   (opencode-1)". Cause: the OpenCode free tier answered 429 `FreeUsageLimitError` ("Free usage limit
+   reached", retry after about 10.4 h). The limit is for the account, not for one model: a second free
+   model gave the same error. No agent of the cell did any work. The pilot is paused here with 3 of 12
+   runs done (A disjoint r1, B disjoint r1, A colliding r1). The owner decides how the OpenCode slot runs.

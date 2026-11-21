@@ -1,6 +1,7 @@
-# T2 preregistration: plain git worktrees against `treeyard connect`, 5 agents at once
+# T2 preregistration v2: plain git worktrees against `treeyard connect`, 5 agents at once
 
-Status: frozen before any real-agent run. This file holds no result. The kit, the free rehearsals
+Status: version 2, frozen before any real-agent run of version 2. This file holds no result.
+Section 12 gives the changes against version 1 and the reason. The kit, the free rehearsals
 and their outputs are in [README.md](README.md). A change to this file after the first real run makes
 the experiment exploratory, and the report must say so.
 
@@ -25,10 +26,10 @@ sequence (arm A)? Does it keep correctness? What does it cost on tasks that do n
   - `colliding`: the 5 tasks edit one function on purpose. In git, the reference patches of 6 of 10
     pairs (requests, ripgrep) and 10 of 10 pairs (astro) conflict (`t2.py validate` counts them).
 - 2 arms, 3 repetitions per cell: 3 x 2 x 2 x 3 = 36 runs.
-- 5 agents at once in each run, one task each: 2 Claude Code, 2 Codex, 1 OpenCode. The slot order is
-  `claude, claude, codex, codex, opencode`. It rotates by one slot per repetition (`MIX` in t2.py).
-- Models: the default model of each CLI on the day of the pilot, recorded in the run file. OpenCode uses
-  `opencode/deepseek-v4.1-flash-free` (free, no login). The pilot fixes the models for the full run.
+- 5 agents at once in each run, one task each: 3 Claude Code, 2 Codex. The slot order is
+  `claude, claude, claude, codex, codex`. It rotates by one slot per repetition (`MIX` in t2.py).
+- Models: the default model of each CLI on the day of the pilot, recorded in the run file. The pilot
+  fixes the models for the full run.
 
 ### Arm A
 
@@ -69,9 +70,10 @@ Both paths reach main: the runner lands the workspace change and any other open 
 - Limits per agent: 80 turns, 4 000 000 tokens (all input tokens, cached or not, plus output tokens),
   1800 s wall clock. Claude Code also gets `--max-turns 80 --max-budget-usd 3.0`. The runner reads the
   usage events of each CLI and kills the process group at a limit.
-- Config isolation: `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and the `XDG_*` directories of OpenCode point to a
-  directory of the run. The runner hashes the user config files before and after each run
-  (`user_config_unchanged` in the run file).
+- Config isolation: `CLAUDE_CONFIG_DIR` and `CODEX_HOME` point to a directory of the run. The runner
+  hashes the user config files before and after each run (`user_config_unchanged` in the run file). For
+  `~/.claude.json` it counts the entries that name a run directory in place of a hash: the operator's own
+  open Claude Code sessions write that file all the time.
 
 The sha256 of each prompt:
 
@@ -144,7 +146,7 @@ Known limits of the rules: `reacted` matches an event to an audit row by the sec
   work and the landed work are both kept, then run `treeyard workspace land <name> --url <url>`."
 
 The exact strings are `HANDBACK_A` and `HANDBACK_B` in t2.py. The runner resumes the agent's own session
-(`claude --resume`, `codex exec resume`, `opencode run --session`).
+(`claude --resume`, `codex exec resume`).
 
 ## 7. Success threshold
 
@@ -174,7 +176,10 @@ stops and the report gives the reason.
 
 The runner itself stops a run (exit 3, `stop_reason`) on an anomaly: the agent count is not 5, the arm B
 server does not answer `/health`, or an agent makes zero tool calls. A stopped run is run again once with
-the same arguments. A second stop of the same cell stops the experiment.
+the same arguments. A second stop of the same cell stops the experiment. A stop that a fault of the
+runner or of a provider causes (a wrong CLI flag, a quota error before any agent works) is not such a
+stop: the operator writes it in `results/deviations.txt`, keeps the stopped run under `results/stopped/`,
+removes the cause and runs the cell again.
 
 ## 9. Pilot
 
@@ -203,8 +208,25 @@ before the runs on ripgrep and astro.
   path, so a copy keeps the reference patches out of the agents' way.
 - No pilot and no real run without the owner's yes and a budget. `t2.py run --harness real` refuses to
   start without `--yes-real`.
-- 5 agents at once is the design. The current harness rule allows at most 2 real-agent runs at a time.
-  The owner must allow 5 for this experiment.
+- 5 agents at once is the design. The owner allowed it for this experiment.
 - `t2.py run ... --harness real --dry-run` sets up the arm and prints the 5 commands with no agent
   started. Run it before the pilot.
 - Do not tune the block or the prompts on T2 tasks. A new block version needs a new preregistration.
+
+## 12. Changes against version 1
+
+Version 1 is this file at commit `273d8d2`. Its pilot started on 2026-11-21 and stopped after 3 of 12
+runs. The run files, the 2 stopped cells and the operator's notes are in `results/v1-exploratory/`. These
+runs are exploratory. They do not count toward the 36 runs or toward any threshold.
+
+1. Agent mix: 3 Claude Code and 2 Codex in place of 2 Claude Code, 2 Codex and 1 OpenCode. Reason: the
+   free tier of OpenCode answered `FreeUsageLimitError` for the whole account in the fourth pilot run, and
+   the experiment has no paid provider. The T1 trial still shows OpenCode on the protocol.
+2. User config check: a count of run-path entries for `~/.claude.json` in place of a hash (section 4).
+   Reason: in version 1 the hash changed in a run with no entry for a run path.
+3. Stop rule: a fault of the runner or of a provider is not a stop of the cell (section 8). Reason: in
+   version 1 a wrong `codex exec resume` flag in the runner stopped a cell twice.
+4. Runner: the Codex sandbox mode is a config value, so a resumed session starts.
+
+Nothing else changed: the tasks, the prompts and their hashes, the hidden tests, the block of arm B, the
+limits, the hand-back texts, the metrics and the thresholds are those of version 1.
