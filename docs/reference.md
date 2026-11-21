@@ -138,7 +138,10 @@ to a read-only mirror (never forced). Rules, the exact rejection text and timing
 - **Change**: a stable id owned by one agent. It points at one head changeset on top of its base and
   survives amend and rebase. Main is the only ref.
 - **Conflict**: stored on the change, which keeps living with it. Text conflicts hold the file with
-  markers until the path is written again or settled with `resolve`.
+  markers until the path is written again or settled with `resolve`. Replies list each conflict as
+  `regions` (the marker blocks, with line numbers in that file and 3 lines of context) plus the blob id,
+  mode and size of `base`, `ours` and `theirs`; `change {change, full: true}` adds the three whole texts
+  ([docs/coordination.md](coordination.md#conflicts-as-regions)).
 - **Git bridge**: each main changeset maps to one deterministic commit (dates and author come from the
   changeset), written as loose objects into the bare repo at `<data>/git`. The commit message carries
   `TreeYard-Change`, `TreeYard-Changeset`, `TreeYard-Agent`, `TreeYard-Model` and `TreeYard-Session`

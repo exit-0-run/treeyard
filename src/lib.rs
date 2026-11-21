@@ -8,6 +8,7 @@ pub mod bisect;
 pub mod blame;
 pub mod client;
 pub mod config;
+pub mod conflict_view;
 pub mod connect;
 pub mod coord;
 pub mod cow;

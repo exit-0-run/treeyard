@@ -69,7 +69,8 @@ fn agent(url: String, i: usize, start: Arc<Barrier>) -> Report {
         assert_eq!(task["path"], file.as_str());
         assert_eq!(task["kind"], "content");
         assert!(!task["theirs_by"].as_array().unwrap().is_empty(), "the task names who touched the path");
-        let theirs = task["text"]["theirs"].as_str().unwrap();
+        let full = call(&url, "change", json!({"change": id, "full": true}));
+        let theirs = full["conflicts"][0]["text"]["theirs"].as_str().unwrap();
         call(&url, "apply", json!({"change": id, "edits": [{"path": file, "content": tag(theirs, line, i)}]}));
     }
     panic!("agent {i} did not land in 20 attempts");

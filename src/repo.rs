@@ -1639,27 +1639,81 @@ impl Inner {
     }
 
     pub fn change_view(&mut self, ch: &Change) -> Result<Value> {
+        self.change_view_with(ch, false)
+    }
+
+    /// The JSON of a change. Each conflict lists its `regions` (marker blocks of the path as the
+    /// change holds it, with context; `conflict_view`), the blob, mode and size of each side, and
+    /// the whole texts only with `full` (sides of a conflict without regions also when small).
+    pub fn change_view_with(&mut self, ch: &Change, full: bool) -> Result<Value> {
+        use crate::conflict_view as cv;
         let paths: Vec<String> = self.own_changes(ch)?.into_keys().collect();
         let mut conflicts = Vec::new();
+        let mut budget = cv::Budget::default();
+        let head = if ch.conflicts.is_empty() { None } else { Some(self.manifest(&ch.head)?) };
         for c in &ch.conflicts {
-            conflicts.push(json!({
+            let mut v = json!({
                 "path": c.path,
                 "kind": c.kind,
-                "base": entry_json(&c.base),
-                "ours": entry_json(&c.ours),
-                "theirs": entry_json(&c.theirs),
-                "text": {"base": self.text_of(&c.base)?, "ours": self.text_of(&c.ours)?, "theirs": self.text_of(&c.theirs)?},
-                "ours_intent": ch.intent,
+                "base": self.side_json(&c.base)?,
+                "ours": self.side_json(&c.ours)?,
+                "theirs": self.side_json(&c.theirs)?,
                 "theirs_by": c.theirs_by,
-                "resolve": "write the final content of this path with apply, or call resolve with take = ours | theirs | base | delete; then land again",
-            }));
+            });
+            let marked = match head.as_ref().and_then(|m| m.get(&c.path)).filter(|e| e.mode != MODE_GITLINK) {
+                Some(e) => as_text(&self.blob(&e.blob)?),
+                None => None,
+            };
+            let with_regions = matches!(c.kind, ConflictKind::Content | ConflictKind::AddAdd) && marked.is_some();
+            if with_regions {
+                let (regions, more) = cv::regions(marked.as_deref().unwrap_or_default(), &mut budget);
+                v["regions"] = json!(regions);
+                if more > 0 {
+                    v["regions_more"] = json!(more);
+                }
+            }
+            if full || !with_regions {
+                let limit = if full { TEXT_LIMIT } else { cv::SMALL_SIDE };
+                let side = |s: &mut Self, e: &Option<Entry>| -> Result<Value> {
+                    Ok(match s.text_of(e)? {
+                        Value::String(t) => cv::small(Some(t), false, limit),
+                        _ => Value::Null,
+                    })
+                };
+                v["text"] = json!({"base": side(self, &c.base)?, "ours": side(self, &c.ours)?, "theirs": side(self, &c.theirs)?});
+            }
+            conflicts.push(v);
         }
-        Ok(json!({
+        let mut out = json!({
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
             "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(), "group": ch.group,
-        }))
+        });
+        if !ch.conflicts.is_empty() {
+            out["resolve"] = json!(cv::help(&ch.id));
+        }
+        if budget.cut {
+            out["conflicts_cut"] = json!(format!(
+                "region text is capped ({} lines per region, {} regions per path, {} KiB per reply): read the \
+                 lines of a cut or missing region with at = {}, or call change with full = true",
+                cv::REGION_LINES,
+                cv::REGIONS_MAX,
+                cv::BUDGET / 1024,
+                ch.id
+            ));
+        }
+        Ok(out)
+    }
+
+    /// Blob id, mode and byte size of one side of a conflict.
+    fn side_json(&mut self, e: &Option<Entry>) -> Result<Value> {
+        let Some(e) = e else { return Ok(Value::Null) };
+        let mut v = entry_json(&Some(e.clone()));
+        if e.mode != MODE_GITLINK {
+            v["size"] = json!(self.blob(&e.blob)?.len());
+        }
+        Ok(v)
     }
 
     /// Other open changes that touch any of this change's paths.

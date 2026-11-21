@@ -6,6 +6,13 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- Conflicts come as regions (shape change): every conflict in a change reply (`change`, `apply`,
+  `resolve`, `rebase`, `declare`, `land`, `restore_change`) lists `regions` (marker blocks of the
+  change's text with line numbers and 3 lines of context, ready for `replace`) and the blob, mode and
+  `size` of `base`/`ours`/`theirs`, instead of `text` with the three whole files (up to 256 KiB each).
+  `change {full: true}` returns `text` as before. The per-conflict `resolve` hint is now one `resolve`
+  string per change; `conflicts_cut` says when regions were capped. A `land` conflict on an 87 KB file
+  went from 262 246 to 2 718 bytes in the MCP bridge (`change`: 261 935 to 2 391).
 - `read`: a range from line 1 of an empty file returns empty `content` with `lines` `[1, 0]` instead of
   an error. The docs and the tool description say that `size` is the byte size of the whole file, also
   for a range.

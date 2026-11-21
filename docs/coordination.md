@@ -124,6 +124,31 @@ work on the current text and need no merge. A client that read the current head 
 that write goes in as is and clears `view`. Test `c_…` checks that a stale whole-file write keeps both
 edits.
 
+### Conflicts as regions
+
+Every reply that carries a change (`change`, `apply`, `resolve`, `rebase`, `declare`, `land`,
+`restore_change`) lists each conflict as the parts that need a decision, not as three whole files.
+The path as the change holds it is the merge with markers (`<<<<<<< main` .. `=======` is main's side,
+`=======` .. `>>>>>>> change` the change's); each marker block is one region:
+
+```json
+{"path": "lib.rs", "kind": "content", "base": {"blob": "…", "mode": "100644", "size": 81234},
+ "ours": {…}, "theirs": {…}, "theirs_by": [{"agent": "b", "intent": "…", …}],
+ "regions": [{"lines": [412, 418], "text": "<<<<<<< main\n…>>>>>>> change\n", "before": "3 lines", "after": "3 lines"}]}
+```
+
+`lines` is 1-based and inclusive in that text (`read` with `at` = the change id returns the same lines).
+To resolve, one `apply` with one `replace` per region (`old` = the region's `text`) or the whole content,
+or `resolve` with `take`. The change carries the help text once (`resolve`), not once per conflict.
+Conflicts without markers (`modify_delete`, `mode`, `binary`) have no regions; their sides come inline
+as `text` when each is at most 4 KiB. Bounds: 80 lines per region (`cut: true` past that), 12 regions per
+path (`regions_more: N`), 48 KiB of region text per reply; when any of these cut, `conflicts_cut` says
+so and how to get the rest. `change {change, full: true}` adds `text` with the whole `base`, `ours` and
+`theirs` (up to 256 KiB each), as every reply did before. Why: in 87 pilot calls of `change`, `rebase`
+and `declare`, 91 to 98 % of 2.16 MB of replies were the three whole texts, and one `land` reply of
+115 540 characters was refused by the client as too large. Tests: `tests/conflicts.rs`
+(`conflicts_come_as_regions_that_resolve_with_replace`), unit tests in `src/conflict_view.rs`.
+
 ### Conflicts that do not block
 
 By default a conflicted change stays on its base: continuous rebase skips it and `rebase` refuses

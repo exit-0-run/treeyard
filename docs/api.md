@@ -415,11 +415,12 @@ treeyard call attachments '{"change": "ch_..."}'
 
 ### change
 
-One change: paths, conflicts as tasks, overlaps with other open changes.
+One change: paths, conflicts as tasks (regions to resolve, with line numbers and context), overlaps and collisions with other open changes.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
+| `full` | boolean | no | true = each conflict also has the whole base, ours and theirs texts (text) |
 
 ```sh
 treeyard call change '{"change": "ch_..."}'

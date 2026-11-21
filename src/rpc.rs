@@ -214,6 +214,14 @@ struct ChangeId {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChangeP {
+    change: String,
+    /// true = each conflict also carries the three whole texts.
+    full: Option<bool>,
+}
+
+#[derive(Deserialize)]
 struct RebaseArgs {
     change: String,
     /// Another open change to stack on (default: main).
@@ -789,9 +797,9 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             r.land_status(&a.change)
         }
         "change" => {
-            let a: ChangeId = params(p)?;
+            let a: ChangeP = params(p)?;
             let ch = r.change(&a.change)?;
-            let mut v = r.change_view(&ch)?;
+            let mut v = r.change_view_with(&ch, a.full.unwrap_or(false))?;
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
             v["reviews"] = r.reviews_view(Some("open"), Some(&ch.id))?["reviews"].take();
@@ -1165,8 +1173,8 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "change",
-            "One change: paths, conflicts as tasks, overlaps with other open changes.",
-            json!({"change": change}),
+            "One change: paths, conflicts as tasks (regions to resolve, with line numbers and context), overlaps and collisions with other open changes.",
+            json!({"change": change, "full": {"type": "boolean", "description": "true = each conflict also has the whole base, ours and theirs texts (text)"}}),
             &["change"],
         ),
         tool(

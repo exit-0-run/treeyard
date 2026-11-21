@@ -79,7 +79,7 @@ A server declares one or more profiles. The core profile is required.
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
 | `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` |
 | `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict |
-| `change` | one change: paths, conflict tasks, overlaps |
+| `change` | one change: paths, conflict tasks, overlaps; `full: true` adds the whole texts of each conflict |
 | `changes` | changes in one state |
 | `resolve` | the change after one conflicted path takes `ours`, `theirs`, `base` or `delete` |
 | `rebase` | the change on current main; conflicts come back as tasks |
@@ -132,7 +132,7 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 | `status` | Meaning | Next step of the agent |
 |---|---|---|
 | `landed` | `main` holds the change; `commit` is its git commit | done |
-| `conflict` | the rebase left conflict tasks in `change.conflicts` | write the final content with `apply` or call `resolve`, then `land` again |
+| `conflict` | the rebase left conflict tasks in `change.conflicts`, each with `regions` (marker blocks, line numbers, context) | one `replace` per region (or the whole content) in one `apply`, or `resolve`, then `land` again |
 | `waiting` | the change is stacked on an open change that has not landed | `land` again after that change lands (event `landed`) |
 | `queued` | landing mode `queue`: the change waits for a batch test | watch events `landed` or `rejected` |
 | `already_on_main` | main already holds every edit; a review task is opened | nothing to land |
