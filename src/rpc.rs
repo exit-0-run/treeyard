@@ -11,6 +11,7 @@ use crate::config::IndexMode;
 use crate::coord::Filter;
 use crate::model::{Change, Intent};
 use crate::repo::{Edit, Inner, Repo};
+use crate::undoes::Scope;
 use crate::{bisect, history, landing, search, symbols};
 
 fn params<T: DeserializeOwned>(p: Value) -> Result<T> {
@@ -34,6 +35,8 @@ struct ReadP {
     start: Option<u32>,
     /// Last line to return (1-based, inclusive).
     end: Option<u32>,
+    /// Without a range: return only the first whole lines up to this many bytes (`truncated`).
+    max_bytes: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -45,6 +48,8 @@ struct Grep {
     max: Option<usize>,
     /// false = scan every file (no trigram index).
     index: Option<bool>,
+    /// Lines before and after each match (`before`, `after`), at most 20.
+    context: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -211,6 +216,14 @@ struct Resolve {
 #[serde(deny_unknown_fields)]
 struct ChangeId {
     change: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ChangeP {
+    change: String,
+    /// true = each conflict also carries the three whole texts.
+    full: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -513,7 +526,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: ReadP = params(p)?;
             c.require_read(&a.path)?;
             let range = (a.start.is_some() || a.end.is_some()).then_some((a.start, a.end));
-            r.read(&a.path, a.at.as_deref(), range)
+            r.read_max(&a.path, a.at.as_deref(), range, a.max_bytes)
         }
         "list" => {
             let a: At = params(p)?;
@@ -565,11 +578,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: Grep = params(p)?;
             let allow = |p: &str| c.can_read(p);
             let max = a.max.unwrap_or(100);
-            if a.index == Some(false) || r.cfg.index.search == IndexMode::Off {
-                r.grep_scan(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)
+            let mut v = if a.index == Some(false) || r.cfg.index.search == IndexMode::Off {
+                r.grep_scan(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)?
             } else {
-                r.grep_indexed(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)
-            }
+                r.grep_indexed(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)?
+            };
+            r.grep_context(&mut v, a.context.unwrap_or(0).min(20))?;
+            Ok(v)
         }
         "symbols" => {
             let a: SymbolsP = params(p)?;
@@ -691,7 +706,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let mut v = r.change_view(&ch)?;
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
-            v["undoes"] = Value::Array(r.undoes(&ch)?);
+            r.undoes(&ch, Scope::New)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -700,7 +715,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             owned(r, c, &a.change)?;
             c.require_write(&a.path)?;
             let ch = r.resolve(&a.change, &a.path, &a.take)?;
-            r.change_view(&ch)
+            let mut v = r.change_view(&ch)?;
+            r.undoes(&ch, Scope::New)?.put(&mut v, &|p| c.can_read(p));
+            filter_change(&mut v, c);
+            Ok(v)
         }
         "rebase" => {
             let a: RebaseArgs = params(p)?;
@@ -714,7 +732,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: ChangeId = params(p)?;
             let ch = owned(r, c, &a.change)?;
             check_writes(r, c, &ch)?;
-            r.land(&a.change)
+            let mut v = r.land(&a.change)?;
+            // A land that removes another agent's lines says so; it is not blocked.
+            if matches!(v["status"].as_str(), Some("landed" | "queued")) && v.get("repeated").is_none() {
+                let ch = r.change(&a.change)?;
+                r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
+            }
+            Ok(v)
         }
         "abandon" => {
             let a: ChangeId = params(p)?;
@@ -789,12 +813,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             r.land_status(&a.change)
         }
         "change" => {
-            let a: ChangeId = params(p)?;
+            let a: ChangeP = params(p)?;
             let ch = r.change(&a.change)?;
-            let mut v = r.change_view(&ch)?;
+            let mut v = r.change_view_with(&ch, a.full.unwrap_or(false))?;
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
             v["reviews"] = r.reviews_view(Some("open"), Some(&ch.id))?["reviews"].take();
+            r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -964,6 +989,105 @@ fn tool(name: &str, description: &str, props: Value, required: &[&str]) -> Value
     })
 }
 
+/// The operations of the agent tool set (`treeyard mcp --tools agent`), in list order. The
+/// stdio bridge adds its own `checkout`. Every other operation still answers a `tools/call`.
+pub const AGENT_TOOLS: &[&str] = &[
+    "read",
+    "grep",
+    "symbols",
+    "outline",
+    "list",
+    "open_change",
+    "apply",
+    "change",
+    "diff",
+    "rebase",
+    "resolve",
+    "land",
+];
+
+/// The agent tool set: the operations a coding agent needs, with short descriptions and only the
+/// parameters agents use (the server takes the others too).
+pub fn agent_tools() -> Vec<Value> {
+    let at = json!({"type": "string", "description": "main (default) or your change id ch_..."});
+    let change = json!({"type": "string", "description": "change id ch_..."});
+    let int = json!({"type": "integer", "minimum": 1});
+    vec![
+        tool(
+            "read",
+            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; a file over 50 KB without a range returns its first lines, truncated and total_lines.",
+            json!({"path": {"type": "string"}, "at": at, "start": int, "end": int}),
+            &["path"],
+        ),
+        tool(
+            "grep",
+            "Regex search over file contents, per line; context = lines before and after each match.",
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "default 100"}, "context": {"type": "integer", "minimum": 0, "maximum": 20}}),
+            &["pattern"],
+        ),
+        tool(
+            "symbols",
+            "Find definitions by exact name or prefix (Rust, Python, Go, JavaScript, TypeScript): path and line range.",
+            json!({"name": {"type": "string"}, "prefix": {"type": "string"}, "path": {"type": "string"}, "at": at}),
+            &[],
+        ),
+        tool(
+            "outline",
+            "Every definition of one file, in line order.",
+            json!({"path": {"type": "string"}, "at": at}),
+            &["path"],
+        ),
+        tool(
+            "list",
+            "List one directory.",
+            json!({"path": {"type": "string", "description": "empty for the root"}, "at": at}),
+            &[],
+        ),
+        tool(
+            "open_change",
+            "Start a change on main. Reply: id, overlaps with other open changes on your paths, advice.",
+            json!({"intent": {"type": "string", "description": "what you will do, one line"}, "paths": {"type": "array", "items": {"type": "string"}, "description": "path globs you will edit"}, "symbols": {"type": "array", "items": {"type": "string"}}, "base": {"type": "string", "description": "another change id to stack on (it lands first)"}}),
+            &["intent"],
+        ),
+        tool(
+            "apply",
+            "Edit files of your change; per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes, and undoes: lines of other agents your edit removed (put them back unless your task removes them).",
+            json!({"change": change, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}}, "required": ["path"]}}, "message": {"type": "string", "description": "commit message; default the intent"}}),
+            &["change", "edits"],
+        ),
+        tool(
+            "change",
+            "One change: paths, conflicts (regions with line numbers to resolve), collisions, undoes. full = true adds each conflict's whole texts.",
+            json!({"change": change, "full": {"type": "boolean"}}),
+            &["change"],
+        ),
+        tool(
+            "diff",
+            "Unified diff of a change, or from/to two revisions.",
+            json!({"change": change, "from": at, "to": at}),
+            &[],
+        ),
+        tool(
+            "rebase",
+            "Move your change onto current main (onto = another open change: stack on it).",
+            json!({"change": change, "onto": {"type": "string"}}),
+            &["change"],
+        ),
+        tool(
+            "resolve",
+            "Settle one conflicted path: take = ours (your side), theirs (main), base or delete.",
+            json!({"change": change, "path": {"type": "string"}, "take": {"type": "string", "enum": ["ours", "theirs", "base", "delete"]}}),
+            &["change", "path", "take"],
+        ),
+        tool(
+            "land",
+            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main.",
+            json!({"change": change}),
+            &["change"],
+        ),
+    ]
+}
+
 /// MCP tool definitions for every operation.
 pub fn tools() -> Vec<Value> {
     let at = json!({"type": "string", "description": "main (default), a change id ch_..., a changeset id or prefix, or a git commit id"});
@@ -973,8 +1097,8 @@ pub fn tools() -> Vec<Value> {
         tool("status", "Main changeset and git commit, file count, open changes.", json!({}), &[]),
         tool(
             "read",
-            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.",
-            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}}),
+            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.",
+            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}, "max_bytes": {"type": "integer", "minimum": 1, "description": "without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither"}}),
             &["path"],
         ),
         tool(
@@ -998,7 +1122,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "grep",
             "Search file contents with a regular expression (per line), server side, through a trigram index.",
-            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}}),
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}, "context": {"type": "integer", "minimum": 0, "maximum": 20, "description": "lines before and after each match (before, after)"}}),
             &["pattern"],
         ),
         tool(
@@ -1098,13 +1222,13 @@ pub fn tools() -> Vec<Value> {
         tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
-            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.",
+            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text; new ones only, change lists all); keep them unless your task says to remove them.",
             json!({"change": change, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
             &["change", "edits"],
         ),
         tool(
             "resolve",
-            "Settle a conflicted path by taking one side (or write the path with apply).",
+            "Settle a conflicted path by taking one side (or write the path with apply). Returns the change, with undoes when the side you took drops another agent's lines.",
             json!({"change": change, "path": {"type": "string"}, "take": {"type": "string", "enum": ["ours", "theirs", "base", "delete"]}}),
             &["change", "path", "take"],
         ),
@@ -1165,8 +1289,8 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "change",
-            "One change: paths, conflicts as tasks, overlaps with other open changes.",
-            json!({"change": change}),
+            "One change: paths, conflicts as tasks (regions to resolve, with line numbers and context), overlaps and collisions with other open changes.",
+            json!({"change": change, "full": {"type": "boolean", "description": "true = each conflict also has the whole base, ours and theirs texts (text)"}}),
             &["change"],
         ),
         tool(

@@ -71,17 +71,17 @@ A server declares one or more profiles. The core profile is required.
 | Operation | Reply, in short |
 |---|---|
 | `status` | `main`, `commit`, `files`, `open_changes` |
-| `read` | `content` (UTF-8) or `content_b64`, `blob`, `mode`, `at`, `total_lines`; with `start`/`end` only those lines and `lines` |
+| `read` | `content` (UTF-8) or `content_b64`, `blob`, `mode`, `at`, `size` (whole file), `total_lines`; with `start`/`end` only those lines and `lines` (`[1, 0]` for an empty file); without a range, `max_bytes` keeps the first whole lines (`truncated`, `lines`, `note`) |
 | `list` | `entries` of one directory (`name`, `kind` = `file` or `dir`) |
-| `grep` | `matches` (`path`, `line`, `text`) |
+| `grep` | `matches` (`path`, `line`, `text`; with `context` N also `before` and `after`, up to 20 lines each) |
 | `diff` | unified diff of a change, or between two revisions |
 | `log` | mainline changesets, newest first, with their metadata |
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
-| `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` |
+| `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` (new entries; `undoes_advice`, `undoes_more`, `undoes_earlier`) |
 | `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict |
-| `change` | one change: paths, conflict tasks, overlaps |
+| `change` | one change: paths, conflict tasks, overlaps; `full: true` adds the whole texts of each conflict |
 | `changes` | changes in one state |
-| `resolve` | the change after one conflicted path takes `ours`, `theirs`, `base` or `delete` |
+| `resolve` | the change after one conflicted path takes `ours`, `theirs`, `base` or `delete`; `undoes` as in `apply` |
 | `rebase` | the change on current main; conflicts come back as tasks |
 | `abandon` | the change, `state` `abandoned` |
 | `revert` | a new change with the inverse of one landed changeset, landed |
@@ -132,7 +132,7 @@ Event kinds: `opened`, `intent_overlap`, `collision`, `conflict`, `rebased`, `la
 | `status` | Meaning | Next step of the agent |
 |---|---|---|
 | `landed` | `main` holds the change; `commit` is its git commit | done |
-| `conflict` | the rebase left conflict tasks in `change.conflicts` | write the final content with `apply` or call `resolve`, then `land` again |
+| `conflict` | the rebase left conflict tasks in `change.conflicts`, each with `regions` (marker blocks, line numbers, context) | one `replace` per region (or the whole content) in one `apply`, or `resolve`, then `land` again |
 | `waiting` | the change is stacked on an open change that has not landed | `land` again after that change lands (event `landed`) |
 | `queued` | landing mode `queue`: the change waits for a batch test | watch events `landed` or `rejected` |
 | `already_on_main` | main already holds every edit; a review task is opened | nothing to land |

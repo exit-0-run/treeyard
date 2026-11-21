@@ -80,7 +80,7 @@ fn kept_conflicts_rebase_and_land_waits_until_resolved() {
     let tmp = tempfile::tempdir().unwrap();
     let (url, a) = conflicted(tmp.path(), "[coordination]\ncontinuous_rebase = true\nkeep_conflicted = true\n");
     let main = call(&url, "status", json!({}))["main"].as_str().unwrap().to_string();
-    let ch = call(&url, "change", json!({"change": a}));
+    let ch = call(&url, "change", json!({"change": a, "full": true}));
     assert_eq!(ch["base"], main, "the conflicted change moved with main: {ch}");
     assert_eq!(ch["conflicted"], true);
     let c = &ch["conflicts"][0];
@@ -110,6 +110,61 @@ fn kept_conflicts_rebase_and_land_waits_until_resolved() {
     let f00 = read(&url, "f00.txt", "main");
     assert!(f00.contains("a and b's line 3") && f00.contains("c's line 20"), "{f00}");
     assert!(read(&url, "f01.txt", "main").contains("a's f01"));
+}
+
+/// A conflict comes back as regions of the file with markers, not as three whole files, and the
+/// regions alone are enough to resolve it: one `replace` per region, old = the region's text.
+#[test]
+fn conflicts_come_as_regions_that_resolve_with_replace() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let f00 = read(&url, "f00.txt", "main");
+    let a = open(&url, "a");
+    write(&url, &a, "f00.txt", &set_line(&set_line(&f00, 3, "a's line 3"), 25, "a's line 25"));
+    let b = open(&url, "b");
+    write(&url, &b, "f00.txt", &set_line(&set_line(&f00, 3, "b's line 3"), 25, "b's line 25"));
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    let land = call(&url, "land", json!({"change": a}));
+    assert_eq!(land["status"], "conflict", "{land}");
+    let c = &land["change"]["conflicts"][0];
+    assert!(c.get("text").is_none(), "no whole files without full: {c}");
+    assert!(c["ours"]["size"].as_u64().unwrap() > 0 && c["theirs"]["blob"].is_string(), "{c}");
+    let regions = c["regions"].as_array().unwrap();
+    assert_eq!(regions.len(), 2, "{c}");
+    // Line numbers are those of the change's text with markers; context is the lines around.
+    let marked = read(&url, "f00.txt", &a);
+    let lines: Vec<&str> = marked.lines().collect();
+    let r0 = &regions[0];
+    let (lo, hi) = (r0["lines"][0].as_u64().unwrap() as usize, r0["lines"][1].as_u64().unwrap() as usize);
+    assert_eq!(lines[lo - 1], "<<<<<<< main");
+    assert_eq!(lines[hi - 1], ">>>>>>> change");
+    assert!(r0["text"].as_str().unwrap().contains("b's line 3\n=======\na's line 3\n"), "{r0}");
+    assert_eq!(r0["before"].as_str().unwrap(), format!("{}\n{}\n{}\n", lines[lo - 4], lines[lo - 3], lines[lo - 2]));
+    assert!(land["change"]["resolve"].as_str().unwrap().contains("replace"), "help once per reply");
+    let reply = serde_json::to_string(&land).unwrap();
+    assert!(reply.len() < f00.len() + 3000, "the reply is smaller than the file: {} bytes", reply.len());
+
+    let edits: Vec<Value> = regions
+        .iter()
+        .enumerate()
+        .map(|(i, r)| json!({"path": "f00.txt", "replace": {"old": r["text"], "new": format!("merged {i}\n")}}))
+        .collect();
+    let after = call(&url, "apply", json!({"change": a, "edits": edits}));
+    assert_eq!(after["conflicted"], false, "{after}");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    let main = read(&url, "f00.txt", "main");
+    assert!(main.contains("merged 0\n") && main.contains("merged 1\n") && !main.contains("<<<<<<<"), "{main}");
+
+    // full = true still returns the three texts.
+    let c2 = open(&url, "c");
+    write(&url, &c2, "f00.txt", &set_line(&f00, 3, "c's line 3"));
+    let d = open(&url, "d");
+    write(&url, &d, "f00.txt", &set_line(&main, 3, "d's line 3"));
+    call(&url, "land", json!({"change": d}));
+    assert_eq!(call(&url, "land", json!({"change": c2}))["status"], "conflict");
+    let full = call(&url, "change", json!({"change": c2, "full": true}));
+    assert!(full["conflicts"][0]["text"]["theirs"].as_str().unwrap().contains("d's line 3"), "{full}");
+    assert!(full["conflicts"][0]["regions"].is_array());
 }
 
 #[test]
@@ -154,4 +209,85 @@ fn a_resolution_that_keeps_the_markers_is_refused() {
     assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
     let landed = read(&url, "f00.txt", "main");
     assert!(!landed.contains("<<<<<<<") && landed.contains("a and b's line 3\n"), "{landed}");
+}
+
+#[test]
+fn one_apply_may_remove_the_markers_with_several_replace_edits() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let f00 = read(&url, "f00.txt", "main");
+    let a = open(&url, "a");
+    write(&url, &a, "f00.txt", &set_line(&f00, 3, "a's line 3"));
+    let b = open(&url, "b");
+    write(&url, &b, "f00.txt", &set_line(&f00, 3, "b's line 3"));
+    assert_eq!(call(&url, "land", json!({"change": b}))["status"], "landed");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "conflict");
+    let marked = read(&url, "f00.txt", &a);
+    assert!(marked.contains("<<<<<<< main\nb's line 3\n=======\na's line 3\n>>>>>>> change\n"), "{marked}");
+
+    // One edit that leaves markers: the error says that one apply must remove all of them.
+    let one = json!({"path": "f00.txt", "replace": {"old": ">>>>>>> change\n", "new": ""}});
+    let e = treeyard::client::call(&url, "apply", json!({"change": a, "edits": [one.clone()]})).unwrap_err();
+    let msg = format!("{e:#}");
+    assert!(msg.contains("One apply must remove every conflict marker of f00.txt"), "{msg}");
+    assert!(msg.contains("1 conflict region left"), "{msg}");
+
+    // Both edits in the same apply: the file is checked once, after both, and it is clean.
+    let two = json!({"path": "f00.txt", "replace": {"old": "<<<<<<< main\nb's line 3\n=======\n", "new": ""}});
+    let r = call(&url, "apply", json!({"change": a, "edits": [one, two]}));
+    assert_eq!(r["conflicted"], false, "{r}");
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    assert_eq!(read(&url, "f00.txt", "main"), set_line(&f00, 3, "a's line 3"));
+}
+
+#[test]
+fn a_replace_that_misses_says_how_far_behind_main_the_change_is() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let a = open(&url, "a");
+    for (agent, new) in [("b", "b's line 3"), ("c", "c's line 4")] {
+        let ch = open(&url, agent);
+        let old = if agent == "b" { "file 0 line 3\n" } else { "file 0 line 4\n" };
+        call(
+            &url,
+            "apply",
+            json!({"change": ch, "edits": [{"path": "f00.txt", "replace": {"old": old, "new": format!("{new}\n")}}]}),
+        );
+        assert_eq!(call(&url, "land", json!({"change": ch}))["status"], "landed");
+    }
+    let miss = |old: &str| -> String {
+        let e = treeyard::client::call(
+            &url,
+            "apply",
+            json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": old, "new": "x"}}]}),
+        )
+        .unwrap_err();
+        format!("{e:#}")
+    };
+    // The agent read main, where another agent's text is; its change is two landings behind.
+    let m = miss("b's line 3");
+    assert!(m.starts_with("replace in f00.txt: old text not found"), "{m}");
+    assert!(m.contains(&format!("your change {a} is 2 landings behind main, and main has this text")), "{m}");
+    assert!(m.contains(&format!("Call rebase with change {a}")) && m.contains(&format!("at = {a}")), "{m}");
+    // Text that is nowhere.
+    let m = miss("no such text");
+    assert!(m.contains("main lacks it too (main is 2 landings ahead") && m.contains(&format!("at = {a}")), "{m}");
+
+    // After rebase: the text of main is found; text the change itself replaced gets its own hint.
+    call(&url, "rebase", json!({"change": a}));
+    call(
+        &url,
+        "apply",
+        json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": "b's line 3", "new": "a's line 3"}}]}),
+    );
+    let m = miss("b's line 3");
+    assert!(m.contains(&format!("main has this text, but your change {a} already changed it")), "{m}");
+    // Other errors keep their text.
+    let e = treeyard::client::call(
+        &url,
+        "apply",
+        json!({"change": a, "edits": [{"path": "f00.txt", "replace": {"old": "file 0 line", "new": "x"}}]}),
+    )
+    .unwrap_err();
+    assert!(format!("{e:#}").ends_with("add context or set all=true"), "{e:#}");
 }

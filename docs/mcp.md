@@ -25,6 +25,69 @@ The MCP bridge itself is tested with raw JSON-RPC on stdio (`tests/git_bridge.rs
 [quickstart.md](quickstart.md)). No agent ran in these tests: the harness that built this has no
 budget for model calls.
 
+## Tool sets
+
+`tools/list` costs input tokens on every turn of some clients (Codex sends the list with each turn:
+30.5 k input tokens per turn with TreeYard against 20.9 k with plain git, in the pilots). Agents used
+18 of the 46 tools. `treeyard mcp --tools agent` lists only the agent tool set, with short descriptions
+and only the parameters agents use:
+
+`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
+`resolve`, `land`, and the bridge's own `checkout`.
+
+These are the tools the connect instruction block names (find, read, edit, inspect the other change,
+test, land, settle a conflict), plus `list`, `diff` and `rebase`, which an agent needs to look around,
+review its own change and take main's work. Left out: history and server-side jobs (`log`, `blame`,
+`bisect`, `revert`), coordination plumbing (`events`, `declare`, `reviews`, `queue`, `land_status`),
+best-of-N, checkpoints, attachments, shares, tokens, `audit`, `tree`, `blobs`. A `tools/call` of any of
+them still works: the set changes only what is listed. `--tools all` (the default of `treeyard mcp`)
+lists every operation. `treeyard connect` writes `--tools agent` unless `--all-tools`. The HTTP endpoint
+takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
+
+Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 378 bytes with
+`--tools all` now, 5 948 bytes with `--tools agent` (13 tools). Tests: `src/mcp.rs` (the set and its
+size), `tests/mcp_http.rs` (`tools_agent_lists_the_agent_tool_set`), `tests/connect.rs` (the args).
+
+### The agent view of replies
+
+With the agent set, replies are shaped for a model to read (`src/lean.rs`); `--tools all` returns the
+server's replies as they are. Both send compact JSON (pretty printing was 21 to 29 % of a reply).
+
+- Change replies (`open_change`, `apply`, `change`, `rebase`, `resolve`, `declare`, `abandon`, the
+  change in `land` and `restore_change`) drop `base`, `head`, `created`, `group`, `landed_as`, `model`,
+  `session`, `view` and `revisions` (no agent referenced them in 110 recorded sessions) and every null,
+  `[]` and `{}`. An empty change is `{"agent", "conflicted", "id", "intent", "state"}` plus what it
+  declared.
+- `apply`: `collisions` and `overlaps` come in full when they are new or changed since the last
+  `apply` or `change` reply of that change; otherwise one line in `collisions_unchanged` /
+  `overlaps_unchanged` (count, kinds, change ids). `change` always lists them in full. The bridge keeps
+  this memory per process; the HTTP endpoint keeps one per server.
+- `grep` drops `at` and the `index` statistics.
+
+For every MCP client (both sets), a `read` without `start`, `end` or `max_bytes` gets `max_bytes`
+51 200: a larger file returns its first whole lines with `truncated: true`, `lines`, `total_lines`
+and a `note` that says how to read on (one whole-file read of a 60 000-line file returned 938 KB).
+`grep` takes `context` for lines around each match.
+
+Reply bytes through the stdio bridge, on a clone of this repository (an 87 KB `src/repo.rs`, plus
+a 60 000-line file; two agents change the same line; measured with a script outside the repository):
+
+| Call | before | `--tools all` | `--tools agent` |
+|---|---:|---:|---:|
+| `open_change` (empty change) | 565 | 461 | 141 |
+| first `apply` | 604 | 488 | 165 |
+| `apply` with a new collision | 1 460 | 903 | 610 |
+| `apply` with the same collision again | 1 480 | 918 | 465 |
+| `grep` (1 match) | 398 | 305 | 141 |
+| `grep` (2 matches) | 511 | 384 | 221 |
+| `read` of the 60 000-line file | 2 618 012 | 55 666 | 55 666 |
+| `land` with a conflict | 262 246 | 2 072 | 1 793 |
+| `change` with that conflict | 261 935 | 1 915 | 1 594 |
+
+"before" is the build before this series (pretty JSON, whole conflict texts). Tests: `src/lean.rs`,
+`tests/read.rs` (`max_bytes`, `context`), `tests/mcp_agent.rs` (every shape above through the built
+bridge with `--tools agent`, and `--tools all` unchanged).
+
 ## Claude Code
 
 Add the server for one project (local scope) or for all projects (`--scope user`):
@@ -107,6 +170,7 @@ Or in `~/.codex/config.toml`:
 [mcp_servers.treeyard]
 command = "treeyard"
 args = ["mcp", "--agent", "codex-1"]
+default_tools_approval_mode = "approve"   # else `codex exec` refuses every tool call
 
 [mcp_servers.treeyard.env]
 TREEYARD_URL = "http://127.0.0.1:7420"
@@ -136,13 +200,56 @@ In `opencode.json` (project) or the global OpenCode config:
 
 Check with `opencode mcp list`. For a directory, start OpenCode inside a workspace as for Codex.
 
+## Test a change: `checkout`
+
+An agent that edits through `apply` has no files on disk, so it cannot run the tests. The stdio
+bridge `treeyard mcp` has one tool of its own for that, `checkout` (it is not in the server's
+operation table: only the bridge runs on the agent's machine):
+
+```text
+checkout {"change": "ch_..."}   ->   {"dir": "/tmp/.../treeyard-checkouts-501/ch_...", "files": 120, "written": 120, ...}
+```
+
+- `dir` holds exactly the tree of the change as the server has it: its base plus its edits, exec
+  bits and symlinks, without the files it deleted. The agent runs the repository's own tests there
+  (`cd DIR && make test`). No file is retyped.
+- The default directory is one per change under the system temp directory (`$TMPDIR`, else `/tmp`).
+  Both Claude Code and Codex under `sandbox_mode = "workspace-write"` let shell commands write there,
+  and nothing is written into the repository checkout or a workspace that another agent or the daemon
+  syncs. `into` names another directory; it must be new, empty or an earlier checkout
+  (`.treeyard/checkout.json` marks one), so a checkout never overwrites a working tree.
+- After the first `checkout`, every `apply`, `resolve`, `rebase`, `restore_change` and `land` of that
+  change through the same bridge rewrites the directory, and the reply has a `checkout` field. Only
+  files that differ are written, so build output (`target/`, `__pycache__/`) and mtimes stay.
+- Edits made in the directory never reach the change: the next rewrite puts the change's content back
+  and lists the paths in `reverted`. Files that the change does not have stay; those that no
+  `.gitignore` excludes are listed in `extra` (they would not land).
+- `main_moved: true`: work landed after the change's base, so the directory lacks it. `rebase`, then
+  `checkout` again, to test what `land` will put on main. After a `land`, the directory holds the
+  landed tree.
+
+`treeyard checkout CHANGE [--into DIR]` does the same from a script. Test: `tests/checkout.rs` drives the
+bridge over stdio against a real server: the fixture's test script fails in the checkout of the
+repository and passes in the directory of the change, local edits are reverted, a landing by another
+agent sets `main_moved`, `rebase` brings it in, and after `land` every file of main equals the file in
+the directory. A second case runs the bridge inside a `workspace-hook` workspace: the workspace and its
+change stay untouched, and the `apply` reply still has the `conflict` collision.
+
+Why not the other two ways. (a) The bridge could keep the agent's working directory in step with its
+change. But that directory is often shared: after `treeyard connect` every agent of the repository runs
+in the one checkout, and in a `workspace-hook` workspace the daemon would sync the written files into the
+workspace's own change, a second change of the same agent that then collides with the first. (b) Agents
+could edit on disk and land with `treeyard workspace land`. Then the collision warnings would come only
+at sync time, not in each `apply` reply. A separate directory per change has neither problem and costs
+one call.
+
 ## Many agents, one machine or many
 
 - One server serves all agents on all machines. Each agent needs only the URL (and a token when
   the server is not on loopback: [access.md](access.md)).
 - Give each agent its own `--agent` name, or its own token. Blame, log and audit show that name.
 - Agents learn about each other through `apply` replies (`collisions`, and `undoes` when an edit
-  removes lines another agent landed) and the `events` tool.
+  removes text another agent wrote; `resolve` and `land` say it too) and the `events` tool.
   Tell your agents to call `events` with `wait_ms` before a long task, or let the orchestrator
   watch `GET /api/events`.
 

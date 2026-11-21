@@ -663,7 +663,10 @@ fn g_apply_warns_when_it_undoes_another_agents_landed_lines() {
     assert_eq!(u["intent"], "rel values in lower case");
     let blame = call(&url, "blame", json!({"path": "link.py", "start": 5, "end": 5}));
     assert_eq!(u["changeset"], blame["hunks"][0]["origin"], "{blame}");
-    assert!(u["advice"].as_str().unwrap().contains("another agent"), "{u}");
+    assert_eq!(u["change"], id(&a).as_str());
+    assert_eq!(u["text"], "        if key.lower() == \"rel\":\n            value = value.lower()\n", "{u}");
+    assert!(v["undoes_advice"].as_str().unwrap().contains("another agent"), "advice once per reply: {v}");
+    assert!(u.get("advice").is_none(), "{u}");
 
     // The same change now edits only imported lines (and keeps a's): nothing to warn about.
     let imported = with_a.replace("    return link\n", "    return dict(link)\n");

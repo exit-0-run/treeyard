@@ -32,6 +32,7 @@ Connect adds the files that it creates to `.git/info/exclude`, so `git status` s
 | `--agents N` | Agent names `<harness>-1` to `<harness>-N`. Each MCP bridge takes the first free name. |
 | `--port P` | Port on `127.0.0.1`. Default: a free port, then the same port on the next connect. |
 | `--mirror`, `--no-mirror` | Push landed changes to `origin` every 30 s, or never ask. |
+| `--all-tools` | The MCP entries list every operation. Default: `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout` ([mcp.md](mcp.md#tool-sets)). A `connect` without the flag writes the agent set again. |
 
 A second `connect` with the same flags prints `already connected` and writes nothing. When the
 server stopped, connect starts it again on the recorded port.
@@ -62,8 +63,10 @@ Each harness asks once before it uses a project server:
 
 - Claude Code asks you to approve the `treeyard` server of `.mcp.json` (or use `/mcp`).
 - Codex reads `.codex/config.toml` only when you trust the project. `codex exec` has no one to ask,
-  so it refuses each MCP call until the server entry has `default_tools_approval_mode = "approve"`
-  (for example `-c mcp_servers.treeyard.default_tools_approval_mode="approve"`).
+  so it refuses each MCP call unless the server entry approves its tools. Connect writes
+  `default_tools_approval_mode = "approve"` into its own `[mcp_servers.treeyard]` entry (key and value
+  as codex-cli 0.167.0 reads them), and only there; `connect status` shows it as
+  `tools approval approve`. Other servers in the file keep their settings.
 - OpenCode reads `opencode.json` at the project root. `opencode mcp list` shows the entry.
 
 ## 3. Two agents on one file
@@ -120,9 +123,11 @@ bridge uses `<h>-1-<pid>`.
 
 - One repository and one machine. Connect writes absolute paths and the port into the configs, so
   they are excluded from git and are not for a team to share.
-- Agents edit through the API (MCP tools). For an agent that builds and runs tests, give it a
-  workspace directory: [workspaces.md](workspaces.md), and the Claude Code hooks in [mcp.md](mcp.md).
-- Connect does not change trust or approval settings of a harness: these are user-level settings.
+- Agents edit through the API (MCP tools). They run the tests in the directory that the bridge's
+  `checkout` tool writes for their change ([mcp.md](mcp.md#test-a-change-checkout)). For an agent that
+  edits files on disk, give it a workspace directory: [workspaces.md](workspaces.md).
+- Connect does not change the trust settings of a harness (user-level settings). The one approval it
+  sets is for the tools of its own Codex server entry, in the project file that it writes and removes.
 
 Tests: `tests/connect.rs` (init and idempotency, the three configs, the instruction block, byte
-identity after disconnect, status with two agents on one file, the mirror flag).
+identity after disconnect, status with two agents on one file, the mirror flag, the Codex tool approval).

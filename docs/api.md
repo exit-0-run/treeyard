@@ -42,12 +42,13 @@ treeyard call status '{}'
 
 ### read
 
-Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.
+Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
 | `end` | integer | no | last line to return (inclusive); default the last line |
+| `max_bytes` | integer | no | without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither |
 | `path` | string | yes |  |
 | `start` | integer | no | first line to return (1-based); default 1 |
 
@@ -100,6 +101,7 @@ Search file contents with a regular expression (per line), server side, through 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
+| `context` | integer | no | lines before and after each match (before, after) |
 | `index` | boolean | no | false = scan every file |
 | `max` | integer | no | max matches, default 100 |
 | `path` | string | no | limit to this directory |
@@ -241,7 +243,7 @@ treeyard call declare '{"change": "ch_..."}'
 
 ### apply
 
-Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.
+Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text; new ones only, change lists all); keep them unless your task says to remove them.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -256,7 +258,7 @@ treeyard call apply '{"change": "ch_...", "edits": [{"path": "README.md", "repla
 
 ### resolve
 
-Settle a conflicted path by taking one side (or write the path with apply).
+Settle a conflicted path by taking one side (or write the path with apply). Returns the change, with undoes when the side you took drops another agent's lines.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -415,11 +417,12 @@ treeyard call attachments '{"change": "ch_..."}'
 
 ### change
 
-One change: paths, conflicts as tasks, overlaps with other open changes.
+One change: paths, conflicts as tasks (regions to resolve, with line numbers and context), overlaps and collisions with other open changes.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
+| `full` | boolean | no | true = each conflict also has the whole base, ours and theirs texts (text) |
 
 ```sh
 treeyard call change '{"change": "ch_..."}'

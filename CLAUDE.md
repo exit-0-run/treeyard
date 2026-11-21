@@ -9,7 +9,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
-- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME`,
+- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME [--tools agent|all]` (its own tool `checkout`; CLI `treeyard checkout CH [--into DIR]`),
   `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`, `treeyard connect [--harness all] [--agents N] [--mirror]`, `connect status`, `disconnect [--purge]` (docs/connect.md; state in `.git/treeyard/`).
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
@@ -36,13 +36,13 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/git.rs` | object ids, loose writes, tree/commit encoding, incremental trees, cat-file readers, lazy object cache |
 | `src/merge.rs`, `src/xmerge.rs` | per-path 3-way merge: entry level, then `xmerge` (git's histogram merge in process; the repo) or `diffy` (dry trial merges) |
 | `src/safety.rs`, `src/failpoint.rs` | path/size limits, hostile trees, no write through a symlink, loopback check; crash points |
-| `src/repo.rs` | changes, rebase, land, revert, export, read queries |
+| `src/repo.rs`, `src/conflict_view.rs` | changes, rebase, land, revert, export, read queries; conflicts in replies as regions (marker blocks + context) |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
 | `src/config.rs` | `treeyard.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
-| `src/coord.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews |
+| `src/coord.rs`, `src/undoes.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews; `undoes` (removed text of other agents, cached per change; `tests/undoes.rs`) |
 | `src/drivers.rs` | merge drivers: union, Cargo.lock per package, mergiraf; regenerate is in `repo.rs` |
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
-| `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP, CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
+| `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP (+ `checkout` tool, `workspace::checkout`; `tests/checkout.rs`; agent view of replies `src/lean.rs`), CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
 | `src/workspace.rs`, `src/daemon.rs`, `src/hook.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon; `workspace-hook` (`tests/workspace_hook.rs`) |
 | `src/hunks.rs`, `src/share.rs` | one shared directory, many agents: hunk ids, owners (claim, intent, sticky), `depends_on`; `treeyard share join\|sync\|claim` (`tests/share.rs`) |
@@ -55,7 +55,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `tests/coordination.rs`, `tests/conflicts.rs` | phase 3 (a)-(f) over HTTP: intents, collisions + SSE, continuous rebase, drivers, landing modes, guard; `keep_conflicted` |
 | `tests/git_http.rs`, `tests/git_bridge.rs` | clone/push over HTTP, non-fast-forward, mirror; tree bytes vs git, fsck, trailers, revert, MCP |
 | `tests/workspace.rs`, `tests/workspace_lifecycle.rs`, `tests/checkpoints.rs` | create/sync/remove, clone strategies, layers, ports, daemon, CLI; overlay (Linux, root); repo config, gc, mirror, sparse; checkpoints and restore |
-| `tests/read.rs`, `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/xmerge_git.rs`, `tests/attachments.rs` | `read` line ranges; blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; merges = git merge-file; notes |
+| `tests/read.rs`, `tests/mcp_agent.rs`, `tests/derived.rs`, `tests/iam.rs`, `tests/xdiff_git.rs`, `tests/xmerge_git.rs`, `tests/attachments.rs` | `read` line ranges, `max_bytes`, grep `context`; agent tool set over stdio; blame = git blame, log index, grep index = scan, symbols, bisect; tokens and audit; hunks = git diff; merges = git merge-file; notes |
 | `tests/hardening.rs`, `tests/fuzz_history.rs`, `tests/old_git.rs` | git < 2.44 merges; kill at 6 failpoints + restart, races, retries, 503, lock, bind, hostile input; random histories = git |
 | `bench/bench.py`, `bench/test_bench.py`, `bench/derived.py`, `bench/landbench.sh`, `bench/scion/`, `bench/t2/` | landing load test vs git (`src/bin/landbench.rs`) and vs CarterT27/scion (`run.sh`, `landrace.rs`); phase-0 baseline (worktrees, late conflicts, queue, API) and its unittest; phase-4 blame/log/grep/symbols/bisect vs git; T2 kit (`t2.py`: 30 tasks, worktrees vs connect, 5 agents; PREREGISTRATION.md; `bench/t2/dev/`: click set for tuning the arm B block, `--repo click`, `run --block`) |
 | `tests/docs.rs`, `tests/swarm_demo.rs`, `tests/claude_hooks.rs`, `tests/connect.rs` | api.md, spec, links, demo SVG, README demo table; demo end to end; Claude Code worktree and checkpoint hooks; connect: config snapshots, byte-identical undo |

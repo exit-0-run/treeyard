@@ -9,7 +9,7 @@ the server runs: an agent's change must never change them.
 | Part | Operations and events | Code | Test |
 |---|---|---|---|
 | (a) Intents | `open_change` / `declare` with `paths` (globs) and `symbols`; reply `overlaps`, `advice`; event `intent_overlap` | `src/coord.rs` | `a_intents_report_overlaps_at_open` |
-| (b) Live collisions | `apply` reply `collisions` and `undoes`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events`, `g_apply_warns_when_it_undoes_another_agents_landed_lines` |
+| (b) Live collisions | `apply` reply `collisions`; `undoes` in `apply`, `resolve`, `change`, `land`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events`, `g_apply_warns_when_it_undoes_another_agents_landed_lines`, `tests/undoes.rs` |
 | (c) Continuous rebase | `land` reply `rebased`; events `rebased`, `conflict`; `apply` `seen` | `src/repo.rs` | `c_continuous_rebase_…` |
 | (d) Merge drivers | `land` reply `drivers` | `src/drivers.rs`, `src/repo.rs` | `d_merge_drivers_…`, unit tests in `src/drivers.rs` |
 | (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed`, `test_run` (one per test run, with `seconds`) | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
@@ -83,21 +83,60 @@ merges either way); the shared path still shows in `overlaps`. It also gives the
 published once as a `collision` event.
 
 A clean change can still remove another agent's work: the other change landed first, this one was
-opened on top of it, so there is nothing to merge and no conflict. The `apply` reply's `undoes` lists
-the lines this change deletes or rewrites (its base to head diff) whose origin, by blame at the change's
-base, is a changeset that a different agent landed. Lines from the git import, from open changes and from
-the caller's own landed work do not count, so the list is empty in the normal case. Each entry:
+opened on top of it, so there is nothing to merge and no conflict. `undoes` lists such lines. A line of
+the change's base counts when all of this holds:
+
+1. the change's base-to-head diff deletes or rewrites it;
+2. by blame at the base, it comes from a change of another agent that has landed, or that is still open
+   (the change this one is stacked on; the entry then has `"landed": false`). The git import, abandoned
+   changes and the caller's own work do not count: the same agent name, or the same non-empty `session`
+   (`open_change` `session`);
+3. its text is gone from the change's new tree. Lines are compared without whitespace, across all paths
+   the change edits: the line must occur fewer times in their head versions than in their base versions.
+   So a block that moved (into a helper, to another file, a rename), was re-indented (wrapped in `try`),
+   changed only its line ends (CRLF to LF), or gained a newline at the end of the file, is not reported;
+4. it was not extended. A rewrite that keeps every word of the line (identifiers, numbers, words of
+   strings), in order, on one added line of the same diff hunk or on two adjacent ones, keeps the old
+   behaviour and adds to it: `value.lower()` to `value.lower().strip()`, or `link[key] = value` to
+   `link[key.lower()] = value`, are not reported. A rewrite that drops a word is: `value = value.lower()`
+   to `value = value`. This is a judgement call: in the pilots at least 6 of 14 warnings were rewrites or
+   moves that kept the behaviour, and 1 was a true catch (a replaced block, which rule 4 still reports).
+   Operators are not words, so `x > 0` to `x >= 0` is not reported;
+5. it holds a letter or a digit (a lone `}` is never an entry alone, but joins a run of reported lines).
 
 ```json
 {"path": "link.py", "lines": [5, 6], "agent": "a", "intent": "rel values in lower case",
- "changeset": "<origin changeset>", "advice": "These lines were landed by another agent for its own task. ..."}
+ "changeset": "<origin changeset>", "change": "ch_...", "text": "        if key.lower() == \"rel\":\n..."}
 ```
 
 `lines` is an inclusive, 1-based range in the base file; adjacent lines with the same origin form one
-entry, and the list holds at most 20 entries. The case comes from a pilot with 5 agents: one agent's task
-("parameter names in lower case, values keep their case") replaced a block that another agent had landed
-minutes before (`if key.lower() == "rel": value = value.lower()`), and nothing warned it.
-`land` does not repeat the list.
+entry; `text` is the removed text, at most 8 lines and 800 bytes (`text_cut: true` past that). The reply
+carries the advice once (`undoes_advice`), at most 20 entries (`undoes_more: N` counts the rest), and
+only entries the caller may read (token read globs).
+
+Which replies carry it:
+
+- `apply` and `resolve`: only entries that no earlier `apply` or `resolve` reply of the change sent;
+  `undoes_earlier: N` counts the ones sent before that still stand. An entry that goes away (the agent put
+  the lines back) and comes back is sent again. `resolve` with `take = ours` after a land conflict is the
+  usual way to drop a line that just landed.
+- `change`: every entry that stands now.
+- `land` (`landed` or `queued`): every entry, after the rebase. A land is never blocked by it.
+
+Cost: per open change, the diff and blame of each path are kept while the change's base and the path's
+head blob stay the same, so an `apply` to another file reuses them. With a 60 000-line file, the
+`apply` after the one that removed a line of it took 4 to 5 ms instead of about 60 ms (debug build, one
+machine). The memory is per server process: after a restart an entry is sent once more.
+
+What cannot be decided: agent names are free strings, so one agent under two names without a shared
+`session` (or token) looks like two agents; a semantic removal that keeps every word (an operator, an
+argument order) is not reported; a moved line that lands in a file the change does not edit (a line
+that already existed elsewhere) does not hide a removal, but a duplicate in an edited file does.
+
+The case comes from a pilot with 5 agents: one agent's task ("parameter names in lower case, values keep
+their case") replaced a block that another agent had landed minutes before
+(`if key.lower() == "rel": value = value.lower()`), and nothing warned it. Tests: `tests/undoes.rs` (one
+per probed case, the 20-entry cut, the read-glob filter), `g_apply_warns_…` in `tests/coordination.rs`.
 
 Events: `opened`, `intent_overlap`, `collision`, `conflict` (`cause` = `land`, `continuous_rebase`,
 `stale_write` or `queue`), `rebased`, `landed`, `abandoned`, `review`, `queued`, `rejected`,
@@ -124,6 +163,31 @@ work on the current text and need no merge. A client that read the current head 
 that write goes in as is and clears `view`. Test `c_…` checks that a stale whole-file write keeps both
 edits.
 
+### Conflicts as regions
+
+Every reply that carries a change (`change`, `apply`, `resolve`, `rebase`, `declare`, `land`,
+`restore_change`) lists each conflict as the parts that need a decision, not as three whole files.
+The path as the change holds it is the merge with markers (`<<<<<<< main` .. `=======` is main's side,
+`=======` .. `>>>>>>> change` the change's); each marker block is one region:
+
+```json
+{"path": "lib.rs", "kind": "content", "base": {"blob": "…", "mode": "100644", "size": 81234},
+ "ours": {…}, "theirs": {…}, "theirs_by": [{"agent": "b", "intent": "…", …}],
+ "regions": [{"lines": [412, 418], "text": "<<<<<<< main\n…>>>>>>> change\n", "before": "3 lines", "after": "3 lines"}]}
+```
+
+`lines` is 1-based and inclusive in that text (`read` with `at` = the change id returns the same lines).
+To resolve, one `apply` with one `replace` per region (`old` = the region's `text`) or the whole content,
+or `resolve` with `take`. The change carries the help text once (`resolve`), not once per conflict.
+Conflicts without markers (`modify_delete`, `mode`, `binary`) have no regions; their sides come inline
+as `text` when each is at most 4 KiB. Bounds: 80 lines per region (`cut: true` past that), 12 regions per
+path (`regions_more: N`), 48 KiB of region text per reply; when any of these cut, `conflicts_cut` says
+so and how to get the rest. `change {change, full: true}` adds `text` with the whole `base`, `ours` and
+`theirs` (up to 256 KiB each), as every reply did before. Why: in 87 pilot calls of `change`, `rebase`
+and `declare`, 91 to 98 % of 2.16 MB of replies were the three whole texts, and one `land` reply of
+115 540 characters was refused by the client as too large. Tests: `tests/conflicts.rs`
+(`conflicts_come_as_regions_that_resolve_with_replace`), unit tests in `src/conflict_view.rs`.
+
 ### Conflicts that do not block
 
 By default a conflicted change stays on its base: continuous rebase skips it and `rebase` refuses
@@ -138,7 +202,34 @@ until every conflict is resolved. With `[coordination] keep_conflicted = true` i
 - `land` answers `status: conflict` until every conflict is resolved. Writing the path with `apply`
   (taken as is, not merged with the stale `view`) or calling `resolve` clears it.
 
-Tests: `tests/conflicts.rs` (both modes).
+A write to a conflicted path is its resolution, and it must not keep the markers (`<<<<<<< main`,
+`>>>>>>> change`). The check runs once per path after all edits of one `apply`, so several `replace`
+edits in the same call may remove the markers together. A write that leaves some gets an error with
+the line, the number of conflict regions left, and the rule: one `apply` must remove every marker of
+that file (whole `content`, all the `replace` edits at once, or `resolve`).
+
+Tests: `tests/conflicts.rs` (both modes; several `replace` edits in one resolution).
+
+### Following main without continuous rebase
+
+`treeyard connect` leaves `continuous_rebase` off. With it on, the server would rewrite an agent's
+change while the agent works: a conflict would arrive as markers in a file the agent is editing, and
+its next `apply` there would be refused until it resolves them (in the pilots, 6 applies already failed
+on markers after `land`). Off, the agent decides when it takes main's work, with one `rebase` call.
+
+Instead, a `replace` whose old text the change lacks says why, in the error text:
+
+- main has the text and the change is N landings behind main: another agent changed the file after
+  the change's base; call `rebase`, then `read` with `at` = the change id, and apply again;
+- main has the text and the change is not behind: the change already replaced it; read the file with
+  `at` = the change id;
+- otherwise: how far main is ahead, and read with `at` = the change id.
+
+`read` with no `at` stays main, also in the MCP bridge. Defaulting it to the agent's open change would
+match `apply`, but `grep`, `symbols` and `outline` answer for main, so their line numbers would no
+longer fit what `read` returns, and the HTTP `/mcp` endpoint (no bridge) would differ from stdio. The
+error above names the fix instead. Test: `tests/conflicts.rs`
+(`a_replace_that_misses_says_how_far_behind_main_the_change_is`).
 
 ## (d) Merge drivers
 

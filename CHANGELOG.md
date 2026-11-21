@@ -6,6 +6,47 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- Leaner MCP replies. The bridge and `POST /mcp` send compact JSON. With `--tools agent`, change
+  replies drop `base`, `head`, `created`, `group`, `landed_as`, `model`, `session`, `view`, `revisions`
+  and every null or empty value; `apply` sends `collisions` / `overlaps` in full only when they changed
+  since the last reply of the change, else one line (`collisions_unchanged`, `overlaps_unchanged`);
+  `grep` drops `at` and `index`. A `read` through MCP without a range gets `max_bytes` 51 200: bigger
+  files return their first lines with `truncated` and a `note` (new `read` parameter `max_bytes` for
+  every client). New `grep` parameter `context` (`before`, `after` per match). Bytes with
+  `--tools agent`: empty `open_change` 565 to 141, `apply` with a repeated collision 1 480 to 465,
+  `grep` 398 to 141, `change` with a conflict 261 935 to 1 594 (docs/mcp.md).
+- `undoes` is precise (shape change): a removed line counts only when its text (without whitespace) is
+  gone from all paths the change edits and no added line of the same hunk keeps all its words, so moves,
+  re-indents, renames, CRLF to LF and the no-final-newline case are quiet, and so are rewrites like
+  `value.lower()` to `value.lower().strip()`. Entries carry `text` and `change`; the advice is one
+  `undoes_advice` per reply, `undoes_more` counts entries past 20. `apply` sends only entries not sent
+  before (`undoes_earlier` counts the others); `resolve`, `change` and `land` (`landed`, `queued`) now
+  carry `undoes` too; lines of an open change this one is stacked on count (`landed: false`); the same
+  `session` under another agent name is own work; entries obey the token's read globs. Per-path scans
+  are kept per change: an `apply` to another file after one that removed a line of a 60 000-line file
+  went from about 60 ms to 4 to 5 ms (debug build).
+- Conflicts come as regions (shape change): every conflict in a change reply (`change`, `apply`,
+  `resolve`, `rebase`, `declare`, `land`, `restore_change`) lists `regions` (marker blocks of the
+  change's text with line numbers and 3 lines of context, ready for `replace`) and the blob, mode and
+  `size` of `base`/`ours`/`theirs`, instead of `text` with the three whole files (up to 256 KiB each).
+  `change {full: true}` returns `text` as before. The per-conflict `resolve` hint is now one `resolve`
+  string per change; `conflicts_cut` says when regions were capped. A `land` conflict on an 87 KB file
+  went from 262 246 to 2 718 bytes in the MCP bridge (`change`: 261 935 to 2 391).
+- `read`: a range from line 1 of an empty file returns empty `content` with `lines` `[1, 0]` instead of
+  an error. The docs and the tool description say that `size` is the byte size of the whole file, also
+  for a range.
+- `connect` writes `default_tools_approval_mode = "approve"` into its own Codex server entry
+  (`.codex/config.toml`; key as codex-cli 0.167.0 reads it): `codex exec` refused every TreeYard tool
+  call without it. `disconnect` removes it with the block (byte-identical file), and `connect status`
+  shows it (`tools approval approve`, JSON `tools_approval`).
+- `apply`: a `replace` whose old text (or file) the change lacks now says whether main has it and how
+  many landings the change is behind main, and what to do (`rebase`, or `read` with `at` = the change).
+  In the pilots, 5 such errors had no hint. `connect` keeps `continuous_rebase` off and `read` keeps
+  main as its default (reasons in docs/coordination.md).
+- A resolution of a conflicted path is checked for conflict markers once, after all edits of the
+  `apply`, so several `replace` edits in one call can remove them; before, the first edit was refused.
+  The refusal now says that one `apply` must remove every marker of the file, and how many regions
+  are left (6 refusals in the pilots).
 - The connect instruction block has two new points: read a line range in few calls, and keep the
   lines other agents landed (put them back when `apply` returns `undoes`). On a development set of 10
   tasks, the old block lost a task in 1 of 2 colliding runs although `apply` returned `undoes`; the new
@@ -25,6 +66,23 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- Tests: `tests/mcp_agent.rs` drives the built bridge with `--tools agent` (tool list, lean change
+  replies, a collision sent once, the read cap, grep context, conflict regions, `undoes` after
+  `resolve`) and `--tools all`; `tests/undoes.rs` covers the 20-entry cut (`undoes_more`) and the
+  read-glob filter of `undoes`.
+- `treeyard mcp --tools agent|all` and `POST /mcp?tools=agent`: the agent tool set lists 12 operations
+  (`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
+  `resolve`, `land`) plus `checkout`, with short descriptions: `tools/list` 5 948 bytes instead of
+  22 378. Every operation still answers `tools/call`. `treeyard connect` writes `--tools agent` by
+  default; `connect --all-tools` writes the full list (state field `all_tools`).
+- `checkout` (a tool of the stdio bridge `treeyard mcp`, and `treeyard checkout CHANGE [--into DIR]`):
+  writes the tree of a change into a directory of its own under the temp directory, so an agent runs
+  the repository's real tests on exactly what it will land, with no retyping. The bridge rewrites the
+  directory after each `apply`, `resolve`, `rebase`, `restore_change` and `land` of the change (only the
+  files that differ); local edits there are put back (`reverted`), untracked files are listed (`extra`),
+  and `main_moved` says when work landed after the change's base. In the last pilot 0 of 15 TreeYard
+  agents ran the tests to green (they retyped files into temp directories), against 9 of 15 with git
+  worktrees.
 - `read` takes optional `start` and `end` (1-based, inclusive line numbers) and then returns only those
   lines, with `lines` (the range returned, clamped to the file) and `total_lines`; a whole-file read
   of a text file now has `total_lines` too. A range on a binary file or a submodule is an error. In the

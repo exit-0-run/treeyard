@@ -72,6 +72,9 @@ enum Cmd {
         agent_pool: Vec<String>,
         #[arg(long)]
         pool_dir: Option<PathBuf>,
+        /// Tools to list: `agent` (the ones a coding agent needs, short descriptions) or `all`.
+        #[arg(long, default_value = "all")]
+        tools: mcp::ToolSet,
     },
     /// Attach TreeYard to the agent tools of the git repository here: import it, serve it on
     /// loopback, register the MCP server for Claude Code, Codex and OpenCode in project config,
@@ -96,6 +99,10 @@ enum Cmd {
         /// Do not start the mirror and do not ask.
         #[arg(long)]
         no_mirror: bool,
+        /// Let the MCP bridge list every operation (`treeyard mcp --tools all`), not only the
+        /// agent tool set.
+        #[arg(long)]
+        all_tools: bool,
     },
     /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
     Disconnect {
@@ -196,6 +203,17 @@ enum Cmd {
         /// Print the raw tool table as JSON instead (the MCP `tools/list` reply).
         #[arg(long)]
         json: bool,
+    },
+    /// Write the files of a change into a directory to run its tests there (the `checkout` tool
+    /// of `treeyard mcp`). A second run writes only what changed. Prints JSON.
+    Checkout {
+        /// Change id, ch_...
+        change: String,
+        /// A new, empty or earlier checkout directory. Default: one per change under the temp dir.
+        #[arg(long)]
+        into: Option<PathBuf>,
+        #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
+        url: String,
     },
     /// Call one operation, e.g. `treeyard call read '{"path":"README.md"}'`.
     Call {
@@ -701,16 +719,16 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Mcp { url, agent, agent_pool, pool_dir } => {
+        Cmd::Mcp { url, agent, agent_pool, pool_dir, tools } => {
             let held = match pool_dir {
                 Some(dir) if !agent_pool.is_empty() => Some(connect::claim_name(&agent_pool, &dir)?),
                 _ => None,
             };
             let agent = held.as_ref().map(|h| h.name.clone()).or(agent);
-            mcp::run(&url, agent)?;
+            mcp::run(&url, agent, tools)?;
             drop(held);
         }
-        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror } => {
+        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror, all_tools } => {
             let here = std::env::current_dir()?;
             match cmd {
                 Some(ConnectCmd::Status { json }) => {
@@ -727,6 +745,7 @@ fn main() -> Result<()> {
                         agents,
                         port,
                         mirror: (mirror || no_mirror).then_some(mirror),
+                        all_tools,
                     };
                     connect::connect(&here, &o)?;
                 }
@@ -755,6 +774,13 @@ fn main() -> Result<()> {
             } else {
                 print!("{}", treeyard::apidoc::markdown(&tools));
             }
+        }
+        Cmd::Checkout { change, into, url } => {
+            let dir = match into {
+                Some(d) => d,
+                None => treeyard::workspace::checkout_dir(&change)?,
+            };
+            print(&treeyard::workspace::checkout(&url, &change, &dir)?)?;
         }
         Cmd::Call { op, params, url } => {
             let params: Value = match params {

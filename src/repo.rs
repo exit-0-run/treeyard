@@ -75,6 +75,8 @@ pub struct Inner {
     pub(crate) heights: HashMap<String, u64>,
     pub(crate) parents: HashMap<String, Option<String>>,
     pub(crate) seen_collisions: HashMap<String, String>,
+    /// Per open change: what `undoes` scanned and already reported (`src/undoes.rs`).
+    pub(crate) undo_state: HashMap<String, crate::undoes::State>,
     /// Events of the running operation; `Repo::with` publishes them when it succeeds.
     pub(crate) outbox: Vec<Value>,
     /// The trigram posting index of main (derived data, see `search`).
@@ -253,6 +255,7 @@ impl Repo {
             heights: HashMap::new(),
             parents: HashMap::new(),
             seen_collisions: HashMap::new(),
+            undo_state: HashMap::new(),
             outbox: Vec::new(),
             search: Default::default(),
             symbol_done: HashSet::new(),
@@ -592,6 +595,49 @@ impl Inner {
         Ok(Some(Entry { blob: self.put_blob(&data)?, mode }))
     }
 
+    /// Landings on main since `base` (0 when `base` is main or not on main's first-parent chain).
+    pub fn landings_behind(&mut self, base: &str) -> Result<u64> {
+        let main = self.main()?;
+        if base == main || !self.is_ancestor(base, &main)? {
+            return Ok(0);
+        }
+        Ok(self.height(&main)?.saturating_sub(self.height(base)?))
+    }
+
+    /// Adds what to do to a `replace` whose old text (or file) the change lacks: whether main has
+    /// it, and how many landings the change is behind main. Other errors pass through as they are.
+    fn edit_hint(&mut self, ch: &Change, e: &Edit, cur: Option<&Entry>, err: anyhow::Error) -> anyhow::Error {
+        let Some(r) = &e.replace else { return err };
+        let has = |me: &mut Self, en: Option<&Entry>| {
+            en.and_then(|en| me.blob(&en.blob).ok()).and_then(|b| as_text(&b)).map(|t| t.contains(&r.old))
+        };
+        if r.old.is_empty() || has(self, cur) == Some(true) {
+            return err; // found more than once, empty, or not text: the message says it all
+        }
+        let main_entry = self.main().and_then(|m| self.manifest(&m)).ok().and_then(|m| m.get(&e.path).cloned());
+        let on_main = has(self, main_entry.as_ref()) == Some(true);
+        let behind = self.landings_behind(&ch.base).unwrap_or(0);
+        let (id, path) = (&ch.id, &e.path);
+        let landings = if behind == 1 { "1 landing".to_string() } else { format!("{behind} landings") };
+        let hint = match (on_main, behind > 0) {
+            (true, true) => format!(
+                "your change {id} is {landings} behind main, and main has this text: another agent changed \
+                 {path} after your change's base. Call rebase with change {id} to take main's work, then read \
+                 {path} with at = {id} and apply again"
+            ),
+            (true, false) => format!(
+                "main has this text, but your change {id} already changed it. Read {path} with at = {id} (your \
+                 change, not main) and replace text from there"
+            ),
+            (false, true) => format!(
+                "main lacks it too (main is {landings} ahead of your change {id}). Read {path} with at = {id} for \
+                 the text your change holds"
+            ),
+            (false, false) => format!("read {path} with at = {id} for the text your change holds"),
+        };
+        anyhow!("{err:#}. {hint}")
+    }
+
     pub fn apply(&mut self, id: &str, edits: &[Edit], message: Option<String>) -> Result<Change> {
         self.apply_seen(id, edits, message, None)
     }
@@ -642,17 +688,19 @@ impl Inner {
             BTreeSet::new()
         };
         let conflicted: BTreeSet<String> = ch.conflicts.iter().map(|c| c.path.clone()).collect();
+        // The agent's last write to each conflicted path in this call: its resolution.
+        let mut resolutions: BTreeMap<String, Option<Entry>> = BTreeMap::new();
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
         for e in edits {
             check_path(&e.path)?;
             let cur = work.get(&e.path).cloned();
-            let mut new = self.edit_entry(e, cur.as_ref())?;
-            // A write to a conflicted path is its resolution; one that keeps the markers would land them.
-            if conflicted.contains(&e.path)
-                && let Some(n) = &new
-            {
-                check_no_markers(&e.path, &self.blob(&n.blob)?)?;
+            let mut new = match self.edit_entry(e, cur.as_ref()) {
+                Ok(n) => n,
+                Err(err) => return Err(self.edit_hint(&ch, e, cur.as_ref(), err)),
+            };
+            if conflicted.contains(&e.path) {
+                resolutions.insert(e.path.clone(), new.clone());
             }
             if let Some(v) = &view
                 && e.replace.is_none()
@@ -687,6 +735,13 @@ impl Inner {
                 }
             }
             out.push((e.path.clone(), new));
+        }
+        // A resolution that keeps the markers would land them. It is checked once per path, after
+        // all edits of this call: several `replace` edits in one apply may remove them together.
+        for (path, n) in &resolutions {
+            if let Some(n) = n {
+                check_no_markers(path, &self.blob(&n.blob)?)?;
+            }
         }
         self.set_entries(&mut ch, out, message)?;
         if explicit && up_to_date {
@@ -1587,27 +1642,81 @@ impl Inner {
     }
 
     pub fn change_view(&mut self, ch: &Change) -> Result<Value> {
+        self.change_view_with(ch, false)
+    }
+
+    /// The JSON of a change. Each conflict lists its `regions` (marker blocks of the path as the
+    /// change holds it, with context; `conflict_view`), the blob, mode and size of each side, and
+    /// the whole texts only with `full` (sides of a conflict without regions also when small).
+    pub fn change_view_with(&mut self, ch: &Change, full: bool) -> Result<Value> {
+        use crate::conflict_view as cv;
         let paths: Vec<String> = self.own_changes(ch)?.into_keys().collect();
         let mut conflicts = Vec::new();
+        let mut budget = cv::Budget::default();
+        let head = if ch.conflicts.is_empty() { None } else { Some(self.manifest(&ch.head)?) };
         for c in &ch.conflicts {
-            conflicts.push(json!({
+            let mut v = json!({
                 "path": c.path,
                 "kind": c.kind,
-                "base": entry_json(&c.base),
-                "ours": entry_json(&c.ours),
-                "theirs": entry_json(&c.theirs),
-                "text": {"base": self.text_of(&c.base)?, "ours": self.text_of(&c.ours)?, "theirs": self.text_of(&c.theirs)?},
-                "ours_intent": ch.intent,
+                "base": self.side_json(&c.base)?,
+                "ours": self.side_json(&c.ours)?,
+                "theirs": self.side_json(&c.theirs)?,
                 "theirs_by": c.theirs_by,
-                "resolve": "write the final content of this path with apply, or call resolve with take = ours | theirs | base | delete; then land again",
-            }));
+            });
+            let marked = match head.as_ref().and_then(|m| m.get(&c.path)).filter(|e| e.mode != MODE_GITLINK) {
+                Some(e) => as_text(&self.blob(&e.blob)?),
+                None => None,
+            };
+            let with_regions = matches!(c.kind, ConflictKind::Content | ConflictKind::AddAdd) && marked.is_some();
+            if with_regions {
+                let (regions, more) = cv::regions(marked.as_deref().unwrap_or_default(), &mut budget);
+                v["regions"] = json!(regions);
+                if more > 0 {
+                    v["regions_more"] = json!(more);
+                }
+            }
+            if full || !with_regions {
+                let limit = if full { TEXT_LIMIT } else { cv::SMALL_SIDE };
+                let side = |s: &mut Self, e: &Option<Entry>| -> Result<Value> {
+                    Ok(match s.text_of(e)? {
+                        Value::String(t) => cv::small(Some(t), false, limit),
+                        _ => Value::Null,
+                    })
+                };
+                v["text"] = json!({"base": side(self, &c.base)?, "ours": side(self, &c.ours)?, "theirs": side(self, &c.theirs)?});
+            }
+            conflicts.push(v);
         }
-        Ok(json!({
+        let mut out = json!({
             "id": ch.id, "state": ch.state, "agent": ch.agent, "model": ch.model, "session": ch.session,
             "intent": ch.intent, "base": ch.base, "head": ch.head, "paths": paths, "conflicts": conflicts,
             "landed_as": ch.landed_as, "created": ch.created, "revisions": ch.predecessors.len() + 1,
             "declared": ch.declared, "view": ch.view, "conflicted": !ch.conflicts.is_empty(), "group": ch.group,
-        }))
+        });
+        if !ch.conflicts.is_empty() {
+            out["resolve"] = json!(cv::help(&ch.id));
+        }
+        if budget.cut {
+            out["conflicts_cut"] = json!(format!(
+                "region text is capped ({} lines per region, {} regions per path, {} KiB per reply): read the \
+                 lines of a cut or missing region with at = {}, or call change with full = true",
+                cv::REGION_LINES,
+                cv::REGIONS_MAX,
+                cv::BUDGET / 1024,
+                ch.id
+            ));
+        }
+        Ok(out)
+    }
+
+    /// Blob id, mode and byte size of one side of a conflict.
+    fn side_json(&mut self, e: &Option<Entry>) -> Result<Value> {
+        let Some(e) = e else { return Ok(Value::Null) };
+        let mut v = entry_json(&Some(e.clone()));
+        if e.mode != MODE_GITLINK {
+            v["size"] = json!(self.blob(&e.blob)?.len());
+        }
+        Ok(v)
     }
 
     /// Other open changes that touch any of this change's paths.
@@ -1643,7 +1752,21 @@ impl Inner {
 
     /// `read`, optionally only lines `start..=end` (1-based; either end may be open). The range
     /// is clamped to the file; `lines` is the range returned and `total_lines` counts the file.
+    /// `size` is always the byte size of the whole file. A range from line 1 of an empty file is
+    /// empty content with `lines` [1, 0].
     pub fn read(&mut self, path: &str, at: Option<&str>, range: Option<(Option<u32>, Option<u32>)>) -> Result<Value> {
+        self.read_max(path, at, range, None)
+    }
+
+    /// `read`; without a range, a text file over `max_bytes` returns only its first whole lines
+    /// that fit, with `truncated`, `lines` and a `note` that says how to read on.
+    pub fn read_max(
+        &mut self,
+        path: &str,
+        at: Option<&str>,
+        range: Option<(Option<u32>, Option<u32>)>,
+        max_bytes: Option<usize>,
+    ) -> Result<Value> {
         let cs = self.resolve_at(at)?;
         let e =
             self.manifest(&cs)?.get(path).cloned().with_context(|| format!("no such file {path} at {}", &cs[..12]))?;
@@ -1674,6 +1797,24 @@ impl Inner {
         let total = lines.len() as u32;
         v["total_lines"] = json!(total);
         let Some((start, end)) = range else {
+            if let Some(max) = max_bytes.filter(|m| text.len() > *m) {
+                let (mut n, mut size) = (0, 0);
+                while n < lines.len() && size + lines[n].len() <= max {
+                    size += lines[n].len();
+                    n += 1;
+                }
+                let n = n.max(1);
+                v["content"] = Value::String(lines[..n].concat());
+                v["lines"] = json!([1, n]);
+                v["truncated"] = json!(true);
+                v["note"] = json!(format!(
+                    "{path} has {total} lines ({} bytes); this is lines 1-{n}. Read on with start = {} and end, or find \
+                     the place first with grep or symbols",
+                    data.len(),
+                    n + 1
+                ));
+                return Ok(v);
+            }
             v["content"] = Value::String(text);
             return Ok(v);
         };
@@ -1682,6 +1823,12 @@ impl Inner {
         }
         let start = start.unwrap_or(1);
         let end = end.unwrap_or(total).min(total);
+        if total == 0 && start == 1 {
+            // An empty file has no lines: the range from line 1 is empty, not an error.
+            v["content"] = Value::String(String::new());
+            v["lines"] = json!([1, 0]);
+            return Ok(v);
+        }
         if start > total {
             bail!("start {start} is past the end of {path} ({total} lines)");
         }
@@ -1820,17 +1967,20 @@ pub fn check_group(group: &str) -> Result<&str> {
 /// `main` and `change`); `direct` landing would otherwise put them on main.
 fn check_no_markers(path: &str, bytes: &[u8]) -> Result<()> {
     let text = String::from_utf8_lossy(bytes);
-    for (i, line) in text.lines().enumerate() {
-        let line = line.trim_end_matches('\r');
-        if line == "<<<<<<< main" || line == ">>>>>>> change" {
-            bail!(
-                "{path} line {}: the resolution still holds the conflict marker `{line}`; write the final \
-                 content without the markers (or call resolve), then land",
-                i + 1
-            );
-        }
-    }
-    Ok(())
+    let lines: Vec<&str> = text.lines().map(|l| l.trim_end_matches('\r')).collect();
+    let Some(i) = lines.iter().position(|l| *l == "<<<<<<< main" || *l == ">>>>>>> change") else {
+        return Ok(());
+    };
+    let regions = lines.iter().filter(|l| **l == "<<<<<<< main").count().max(1);
+    bail!(
+        "{path} line {}: the resolution still holds the conflict marker `{}` ({regions} conflict region{} \
+         left). One apply must remove every conflict marker of {path}: send its whole final content \
+         (`content`), or all the `replace` edits for it in the same apply, or call resolve with take = ours | \
+         theirs | base | delete; then land",
+        i + 1,
+        lines[i],
+        if regions == 1 { "" } else { "s" }
+    )
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

@@ -21,9 +21,15 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes
 plus `advice`. `apply` returns `overlaps` (shared paths) and `collisions` (a trial merge per shared
 path: `conflict` or `overlap`, with the changed line ranges of both sides) and `undoes` (lines the
-edit removes that another agent landed: `path`, `lines`, `agent`, `intent`, `changeset`, `advice`;
+edit removes whose text another agent wrote and the change no longer has: `path`, `lines`, `agent`,
+`intent`, `changeset`, `change`, `text`; `undoes_advice` once; new entries only, `change` and `land` list all;
 [docs/coordination.md](coordination.md#b-live-collisions-and-events)). `read` takes optional `start` and
-`end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`.
+`end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`; `size`
+is the byte size of the whole file, also for a range. A range from line 1 of an empty file returns empty
+`content` with `lines` `[1, 0]`; `at` may be a change id, so a range reads the change's own lines.
+`max_bytes` (no range) returns only the first whole lines up to that size with `truncated: true`,
+`lines` and a `note`; MCP clients get 50 KiB when they give neither a range nor `max_bytes`.
+`grep` takes `context` (0 to 20): each match gets `before` and `after` line arrays.
 
 `land` answers with one of five statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review
@@ -38,13 +44,14 @@ Test: `tests/best_of_n.rs`.
 
 ## Connect
 
-`treeyard connect [--harness claude,codex,opencode|all] [--agents N] [--port P] [--mirror|--no-mirror]`,
+`treeyard connect [--harness claude,codex,opencode|all] [--agents N] [--port P] [--mirror|--no-mirror] [--all-tools]`,
 run in a git repository, imports it into `.git/treeyard/data` (once), starts `serve` on `127.0.0.1`,
 writes project-scoped MCP entries (`.mcp.json`, `.codex/config.toml`, `opencode.json`) and a marked
 block in `AGENTS.md` and `CLAUDE.md`. `treeyard connect status [--json]` prints the server, the
 harnesses, the open changes and the overlap or conflict warnings. `treeyard disconnect [--purge]`
 restores every touched file byte for byte and stops the server. `serve --port-file F` writes the bound
-port to F; `mcp --agent-pool a,b --pool-dir D` takes the first free name. Details:
+port to F; `mcp --agent-pool a,b --pool-dir D` takes the first free name; `mcp --tools agent|all` picks the
+listed tools (connect writes `agent` unless `--all-tools`; HTTP: `/mcp?tools=agent`). Details:
 [docs/connect.md](connect.md). Tests: `tests/connect.rs`.
 
 ## Workspaces
@@ -71,6 +78,14 @@ workspace (these directories plus root files, git cone mode); sync never treats 
 --from-dir PATH` seeds the change with the uncommitted edits of the git checkout at PATH. `restore NAME --to N` goes back to checkpoint `N` of the change and rewrites only the files that differ. `stack NAME --on CHANGE` builds the change on another agent's open change (its edits appear here; land waits for it). `status NAME` syncs and shows the change's collisions with other open changes now (also kept in `.treeyard/collisions.json`) and its land status. `update NAME` writes the change as the server holds it now (automatic after a land that hits a conflict). `land NAME [--wait-s N]` waits for the verdict of queue or optimistic tests (`land_status`) and, when the change has already landed or was reverted, lands the work as a follow-up change (from the workspace base, merged 3-way onto main).
 Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
+
+`treeyard checkout CHANGE [--into DIR]` (and the `checkout` tool of the stdio bridge `treeyard mcp`)
+writes the tree of a change, its base plus its edits with exec bits, symlinks and deletions, into a
+directory and prints its path in `dir`; run the repository's tests there. Default directory: one per
+change under the system temp directory. A second run writes only what differs, so build output stays.
+Edits made in the directory are replaced (`reverted`); files that are not in the change and not
+gitignored are listed in `extra`; `main_moved` says that work landed after the change's base. Details:
+[docs/mcp.md](mcp.md#test-a-change-checkout). Tests: `tests/checkout.rs`.
 
 `treeyard workspace-hook create [--name N] [--from-dir PATH] [--agent A] [--intent I] [--setup CMD] [--no-git]`
 and `workspace-hook remove [NAME|PATH] [--from-dir PATH] [--abandon] [--force]` are the commands an
@@ -128,7 +143,10 @@ to a read-only mirror (never forced). Rules, the exact rejection text and timing
 - **Change**: a stable id owned by one agent. It points at one head changeset on top of its base and
   survives amend and rebase. Main is the only ref.
 - **Conflict**: stored on the change, which keeps living with it. Text conflicts hold the file with
-  markers until the path is written again or settled with `resolve`.
+  markers until the path is written again or settled with `resolve`. Replies list each conflict as
+  `regions` (the marker blocks, with line numbers in that file and 3 lines of context) plus the blob id,
+  mode and size of `base`, `ours` and `theirs`; `change {change, full: true}` adds the three whole texts
+  ([docs/coordination.md](coordination.md#conflicts-as-regions)).
 - **Git bridge**: each main changeset maps to one deterministic commit (dates and author come from the
   changeset), written as loose objects into the bare repo at `<data>/git`. The commit message carries
   `TreeYard-Change`, `TreeYard-Changeset`, `TreeYard-Agent`, `TreeYard-Model` and `TreeYard-Session`

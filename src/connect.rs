@@ -145,6 +145,9 @@ pub struct State {
     pub files: Vec<FileRecord>,
     /// Directories connect created (removed again when empty).
     pub dirs: Vec<PathBuf>,
+    /// The MCP entries list every operation (`connect --all-tools`), not the agent tool set.
+    #[serde(default)]
+    pub all_tools: bool,
 }
 
 pub struct Options {
@@ -154,6 +157,8 @@ pub struct Options {
     pub port: Option<u16>,
     /// Some(true) = --mirror, Some(false) = --no-mirror, None = ask on a TTY.
     pub mirror: Option<bool>,
+    /// true = the bridge lists every operation (`--all-tools`); default the agent tool set.
+    pub all_tools: bool,
 }
 
 /// Where one repository's connect state lives.
@@ -324,15 +329,29 @@ fn toml_str(s: &str) -> String {
     toml::Value::String(s.to_string()).to_string()
 }
 
-/// The Codex block: `[mcp_servers.treeyard]` with command, args and env.
+/// What connect sets as `default_tools_approval_mode` of its Codex server entry. Without it,
+/// `codex exec` (no one to ask) refuses every call to the server's tools. Key and value as
+/// codex-cli 0.167.0 reads them (`RawMcpServerConfig`).
+pub const CODEX_APPROVAL: &str = "approve";
+
+/// The Codex block: `[mcp_servers.treeyard]` with command, args, the tool approval and env.
 pub fn codex_block(command: &str, args: &[String], url: &str) -> String {
     let args: Vec<String> = args.iter().map(|a| toml_str(a)).collect();
     format!(
-        "[mcp_servers.treeyard]\ncommand = {}\nargs = [{}]\n\n[mcp_servers.treeyard.env]\nTREEYARD_URL = {}\n",
+        "[mcp_servers.treeyard]\ncommand = {}\nargs = [{}]\ndefault_tools_approval_mode = {}\n\n\
+         [mcp_servers.treeyard.env]\nTREEYARD_URL = {}\n",
         toml_str(command),
         args.join(", "),
+        toml_str(CODEX_APPROVAL),
         toml_str(url)
     )
+}
+
+/// `default_tools_approval_mode` of the `treeyard` server in a Codex config, as the file says now.
+fn codex_approval(path: &Path) -> Option<String> {
+    let text = fs::read_to_string(path).ok()?;
+    let v: toml::Value = toml::from_str(&text).ok()?;
+    v.get("mcp_servers")?.get("treeyard")?.get("default_tools_approval_mode")?.as_str().map(str::to_string)
 }
 
 // ---------------------------------------------------------------- processes
@@ -523,12 +542,23 @@ pub fn agent_names(h: Harness, n: usize) -> Vec<String> {
     (1..=n.max(1)).map(|i| format!("{}-{i}", h.name())).collect()
 }
 
-/// The `treeyard mcp` arguments of one harness.
-fn mcp_args(names: &[String], pool_dir: &Path) -> Vec<String> {
-    if names.len() == 1 {
-        return vec!["mcp".into(), "--agent".into(), names[0].clone()];
+/// The `treeyard mcp` arguments of one harness: the agent tool set unless `all_tools`.
+fn mcp_args(names: &[String], pool_dir: &Path, all_tools: bool) -> Vec<String> {
+    let mut args: Vec<String> = if names.len() == 1 {
+        vec!["mcp".into(), "--agent".into(), names[0].clone()]
+    } else {
+        vec![
+            "mcp".into(),
+            "--agent-pool".into(),
+            names.join(","),
+            "--pool-dir".into(),
+            pool_dir.to_string_lossy().into(),
+        ]
+    };
+    if !all_tools {
+        args.extend(["--tools".into(), "agent".into()]);
     }
-    vec!["mcp".into(), "--agent-pool".into(), names.join(","), "--pool-dir".into(), pool_dir.to_string_lossy().into()]
+    args
 }
 
 /// The JSON key, entry and new-file schema of a harness with a JSON config.
@@ -656,6 +686,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
         mirror: None,
         files: vec![],
         dirs: vec![],
+        all_tools: false,
     });
 
     // Server.
@@ -694,6 +725,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     }
     let n = o.agents.unwrap_or_else(|| st.agents.values().map(Vec::len).max().unwrap_or(1));
     st.harnesses = hs.clone();
+    st.all_tools = o.all_tools;
     st.agents = hs.iter().map(|h| (h.name().to_string(), agent_names(*h, n))).collect();
 
     let command = command_name()?;
@@ -704,7 +736,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     for h in &hs {
         let path = ctx.top.join(h.config_path());
         let names = agent_names(*h, n);
-        let args = mcp_args(&names, &pool_dir);
+        let args = mcp_args(&names, &pool_dir, o.all_tools);
         let kind = if *h == Harness::Codex { Kind::Toml } else { Kind::Json };
         let known = w.st.files.iter().any(|f| f.path == path);
         if !known {
@@ -803,7 +835,10 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
         println!("claude: approve the project server `treeyard` when Claude Code asks (or `/mcp`)");
     }
     if hs.contains(&Harness::Codex) {
-        println!("codex: reads .codex/config.toml only in a trusted project");
+        println!(
+            "codex: reads .codex/config.toml only in a trusted project; its treeyard tools run without asking \
+             (default_tools_approval_mode = \"{CODEX_APPROVAL}\")"
+        );
     }
     println!("undo: treeyard disconnect");
     Ok(())
@@ -918,7 +953,11 @@ pub fn status_json(dir: &Path) -> Result<Value> {
                 .files
                 .iter()
                 .any(|f| f.path == p && read_opt(&p).ok().flatten().is_some_and(|b| sha256(&b) == f.written));
-            json!({"name": h.name(), "config": h.config_path(), "agents": st.agents.get(h.name()), "config_intact": ok})
+            let mut v = json!({"name": h.name(), "config": h.config_path(), "agents": st.agents.get(h.name()), "config_intact": ok});
+            if *h == Harness::Codex {
+                v["tools_approval"] = json!(codex_approval(&p));
+            }
+            v
         })
         .collect();
     let instructions: Vec<String> = st
@@ -983,7 +1022,17 @@ pub fn status_text(v: &Value) -> String {
     for h in v["harnesses"].as_array().into_iter().flatten() {
         let agents: Vec<String> = h["agents"].as_array().into_iter().flatten().map(&s).collect();
         let intact = if h["config_intact"] == true { "" } else { " (edited after connect)" };
-        out.push_str(&format!("{}: {}{intact}, agents {}\n", s(&h["name"]), s(&h["config"]), agents.join(", ")));
+        let approval = match h["tools_approval"].as_str() {
+            Some(a) => format!(", tools approval {a}"),
+            None if h["name"] == "codex" => ", tools approval not set (codex exec refuses the tools)".into(),
+            None => String::new(),
+        };
+        out.push_str(&format!(
+            "{}: {}{intact}{approval}, agents {}\n",
+            s(&h["name"]),
+            s(&h["config"]),
+            agents.join(", ")
+        ));
     }
     let ins: Vec<String> = v["instructions"].as_array().into_iter().flatten().map(&s).collect();
     out.push_str(&format!("instructions: {}\n", if ins.is_empty() { "none".into() } else { ins.join(", ") }));
@@ -1118,5 +1167,6 @@ mod tests {
         let b = codex_block("treeyard", &["mcp".into(), "--agent".into(), "codex-1".into()], "http://127.0.0.1:1");
         let v: toml::Value = toml::from_str(&b).unwrap();
         assert_eq!(v["mcp_servers"]["treeyard"]["env"]["TREEYARD_URL"].as_str(), Some("http://127.0.0.1:1"));
+        assert_eq!(v["mcp_servers"]["treeyard"]["default_tools_approval_mode"].as_str(), Some("approve"));
     }
 }

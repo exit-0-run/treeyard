@@ -179,7 +179,9 @@ fn connect_writes_project_scoped_config_for_three_harnesses() {
         "--agent-pool",
         "claude-1,claude-2,claude-3",
         "--pool-dir",
-        "STATE/agents"
+        "STATE/agents",
+        "--tools",
+        "agent"
       ],
       "command": "TREEYARD",
       "env": {
@@ -195,7 +197,8 @@ fn connect_writes_project_scoped_config_for_three_harnesses() {
         r#"# treeyard:connect:start
 [mcp_servers.treeyard]
 command = "TREEYARD"
-args = ["mcp", "--agent-pool", "codex-1,codex-2,codex-3", "--pool-dir", "STATE/agents"]
+args = ["mcp", "--agent-pool", "codex-1,codex-2,codex-3", "--pool-dir", "STATE/agents", "--tools", "agent"]
+default_tools_approval_mode = "approve"
 
 [mcp_servers.treeyard.env]
 TREEYARD_URL = "http://127.0.0.1:PORT"
@@ -214,7 +217,9 @@ TREEYARD_URL = "http://127.0.0.1:PORT"
         "--agent-pool",
         "opencode-1,opencode-2,opencode-3",
         "--pool-dir",
-        "STATE/agents"
+        "STATE/agents",
+        "--tools",
+        "agent"
       ],
       "enabled": true,
       "environment": {
@@ -236,12 +241,16 @@ TREEYARD_URL = "http://127.0.0.1:PORT"
     assert_eq!(git(&env.repo, &["status", "--porcelain"]), "", "created files are excluded from git");
     assert!(env.user_dirs_empty(), "no user-level config");
 
-    // One agent: a plain --agent name.
+    // One agent: a plain --agent name. --all-tools: the bridge lists every operation.
     let one = Env::new(&[]);
     one.run(&["connect", "--harness", "codex"]);
     let p1 = one.state()["port"].as_u64().unwrap();
     let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
+    assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1", "--tools", "agent"]"#), "{toml}");
+    one.run(&["connect", "--harness", "codex", "--all-tools"]);
+    let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
     assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1"]"#), "{toml}");
+    assert_eq!(one.state()["all_tools"], true);
     assert!(!one.repo.join(".mcp.json").exists() && !one.repo.join("CLAUDE.md").exists(), "only codex files");
     assert!(one.repo.join("AGENTS.md").exists());
     one.run(&["disconnect"]);
@@ -459,4 +468,26 @@ fn connect_refuses_outside_a_git_repo() {
     let out = Command::new(bin()).arg("connect").current_dir(tmp.path()).stdin(Stdio::null()).output().unwrap();
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("not inside a git repository"));
+}
+
+#[test]
+fn codex_tools_approval_is_written_shown_and_undone() {
+    let user = "model = \"some-model\"\n\n[mcp_servers.other]\ncommand = \"other\"\n";
+    let env = Env::new(&[(".codex/config.toml", user)]);
+    env.run(&["connect", "--harness", "codex"]);
+    let text = std::fs::read_to_string(env.repo.join(".codex/config.toml")).unwrap();
+    assert!(text.starts_with(user), "the user's lines stay first:\n{text}");
+    let v: toml::Value = toml::from_str(&text).unwrap();
+    assert_eq!(v["mcp_servers"]["treeyard"]["default_tools_approval_mode"].as_str(), Some("approve"));
+    assert_eq!(v["mcp_servers"]["other"].get("default_tools_approval_mode"), None, "only its own entry");
+    assert_eq!(v["model"].as_str(), Some("some-model"));
+
+    let status = env.run(&["connect", "status"]);
+    assert!(status.contains("codex: .codex/config.toml, tools approval approve, agents codex-1"), "{status}");
+    let j: Value = serde_json::from_str(&env.run(&["connect", "status", "--json"])).unwrap();
+    assert_eq!(j["harnesses"][0]["tools_approval"], "approve");
+
+    env.run(&["disconnect"]);
+    assert_eq!(std::fs::read_to_string(env.repo.join(".codex/config.toml")).unwrap(), user, "byte-identical");
+    assert!(env.user_dirs_empty(), "nothing in CODEX_HOME");
 }
