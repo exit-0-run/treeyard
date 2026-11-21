@@ -6,6 +6,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Fixed
+- `land` held only on the first 20 `undoes` entries: an entry of another agent's landed lines past
+  20 entries that do not hold (lines of the change it is stacked on) now holds too; a held reply lists
+  at most 20 and counts the rest in `undoes_more`.
+- Queue mode: a second `land` without `undo` of a change already queued with a yes for its current
+  head answered `undoes`; it now answers `queued`.
 - `grep`: `^` and `$` are line anchors in the indexed and the scan path. A whole-file prefilter ran
   the pattern without multi-line mode, so `^x` matched only on the first line and `x$` only on the
   last; it now runs in multi-line mode (also before `\r\n`), and is skipped for `\A` / `\z`.
@@ -15,6 +20,16 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   its changes' diffs); work left out counts from the merge base.
 
 ### Changed
+- `undoes` judges a removed line by what the other agent contributed to it, not by the whole line
+  (behaviour change). The contribution comes from that agent's own diff of the path: the words of the
+  line that the lines its hunk replaced did not have (every word for a line it added whole). The line
+  is quiet while those words stay on the rewritten line, so an agent that rewrites another agent's
+  line for its own task keeps both (`.strip().casefold()` to `.strip().lower()` is quiet; to
+  `.casefold()` it warns). Earlier changes of a line are followed back through the lines each hunk
+  replaced (3 steps). Entries carry `contributed` (`line`, `words`, the other agent's `before` and
+  `after`); the advice says to keep that part and still make one's own edit. In two real 5-agent runs
+  the old rule reported such a line and the agent reverted its own task. The land hold follows the
+  same rule.
 - `land` holds a change that removes lines another agent landed (behaviour change): status `undoes`
   with the entries (text included) and `advice` (put them back and land again; if both tasks cannot
   hold, keep the other agent's lines, land the rest and say so; only if the task names the lines,

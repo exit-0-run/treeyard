@@ -1109,7 +1109,7 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "apply",
-            "Edit files of your change; per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes, and undoes: lines of other agents your edit removed (put them back unless your task removes them).",
+            "Edit files of your change; per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes, and undoes: another agent's lines your edit removes: keep its contributed words and your own edit.",
             json!({"change": change, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}}, "required": ["path"]}}, "message": {"type": "string", "description": "commit message; default the intent"}}),
             &["change", "edits"],
         ),
@@ -1139,7 +1139,7 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "land",
-            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main, undoes (not landed: your change removes lines another agent landed, listed in undoes; put them back and land again, follow advice). undo = true with reason only when your task names those lines for removal.",
+            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main, undoes (not landed: you remove another agent's landed work, in undoes; put its part back, keep your edit, land again). undo = true with reason only when your task names those lines for removal.",
             json!({"change": change, "undo": {"type": "boolean", "description": "land although it removes other agents' landed lines"}, "reason": {"type": "string", "description": "required with undo: why your task removes them"}}),
             &["change"],
         ),
@@ -1280,7 +1280,7 @@ pub fn tools() -> Vec<Value> {
         tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
-            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text; new ones only, change lists all); keep them unless your task says to remove them.",
+            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text, and contributed: the words that agent added to a line it rewrote; new ones only, change lists all); keep them unless your task says to remove them.",
             json!({"change": change, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
             &["change", "edits"],
         ),

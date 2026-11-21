@@ -89,6 +89,9 @@ pub struct Inner {
     pub(crate) seen_collisions: HashMap<String, String>,
     /// Per open change: what `undoes` scanned and already reported (`src/undoes.rs`).
     pub(crate) undo_state: HashMap<String, crate::undoes::State>,
+    /// A changeset's own diff of one path, by (changeset, path): what `undoes` reads to find what
+    /// another agent contributed to a line (content-addressed, so it never goes stale).
+    pub(crate) origin_diffs: HashMap<(String, String), Option<std::sync::Arc<crate::undoes::OriginDiff>>>,
     /// Events of the running operation; `Repo::with` publishes them when it succeeds.
     pub(crate) outbox: Vec<Value>,
     /// The trigram posting index of main (derived data, see `search`).
@@ -268,6 +271,7 @@ impl Repo {
             parents: HashMap::new(),
             seen_collisions: HashMap::new(),
             undo_state: HashMap::new(),
+            origin_diffs: HashMap::new(),
             outbox: Vec::new(),
             search: Default::default(),
             symbol_done: HashSet::new(),

@@ -329,8 +329,10 @@ impl Inner {
         if undo != Undo::Off {
             let rep = self.undoes(&ch, Scope::All)?;
             let held = self.held(&ch, &rep.entries)?;
+            // A yes given for this very head (the change is queued with it) still stands.
+            let yes = ch.undid.as_ref().is_some_and(|u| u.head == ch.head);
             match undo {
-                Undo::Hold if !held.is_empty() && self.cfg.coordination.hold_undoes => {
+                Undo::Hold if !held.is_empty() && self.cfg.coordination.hold_undoes && !yes => {
                     return self.hold(&ch, held, "land", Value::Null);
                 }
                 Undo::Yes(reason) if !held.is_empty() => {

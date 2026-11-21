@@ -146,7 +146,7 @@ fn git_blame(gd: &std::path::Path, commit: &str, path: &str, root: &str) -> Resu
 /// rename detection against the first parent where the sources are the files `cs` deleted
 /// and the only destination is `path` (git's `single_follow`). A pathspec of `path` plus the
 /// deleted files gives `git diff-tree -M` exactly that set.
-fn rename_source(r: &mut Inner, parent: &str, cs: &str, path: &str) -> Result<Option<String>> {
+pub(crate) fn rename_source(r: &mut Inner, parent: &str, cs: &str, path: &str) -> Result<Option<String>> {
     let deleted: Vec<String> =
         r.changeset(cs)?.changes.into_iter().filter(|(_, e)| e.is_none()).map(|(p, _)| p).collect();
     if deleted.is_empty() {

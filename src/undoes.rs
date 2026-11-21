@@ -9,32 +9,45 @@
 //!   the line occurs fewer times in the head versions of the changed paths than in their base
 //!   versions. So a block that moved (to a helper, to another file, a rename), was re-indented, or
 //!   changed only its line ends, is quiet;
-//! - it was not extended: a line whose words (identifiers, numbers, words of strings), in order,
-//!   all appear on one added line of the same diff hunk, or on two adjacent added lines, was
-//!   rewritten around its words (`value.lower()` -> `value.lower().strip()`) and is quiet;
-//!   dropping a word warns (`value.lower()` -> `value`). Operators are not words, so
-//!   `x > 0` -> `x >= 0` is quiet: the rule trades that miss for no warning on extensions;
+//! - what the other change contributed to the line is gone. The contribution comes from that
+//!   change's own diff of the path (`OriginDiff`): the words (identifiers, numbers, words of
+//!   strings) of the line that are not among the words of the lines its hunk replaced, or every
+//!   word of the line when the hunk replaced nothing (or the change added no word of its own: an
+//!   operator, a reordering). The line is quiet when those words, in order, all appear on one added
+//!   line of the current diff hunk, or on two adjacent added lines. So `x.casefold()` that another
+//!   agent made `x.strip().casefold()` (contribution `strip`) may become `x.strip().lower()`, but
+//!   not `x.casefold()`; a line another agent added whole keeps the rule of every word
+//!   (`value.lower()` -> `value.lower().strip()` is quiet, `value.lower()` -> `value` warns).
+//!   Operators are not words, so `x > 0` -> `x >= 0` is quiet;
+//! - blame names only the last change of a line. Earlier contributions to it are found by
+//!   following the lines that change's hunk replaced back (blame at its parent, up to `CHAIN`
+//!   steps): an earlier change of another agent whose words the later line still carries
+//!   contributed them too, and dropping them warns with that change as the owner;
 //! - it has a letter or digit (a lone `}` never warns, but joins a run of lines around it).
 //!
 //! Per change, the scan of each path is kept while the change's base and the path's head blob
-//! stay the same, so an `apply` to another file costs no diff or blame. Entries already sent in an
+//! stay the same, so an `apply` to another file costs no diff or blame. The origin diffs are kept
+//! per (changeset, path) for the process (`Inner::origin_diffs`). Entries already sent in an
 //! earlier `apply` or `resolve` reply are counted (`undoes_earlier`), not repeated.
 
 use anyhow::Result;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::Arc;
 
 use crate::model::{Change, ChangeState, Entry, MODE_GITLINK};
 use crate::repo::Inner;
 
 /// At most this many entries per reply; the rest are counted in `undoes_more`.
 pub const MAX: usize = 20;
-pub const ADVICE: &str = "These lines were written by another agent for its own task (landed, or the open change you \
-are stacked on). Keep them unless your task says to remove them; if both tasks cannot hold, say so in your message \
-instead of removing its work.";
+pub const ADVICE: &str = "These lines hold work that another agent wrote for its own task (landed, or the open change \
+you are stacked on). Keep what it contributed (the words in `contributed`, else the whole line) and still make your own edit \
+of the same line: restoring means keeping its part, not giving up yours. If both tasks cannot hold, say so in your \
+message instead of removing its work.";
 /// The advice of a land held by `undoes` (status `undoes`).
-pub const HOLD_ADVICE: &str = "Not landed: your change removes these lines, which another agent landed for its own task. \
-Put them back (apply) and land again. If your task and these lines truly cannot both hold, keep the other agent's lines, \
+pub const HOLD_ADVICE: &str = "Not landed: your change removes what another agent landed in these lines for its own \
+task. Put its part back (the words in `contributed`, else the whole line) while keeping your own edit of the same \
+lines, apply, and land again. If your task and these lines truly cannot both hold, keep the other agent's lines, \
 land the rest, and say so in your final message so a person decides. Only if your task names these lines for removal, \
 land again with undo = true and reason = why your task removes them.";
 
@@ -53,6 +66,14 @@ pub enum Undo<'a> {
 /// Removed text per entry: at most this many lines and bytes (`text_cut` past that).
 const TEXT_LINES: usize = 8;
 const TEXT_BYTES: usize = 800;
+/// How far back an earlier contribution to a line is followed (changes before blame's last one).
+const CHAIN: usize = 3;
+/// Replaced lines of one hunk followed back per step.
+const CHAIN_LINES: usize = 8;
+/// A contribution's `before` (the lines its hunk replaced): at most this many bytes.
+const BEFORE_BYTES: usize = 300;
+/// Origin diffs kept per process; the map is emptied when it is full.
+const ORIGIN_DIFFS: usize = 512;
 
 /// Which entries a reply carries.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -75,8 +96,35 @@ struct Removed {
     line: usize,
     text: String,
     norm: String,
+    /// Blame's origin of the line (the last change that wrote it).
     origin: String,
-    rewritten: bool,
+    /// What other agents' changes contributed to the line, blame's origin first.
+    contribs: Vec<Contrib>,
+}
+
+/// One change's part of a removed line.
+#[derive(Clone, Debug)]
+struct Contrib {
+    origin: String,
+    /// The words it added; `None`: every word of the line (it added the line with no counterpart,
+    /// or added no word of its own).
+    words: Option<Vec<String>>,
+    /// That change's own before (the lines its hunk replaced, cut at `BEFORE_BYTES`) and after
+    /// (its version of the line).
+    before: String,
+    after: String,
+    /// The words are still on an added line of the current hunk (or on two adjacent ones).
+    kept: bool,
+}
+
+/// A changeset's own diff of one path: its parent's version (through a rename the way blame
+/// follows it) to its version.
+pub struct OriginDiff {
+    /// (parent changeset, the path there); `None`: the changeset added the file.
+    parent: Option<(String, String)>,
+    old: Vec<String>,
+    new: Vec<String>,
+    hunks: Vec<crate::xdiff::Hunk>,
 }
 
 struct Scan {
@@ -93,22 +141,24 @@ struct Scan {
 /// The result of one `undoes` computation.
 #[derive(Default)]
 pub struct Report {
+    /// Every entry (a reply carries at most `MAX`, see `put`).
     pub entries: Vec<Value>,
-    pub more: usize,
     pub earlier: usize,
 }
 
 impl Report {
     /// Writes `undoes` (always), and `undoes_advice`, `undoes_more`, `undoes_earlier` when they
-    /// apply, into a reply, keeping only entries whose path `can_read` allows.
+    /// apply, into a reply, keeping only entries whose path `can_read` allows, at most `MAX`.
     pub fn put(self, v: &mut Value, can_read: &dyn Fn(&str) -> bool) {
-        let entries: Vec<Value> =
+        let mut entries: Vec<Value> =
             self.entries.into_iter().filter(|e| e["path"].as_str().is_some_and(can_read)).collect();
         if !entries.is_empty() {
             v["undoes_advice"] = json!(ADVICE);
         }
-        if self.more > 0 {
-            v["undoes_more"] = json!(self.more);
+        let more = entries.len().saturating_sub(MAX);
+        entries.truncate(MAX);
+        if more > 0 {
+            v["undoes_more"] = json!(more);
         }
         if self.earlier > 0 {
             v["undoes_earlier"] = json!(self.earlier);
@@ -133,6 +183,45 @@ pub fn filter(v: &mut Value, can_read: &dyn Fn(&str) -> bool) {
     {
         m.remove("undoes_advice");
     }
+}
+
+/// Removes the words of `replaced` from `line`, one occurrence each, earliest first: what a hunk
+/// that turned `replaced` into lines including `line` added to it.
+fn contributed<'a>(line: &[&'a str], replaced: &[&str]) -> Vec<&'a str> {
+    let mut left: HashMap<&str, usize> = HashMap::new();
+    for w in replaced {
+        *left.entry(w).or_default() += 1;
+    }
+    let mut out = Vec::new();
+    for w in line {
+        match left.get_mut(w) {
+            Some(n) if *n > 0 => *n -= 1,
+            _ => out.push(*w),
+        }
+    }
+    out
+}
+
+/// `w`, in order, on one of `added` or on two adjacent ones.
+fn kept_on(w: &[&str], added: &[Vec<&str>]) -> bool {
+    added.iter().enumerate().any(|(k, a)| {
+        kept_in(w, a) || added.get(k + 1).is_some_and(|b| kept_in(w, &[a.as_slice(), b.as_slice()].concat()))
+    })
+}
+
+fn cut(lines: &[String], max: usize) -> String {
+    let mut s = String::new();
+    for l in lines {
+        if s.len() + l.len() > max {
+            break;
+        }
+        s.push_str(l);
+    }
+    s
+}
+
+fn owned_words(s: &str) -> Vec<String> {
+    words(s).into_iter().map(str::to_string).collect()
 }
 
 /// An entry without its text, for events and lists.
@@ -207,7 +296,8 @@ impl Inner {
         Ok(Some(String::from_utf8_lossy(&data).into_owned()))
     }
 
-    fn scan(&mut self, base: &str, path: &str, before: Option<&Entry>, after: Option<&Entry>) -> Result<Scan> {
+    fn scan(&mut self, ch: &Change, path: &str, before: Option<&Entry>, after: Option<&Entry>) -> Result<Scan> {
+        let base = ch.base.as_str();
         let key = (base.to_string(), after.map(|e| e.blob.clone()));
         let mut s = Scan {
             key,
@@ -232,30 +322,164 @@ impl Inner {
         }
         let (_, blamed) = self.blame_of(path, base)?;
         let origins = blamed.lines();
+        // Lines of the import, of the caller's own work or of abandoned changes never count.
+        let mut foreign: HashMap<String, bool> = HashMap::new();
         for h in hunks.into_iter().filter(|h| !h.before.is_empty()) {
             let added: Vec<Vec<&str>> = new_lines[h.after.clone()].iter().map(|l| words(l)).collect();
             for i in h.before {
-                let Some(&(o, _)) = origins.get(i) else { continue };
+                let Some(&(o, at)) = origins.get(i) else { continue };
                 let origin = &blamed.origins[o as usize];
                 if origin.starts_with("git:") {
                     continue;
                 }
+                if !foreign.contains_key(origin) {
+                    let f = self.owner(origin, ch)?.is_some();
+                    foreign.insert(origin.clone(), f);
+                }
+                if !foreign[origin] {
+                    continue;
+                }
                 let text = old_lines.get(i).copied().unwrap_or_default();
-                let w = words(text);
-                let rewritten = added.iter().enumerate().any(|(k, a)| {
-                    kept_in(&w, a)
-                        || added.get(k + 1).is_some_and(|b| kept_in(&w, &[a.as_slice(), b.as_slice()].concat()))
-                });
+                let n = norm(text);
+                let mut contribs =
+                    if trivial(&n) { vec![] } else { self.contributions(ch, origin, path, at as usize, text, CHAIN)? };
+                let all = words(text);
+                for c in &mut contribs {
+                    c.kept = match &c.words {
+                        Some(w) => kept_on(&w.iter().map(String::as_str).collect::<Vec<_>>(), &added),
+                        None => kept_on(&all, &added),
+                    };
+                }
                 s.removed.push(Removed {
                     line: i + 1,
                     text: text.to_string(),
-                    norm: norm(text),
+                    norm: n,
                     origin: origin.clone(),
-                    rewritten,
+                    contribs,
                 });
             }
         }
         Ok(s)
+    }
+
+    /// The own diff of `path` in changeset `cs` (cached; `None` when `cs` did not write a text
+    /// file there or has no parent).
+    fn origin_diff(&mut self, cs: &str, path: &str) -> Result<Option<Arc<OriginDiff>>> {
+        let key = (cs.to_string(), path.to_string());
+        if let Some(d) = self.origin_diffs.get(&key) {
+            return Ok(d.clone());
+        }
+        let d = self.origin_diff_uncached(cs, path)?.map(Arc::new);
+        if self.origin_diffs.len() >= ORIGIN_DIFFS {
+            self.origin_diffs.clear();
+        }
+        self.origin_diffs.insert(key, d.clone());
+        Ok(d)
+    }
+
+    fn origin_diff_uncached(&mut self, cs: &str, path: &str) -> Result<Option<OriginDiff>> {
+        let c = self.changeset(cs)?;
+        let Some(Some(after)) = c.changes.get(path).cloned() else { return Ok(None) };
+        let Some(parent) = c.parents.first().cloned() else { return Ok(None) };
+        let Some(new) = self.text_blob(Some(&after))? else { return Ok(None) };
+        let pm = self.manifest(&parent)?;
+        let src = match pm.contains_key(path) {
+            true => Some(path.to_string()),
+            false => crate::blame::rename_source(self, &parent, cs, path)?,
+        };
+        let old = match src.as_ref().and_then(|p| pm.get(p)).cloned() {
+            Some(e) => match self.text_blob(Some(&e))? {
+                Some(t) => t,
+                None => return Ok(None),
+            },
+            None => String::new(),
+        };
+        let hunks = crate::xdiff::diff(old.as_bytes(), new.as_bytes());
+        let lines = |t: &str| t.split_inclusive('\n').map(str::to_string).collect::<Vec<_>>();
+        Ok(Some(OriginDiff { parent: src.map(|p| (parent, p)), old: lines(&old), new: lines(&new), hunks }))
+    }
+
+    /// The path under which changeset `cs` wrote `text` as line `n` (1-based): `path`, or
+    /// another path it wrote (blame followed a rename since), with its own diff.
+    fn origin_path(&mut self, cs: &str, path: &str, n: usize, text: &str) -> Result<Option<Arc<OriginDiff>>> {
+        let has = |d: &OriginDiff| n >= 1 && d.new.get(n - 1).is_some_and(|l| l == text);
+        if let Some(d) = self.origin_diff(cs, path)?
+            && has(&d)
+        {
+            return Ok(Some(d));
+        }
+        let written: Vec<String> =
+            self.changeset(cs)?.changes.into_iter().filter(|(p, e)| e.is_some() && p != path).map(|(p, _)| p).collect();
+        for p in written.iter().take(16) {
+            if let Some(d) = self.origin_diff(cs, p)?
+                && has(&d)
+            {
+                return Ok(Some(d));
+            }
+        }
+        Ok(None)
+    }
+
+    /// What changeset `origin` (and, `depth` steps back, earlier changes of other agents whose
+    /// words it kept) contributed to `text`, its line `n` (1-based) of `path`. Blame's origin
+    /// comes first; it is the whole line when its diff cannot be read.
+    fn contributions(
+        &mut self,
+        ch: &Change,
+        origin: &str,
+        path: &str,
+        n: usize,
+        text: &str,
+        depth: usize,
+    ) -> Result<Vec<Contrib>> {
+        let whole = || Contrib {
+            origin: origin.to_string(),
+            words: None,
+            before: String::new(),
+            after: text.into(),
+            kept: false,
+        };
+        let Some(d) = self.origin_path(origin, path, n, text)? else { return Ok(vec![whole()]) };
+        let Some(h) = d.hunks.iter().find(|h| h.after.contains(&(n - 1))).cloned() else { return Ok(vec![whole()]) };
+        if h.before.is_empty() {
+            return Ok(vec![whole()]);
+        }
+        let line = words(text);
+        let replaced: Vec<&str> = d.old[h.before.clone()].iter().flat_map(|l| words(l)).collect();
+        let own = contributed(&line, &replaced);
+        let mut out = vec![if own.is_empty() {
+            whole()
+        } else {
+            Contrib {
+                origin: origin.to_string(),
+                words: Some(own.iter().map(|w| w.to_string()).collect()),
+                before: cut(&d.old[h.before.clone()], BEFORE_BYTES),
+                after: text.to_string(),
+                kept: false,
+            }
+        }];
+        let Some((parent, ppath)) = d.parent.clone().filter(|_| depth > 0) else { return Ok(out) };
+        let (_, blamed) = self.blame_of(&ppath, &parent)?;
+        let lines = blamed.lines();
+        let mut seen: HashSet<(String, Vec<String>)> = HashSet::new();
+        for j in h.before.clone().take(CHAIN_LINES) {
+            let Some(&(o, at)) = lines.get(j) else { continue };
+            let earlier = blamed.origins[o as usize].clone();
+            if earlier == origin || earlier.starts_with("git:") || self.owner(&earlier, ch)?.is_none() {
+                continue;
+            }
+            let Some(prev) = d.old.get(j).cloned() else { continue };
+            for mut c in self.contributions(ch, &earlier, &ppath, at as usize, &prev, depth - 1)? {
+                let w = c.words.clone().unwrap_or_else(|| owned_words(&c.after));
+                let ws: Vec<&str> = w.iter().map(String::as_str).collect();
+                // Only what flowed into this line: the later change kept those words.
+                if c.origin != origin && kept_in(&ws, &line) && seen.insert((c.origin.clone(), w.clone())) {
+                    c.words = Some(w);
+                    out.push(c);
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// `Scan::delta` of a path the scan did not diff (a new file, or one only the import touched).
@@ -321,7 +545,14 @@ impl Inner {
         let changes: Vec<&str> = changes.iter().map(String::as_str).collect();
         let brief: Vec<Value> = held.iter().map(brief).collect();
         self.emit("undoes", &changes, &agents, json!({"change": ch.id, "cause": cause, "undoes": brief}));
-        let mut v = json!({"status": "undoes", "change": ch.id, "undoes": held, "advice": HOLD_ADVICE});
+        let more = held.len().saturating_sub(MAX);
+        let mut v = json!({"status": "undoes", "change": ch.id, "advice": HOLD_ADVICE});
+        let mut held = held;
+        held.truncate(MAX);
+        v["undoes"] = Value::Array(held);
+        if more > 0 {
+            v["undoes_more"] = json!(more);
+        }
         if !merged_from.is_null() {
             v["merged_from"] = merged_from;
         }
@@ -366,27 +597,35 @@ impl Inner {
             if state.paths.get(path).is_some_and(|s| s.key == key) {
                 continue;
             }
-            let s = self.scan(&ch.base, path, base_m.get(path), after.as_ref())?;
+            let s = self.scan(ch, path, base_m.get(path), after.as_ref())?;
             state.paths.insert(path.clone(), s);
         }
-        // Candidates: removed lines of another agent's work that were not extended.
+        // Candidates: removed lines whose contribution of another agent's change is gone; the
+        // first such contribution (blame's origin before earlier ones) names the owner.
         let mut owners: HashMap<String, Option<Owner>> = HashMap::new();
-        let mut cands: Vec<(String, usize)> = Vec::new();
+        let mut cands: Vec<(String, usize, usize)> = Vec::new();
         for (path, s) in &state.paths {
             for (k, r) in s.removed.iter().enumerate() {
-                if r.rewritten || trivial(&r.norm) {
+                if trivial(&r.norm) {
                     continue;
                 }
-                if !owners.contains_key(&r.origin) {
-                    let o = self.owner(&r.origin, ch)?;
-                    owners.insert(r.origin.clone(), o);
-                }
-                if owners[&r.origin].is_some() {
-                    cands.push((path.clone(), k));
+                for (ci, c) in r.contribs.iter().enumerate() {
+                    if c.kept {
+                        continue;
+                    }
+                    if !owners.contains_key(&c.origin) {
+                        let o = self.owner(&c.origin, ch)?;
+                        owners.insert(c.origin.clone(), o);
+                    }
+                    if owners[&c.origin].is_some() {
+                        cands.push((path.clone(), k, ci));
+                        break;
+                    }
                 }
             }
         }
-        let mut lost: HashSet<(String, usize)> = HashSet::new();
+        // (path, removed index) -> the contribution that is lost.
+        let mut lost: HashMap<(String, usize), usize> = HashMap::new();
         if !cands.is_empty() {
             // Text still in the new tree (moved, re-indented, other line ends) is not lost.
             let paths: Vec<String> = state.paths.keys().cloned().collect();
@@ -397,7 +636,7 @@ impl Inner {
                 }
             }
             let mut deficit: HashMap<&str, i64> = HashMap::new();
-            for (path, k) in &cands {
+            for (path, k, ci) in &cands {
                 let n = state.paths[path].removed[*k].norm.as_str();
                 if !deficit.contains_key(n) {
                     let d: i64 = state.paths.values().filter_map(|s| s.delta.as_ref()?.get(n)).sum();
@@ -406,20 +645,27 @@ impl Inner {
                 let d = deficit.get_mut(n).expect("set above");
                 if *d > 0 {
                     *d -= 1;
-                    lost.insert((path.clone(), *k));
+                    lost.insert((path.clone(), *k), *ci);
                 }
             }
         }
-        // Runs of lost lines with one origin; trivial removed lines of that origin join a run.
+        // Runs of lost lines with one owner; trivial removed lines of that origin join a run.
         let mut entries = Vec::new();
         let mut keys = Vec::new();
         for (path, s) in &state.paths {
+            // The changeset a removed line counts for: its lost contribution's, else blame's.
+            let whose = |k: usize| -> &str {
+                match lost.get(&(path.clone(), k)) {
+                    Some(ci) => &s.removed[k].contribs[*ci].origin,
+                    None => &s.removed[k].origin,
+                }
+            };
             let mut runs: Vec<(usize, usize, Vec<usize>)> = Vec::new(); // (first k, last k, lost ks)
             for (k, r) in s.removed.iter().enumerate() {
-                let is_lost = lost.contains(&(path.clone(), k));
+                let is_lost = lost.contains_key(&(path.clone(), k));
                 let joins = |run: &(usize, usize, Vec<usize>)| {
                     let last = &s.removed[run.1];
-                    last.origin == r.origin && last.line + 1 == r.line
+                    whose(run.1) == whose(k) && last.line + 1 == r.line
                 };
                 match runs.last_mut() {
                     Some(run) if joins(run) && (is_lost || trivial(&r.norm)) => {
@@ -436,7 +682,8 @@ impl Inner {
                 // A run ends at its last lost line (trailing trivial lines do not count).
                 let last = *ks.last().expect("a run has a lost line");
                 let r0 = &s.removed[first];
-                let owner = owners[&r0.origin].clone().expect("lost lines have an owner");
+                let origin = whose(first).to_string();
+                let owner = owners[&origin].clone().expect("lost lines have an owner");
                 let mut text = String::new();
                 let mut cut = false;
                 for (n, r) in s.removed[first..=last].iter().enumerate() {
@@ -446,15 +693,31 @@ impl Inner {
                     }
                     text.push_str(&r.text);
                 }
+                // What the owner added to lines it rewrote (a line it added whole has no item).
+                let mut contributed = Vec::new();
+                for k in &ks {
+                    let c = &s.removed[*k].contribs[lost[&(path.clone(), *k)]];
+                    if let Some(w) = &c.words
+                        && contributed.len() < TEXT_LINES
+                    {
+                        let mut item = json!({"line": s.removed[*k].line, "words": w, "after": c.after});
+                        if !c.before.is_empty() {
+                            item["before"] = json!(c.before);
+                        }
+                        contributed.push(item);
+                    }
+                }
                 let key = format!(
-                    "{path}\0{}\0{}",
-                    r0.origin,
+                    "{path}\0{origin}\0{}",
                     ks.iter().map(|k| s.removed[*k].norm.as_str()).collect::<Vec<_>>().join("\n")
                 );
                 let mut e = json!({
                     "path": path, "lines": [r0.line, s.removed[last].line], "agent": owner.agent,
-                    "intent": owner.intent, "changeset": r0.origin, "change": owner.change, "text": text,
+                    "intent": owner.intent, "changeset": origin, "change": owner.change, "text": text,
                 });
+                if !contributed.is_empty() {
+                    e["contributed"] = json!(contributed);
+                }
                 if !owner.landed {
                     e["landed"] = json!(false);
                 }
@@ -465,6 +728,7 @@ impl Inner {
                 keys.push(key);
             }
         }
+        // Every entry: `put` cuts a reply at `MAX`, and a land holds on any of them.
         let mut report = Report::default();
         let mut send = Vec::new();
         for (e, key) in entries.into_iter().zip(&keys) {
@@ -476,10 +740,6 @@ impl Inner {
         }
         if scope == Scope::New {
             state.reported = keys.into_iter().collect();
-        }
-        if send.len() > MAX {
-            report.more = send.len() - MAX;
-            send.truncate(MAX);
         }
         report.entries = send;
         Ok(report)
@@ -497,6 +757,25 @@ mod tests {
         assert!(!kept_in(&words("value = value.lower()"), &words("value = value")));
         assert!(!kept_in(&words("a(b)"), &words("b(a)")));
         assert!(!kept_in(&[], &words("x")));
+    }
+
+    #[test]
+    fn a_contribution_is_what_the_hunk_added_and_it_is_kept_when_its_words_stay() {
+        let base = words("normed_value = normed_value.casefold()");
+        let theirs = words("normed_value = normed_value.strip().casefold()");
+        let strip = contributed(&theirs, &base);
+        assert_eq!(strip, ["strip"]);
+        assert!(kept_on(&strip, &[words("normed_value = normed_value.strip().lower()")]));
+        assert!(!kept_on(&strip, &[words("normed_value = normed_value.casefold()")]));
+        assert!(!kept_on(&strip, &[words("normed_value = normed_value.lower()")]));
+        // Split over two adjacent added lines.
+        assert!(kept_on(&strip, &[words("x = (normed_value"), words("  .strip())")]));
+        // A line added with no counterpart contributes every word.
+        assert_eq!(contributed(&theirs, &[]), theirs);
+        // Each replaced word cancels one occurrence.
+        assert_eq!(contributed(&words("a = f(a, a)"), &words("a = 1")), ["f", "a", "a"]);
+        // Only operators changed: no word of its own (the caller then takes the whole line).
+        assert!(contributed(&words("x >= 0"), &words("x > 0")).is_empty());
     }
 
     #[test]

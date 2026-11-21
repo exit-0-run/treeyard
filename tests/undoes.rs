@@ -394,3 +394,138 @@ fn entries_obey_the_callers_read_globs() {
     assert_eq!((land["undoes"].as_array().unwrap().len(), land["undoes_hidden"].clone()), (1, json!(1)), "{land}");
     assert!(!land.to_string().contains("secret/"), "{land}");
 }
+
+const NORM: &str =
+    "def norm(value):\n    normed_value = value\n    normed_value = normed_value.casefold()\n    return normed_value\n";
+const CASEFOLD: &str = "    normed_value = normed_value.casefold()\n";
+const STRIP: &str = "    normed_value = normed_value.strip().casefold()\n";
+
+fn with_line(line: &str) -> String {
+    NORM.replace(CASEFOLD, line)
+}
+
+/// The case of two real 5-agent runs: agent 1 strips spaces (lands), agent 4 swaps `casefold()`
+/// for `lower()` on the same line, gets a land conflict and settles it.
+#[test]
+fn keeping_the_other_agents_contribution_on_a_line_both_edit_is_quiet() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 1, 3, &[("norm.py", NORM)]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let a1 = open(&url, "agent-1", json!({}));
+    let a4 = open(&url, "agent-4", json!({}));
+    write(&url, &a1, "norm.py", &with_line(STRIP));
+    assert_eq!(call(&url, "land", json!({"change": a1}))["status"], "landed");
+    write(&url, &a4, "norm.py", &with_line("    normed_value = normed_value.lower()\n"));
+    assert_eq!(call(&url, "land", json!({"change": a4}))["status"], "conflict");
+
+    // Dropping agent 1's `strip` warns and says what it contributed.
+    let v = write(&url, &a4, "norm.py", &with_line("    normed_value = normed_value.lower()\n"));
+    let u = v["undoes"].as_array().unwrap();
+    assert_eq!(u.len(), 1, "{v}");
+    assert_eq!((u[0]["agent"].as_str(), u[0]["lines"].clone()), (Some("agent-1"), json!([3, 3])), "{v}");
+    assert_eq!(u[0]["text"], STRIP);
+    assert_eq!(
+        u[0]["contributed"],
+        json!([{"line": 3, "words": ["strip"], "before": CASEFOLD, "after": STRIP}]),
+        "{v}"
+    );
+    assert!(v["undoes_advice"].as_str().unwrap().contains("not giving up yours"), "{v}");
+    // ... and so does putting the line back as it was before agent 1.
+    let v = write(&url, &a4, "norm.py", NORM);
+    assert_eq!(v["undoes_earlier"], 1, "the same entry, sent before: {v}");
+    assert_eq!(call(&url, "change", json!({"change": a4}))["undoes"].as_array().unwrap().len(), 1);
+    // The land holds by the same rule.
+    let land = call(&url, "land", json!({"change": a4}));
+    assert_eq!(land["status"], "undoes", "{land}");
+    assert_eq!(land["undoes"][0]["contributed"][0]["words"], json!(["strip"]), "{land}");
+    assert!(land["advice"].as_str().unwrap().contains("keeping your own edit"), "{land}");
+
+    // Both tasks on the line: quiet, and it lands.
+    let both = "    normed_value = normed_value.strip().lower()\n";
+    let v = write(&url, &a4, "norm.py", &with_line(both));
+    assert_eq!(v["undoes"], json!([]), "{v}");
+    let land = call(&url, "land", json!({"change": a4}));
+    assert_eq!(land["status"], "landed", "{land}");
+    assert_eq!(land["undoes"], json!([]), "{land}");
+
+    // A third agent: blame names agent 4, whose own part is `lower`; agent 1's `strip`, which
+    // agent 4 kept, still counts for agent 1.
+    let c = open(&url, "agent-5", json!({}));
+    let v = write(&url, &c, "norm.py", &with_line("    normed_value = normed_value.strip().lower()[:80]\n"));
+    assert_eq!(v["undoes"], json!([]), "an extension keeps both parts: {v}");
+    let v = write(&url, &c, "norm.py", &with_line("    normed_value = normed_value.lower()\n"));
+    let u = v["undoes"].as_array().unwrap();
+    assert_eq!(u.len(), 1, "{v}");
+    assert_eq!(u[0]["agent"], "agent-1", "the earlier contribution is lost: {v}");
+    assert_eq!(u[0]["contributed"][0]["words"], json!(["strip"]), "{v}");
+    let v = write(&url, &c, "norm.py", &with_line(STRIP));
+    let u = v["undoes"].as_array().unwrap();
+    assert_eq!((u.len(), u[0]["agent"].as_str()), (1, Some("agent-4")), "agent 4's lower is lost: {v}");
+    assert_eq!(u[0]["contributed"][0]["words"], json!(["lower"]), "{v}");
+    assert_eq!(u[0]["contributed"][0]["before"], STRIP, "{v}");
+    // Removing the whole line loses both; one entry, for blame's origin.
+    write(&url, &c, "norm.py", &NORM.replace(CASEFOLD, ""));
+    let v = call(&url, "change", json!({"change": c}));
+    let u = v["undoes"].as_array().unwrap();
+    assert_eq!((u.len(), u[0]["agent"].as_str()), (1, Some("agent-4")), "{v}");
+}
+
+#[test]
+fn a_land_holds_on_an_entry_after_twenty_that_do_not_hold() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 1, 60, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let c = open(&url, "c", json!({}));
+    write(&url, &c, "z.py", A);
+    assert_eq!(call(&url, "land", json!({"change": c}))["status"], "landed");
+    // p writes 25 runs into f00.txt; s, stacked on p, deletes f00.txt (25 entries of the change it
+    // is stacked on: they do not hold) and z.py (one entry of c's landed lines: it holds).
+    let f = call(&url, "read", json!({"path": "f00.txt"}))["content"].as_str().unwrap().to_string();
+    let mine: String = f
+        .lines()
+        .enumerate()
+        .map(|(i, l)| if i % 2 == 0 && i < 50 { format!("p wrote {i}\n") } else { format!("{l}\n") })
+        .collect();
+    let p = open(&url, "p", json!({}));
+    write(&url, &p, "f00.txt", &mine);
+    let s = open(&url, "s", json!({"base": p}));
+    call(
+        &url,
+        "apply",
+        json!({"change": s, "edits": [{"path": "f00.txt", "delete": true}, {"path": "z.py", "delete": true}]}),
+    );
+    assert_eq!(call(&url, "land", json!({"change": p}))["status"], "landed");
+    let ch = call(&url, "change", json!({"change": s}));
+    assert_eq!((ch["undoes"].as_array().unwrap().len(), ch["undoes_more"].clone()), (20, json!(6)), "{ch}");
+    let land = call(&url, "land", json!({"change": s}));
+    assert_eq!(land["status"], "undoes", "the 26th entry holds: {land}");
+    let u = land["undoes"].as_array().unwrap();
+    assert_eq!((u.len(), u[0]["path"].as_str(), u[0]["agent"].as_str()), (1, Some("z.py"), Some("c")), "{land}");
+}
+
+#[test]
+fn queue_mode_a_second_land_of_a_queued_yes_is_not_held() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 2, 10, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    std::fs::write(data.join("treeyard.toml"), "[landing]\nmode = \"queue\"\ntest = \"true\"\n").unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let a = open(&url, "a", json!({}));
+    write(&url, &a, "m.py", A);
+    call(&url, "land", json!({"change": a}));
+    call(&url, "queue_run", json!({}));
+    let b = open(&url, "b", json!({}));
+    write(&url, &b, "m.py", &A.replace("    value = value.lower()\n", ""));
+    let q = call(&url, "land", json!({"change": b, "undo": true, "reason": "the task drops lower()"}));
+    assert_eq!(q["status"], "queued", "{q}");
+    let again = call(&url, "land", json!({"change": b}));
+    assert_eq!(again["status"], "queued", "the yes for this head stands: {again}");
+    assert_eq!(call(&url, "queue", json!({}))["queue"].as_array().unwrap().len(), 1, "queued once");
+    assert_eq!(call(&url, "events", json!({"kinds": ["undoes"]}))["events"], json!([]));
+    assert_eq!(call(&url, "queue_run", json!({}))["landed"][0]["change"], b.as_str());
+}

@@ -95,24 +95,51 @@ the change's base counts when all of this holds:
    the change edits: the line must occur fewer times in their head versions than in their base versions.
    So a block that moved (into a helper, to another file, a rename), was re-indented (wrapped in `try`),
    changed only its line ends (CRLF to LF), or gained a newline at the end of the file, is not reported;
-4. it was not extended. A rewrite that keeps every word of the line (identifiers, numbers, words of
-   strings), in order, on one added line of the same diff hunk or on two adjacent ones, keeps the old
-   behaviour and adds to it: `value.lower()` to `value.lower().strip()`, or `link[key] = value` to
-   `link[key.lower()] = value`, are not reported. A rewrite that drops a word is: `value = value.lower()`
-   to `value = value`. This is a judgement call: in the pilots at least 6 of 14 warnings were rewrites or
-   moves that kept the behaviour, and 1 was a true catch (a replaced block, which rule 4 still reports).
-   Operators are not words, so `x > 0` to `x >= 0` is not reported;
-5. it holds a letter or a digit (a lone `}` is never an entry alone, but joins a run of reported lines).
+4. what the other change contributed to the line is gone. The contribution comes from that change's
+   own diff of the path (the hunk in which it added or rewrote the line): the words of the line
+   (identifiers, numbers, words of strings) that are not among the words of the lines that hunk
+   replaced, one occurrence each. A line it added with no counterpart (or a rewrite that added no word
+   of its own: an operator, a new order) contributes every word. The line is quiet when the
+   contributed words, in order, all appear on one added line of the current diff hunk or on two
+   adjacent ones. So an agent that rewrites a line another agent rewrote keeps that agent's part and
+   still does its own task: agent 1 made `v = v.casefold()` into `v = v.strip().casefold()`
+   (contribution `strip`); `v = v.strip().lower()` is quiet, `v = v.casefold()` or `v = v.lower()`
+   is reported. For a line the other agent added whole this is the earlier rule: a rewrite that keeps
+   every word adds to it (`value.lower()` to `value.lower().strip()`, `link[key] = value` to
+   `link[key.lower()] = value`, quiet); one that drops a word (`value = value.lower()` to
+   `value = value`) is reported. Operators are not words, so `x > 0` to `x >= 0` is not reported;
+5. several changes on one line: blame names only the last one. The lines its hunk replaced are
+   followed back (blame at its parent, up to 3 steps, 8 replaced lines per step): an earlier change of
+   another agent whose contributed words the later line still carries contributed them too. Dropping
+   them is reported with that earlier change as the owner, keeping them is quiet. Example: agent 4
+   landed `v.strip().lower()` over agent 1's `v.strip().casefold()`; a third agent's `v.lower()` loses
+   agent 1's `strip` (entry of agent 1), its `v.strip().casefold()` loses agent 4's `lower` (entry of
+   agent 4). Contributions are words, so an earlier change whose words the later one removed is not
+   followed (the later change undid it, not this one);
+6. it holds a letter or a digit (a lone `}` is never an entry alone, but joins a run of reported lines).
+
+Why the contribution rule: in two real 5-agent runs agent 1 (strip spaces) landed
+`normed_value = normed_value.strip().casefold()` over `normed_value.casefold()`; agent 4 (use `lower()`)
+got a land conflict and resolved it correctly to `.strip().lower()`. Blame gave the whole line to agent
+1, the old rule wanted every word of it (`casefold` too), so `undoes` reported it, and agent 4 followed
+the advice, put `.strip().casefold()` back and landed nothing of its own task: 2 of 3 runs lost a task
+to the warning.
 
 ```json
-{"path": "link.py", "lines": [5, 6], "agent": "a", "intent": "rel values in lower case",
- "changeset": "<origin changeset>", "change": "ch_...", "text": "        if key.lower() == \"rel\":\n..."}
+{"path": "norm.py", "lines": [3, 3], "agent": "agent-1", "intent": "strip spaces",
+ "changeset": "<origin changeset>", "change": "ch_...", "text": "    normed_value = normed_value.strip().casefold()\n",
+ "contributed": [{"line": 3, "words": ["strip"], "before": "    normed_value = normed_value.casefold()\n",
+                  "after": "    normed_value = normed_value.strip().casefold()\n"}]}
 ```
 
-`lines` is an inclusive, 1-based range in the base file; adjacent lines with the same origin form one
-entry; `text` is the removed text, at most 8 lines and 800 bytes (`text_cut: true` past that). The reply
-carries the advice once (`undoes_advice`), at most 20 entries (`undoes_more: N` counts the rest), and
-only entries the caller may read (token read globs).
+`lines` is an inclusive, 1-based range in the base file; adjacent lines with the same owner form one
+entry; `text` is the removed text, at most 8 lines and 800 bytes (`text_cut: true` past that).
+`contributed` lists, per line of the entry that the owner rewrote rather than added whole, the words it
+contributed and its own `before` (the lines its hunk replaced, at most 300 bytes) and `after` (its
+version of the line), so the agent can keep exactly that part; a line the owner added whole has no item
+(its whole text is the contribution). The reply carries the advice once (`undoes_advice`: keep what the
+other agent contributed and still make your own edit of the line), at most 20 entries (`undoes_more: N`
+counts the rest), and only entries the caller may read (token read globs).
 
 Which replies carry it:
 
@@ -140,7 +167,8 @@ back and land again; if the task and these lines truly cannot both hold, keep th
 land the rest, and say so in the final message so a person decides; only if the task names these lines
 for removal, land again with `undo: true` and a non-empty `reason` (`land {change, undo, reason}`;
 `undo` without a reason, or a reason without `undo`, is an error). What holds a land: entries of a
-landed change of another agent. What does not: the agent's own lines (agent name or `session`), moved,
+landed change of another agent, among all entries (not only the 20 a reply shows; a held reply lists
+at most 20 and counts the rest in `undoes_more`). What does not: the agent's own lines (agent name or `session`), moved,
 re-indented or extended lines (they are no entries), lines of an open change this one is stacked on
 (`landed: false`) or was stacked on when it edited them (`stacked_on` in the change), and lines a
 `revert` put back. A revert and a human `git push` are never held.
@@ -158,7 +186,8 @@ Queue mode: `land` holds at enqueue (not queued) or, with `undo` + `reason`, enq
 change's head. Before each batch the queue checks every change again (the per-path scans are kept, so an
 unchanged change costs no diff or blame): a change whose head moved after the yes, or that has entries
 without a yes, leaves the queue with the note `undoes`, the event `undoes` (`cause: queue`) and a review
-task `undoes`; `land_status` then says `undoes`.
+task `undoes`; `land_status` then says `undoes`. A later `land` without `undo` of a change queued with a
+yes for its current head is not held again (the yes stands; it answers `queued`).
 
 Cost: with no entries (the normal case) a land computes `undoes` once, before it moves main, where it
 was computed after the land before; with no rebase it now reuses the scans the change's `apply` calls
@@ -171,7 +200,10 @@ the reply (it never asks). Through `treeyard call land '{"change": ..., "undo": 
 as any other parameter.
 
 Cost: per open change, the diff and blame of each path are kept while the change's base and the path's
-head blob stay the same, so an `apply` to another file reuses them. With a 60 000-line file, the
+head blob stay the same, so an `apply` to another file reuses them. The contribution rule reads the
+owner's own diff of the path only for removed lines of other agents (none in the normal case); those
+diffs are kept per (changeset, path) for the server process (up to 512, content-addressed, never stale),
+and following a line back costs one cached blame at the owner's parent per step. With a 60 000-line file, the
 `apply` after the one that removed a line of it took 4 to 5 ms instead of about 60 ms (debug build, one
 machine). The memory is per server process: after a restart an entry is sent once more.
 
@@ -179,11 +211,18 @@ What cannot be decided: agent names are free strings, so one agent under two nam
 `session` (or token) looks like two agents; a semantic removal that keeps every word (an operator, an
 argument order) is not reported; a moved line that lands in a file the change does not edit (a line
 that already existed elsewhere) does not hide a removal, but a duplicate in an edited file does.
+Contributions are words, so a contributed word that is common on the line (`self`, a variable that
+the replaced lines did not have) can be kept by accident; an earlier contribution is followed only
+through lines the later change's hunk replaced, at most 3 changes back; the caller's own earlier
+rewrite of another agent's line counts as the caller's line (blame's origin is the caller), so the
+other agent's part in it is not followed; a contribution that only changed an operator falls back to
+the whole line.
 
 The case comes from a pilot with 5 agents: one agent's task ("parameter names in lower case, values keep
 their case") replaced a block that another agent had landed minutes before
 (`if key.lower() == "rel": value = value.lower()`), and nothing warned it. Tests: `tests/undoes.rs` (one
-per probed case, the 20-entry cut, the read-glob filter), `g_apply_warns_…` in `tests/coordination.rs`.
+per probed case, the 20-entry cut, the read-glob filter, the line both agents edit, a hold past 20 entries,
+a repeated queued land), `g_apply_warns_…` in `tests/coordination.rs`.
 
 Events: `opened`, `intent_overlap`, `collision`, `conflict` (`cause` = `land`, `continuous_rebase`,
 `stale_write` or `queue`), `rebased`, `landed`, `abandoned`, `review`, `queued`, `rejected`,
