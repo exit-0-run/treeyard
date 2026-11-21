@@ -20,6 +20,19 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   its changes' diffs); work left out counts from the merge base.
 
 ### Changed
+- Fewer calls per task. `apply` without `change` and with `intent` (and `paths`, ...) opens the change
+  and applies in one call; the reply carries the id, overlaps and advice as `open_change` would (a
+  failed edit abandons that change). Through the stdio bridge `apply` takes `checkout` and writes the
+  change's checkout directory in the same call (`checkout.dir`); the default is true with `--tools
+  agent` (the first checkout of this repository, 1 235 files, took about 1 s in a debug build). The
+  checkout reply gives `main_moved: true` and the rebase advice only when the landings since the
+  change's base changed a file it edits (`main_moved_in`); landings in other files give
+  `main_moved_elsewhere: true` and no advice (behaviour change). New `behind_main` in the `change`
+  reply. The advice no longer says to call `checkout` again after `rebase` (the bridge rewrites the
+  directory). The agent view drops `change`, `state`, `head`, `files`, `seconds` from checkouts. The
+  `apply` and `land` descriptions of the agent set state the flow (apply with intent, tests in
+  `checkout.dir`, land). The minimal flow is 2 calls instead of 4 (6 when main had moved); agent
+  `tools/list` 6 339 to 6 871 bytes.
 - `undoes` judges a removed line by what the other agent contributed to it, not by the whole line
   (behaviour change). The contribution comes from that agent's own diff of the path: the words of the
   line that the lines its hunk replaced did not have (every word for a line it added whole). The line

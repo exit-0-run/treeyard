@@ -45,7 +45,43 @@ lists every operation. `treeyard connect` writes `--tools agent` unless `--all-t
 takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
 
 Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 378 bytes with
-`--tools all` now, 5 948 bytes with `--tools agent` (13 tools). Tests: `src/mcp.rs` (the set and its
+`--tools all` now, 5 948 bytes with `--tools agent` (13 tools). With the `undo` parameters of `land`
+it was 6 339 bytes; the one-call flow below (`apply` with `intent`, the bridge's `checkout`
+parameter, the flow in the `apply` and `land` descriptions) makes it 6 871.
+
+### The minimal flow: apply, test, land
+
+Every tool call is a model turn that sends the whole context again, so the fixed calls per task
+are the cost. On five small tasks that did not collide, 5 agents with plain git worktrees made 34
+calls; with TreeYard 71 (`grep` 17, `read` 9, `checkout` 8, `apply` 7, `open_change` 5, `land` 5,
+`rebase` 4, ToolSearch 4, `diff` 2, shell 9). The fixed part of a task is now two calls:
+
+1. `apply` with `intent` (and `paths`) and no `change` opens the change and applies the edits in one
+   call. The reply is the change (its `id`), with `overlaps` and `advice` as `open_change` gives
+   them, plus `collisions` and `undoes`. If an edit fails, the change opened for it is abandoned
+   and the error says so. `change` and `intent` together, or neither, is an error. `open_change`
+   stays.
+2. Through the stdio bridge with `--tools agent`, that first `apply` also writes the change into its
+   checkout directory (`checkout.dir`; `apply {checkout: false}` skips it; with `--tools all` it is
+   off unless `checkout: true`). The agent runs its tests there; later calls keep it current.
+3. `land` (it rebases on the server).
+
+Before: `open_change`, `apply`, `checkout`, `land` (4), plus `rebase` and `checkout` again whenever
+main had moved (6). After: `apply`, `land` (2). Test: `tests/mcp_agent.rs`
+(`the_minimal_flow_is_apply_then_land`, a scripted session over the stdio bridge).
+
+The first checkout of a change writes the whole tree once: on a clone of this repository (1 235
+files, 9.6 MB) 1.0 to 1.2 s with a debug build, against 0.06 s for a rewrite that writes nothing
+(3 runs each, one machine). That is less than one model turn, and every task that runs its tests
+needed it anyway, so the agent set writes it by default.
+
+Why agents rebased and checked out again on disjoint tasks: the checkout reply said `main_moved:
+true` with the advice "rebase, then checkout again" whenever anything had landed, although `land`
+rebases anyway and the bridge already rewrites the directory after `rebase`. Now `main_moved` is
+true only when the landings since the change's base changed a file the change edits
+(`main_moved_in` lists them, with the advice to rebase); otherwise `main_moved_elsewhere: true`, no
+advice. The server's `change` reply carries `behind_main: {"paths": [...]}` for that. In the agent
+view a checkout drops `change`, `state`, `head`, `files` and `seconds`, and `main_moved: false`. Tests: `src/mcp.rs` (the set and its
 size), `tests/mcp_http.rs` (`tools_agent_lists_the_agent_tool_set`), `tests/connect.rs` (the args).
 
 ### The agent view of replies
@@ -218,20 +254,22 @@ checkout {"change": "ch_..."}   ->   {"dir": "/tmp/.../treeyard-checkouts-501/ch
   and nothing is written into the repository checkout or a workspace that another agent or the daemon
   syncs. `into` names another directory; it must be new, empty or an earlier checkout
   (`.treeyard/checkout.json` marks one), so a checkout never overwrites a working tree.
-- After the first `checkout`, every `apply`, `resolve`, `rebase`, `restore_change` and `land` of that
-  change through the same bridge rewrites the directory, and the reply has a `checkout` field. Only
-  files that differ are written, so build output (`target/`, `__pycache__/`) and mtimes stay.
+- After the first `checkout` (or an `apply` with `checkout`, the default of `--tools agent`), every
+  `apply`, `resolve`, `rebase`, `restore_change` and `land` of that change through the same bridge
+  rewrites the directory, and the reply has a `checkout` field. Only files that differ are written,
+  so build output (`target/`, `__pycache__/`) and mtimes stay.
 - Edits made in the directory never reach the change: the next rewrite puts the change's content back
   and lists the paths in `reverted`. Files that the change does not have stay; those that no
   `.gitignore` excludes are listed in `extra` (they would not land).
-- `main_moved: true`: work landed after the change's base, so the directory lacks it. `rebase`, then
-  `checkout` again, to test what `land` will put on main. After a `land`, the directory holds the
-  landed tree.
+- `main_moved: true`: work landed after the change's base in files the change edits
+  (`main_moved_in`), so the directory lacks it. `rebase` (it rewrites the directory) to test what
+  `land` will put on main. Landings in other files only give `main_moved_elsewhere: true` and no
+  advice: `land` rebases. After a `land`, the directory holds the landed tree.
 
 `treeyard checkout CHANGE [--into DIR]` does the same from a script. Test: `tests/checkout.rs` drives the
 bridge over stdio against a real server: the fixture's test script fails in the checkout of the
 repository and passes in the directory of the change, local edits are reverted, a landing by another
-agent sets `main_moved`, `rebase` brings it in, and after `land` every file of main equals the file in
+agent in another file sets only `main_moved_elsewhere`, one in an edited file sets `main_moved`, `rebase` brings it in, and after `land` every file of main equals the file in
 the directory. A second case runs the bridge inside a `workspace-hook` workspace: the workspace and its
 change stay untouched, and the `apply` reply still has the `conflict` collision.
 

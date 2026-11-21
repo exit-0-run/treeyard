@@ -243,17 +243,24 @@ treeyard call declare '{"change": "ch_..."}'
 
 ### apply
 
-Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text, and contributed: the words that agent added to a line it rewrote; new ones only, change lists all); keep them unless your task says to remove them.
+Edit files in a change (without change, intent opens one first, with agent, paths, symbols, base, model and session as in open_change; the reply then adds advice and intent overlaps): per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text, and contributed: the words that agent added to a line it rewrote; new ones only, change lists all); keep them unless your task says to remove them.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `change` | string | yes | change id, ch_... |
+| `agent` | string | no |  |
+| `base` | string | no |  |
+| `change` | string | no | change id, ch_... |
 | `edits` | array of object (`content`, `content_b64`, `delete`, `executable`, `path`, `replace`, `symlink`) | yes |  |
+| `intent` | string | no | with no change: open a change with this intent and apply to it |
 | `message` | string | no | commit message; defaults to the intent |
+| `model` | string | no |  |
+| `paths` | array of string | no | path globs you will edit, e.g. src/parser/** or Cargo.toml |
 | `seen` | string | no | the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since |
+| `session` | string | no |  |
+| `symbols` | array of string | no |  |
 
 ```sh
-treeyard call apply '{"change": "ch_...", "edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
+treeyard call apply '{"edits": [{"path": "README.md", "replace": {"old": "teh", "new": "the"}}]}'
 ```
 
 ### resolve

@@ -76,9 +76,31 @@ fn summary(key: &str, list: &[Value]) -> String {
     )
 }
 
+/// Checkout fields the agent does not act on (it has the change id; `dir` is what it uses).
+const CHECKOUT_NOISE: &[&str] = &["change", "state", "head", "files", "seconds"];
+
+fn lean_checkout(v: &mut Value) {
+    if let Some(m) = v.as_object_mut() {
+        for k in CHECKOUT_NOISE {
+            m.remove(*k);
+        }
+        if m.get("main_moved") == Some(&json!(false)) {
+            m.remove("main_moved");
+        }
+    }
+    prune(v);
+}
+
 impl Lean {
     /// Rewrites the reply `v` of operation `op` for the agent view.
     pub fn shape(&mut self, op: &str, v: &mut Value) {
+        if op == "checkout" {
+            lean_checkout(v);
+            return;
+        }
+        if v.get("checkout").is_some_and(Value::is_object) {
+            lean_checkout(&mut v["checkout"]);
+        }
         if CHANGE_REPLIES.contains(&op) && is_change(v) {
             let id = v["id"].as_str().unwrap_or_default().to_string();
             if op == "apply" || op == "change" {

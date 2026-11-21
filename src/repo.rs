@@ -1824,6 +1824,23 @@ impl Inner {
         Ok(v)
     }
 
+    /// How far main moved since an open change's base, when that base is on main's line:
+    /// `{"paths": [...]}`, the paths the change edits that the landings since changed (empty:
+    /// main moved in other files only). `None` when main did not move (or the change is stacked
+    /// on a change that has not landed).
+    pub fn behind_main(&mut self, ch: &Change) -> Result<Option<Value>> {
+        if ch.state != ChangeState::Open {
+            return Ok(None);
+        }
+        let main = self.main()?;
+        if ch.base == main || !self.is_ancestor(&ch.base, &main)? {
+            return Ok(None);
+        }
+        let (bm, mm) = (self.manifest(&ch.base)?, self.manifest(&main)?);
+        let paths: Vec<String> = self.own_changes(ch)?.into_keys().filter(|p| bm.get(p) != mm.get(p)).collect();
+        Ok(Some(json!({"paths": paths})))
+    }
+
     /// Other open changes that touch any of this change's paths.
     pub fn overlaps(&mut self, ch: &Change) -> Result<Vec<Value>> {
         let mine: BTreeSet<String> = self.own_changes(ch)?.into_keys().collect();

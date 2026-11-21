@@ -20,9 +20,11 @@ struct Bridge {
 }
 
 impl Bridge {
-    fn start(url: &str, agent: &str, tools: &str) -> Bridge {
+    /// The bridge, with default checkouts under `tmp`.
+    fn start(url: &str, agent: &str, tools: &str, tmp: &Path) -> Bridge {
         let mut child = Command::new(env!("CARGO_BIN_EXE_treeyard"))
             .args(["mcp", "--url", url, "--agent", agent, "--tools", tools])
+            .env("TMPDIR", tmp)
             .env_remove("TREEYARD_TOKEN")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -69,8 +71,8 @@ fn server(root: &Path) -> String {
 fn the_agent_tool_set_over_stdio() {
     let tmp = tempfile::tempdir().unwrap();
     let url = server(tmp.path());
-    let mut a = Bridge::start(&url, "a", "agent");
-    let mut b = Bridge::start(&url, "b", "agent");
+    let mut a = Bridge::start(&url, "a", "agent", tmp.path());
+    let mut b = Bridge::start(&url, "b", "agent", tmp.path());
 
     let init = a.rpc("initialize", json!({}));
     assert!(init["result"]["instructions"].as_str().unwrap().contains("agent tool set"), "{init}");
@@ -150,7 +152,7 @@ fn the_agent_tool_set_over_stdio() {
 fn tools_all_keeps_the_full_replies() {
     let tmp = tempfile::tempdir().unwrap();
     let url = server(tmp.path());
-    let mut a = Bridge::start(&url, "a", "all");
+    let mut a = Bridge::start(&url, "a", "all", tmp.path());
     let names = a.rpc("tools/list", json!({}))["result"]["tools"].as_array().unwrap().len();
     assert!(names > 40, "{names}");
     let (_, ch) = a.tool("open_change", json!({"intent": "x"}));
@@ -163,5 +165,68 @@ fn tools_all_keeps_the_full_replies() {
     // The HTTP API is unchanged: a whole file.
     let whole = call(&url, "read", json!({"path": "big.py"}));
     assert!(whole.get("truncated").is_none() && whole["content"].as_str().unwrap().ends_with("compute(2999)\n"));
+    a.close();
+}
+
+/// The fixed calls of one small task, before and after `apply` could open the change and write
+/// its checkout: open_change, apply, checkout, land (4) against apply, land (2). Another agent
+/// lands in another file meanwhile, which asks for no rebase.
+#[test]
+fn the_minimal_flow_is_apply_then_land() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path());
+    let mut a = Bridge::start(&url, "a", "agent", tmp.path());
+    a.rpc("initialize", json!({}));
+    let list = a.rpc("tools/list", json!({}));
+    let tools = list["result"]["tools"].as_array().unwrap();
+    let apply = tools.iter().find(|t| t["name"] == "apply").unwrap();
+    assert!(apply["inputSchema"]["properties"]["checkout"].is_object(), "the bridge's own parameter: {apply}");
+    assert_eq!(apply["inputSchema"]["required"], json!(["edits"]), "{apply}");
+    for t in ["apply", "land"] {
+        let d = tools.iter().find(|x| x["name"] == t).unwrap()["description"].as_str().unwrap();
+        assert!(d.contains("intent") && d.contains("checkout.dir"), "{t}: {d}");
+    }
+    let bytes = serde_json::to_string(&list["result"]).unwrap().len();
+    eprintln!("agent tools/list: {bytes} bytes");
+
+    // Before: 4 calls (open_change, apply, checkout, land).
+    let (_, ch) = a.tool("open_change", json!({"intent": "edit f00 line 1"}));
+    let id = ch["id"].as_str().unwrap().to_string();
+    a.tool("apply", json!({"change": id, "checkout": false, "edits": [{"path": "f00.txt", "replace": {"old": "file 0 line 1\n", "new": "one\n"}}]}));
+    let (_, co) = a.tool("checkout", json!({"change": id}));
+    assert!(co.get("head").is_none() && co.get("seconds").is_none(), "lean checkout: {co}");
+    assert_eq!(a.tool("land", json!({"change": id})).1["status"], "landed");
+
+    // After: 2 calls. apply with intent opens the change, applies, writes the checkout.
+    let (text, v) = a.tool(
+        "apply",
+        json!({"intent": "edit f00 line 2", "paths": ["f00.txt"], "edits": [{"path": "f00.txt", "replace": {"old": "file 0 line 2\n", "new": "two\n"}}]}),
+    );
+    let id = v["id"].as_str().unwrap().to_string();
+    assert_eq!(v["agent"], "a", "the bridge names the agent: {v}");
+    let dir = std::path::PathBuf::from(v["checkout"]["dir"].as_str().unwrap());
+    assert!(dir.starts_with(tmp.path()), "{v}");
+    assert!(std::fs::read_to_string(dir.join("f00.txt")).unwrap().contains("two\n"));
+    assert!(v["checkout"].get("main_moved").is_none() && v["checkout"].get("advice").is_none(), "{v}");
+    eprintln!("apply with intent and checkout: {} bytes", text.len());
+    // Another agent lands in another file: no main_moved, no advice, nothing to do.
+    let other =
+        call(&url, "apply", json!({"agent": "b", "intent": "f01", "edits": [{"path": "f01.txt", "content": "b\n"}]}));
+    assert_eq!(call(&url, "land", json!({"change": other["id"]}))["status"], "landed");
+    let (_, co) = a.tool("checkout", json!({"change": id}));
+    assert!(co.get("main_moved").is_none() && co.get("advice").is_none(), "{co}");
+    assert_eq!(co["main_moved_elsewhere"], true, "{co}");
+    let (_, l) = a.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(std::fs::read_to_string(dir.join("f01.txt")).unwrap(), "b\n", "the landed tree is in the directory");
+
+    // A failed apply with intent leaves no open change behind.
+    let r = a.rpc("tools/call", json!({"name": "apply", "arguments": {"intent": "x", "edits": [{"path": "f00.txt", "replace": {"old": "no such text", "new": "y"}}]}}));
+    let text = r["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(r["result"]["isError"] == true && text.contains("was abandoned"), "{text}");
+    assert_eq!(call(&url, "changes", json!({"state": "open"}))["changes"], json!([]));
+    // change and intent together, or neither, is an error.
+    let r = a.rpc("tools/call", json!({"name": "apply", "arguments": {"change": id, "intent": "x", "edits": []}}));
+    assert!(r["result"]["isError"] == true, "{r}");
     a.close();
 }

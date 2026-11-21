@@ -90,7 +90,10 @@ writes the tree of a change, its base plus its edits with exec bits, symlinks an
 directory and prints its path in `dir`; run the repository's tests there. Default directory: one per
 change under the system temp directory. A second run writes only what differs, so build output stays.
 Edits made in the directory are replaced (`reverted`); files that are not in the change and not
-gitignored are listed in `extra`; `main_moved` says that work landed after the change's base. Details:
+gitignored are listed in `extra`; `main_moved` says that work landed after the change's base in files
+it edits (`main_moved_in`; `main_moved_elsewhere` when only other files changed). Through the bridge,
+`apply` takes `checkout` (default true with `--tools agent`) and `apply` with `intent` and no `change`
+opens the change in the same call. Details:
 [docs/mcp.md](mcp.md#test-a-change-checkout). Tests: `tests/checkout.rs`.
 
 `treeyard workspace-hook create [--name N] [--from-dir PATH] [--agent A] [--intent I] [--setup CMD] [--no-git]`

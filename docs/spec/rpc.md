@@ -77,7 +77,7 @@ A server declares one or more profiles. The core profile is required.
 | `diff` | unified diff of a change, or between two revisions |
 | `log` | mainline changesets, newest first, with their metadata |
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
-| `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` (new entries, with `contributed` for lines the other agent rewrote; `undoes_advice`, `undoes_more`, `undoes_earlier`) |
+| `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` (new entries, with `contributed` for lines the other agent rewrote; `undoes_advice`, `undoes_more`, `undoes_earlier`). Without `change`, `intent` (with `agent`, `paths`, `symbols`, `base`, `model`, `session`) opens the change first; the reply adds `advice` and the intent overlaps; a failed edit abandons that change |
 | `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict, `undoes` when held; `undid` when landed with `undo` + `reason` |
 | `change` | one change: paths, conflict tasks, overlaps; `full: true` adds the whole texts of each conflict |
 | `changes` | changes in one state |

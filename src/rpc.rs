@@ -198,10 +198,19 @@ struct ReviewClose {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Apply {
-    change: String,
+    /// The change to edit; leave it out and give `intent` to open one in the same call.
+    change: Option<String>,
     edits: Vec<Edit>,
     message: Option<String>,
     seen: Option<String>,
+    /// With no `change`: these open the change as `open_change` would.
+    intent: Option<String>,
+    agent: Option<String>,
+    model: Option<String>,
+    session: Option<String>,
+    base: Option<String>,
+    paths: Option<Vec<String>>,
+    symbols: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -719,13 +728,55 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
         }
         "apply" => {
             let a: Apply = params(p)?;
-            owned(r, c, &a.change)?;
             for e in &a.edits {
                 c.require_write(&e.path)?;
             }
-            let ch = r.apply_seen(&a.change, &a.edits, a.message, a.seen.as_deref())?;
+            let opening = [a.agent.is_some(), a.model.is_some(), a.session.is_some(), a.base.is_some()]
+                .into_iter()
+                .chain([a.paths.is_some(), a.symbols.is_some()])
+                .any(|x| x);
+            // `apply` without `change` opens one first: one call instead of `open_change` + `apply`.
+            let (id, opened) = match (a.change, a.intent) {
+                (Some(id), None) => {
+                    if opening {
+                        bail!("agent, model, session, base, paths and symbols go with intent (apply without change)");
+                    }
+                    owned(r, c, &id)?;
+                    (id, None)
+                }
+                (None, Some(intent)) => {
+                    if !c.writes_any() {
+                        return Err(deny(format!("token {} is read-only", c.name)));
+                    }
+                    let agent = agent_for(c, a.agent)?;
+                    let declared =
+                        Intent { paths: a.paths.unwrap_or_default(), symbols: a.symbols.unwrap_or_default() };
+                    let ch = r.open_change_with(&agent, &intent, a.model, a.session, a.base.as_deref(), declared)?;
+                    let overlaps = r.intent_overlaps(&ch)?;
+                    (ch.id, Some(overlaps))
+                }
+                (Some(_), Some(_)) => bail!("apply takes change or intent, not both (intent opens a new change)"),
+                (None, None) => bail!("apply needs change (your change id) or intent (opens a change for these edits)"),
+            };
+            let ch = match r.apply_seen(&id, &a.edits, a.message, a.seen.as_deref()) {
+                Ok(ch) => ch,
+                Err(e) if opened.is_some() => {
+                    // Nothing half done: the change opened for this call goes away with the error.
+                    r.abandon(&id)?;
+                    return Err(e.context(format!(
+                        "nothing applied and the change opened for it ({id}) was abandoned; fix the edits and call apply with intent again"
+                    )));
+                }
+                Err(e) => return Err(e),
+            };
             let mut v = r.change_view(&ch)?;
-            v["overlaps"] = Value::Array(r.overlaps(&ch)?);
+            let mut overlaps = r.overlaps(&ch)?;
+            if let Some(declared) = opened {
+                v["advice"] = advice(&declared);
+                overlaps.retain(|o| !declared.iter().any(|d| d["change"] == o["change"]));
+                overlaps.splice(0..0, declared);
+            }
+            v["overlaps"] = Value::Array(overlaps);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
             r.undoes(&ch, Scope::New)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
@@ -848,6 +899,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
             v["reviews"] = r.reviews_view(Some("open"), Some(&ch.id))?["reviews"].take();
+            if let Some(mut b) = r.behind_main(&ch)? {
+                keep_readable(&mut b, "paths", c, "");
+                v["behind_main"] = b;
+            }
             r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
             Ok(v)
@@ -992,7 +1047,9 @@ pub fn record(r: &mut Inner, c: &Caller, op: &str, p: &Value, out: &Result<Value
     let v = out.as_ref().ok();
     let id = p["change"]
         .as_str()
-        .or_else(|| v.and_then(|v| if op == "open_change" { v["id"].as_str() } else { v["change"].as_str() }))
+        .or_else(|| {
+            v.and_then(|v| if matches!(op, "open_change" | "apply") { v["id"].as_str() } else { v["change"].as_str() })
+        })
         .map(str::to_string);
     let ch = id.as_deref().and_then(|i| r.change(i).ok());
     match &ch {
@@ -1103,15 +1160,15 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "open_change",
-            "Start a change on main. Reply: id, overlaps with other open changes on your paths, advice.",
+            "Start a change on main (apply with intent also does it). Reply: id, overlaps with other open changes on your paths, advice.",
             json!({"intent": {"type": "string", "description": "what you will do, one line"}, "paths": {"type": "array", "items": {"type": "string"}, "description": "path globs you will edit"}, "symbols": {"type": "array", "items": {"type": "string"}}, "base": {"type": "string", "description": "another change id to stack on (it lands first)"}}),
             &["intent"],
         ),
         tool(
             "apply",
-            "Edit files of your change; per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes, and undoes: another agent's lines your edit removes: keep its contributed words and your own edit.",
-            json!({"change": change, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}}, "required": ["path"]}}, "message": {"type": "string", "description": "commit message; default the intent"}}),
-            &["change", "edits"],
+            "Edit files. First call: intent, no change: opens your change (reply id) and writes it to checkout.dir; run the tests there, then land. Later calls: change. Per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes; undoes: another agent's lines your edit removes: keep its contributed words and your own edit.",
+            json!({"change": {"type": "string", "description": "your change id; none on the first call"}, "intent": {"type": "string", "description": "first call: what you will do, one line"}, "paths": {"type": "array", "items": {"type": "string"}, "description": "first call: path globs you will edit"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}}, "required": ["path"]}}, "message": {"type": "string", "description": "commit message; default the intent"}}),
+            &["edits"],
         ),
         tool(
             "change",
@@ -1127,7 +1184,7 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "rebase",
-            "Move your change onto current main (onto = another open change: stack on it).",
+            "Bring main into your change now (land rebases anyway). onto = another open change: stack on it.",
             json!({"change": change, "onto": {"type": "string"}}),
             &["change"],
         ),
@@ -1139,7 +1196,7 @@ pub fn agent_tools() -> Vec<Value> {
         ),
         tool(
             "land",
-            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main, undoes (not landed: you remove another agent's landed work, in undoes; put its part back, keep your edit, land again). undo = true with reason only when your task names those lines for removal.",
+            "Land your change on main (rebases on the server). Flow: apply with intent, tests in checkout.dir, land. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main, undoes (not landed: you remove another agent's landed work, in undoes; put its part back, keep your edit, land again). undo = true with reason only when your task names those lines for removal.",
             json!({"change": change, "undo": {"type": "boolean", "description": "land although it removes other agents' landed lines"}, "reason": {"type": "string", "description": "required with undo: why your task removes them"}}),
             &["change"],
         ),
@@ -1280,9 +1337,9 @@ pub fn tools() -> Vec<Value> {
         tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
-            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text, and contributed: the words that agent added to a line it rewrote; new ones only, change lists all); keep them unless your task says to remove them.",
-            json!({"change": change, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
-            &["change", "edits"],
+            "Edit files in a change (without change, intent opens one first, with agent, paths, symbols, base, model and session as in open_change; the reply then adds advice and intent overlaps): per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text, and contributed: the words that agent added to a line it rewrote; new ones only, change lists all); keep them unless your task says to remove them.",
+            json!({"change": change, "intent": {"type": "string", "description": "with no change: open a change with this intent and apply to it"}, "agent": {"type": "string"}, "model": {"type": "string"}, "session": {"type": "string"}, "base": {"type": "string"}, "paths": strings.clone(), "symbols": {"type": "array", "items": {"type": "string"}}, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
+            &["edits"],
         ),
         tool(
             "resolve",

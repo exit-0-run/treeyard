@@ -17,10 +17,10 @@ land rebases on the server; on status conflict, read the tasks in change.conflic
 content with apply (or resolve), and land again.";
 
 const AGENT_INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/grep/symbols/outline \
-without a checkout. To change code: open_change (one-line intent), apply edits, then land; checkout (stdio \
-bridge) writes your change to a directory to run the tests. On land status conflict, resolve the regions in \
-change.conflicts with apply (or resolve), and land again. This is the agent tool set; every operation is \
-listed with --tools all.";
+without a checkout. To change code: apply with a one-line intent and your edits (it opens your change and, \
+through the stdio bridge, writes it to the directory in checkout.dir), run the tests in checkout.dir, then land. \
+Later applies give the change id. On land status conflict, resolve the regions in change.conflicts with apply \
+(or resolve), and land again. This is the agent tool set; every operation is listed with --tools all.";
 
 /// Which tools `tools/list` offers. `Agent`: the operations a coding agent needs
 /// (`rpc::AGENT_TOOLS`), with short descriptions; `All`: every operation. A `tools/call` of any
@@ -83,6 +83,9 @@ pub fn reply_with(
                 ToolSet::Agent => rpc::agent_tools(),
                 ToolSet::All => rpc::tools(),
             };
+            if extra.iter().any(|t| t["name"] == "checkout") {
+                add_checkout_param(&mut tools, set);
+            }
             tools.extend(extra.iter().cloned());
             Ok(json!({"tools": tools}))
         }
@@ -123,8 +126,7 @@ pub fn checkout_tool() -> Value {
     return its path in `dir`; run the repository's tests there. Default directory: one of its own per change, \
     under the system temp directory. After that, every apply, resolve, rebase, restore_change and land of the \
     change through this bridge rewrites the directory (reply field `checkout`). Edits made in the directory do \
-    not reach the change: edit with apply. `main_moved` true: rebase, then checkout again, to test what land \
-    will put on main.",
+    not reach the change: edit with apply. `main_moved` true (work landed in files you edit): rebase.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -135,6 +137,15 @@ pub fn checkout_tool() -> Value {
             "additionalProperties": false,
         },
     })
+}
+
+/// The stdio bridge's own `apply` parameter `checkout` (the server's `/mcp` cannot write the
+/// agent's disk). Default: true in the agent tool set, false with `--tools all`.
+fn add_checkout_param(tools: &mut [Value], set: ToolSet) {
+    let default = if set == ToolSet::Agent { "default true" } else { "default false" };
+    for t in tools.iter_mut().filter(|t| t["name"] == "apply") {
+        t["inputSchema"]["properties"]["checkout"] = json!({"type": "boolean", "description": format!("write the change to a directory for tests (checkout.dir); {default}")});
+    }
 }
 
 /// Operations after which the bridge rewrites the change's checkout directory.
@@ -158,24 +169,44 @@ pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
             checkouts.insert(change, dir);
             return Ok(v);
         }
+        // `checkout` on `apply` is the bridge's: the first apply of a change can write its directory.
+        let want_checkout = match args.as_object_mut().and_then(|m| m.remove("checkout")) {
+            Some(Value::Bool(b)) => b,
+            Some(Value::Null) | None => set == ToolSet::Agent,
+            Some(other) => anyhow::bail!("checkout must be true or false, not {other}"),
+        } && name == "apply";
+        let opens = name == "apply" && args.get("change").is_none_or(Value::is_null);
         // With a token the server names the agent itself (the token's name).
-        if matches!(name, "open_change" | "revert")
+        if (matches!(name, "open_change" | "revert") || opens)
             && args.get("agent").is_none()
             && std::env::var_os("TREEYARD_TOKEN").is_none()
             && let Some(a) = &agent
         {
             args["agent"] = json!(a);
         }
-        let change = args["change"].as_str().map(str::to_string);
+        let given = args["change"].as_str().map(str::to_string);
         let mut v = client::call(url, name, args)?;
+        // An apply that opened the change names it in the reply.
+        let change = given.or_else(|| if opens { v["id"].as_str().map(str::to_string) } else { None });
         if REFRESH.contains(&name)
             && v.is_object()
-            && let Some(dir) = change.as_ref().and_then(|c| checkouts.get(c))
+            && let Some(c) = change
         {
-            let c = change.as_deref().unwrap_or_default();
-            // A failed rewrite never fails the call: the edit is on the server.
-            v["checkout"] = workspace::checkout(url, c, dir)
-                .unwrap_or_else(|e| json!({"dir": dir, "error": format!("checkout not rewritten: {e:#}")}));
+            let dir = match checkouts.get(&c) {
+                Some(d) => Some(d.clone()),
+                None if want_checkout => workspace::checkout_dir(&c).ok(),
+                None => None,
+            };
+            if let Some(dir) = dir {
+                // A failed write never fails the call: the edit is on the server.
+                v["checkout"] = match workspace::checkout(url, &c, &dir) {
+                    Ok(co) => {
+                        checkouts.insert(c, dir);
+                        co
+                    }
+                    Err(e) => json!({"dir": dir, "error": format!("checkout not written: {e:#}")}),
+                };
+            }
         }
         Ok(v)
     };

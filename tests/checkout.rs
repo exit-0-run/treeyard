@@ -17,12 +17,14 @@ fn bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_treeyard"))
 }
 
+const LIB: &str = "status: broken\n\n\n\nnotes\n";
+
 /// A repo with a test script (exec bit), a symlink, a file to delete and a `.gitignore`.
 fn repo(root: &Path) -> PathBuf {
     let src = root.join("src");
     std::fs::create_dir_all(&src).unwrap();
     git(&src, &["init", "-q", "-b", "main"]);
-    std::fs::write(src.join("lib.txt"), "status: broken\n").unwrap();
+    std::fs::write(src.join("lib.txt"), LIB).unwrap();
     std::fs::write(src.join("old.txt"), "to delete\n").unwrap();
     std::fs::write(src.join(".gitignore"), "build/\n").unwrap();
     std::fs::write(src.join("run_tests.sh"), "#!/bin/sh\ngrep -q '^status: fixed' lib.txt\n").unwrap();
@@ -153,13 +155,13 @@ fn checkout_runs_the_real_tests_on_the_change_and_follows_it_to_land() {
     assert!(sh_ok(&dir, "./run_tests.sh"), "the repository's test passes on the change");
     assert!(!dir.join("old.txt").exists(), "a deleted file is gone");
     assert!(std::fs::symlink_metadata(dir.join("link.txt")).unwrap().file_type().is_symlink());
-    assert_eq!(std::fs::read_to_string(dir.join("link.txt")).unwrap(), "status: fixed\n");
+    assert_eq!(std::fs::read_to_string(dir.join("link.txt")).unwrap(), LIB.replace("broken", "fixed"));
     same_tree(&url, &id, &dir);
     assert!(!sh_ok(&src, "./run_tests.sh"), "the bridge's own directory is not touched");
     assert_eq!(git(&src, &["status", "--porcelain"]), "");
 
     // Edits in the checkout never count: the next apply puts the change back and says so.
-    std::fs::write(dir.join("lib.txt"), "status: fixed by hand\n").unwrap();
+    std::fs::write(dir.join("lib.txt"), LIB.replace("broken", "fixed by hand")).unwrap();
     std::fs::write(dir.join("notes.txt"), "scratch\n").unwrap();
     std::fs::create_dir_all(dir.join("build")).unwrap();
     std::fs::write(dir.join("build/out.o"), "object\n").unwrap();
@@ -171,24 +173,46 @@ fn checkout_runs_the_real_tests_on_the_change_and_follows_it_to_land() {
     assert_eq!(r["checkout"]["reverted"], json!(["lib.txt"]));
     assert_eq!(r["checkout"]["extra"], json!(["notes.txt"]), "gitignored build output is not listed");
     assert_eq!(r["checkout"]["written"], 1);
-    assert_eq!(std::fs::read_to_string(dir.join("lib.txt")).unwrap(), "status: fixed again\n");
+    assert_eq!(std::fs::read_to_string(dir.join("lib.txt")).unwrap(), LIB.replace("broken", "fixed again"));
     assert!(dir.join("build/out.o").exists(), "build output stays");
     assert!(sh_ok(&dir, "./run_tests.sh"));
 
-    // Main moves: the checkout says so; rebase through the bridge brings the landed work in.
-    let other = common::call(&url, "open_change", json!({"agent": "agent-b", "intent": "add docs"}))["id"]
+    // Main moves in other files: no action, no advice, one short field.
+    let other = common::call(
+        &url,
+        "apply",
+        json!({"agent": "agent-b", "intent": "add docs", "edits": [{"path": "docs.txt", "content": "docs\n"}]}),
+    )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    common::call(&url, "apply", json!({"change": other, "edits": [{"path": "docs.txt", "content": "docs\n"}]}));
     assert_eq!(common::call(&url, "land", json!({"change": other}))["status"], "landed");
     let again = b.tool("checkout", json!({"change": id}));
-    assert_eq!(again["main_moved"], true);
+    assert_eq!(
+        (again["main_moved"].clone(), again["main_moved_elsewhere"].clone()),
+        (json!(false), json!(true)),
+        "{again}"
+    );
+    assert!(!again.to_string().contains("rebase"), "no rebase advice: {again}");
     assert_eq!(again["written"], 0, "nothing changed in the change itself");
-    assert!(again["advice"][0].as_str().unwrap().contains("rebase"), "{again}");
+    // Main moves in a file the change edits: the checkout says which, and rebase brings it in.
+    let third = common::call(&url, "apply", json!({"agent": "agent-c", "intent": "notes", "edits": [{"path": "lib.txt", "replace": {"old": "notes", "new": "notes by c"}}]}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(common::call(&url, "land", json!({"change": third}))["status"], "landed");
+    let again = b.tool("checkout", json!({"change": id}));
+    assert_eq!(
+        (again["main_moved"].clone(), again["main_moved_in"].clone()),
+        (json!(true), json!(["lib.txt"])),
+        "{again}"
+    );
+    assert!(again["advice"][0].as_str().unwrap().contains("Call rebase"), "{again}");
     let rb = b.tool("rebase", json!({"change": id}));
     assert_eq!(rb["checkout"]["main_moved"], false, "{rb}");
+    assert!(rb["checkout"].get("main_moved_elsewhere").is_none(), "{rb}");
     assert!(dir.join("docs.txt").exists());
+    assert!(std::fs::read_to_string(dir.join("lib.txt")).unwrap().contains("notes by c"));
     assert!(sh_ok(&dir, "./run_tests.sh"));
 
     // Land: the tree that landed is the tree that was tested.
@@ -270,7 +294,7 @@ fn checkout_in_a_workspace_keeps_the_workspace_and_the_collision_warnings() {
     assert_eq!(r["checkout"]["written"], 1);
 
     // The workspace directory and its own change are untouched.
-    assert_eq!(std::fs::read_to_string(ws.join("lib.txt")).unwrap(), "status: broken\n");
+    assert_eq!(std::fs::read_to_string(ws.join("lib.txt")).unwrap(), LIB);
     let wc = common::call(&url, "change", json!({"change": ws_change}));
     assert_eq!(wc["paths"], json!([]), "{wc}");
     b.close();

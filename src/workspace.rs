@@ -1816,13 +1816,19 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
     mark.head = head.clone();
     write_json(&mark_path, &mark)?;
 
-    let main = client::call(url, "status", json!({}))?["main"].as_str().unwrap_or_default().to_string();
-    let main_moved = ch["state"] == "open" && ch["base"].as_str().is_some_and(|b| b != main);
+    // Main moved: advice only when the landings since the base changed a file this change edits
+    // (land rebases anyway; a rebase now only tests what land will put on main).
+    let behind = ch.get("behind_main").filter(|b| b.is_object());
+    let moved_in: Vec<String> = behind
+        .and_then(|b| b["paths"].as_array())
+        .map(|a| a.iter().filter_map(|p| p.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    let main_moved = !moved_in.is_empty();
     let mut advice = Vec::new();
     if main_moved {
         advice.push(
-            "main moved since this change's base: these files lack the work that landed since. Call rebase, \
-             then checkout again, to test what land will put on main.",
+            "work landed since this change's base in files it edits (main_moved_in): these files lack it. \
+             Call rebase to test what land will put on main; the reply rewrites this directory.",
         );
     }
     if !reverted.is_empty() {
@@ -1837,11 +1843,18 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
              land. Add them with apply, or delete them.",
         );
     }
-    Ok(json!({
+    let mut out = json!({
         "change": change, "state": ch["state"], "dir": dir, "head": head, "files": want.len(),
         "written": todo.len(), "deleted": gone.len(), "reverted": capped(reverted), "extra": capped(extra),
         "main_moved": main_moved, "advice": advice, "seconds": round(t0.elapsed().as_secs_f64()),
-    }))
+    });
+    if main_moved {
+        out["main_moved_in"] = capped(moved_in);
+    } else if behind.is_some() {
+        // Landings since the base touched other files only: nothing to do, land rebases.
+        out["main_moved_elsewhere"] = json!(true);
+    }
+    Ok(out)
 }
 
 /// Writes the synced files of workspace `name` (`state`, bytes from `ws_dir`) into the mirror
