@@ -29,14 +29,28 @@ struct At {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ReadP {
-    path: String,
+    /// The file; leave it out when `files` names several.
+    path: Option<String>,
     at: Option<String>,
     /// First line to return (1-based, inclusive).
     start: Option<u32>,
     /// Last line to return (1-based, inclusive).
     end: Option<u32>,
+    /// Several line ranges `[start, end]` of `path` in one call (reply `ranges`).
+    ranges: Option<Vec<[u32; 2]>>,
+    /// Several files in one call, each with its own range(s) (reply `files`).
+    files: Option<Vec<ReadFile>>,
     /// Without a range: return only the first whole lines up to this many bytes (`truncated`).
     max_bytes: Option<usize>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadFile {
+    path: String,
+    start: Option<u32>,
+    end: Option<u32>,
+    ranges: Option<Vec<[u32; 2]>>,
 }
 
 #[derive(Deserialize)]
@@ -415,6 +429,34 @@ fn prepare(repo: &Repo, op: &str, p: &Value) -> Result<()> {
     Ok(())
 }
 
+/// Files one `read` takes with `files`.
+const MAX_READ_FILES: usize = 20;
+
+/// One file of a `read`: the whole file (up to `max_bytes`), one range, or several (`ranges`).
+fn read_file(r: &mut Inner, c: &Caller, f: &ReadFile, at: Option<&str>, max_bytes: Option<usize>) -> Result<Value> {
+    c.require_read(&f.path)?;
+    let Some(ranges) = &f.ranges else {
+        let range = (f.start.is_some() || f.end.is_some()).then_some((f.start, f.end));
+        return r.read_max(&f.path, at, range, max_bytes);
+    };
+    if f.start.is_some() || f.end.is_some() {
+        bail!("give start and end, or ranges, not both");
+    }
+    if ranges.is_empty() {
+        bail!("ranges needs at least one [start, end]");
+    }
+    let mut v = Value::Null;
+    let mut parts = Vec::new();
+    for [s, e] in ranges {
+        let mut one = r.read_max(&f.path, at, Some((Some(*s), Some(*e))), None)?;
+        let m = one.as_object_mut().ok_or_else(|| anyhow!("a read reply is an object"))?;
+        parts.push(json!({"lines": m.remove("lines"), "content": m.remove("content")}));
+        v = one;
+    }
+    v["ranges"] = Value::Array(parts);
+    Ok(v)
+}
+
 /// The change `id`, which a restricted token may only touch when it owns it.
 fn owned(r: &Inner, c: &Caller, id: &str) -> Result<Change> {
     let ch = r.change(id)?;
@@ -543,9 +585,36 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
         })),
         "read" => {
             let a: ReadP = params(p)?;
-            c.require_read(&a.path)?;
-            let range = (a.start.is_some() || a.end.is_some()).then_some((a.start, a.end));
-            r.read_max(&a.path, a.at.as_deref(), range, a.max_bytes)
+            let at = a.at.as_deref();
+            match (a.path, a.files) {
+                (Some(path), None) => {
+                    let f = ReadFile { path, start: a.start, end: a.end, ranges: a.ranges };
+                    read_file(r, c, &f, at, a.max_bytes)
+                }
+                (None, Some(files)) => {
+                    if a.start.is_some() || a.end.is_some() || a.ranges.is_some() {
+                        bail!("with files, give start, end or ranges per file");
+                    }
+                    if files.is_empty() || files.len() > MAX_READ_FILES {
+                        bail!("files takes 1 to {MAX_READ_FILES} files, not {}", files.len());
+                    }
+                    // Files without a range share the byte budget.
+                    let whole = files.iter().filter(|f| f.start.is_none() && f.end.is_none() && f.ranges.is_none());
+                    let max = a.max_bytes.map(|m| (m / whole.count().max(1)).max(1));
+                    let mut out = Vec::new();
+                    for f in &files {
+                        // One missing file does not cost the others.
+                        out.push(match read_file(r, c, f, at, max) {
+                            Ok(v) => v,
+                            Err(e) if e.downcast_ref::<Denied>().is_some() => return Err(e),
+                            Err(e) => json!({"path": f.path, "error": format!("{e:#}")}),
+                        });
+                    }
+                    Ok(json!({"files": out}))
+                }
+                (Some(_), Some(_)) => bail!("read takes path or files, not both"),
+                (None, None) => bail!("read needs path (one file) or files (several)"),
+            }
         }
         "list" => {
             let a: At = params(p)?;
@@ -603,6 +672,17 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                 r.grep_indexed(&a.pattern, a.at.as_deref(), a.path.as_deref(), max, &allow)?
             };
             r.grep_context(&mut v, a.context.unwrap_or(0).min(20))?;
+            // Only for a caller that may read every path: the note must not tell a restricted
+            // token which paths exist.
+            if let Some(path) = a.path.as_deref()
+                && c.reads_all()
+                && v["matches"].as_array().is_some_and(Vec::is_empty)
+                && !search::names_path(&r.manifest(v["at"].as_str().unwrap_or_default())?, path)
+            {
+                v["note"] = json!(format!(
+                    "no file or directory {path} at this revision; grep without path searches all files"
+                ));
+            }
             Ok(v)
         }
         "symbols" => {
@@ -763,9 +843,9 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                 Err(e) if opened.is_some() => {
                     // Nothing half done: the change opened for this call goes away with the error.
                     r.abandon(&id)?;
-                    return Err(e.context(format!(
-                        "nothing applied and the change opened for it ({id}) was abandoned; fix the edits and call apply with intent again"
-                    )));
+                    return Err(e.context(
+                        "nothing applied (the change opened for this call was abandoned); fix the edits and call apply with intent again",
+                    ));
                 }
                 Err(e) => return Err(e),
             };
@@ -1076,6 +1156,10 @@ pub fn record(r: &mut Inner, c: &Caller, op: &str, p: &Value, out: &Result<Value
             .as_array()
             .map(|a| a.iter().filter_map(|e| e["path"].as_str().map(str::to_string)).collect())
             .unwrap_or_default(),
+        "read" if p["files"].is_array() => p["files"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|f| f["path"].as_str().map(str::to_string)).collect())
+            .unwrap_or_default(),
         "resolve" | "read" | "blame" | "outline" => p["path"].as_str().map(|s| vec![s.to_string()]).unwrap_or_default(),
         "open_change" | "declare" => strs(&p["paths"]),
         "revert" => v
@@ -1127,17 +1211,19 @@ pub fn agent_tools() -> Vec<Value> {
     let at = json!({"type": "string", "description": "main (default) or your change id ch_..."});
     let change = json!({"type": "string", "description": "change id ch_..."});
     let int = json!({"type": "integer", "minimum": 1});
+    let ranges = json!({"type": "array", "items": {"type": "array", "items": {"type": "integer", "minimum": 1}, "minItems": 2, "maxItems": 2}});
+    let files = json!({"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "start": int, "end": int, "ranges": ranges}, "required": ["path"]}});
     vec![
         tool(
             "read",
-            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; a file over 50 KB without a range returns its first lines, truncated and total_lines.",
-            json!({"path": {"type": "string"}, "at": at, "start": int, "end": int}),
-            &["path"],
+            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; ranges = several [start, end]; files = several files in one call, each {path, start?, end?, ranges?}. A file over 50 KB without a range returns its first lines, truncated and total_lines.",
+            json!({"path": {"type": "string"}, "at": at, "start": int, "end": int, "ranges": ranges, "files": files}),
+            &[],
         ),
         tool(
             "grep",
             "Regex search over file contents, per line; context = lines before and after each match.",
-            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "default 100"}, "context": {"type": "integer", "minimum": 0, "maximum": 20}}),
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this file or directory"}, "at": at, "max": {"type": "integer", "description": "default 100"}, "context": {"type": "integer", "minimum": 0, "maximum": 20}}),
             &["pattern"],
         ),
         tool(
@@ -1212,9 +1298,9 @@ pub fn tools() -> Vec<Value> {
         tool("status", "Main changeset and git commit, file count, open changes.", json!({}), &[]),
         tool(
             "read",
-            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.",
-            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}, "max_bytes": {"type": "integer", "minimum": 1, "description": "without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither"}}),
-            &["path"],
+            "Read a file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range. ranges reads several ranges of the file (reply ranges: [{lines, content}]); files reads up to 20 files in one call (reply files: one read reply each, or {path, error}).",
+            json!({"path": {"type": "string", "description": "the file; leave it out with files"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}, "ranges": {"type": "array", "items": {"type": "array", "items": {"type": "integer", "minimum": 1}, "minItems": 2, "maxItems": 2}, "description": "several [start, end] ranges of path"}, "files": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "start": {"type": "integer"}, "end": {"type": "integer"}, "ranges": {"type": "array", "items": {"type": "array", "items": {"type": "integer"}}}}, "required": ["path"]}, "description": "several files: each path with its own start, end or ranges"}, "max_bytes": {"type": "integer", "minimum": 1, "description": "without a range: only the first whole lines up to this size (truncated: true), shared by the files without a range; MCP clients get 51200 when they give no range"}}),
+            &[],
         ),
         tool(
             "list",
@@ -1237,7 +1323,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "grep",
             "Search file contents with a regular expression (per line), server side, through a trigram index.",
-            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}, "context": {"type": "integer", "minimum": 0, "maximum": 20, "description": "lines before and after each match (before, after)"}}),
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "limit to this file or directory"}, "at": at, "max": {"type": "integer", "description": "max matches, default 100"}, "index": {"type": "boolean", "description": "false = scan every file"}, "context": {"type": "integer", "minimum": 0, "maximum": 20, "description": "lines before and after each match (before, after)"}}),
             &["pattern"],
         ),
         tool(

@@ -95,7 +95,9 @@ pub fn reply_with(
                 Value::Object(_) => msg["params"]["arguments"].clone(),
                 _ => json!({}),
             };
-            if name == "read" && ["start", "end", "max_bytes"].iter().all(|k| args.get(*k).is_none_or(Value::is_null)) {
+            if name == "read"
+                && ["start", "end", "ranges", "max_bytes"].iter().all(|k| args.get(*k).is_none_or(Value::is_null))
+            {
                 args["max_bytes"] = json!(READ_CAP);
             }
             Ok(match call(name, args) {
@@ -126,7 +128,8 @@ pub fn checkout_tool() -> Value {
     return its path in `dir`; run the repository's tests there. Default directory: one of its own per change, \
     under the system temp directory. After that, every apply, resolve, rebase, restore_change and land of the \
     change through this bridge rewrites the directory (reply field `checkout`). Edits made in the directory do \
-    not reach the change: edit with apply. `main_moved` true (work landed in files you edit): rebase.",
+    not reach the change: edit with apply. `main_moved` true (work landed in files you edit): rebase. An apply \
+    reply with checkout.dir has written it already: no call needed.",
         "inputSchema": {
             "type": "object",
             "properties": {

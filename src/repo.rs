@@ -625,35 +625,47 @@ impl Inner {
     }
 
     /// Adds what to do to a `replace` whose old text (or file) the change lacks: whether main has
-    /// it, and how many landings the change is behind main. Other errors pass through as they are.
-    fn edit_hint(&mut self, ch: &Change, e: &Edit, cur: Option<&Entry>, err: anyhow::Error) -> anyhow::Error {
+    /// it, how many landings the change is behind main, and the text of the change (the tree the
+    /// edit was applied to, `cur`) that is closest to the old text, at most `cap` bytes of it, so
+    /// the agent can retry without another read. Other errors pass through as they are.
+    fn edit_hint(
+        &mut self,
+        ch: &Change,
+        e: &Edit,
+        cur: Option<&Entry>,
+        err: anyhow::Error,
+        cap: usize,
+    ) -> anyhow::Error {
         let Some(r) = &e.replace else { return err };
-        let has = |me: &mut Self, en: Option<&Entry>| {
-            en.and_then(|en| me.blob(&en.blob).ok()).and_then(|b| as_text(&b)).map(|t| t.contains(&r.old))
-        };
-        if r.old.is_empty() || has(self, cur) == Some(true) {
+        let text =
+            |me: &mut Self, en: Option<&Entry>| en.and_then(|en| me.blob(&en.blob).ok()).and_then(|b| as_text(&b));
+        let now = text(self, cur);
+        if r.old.is_empty() || now.as_deref().is_some_and(|t| t.contains(&r.old)) {
             return err; // found more than once, empty, or not text: the message says it all
         }
-        let main_entry = self.main().and_then(|m| self.manifest(&m)).ok().and_then(|m| m.get(&e.path).cloned());
-        let on_main = has(self, main_entry.as_ref()) == Some(true);
+        let main = self.main().unwrap_or_default();
+        let main_entry = self.manifest(&main).ok().and_then(|m| m.get(&e.path).cloned());
+        let on_main = text(self, main_entry.as_ref()).is_some_and(|t| t.contains(&r.old));
         let behind = self.landings_behind(&ch.base).unwrap_or(0);
         let (id, path) = (&ch.id, &e.path);
+        // A change without edits on main's head holds main's text: name main, not the change
+        // (an `apply` with `intent` abandons the change it opened when an edit fails).
+        let is_main = ch.head == ch.base && ch.base == main;
+        let holder = if is_main { "main has".to_string() } else { format!("your change {id} holds") };
+        let near = match now.as_deref().and_then(|t| closest_region(t, &r.old, cap)) {
+            Some((a, b, region)) => format!(" Closest text, lines {a}-{b} of {path} as {holder} it now:\n{region}"),
+            None if is_main => format!(" No line of {path} resembles it; read {path}."),
+            None => format!(" No line of {path} resembles it; read {path} with at = {id}."),
+        };
         let landings = if behind == 1 { "1 landing".to_string() } else { format!("{behind} landings") };
         let hint = match (on_main, behind > 0) {
             (true, true) => format!(
                 "your change {id} is {landings} behind main, and main has this text: another agent changed \
-                 {path} after your change's base. Call rebase with change {id} to take main's work, then read \
-                 {path} with at = {id} and apply again"
+                 {path} after your change's base. Call rebase with change {id} to take main's work, then apply again"
             ),
-            (true, false) => format!(
-                "main has this text, but your change {id} already changed it. Read {path} with at = {id} (your \
-                 change, not main) and replace text from there"
-            ),
-            (false, true) => format!(
-                "main lacks it too (main is {landings} ahead of your change {id}). Read {path} with at = {id} for \
-                 the text your change holds"
-            ),
-            (false, false) => format!("read {path} with at = {id} for the text your change holds"),
+            (true, false) => format!("main has this text, but your change {id} already changed it.{near}"),
+            (false, true) => format!("main lacks it too (main is {landings} ahead of your change {id}).{near}"),
+            (false, false) => near.trim_start().to_string(),
         };
         anyhow!("{err:#}. {hint}")
     }
@@ -712,12 +724,19 @@ impl Inner {
         let mut resolutions: BTreeMap<String, Option<Entry>> = BTreeMap::new();
         let mut late_conflicts = Vec::new();
         let mut out = Vec::new();
-        for e in edits {
+        // `replace` edits whose old text is missing: all of them are reported, each with the
+        // closest text, so one retry can fix every one. Nothing is applied then.
+        let mut missing: Vec<(usize, &Edit, Option<Entry>, anyhow::Error)> = Vec::new();
+        for (i, e) in edits.iter().enumerate() {
             check_path(&e.path)?;
             let cur = work.get(&e.path).cloned();
             let mut new = match self.edit_entry(e, cur.as_ref()) {
                 Ok(n) => n,
-                Err(err) => return Err(self.edit_hint(&ch, e, cur.as_ref(), err)),
+                Err(err) if format!("{err}").ends_with(": old text not found") => {
+                    missing.push((i, e, cur, err));
+                    continue;
+                }
+                Err(err) => return Err(self.edit_hint(&ch, e, cur.as_ref(), err, NEAR_CAP)),
             };
             if conflicted.contains(&e.path) {
                 resolutions.insert(e.path.clone(), new.clone());
@@ -755,6 +774,16 @@ impl Inner {
                 }
             }
             out.push((e.path.clone(), new));
+        }
+        if !missing.is_empty() {
+            let cap = (NEAR_CAP / missing.len()).max(NEAR_CAP / 8);
+            let n = edits.len();
+            let mut msgs = Vec::new();
+            for (i, e, cur, err) in missing {
+                let m = format!("{:#}", self.edit_hint(&ch, e, cur.as_ref(), err, cap));
+                msgs.push(if n == 1 { m } else { format!("edit {} of {n}: {m}", i + 1) });
+            }
+            bail!("{}", msgs.join("\n"));
         }
         // A resolution that keeps the markers would land them. It is checked once per path, after
         // all edits of this call: several `replace` edits in one apply may remove them together.
@@ -2106,6 +2135,113 @@ fn check_no_markers(path: &str, bytes: &[u8]) -> Result<()> {
         lines[i],
         if regions == 1 { "" } else { "s" }
     )
+}
+
+/// Bytes of closest text a failed `apply` carries in all (`edit_hint`).
+const NEAR_CAP: usize = 4096;
+/// Lines of context around the closest text.
+const NEAR_CONTEXT: usize = 3;
+
+/// Character bigrams of a trimmed line, sorted (for `dice`).
+fn bigrams(line: &str) -> Vec<(char, char)> {
+    let c: Vec<char> = line.trim().chars().collect();
+    let mut b: Vec<(char, char)> = c.windows(2).map(|w| (w[0], w[1])).collect();
+    b.sort_unstable();
+    b
+}
+
+/// Similarity of a line `a` of the old text and a line `b` of the file, in [0, 1]: 1 when equal
+/// after trimming, 0.95 when `b` contains `a`, else 0.9 x the Dice coefficient of their character
+/// bigrams. Blank lines carry no weight.
+fn line_similarity(a: &str, b: &str, ba: &[(char, char)], bb: &[(char, char)]) -> f64 {
+    let (a, b) = (a.trim(), b.trim());
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    if a == b {
+        return 1.0;
+    }
+    if b.contains(a) {
+        return 0.95; // the line grew around the old text
+    }
+    if ba.is_empty() || bb.is_empty() {
+        return 0.0;
+    }
+    let (mut i, mut j, mut common) = (0, 0, 0);
+    while i < ba.len() && j < bb.len() {
+        match ba[i].cmp(&bb[j]) {
+            std::cmp::Ordering::Equal => {
+                common += 1;
+                i += 1;
+                j += 1;
+            }
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+        }
+    }
+    0.9 * (2 * common) as f64 / (ba.len() + bb.len()) as f64
+}
+
+/// The lines of `text` that best match `old` line by line (a window as long as `old`), with
+/// `NEAR_CONTEXT` lines around them: (first line, last line, the text), at most `cap` bytes.
+/// `None` when no line resembles any line of `old`.
+pub fn closest_region(text: &str, old: &str, cap: usize) -> Option<(usize, usize, String)> {
+    let lines: Vec<&str> = text.split_inclusive('\n').collect();
+    let want: Vec<&str> = old.lines().collect();
+    if lines.is_empty() || want.is_empty() {
+        return None;
+    }
+    let m = want.len();
+    // Bigram scores cost lines x old lines; past this many pairs only equal lines count.
+    let fuzzy = lines.len().saturating_mul(m) <= 2_000_000;
+    let wb: Vec<_> = want.iter().map(|l| if fuzzy { bigrams(l) } else { Vec::new() }).collect();
+    let lb: Vec<_> = lines.iter().map(|l| if fuzzy { bigrams(l) } else { Vec::new() }).collect();
+    let (mut best, mut at) = (0.0, 0);
+    for i in 0..lines.len().saturating_sub(m - 1).max(1) {
+        let score: f64 = (0..m)
+            .filter(|j| i + j < lines.len())
+            .map(|j| line_similarity(want[j], lines[i + j], &wb[j], &lb[i + j]))
+            .sum();
+        if score > best + 1e-9 {
+            (best, at) = (score, i);
+        }
+    }
+    if best < 0.3 {
+        return None;
+    }
+    let end = (at + m).min(lines.len()); // exclusive
+    let (mut a, mut b) = (at.saturating_sub(NEAR_CONTEXT), (end + NEAR_CONTEXT).min(lines.len()));
+    // Too long: drop context first, then lines at the end.
+    while lines[a..b].iter().map(|l| l.len()).sum::<usize>() > cap && (a < at || b > end) {
+        if b > end {
+            b -= 1;
+        }
+        if a < at {
+            a += 1;
+        }
+    }
+    let mut out = String::new();
+    let mut last = a;
+    for (k, l) in lines[a..b].iter().enumerate() {
+        if out.len() + l.len() > cap && k > 0 {
+            break;
+        }
+        if l.len() > cap {
+            let mut cut = cap;
+            while !l.is_char_boundary(cut) {
+                cut -= 1;
+            }
+            out.push_str(&l[..cut]);
+            out.push_str("...\n");
+        } else {
+            out.push_str(l);
+        }
+        last = a + k;
+    }
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+    Some((a + 1, last + 1, out))
 }
 
 fn check_no_collision(work: &Manifest, path: &str) -> Result<()> {

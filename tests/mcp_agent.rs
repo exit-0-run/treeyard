@@ -230,3 +230,21 @@ fn the_minimal_flow_is_apply_then_land() {
     assert!(r["result"]["isError"] == true, "{r}");
     a.close();
 }
+
+/// One call where agents used several: a file as grep `path`, several ranges or files per `read`.
+#[test]
+fn grep_on_a_file_and_read_of_several_ranges_or_files_through_the_bridge() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = server(tmp.path());
+    let mut a = Bridge::start(&url, "a", "agent", tmp.path());
+    let (_, v) = a.tool("grep", json!({"pattern": "line 7$", "path": "f01.txt"}));
+    assert_eq!(v, json!({"matches": [{"line": 8, "path": "f01.txt", "text": "file 1 line 7"}], "truncated": false}));
+    let (_, v) = a.tool("read", json!({"path": "big.py", "ranges": [[1, 1], [2999, 3000]]}));
+    assert_eq!(v["ranges"][1]["content"], "value_2998 = compute(2998)\nvalue_2999 = compute(2999)\n", "{v}");
+    assert!(v.get("truncated").is_none(), "ranges are never cut: {v}");
+    let (text, v) = a.tool("read", json!({"files": [{"path": "big.py"}, {"path": "f00.txt", "start": 2, "end": 2}]}));
+    assert_eq!(v["files"][0]["truncated"], true, "the 50 KB cap holds for files without a range");
+    assert_eq!(v["files"][1]["content"], "file 0 line 1\n");
+    assert!(text.len() < 56 * 1024, "{} bytes", text.len());
+    a.close();
+}

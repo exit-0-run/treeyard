@@ -275,10 +275,18 @@ fn a_replace_that_misses_says_how_far_behind_main_the_change_is() {
     let m = miss("b's line 3");
     assert!(m.starts_with("replace in f00.txt: old text not found"), "{m}");
     assert!(m.contains(&format!("your change {a} is 2 landings behind main, and main has this text")), "{m}");
-    assert!(m.contains(&format!("Call rebase with change {a}")) && m.contains(&format!("at = {a}")), "{m}");
-    // Text that is nowhere.
-    let m = miss("no such text");
-    assert!(m.contains("main lacks it too (main is 2 landings ahead") && m.contains(&format!("at = {a}")), "{m}");
+    assert!(m.contains(&format!("Call rebase with change {a}")) && m.ends_with("then apply again"), "{m}");
+    // Text that is nowhere: the closest text of the change comes with the error.
+    let m = miss("file 0 line 3 and more\n");
+    assert!(m.contains("main lacks it too (main is 2 landings ahead"), "{m}");
+    assert!(
+        m.contains(&format!("Closest text, lines 1-7 of f00.txt as your change {a} holds it now:\nfile 0 line 0\n")),
+        "{m}"
+    );
+    assert!(m.ends_with("file 0 line 6\n"), "{m}");
+    // Nothing alike: read the change.
+    let m = miss("@@@@");
+    assert!(m.contains("No line of f00.txt resembles it") && m.contains(&format!("at = {a}")), "{m}");
 
     // After rebase: the text of main is found; text the change itself replaced gets its own hint.
     call(&url, "rebase", json!({"change": a}));
@@ -289,6 +297,7 @@ fn a_replace_that_misses_says_how_far_behind_main_the_change_is() {
     );
     let m = miss("b's line 3");
     assert!(m.contains(&format!("main has this text, but your change {a} already changed it")), "{m}");
+    assert!(m.contains("lines 1-7 of f00.txt") && m.contains("a's line 3\n"), "{m}");
     // Other errors keep their text.
     let e = treeyard::client::call(
         &url,
@@ -297,4 +306,90 @@ fn a_replace_that_misses_says_how_far_behind_main_the_change_is() {
     )
     .unwrap_err();
     assert!(format!("{e:#}").ends_with("add context or set all=true"), "{e:#}");
+}
+
+/// An agent read main, another agent landed in the same lines, and its `apply` misses: the error
+/// carries, per failed edit, the text that is there now, so one retry fixes them all (agent-7 in
+/// the T2 click runs needed 3 failed applies and 5 reads).
+#[test]
+fn a_failed_apply_shows_the_closest_text_of_every_edit_that_missed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = setup(tmp.path(), "");
+    let other = call(
+        &url,
+        "apply",
+        json!({"agent": "b", "intent": "b", "edits": [
+            {"path": "f00.txt", "replace": {"old": "file 0 line 11\n", "new": "file 0 line 11, b was here\n"}},
+            {"path": "f01.txt", "replace": {"old": "file 1 line 20\n", "new": "file 1 line 20 (b)\n"}}]}),
+    );
+    assert_eq!(call(&url, "land", json!({"change": other["id"]}))["status"], "landed");
+    // Edits 1 and 3 hold text from before b's landing; edit 2 is fine.
+    let edits = json!([
+        {"path": "f00.txt", "replace": {"old": "file 0 line 10\nfile 0 line 11\nfile 0 line 12\n", "new": "x\n"}},
+        {"path": "f02.txt", "replace": {"old": "file 2 line 5\n", "new": "y\n"}},
+        {"path": "f01.txt", "replace": {"old": "file 1 line 20\n", "new": "z\n"}},
+    ]);
+    let e = treeyard::client::call(&url, "apply", json!({"agent": "a", "intent": "a", "edits": edits})).unwrap_err();
+    let m = format!("{e:#}");
+    assert!(m.starts_with("nothing applied (the change opened for this call was abandoned)"), "{m}");
+    assert!(!m.contains("ch_"), "no pointer to the abandoned change: {m}");
+    assert!(m.contains("edit 1 of 3: replace in f00.txt: old text not found. Closest text, lines 8-16 of f00.txt as main has it now:\nfile 0 line 7\n"), "{m}");
+    assert!(m.contains("file 0 line 11, b was here\n"), "{m}");
+    assert!(
+        m.contains("edit 3 of 3: replace in f01.txt: old text not found. Closest text, lines 18-24 of f01.txt"),
+        "{m}"
+    );
+    assert!(m.contains("file 1 line 20 (b)\n"), "{m}");
+    assert!(!m.contains("edit 2 of 3"), "{m}");
+    assert!(m.len() < 5000, "{} bytes", m.len());
+    assert_eq!(call(&url, "changes", json!({"state": "open"}))["changes"], json!([]));
+    // Nothing of the call was applied to main or to a change; the retry with the shown text works.
+    let ok = call(
+        &url,
+        "apply",
+        json!({"agent": "a", "intent": "a", "edits": [
+            {"path": "f00.txt", "replace": {"old": "file 0 line 10\nfile 0 line 11, b was here\nfile 0 line 12\n", "new": "x\n"}},
+            {"path": "f02.txt", "replace": {"old": "file 2 line 5\n", "new": "y\n"}},
+            {"path": "f01.txt", "replace": {"old": "file 1 line 20 (b)\n", "new": "z\n"}}]}),
+    );
+    assert_eq!(ok["state"], "open", "{ok}");
+
+    // Same on an existing change, and a huge file stays capped.
+    let id = ok["id"].as_str().unwrap();
+    let long = "w".repeat(10_000);
+    call(
+        &url,
+        "apply",
+        json!({"change": id, "edits": [{"path": "big.txt", "content": format!("{long}\n{long} 2\n")}]}),
+    );
+    let e = treeyard::client::call(
+        &url,
+        "apply",
+        json!({"change": id, "edits": [{"path": "big.txt", "replace": {"old": format!("{long} 3"), "new": "v"}}]}),
+    )
+    .unwrap_err();
+    let m = format!("{e:#}");
+    assert!(m.contains(&format!("as your change {id} holds it now")), "{}", &m[..300]);
+    assert!(m.len() < 4096 + 400, "{} bytes", m.len());
+}
+
+#[test]
+fn closest_region_finds_moved_and_changed_lines() {
+    use treeyard::repo::closest_region;
+    let text: String = (1..=50).map(|i| format!("    line number {i}\n")).collect();
+    // Exact lines elsewhere in the file (the text moved), with 3 lines of context.
+    let (a, b, t) = closest_region(&text, "line number 30\n    line number 31", 4096).unwrap();
+    assert_eq!((a, b), (27, 34), "{t}");
+    assert!(t.starts_with("    line number 27\n") && t.ends_with("    line number 34\n"), "{t}");
+    // One changed line still finds the place.
+    let changed = text.replace("line number 41\n", "line number 41 # edited\n");
+    let (a, _, t) =
+        closest_region(&changed, "    line number 40\n    line number 41\n    line number 42\n", 4096).unwrap();
+    assert_eq!(a, 37, "{t}");
+    assert!(t.contains("# edited"), "{t}");
+    // The cap drops context first.
+    let (a, b, t) = closest_region(&text, "    line number 10\n", 20).unwrap();
+    assert_eq!((a, b, t.as_str()), (10, 10, "    line number 10\n"));
+    assert!(closest_region(&text, "&&&&", 4096).is_none());
+    assert!(closest_region("", "x", 4096).is_none());
 }

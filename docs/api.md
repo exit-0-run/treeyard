@@ -42,18 +42,20 @@ treeyard call status '{}'
 
 ### read
 
-Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.
+Read a file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range. ranges reads several ranges of the file (reply ranges: [{lines, content}]); files reads up to 20 files in one call (reply files: one read reply each, or {path, error}).
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
 | `end` | integer | no | last line to return (inclusive); default the last line |
-| `max_bytes` | integer | no | without a range: only the first whole lines up to this size (truncated: true); MCP clients get 51200 when they give neither |
-| `path` | string | yes |  |
+| `files` | array of object (`end`, `path`, `ranges`, `start`) | no | several files: each path with its own start, end or ranges |
+| `max_bytes` | integer | no | without a range: only the first whole lines up to this size (truncated: true), shared by the files without a range; MCP clients get 51200 when they give no range |
+| `path` | string | no | the file; leave it out with files |
+| `ranges` | array of array of integer | no | several [start, end] ranges of path |
 | `start` | integer | no | first line to return (1-based); default 1 |
 
 ```sh
-treeyard call read '{"path": "README.md"}'
+treeyard call read '{}'
 ```
 
 ### list
@@ -104,7 +106,7 @@ Search file contents with a regular expression (per line), server side, through 
 | `context` | integer | no | lines before and after each match (before, after) |
 | `index` | boolean | no | false = scan every file |
 | `max` | integer | no | max matches, default 100 |
-| `path` | string | no | limit to this directory |
+| `path` | string | no | limit to this file or directory |
 | `pattern` | string | yes |  |
 
 ```sh

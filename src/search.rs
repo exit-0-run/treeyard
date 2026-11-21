@@ -536,8 +536,8 @@ impl Inner {
                     .filter_map(|(p, e)| e.as_ref().filter(|e| searchable(e)).map(|e| (p.clone(), e.blob.clone()))),
             );
         }
-        let prefix = dir.map(|d| d.trim_matches('/')).filter(|d| !d.is_empty()).map(|d| format!("{d}/"));
-        cands.retain(|(p, _)| prefix.as_ref().is_none_or(|x| p.starts_with(x)) && allow(p));
+        let scope = scope(dir);
+        cands.retain(|(p, _)| in_scope(p, scope) && allow(p));
         cands.sort();
         let considered = cands.len();
         let (matches, truncated) = self.verify(&re, &cands, max)?;
@@ -609,10 +609,10 @@ impl Inner {
         let re = Regex::new(pattern).map_err(|e| anyhow!("bad pattern: {e}"))?;
         let cs = self.resolve_at(at)?;
         let m = self.manifest(&cs)?;
-        let prefix = dir.map(|d| d.trim_matches('/')).filter(|d| !d.is_empty()).map(|d| format!("{d}/"));
+        let scope = scope(dir);
         let files: Vec<(String, String)> = m
             .iter()
-            .filter(|(p, e)| searchable(e) && prefix.as_ref().is_none_or(|x| p.starts_with(x)) && allow(p))
+            .filter(|(p, e)| searchable(e) && in_scope(p, scope) && allow(p))
             .map(|(p, e)| (p.clone(), e.blob.clone()))
             .collect();
         let (matches, truncated) = self.verify(&re, &files, max)?;
@@ -620,6 +620,23 @@ impl Inner {
             json!({"at": cs, "matches": matches, "truncated": truncated, "index": {"used": false, "files": files.len()}}),
         )
     }
+}
+
+/// The `path` of a grep, without slashes at its ends; `None` (everything) when empty.
+fn scope(dir: Option<&str>) -> Option<&str> {
+    dir.map(|d| d.trim_matches('/')).filter(|d| !d.is_empty())
+}
+
+/// Whether `p` is the file `scope` names or lies under the directory it names.
+fn in_scope(p: &str, scope: Option<&str>) -> bool {
+    scope.is_none_or(|d| p.strip_prefix(d).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')))
+}
+
+/// Whether a grep `path` names a file or a directory of `m` (empty: the root, always).
+pub fn names_path(m: &Manifest, dir: &str) -> bool {
+    let Some(d) = scope(Some(dir)) else { return true };
+    let under = format!("{d}/");
+    m.contains_key(d) || m.range(under.clone()..).next().is_some_and(|(k, _)| k.starts_with(&under))
 }
 
 /// The whole-file test before the per-line one: the pattern in multi-line mode (`^` and `$` at

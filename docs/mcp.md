@@ -100,10 +100,12 @@ server's replies as they are. Both send compact JSON (pretty printing was 21 to 
   this memory per process; the HTTP endpoint keeps one per server.
 - `grep` drops `at` and the `index` statistics.
 
-For every MCP client (both sets), a `read` without `start`, `end` or `max_bytes` gets `max_bytes`
+For every MCP client (both sets), a `read` without `start`, `end`, `ranges` or `max_bytes` gets `max_bytes`
 51 200: a larger file returns its first whole lines with `truncated: true`, `lines`, `total_lines`
 and a `note` that says how to read on (one whole-file read of a 60 000-line file returned 938 KB).
-`grep` takes `context` for lines around each match.
+`grep` takes `context` for lines around each match. `read` takes `ranges` (several ranges of one
+file) and `files` (several files) in one call; the 51 200 bytes are then shared by the files without a
+range.
 
 Reply bytes through the stdio bridge, on a clone of this repository (an 87 KB `src/repo.rs`, plus
 a 60 000-line file; two agents change the same line; measured with a script outside the repository):

@@ -307,16 +307,24 @@ on markers after `land`). Off, the agent decides when it takes main's work, with
 Instead, a `replace` whose old text the change lacks says why, in the error text:
 
 - main has the text and the change is N landings behind main: another agent changed the file after
-  the change's base; call `rebase`, then `read` with `at` = the change id, and apply again;
-- main has the text and the change is not behind: the change already replaced it; read the file with
-  `at` = the change id;
-- otherwise: how far main is ahead, and read with `at` = the change id.
+  the change's base; call `rebase`, then apply again;
+- main has the text and the change is not behind: the change already replaced it;
+- otherwise: how far main is ahead, if it is.
+
+In the last two cases the error carries the closest text of the file as the change holds it (`lines
+a-b`, the best match of the old text by lines with 3 lines of context, 4 KB per call in all), so the
+agent can retry without a `read`; only when no line resembles the old text does it say to read the
+file. Every edit of the call that misses is listed (`edit i of n`), not only the first. An `apply`
+with `intent` that fails abandons the change it opened, so its error names main's text and never the
+abandoned change. In the T2 click runs one agent spent 3 failed applies and 5 reads (one of 38 KB)
+on text another agent had just changed.
 
 `read` with no `at` stays main, also in the MCP bridge. Defaulting it to the agent's open change would
 match `apply`, but `grep`, `symbols` and `outline` answer for main, so their line numbers would no
 longer fit what `read` returns, and the HTTP `/mcp` endpoint (no bridge) would differ from stdio. The
-error above names the fix instead. Test: `tests/conflicts.rs`
-(`a_replace_that_misses_says_how_far_behind_main_the_change_is`).
+error above names the fix instead. Tests: `tests/conflicts.rs`
+(`a_replace_that_misses_says_how_far_behind_main_the_change_is`,
+`a_failed_apply_shows_the_closest_text_of_every_edit_that_missed`, `closest_region_finds_moved_and_changed_lines`).
 
 ## (d) Merge drivers
 

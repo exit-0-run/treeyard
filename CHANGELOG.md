@@ -6,6 +6,17 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Fixed
+- `grep` with `path` naming a file returned no matches: `path` was taken as a directory prefix only
+  (`path/`). It now limits the search to that file or to that directory. A `path` that names neither
+  gets an empty `matches` and a `note` that says so. In the T2 click runs 10 of 24 `grep` calls of
+  arm B named a file and came back empty.
+- A failed `apply` needed several more calls. A `replace` whose old text is missing now reports every
+  edit of the call that missed (`edit i of n`), each with the closest text of the file in the tree the
+  edit was applied to (best match of the old text by lines, 3 lines of context, `lines a-b`; 4 KB per
+  call in all), so one retry can fix all of them; it is said to `read` only when no line resembles the
+  old text. An `apply` with `intent` that fails no longer points at the change it opened and
+  abandoned; the text it shows is main's. A miss of text that main has while the change is behind
+  still says to `rebase`, then apply again (behaviour change: the error text).
 - `land` held only on the first 20 `undoes` entries: an entry of another agent's landed lines past
   20 entries that do not hold (lines of the change it is stacked on) now holds too; a held reply lists
   at most 20 and counts the rest in `undoes_more`.
@@ -20,6 +31,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   its changes' diffs); work left out counts from the merge base.
 
 ### Changed
+- `read` takes `ranges` (several `[start, end]` ranges of one file, reply `ranges`) and `files` (up to
+  20 files in one call, each with its own `start`, `end` or `ranges`; reply `files`, a failing file
+  gives `{path, error}` and does not fail the others; files without a range share `max_bytes`, and
+  the MCP 50 KiB default). In the T2 click runs 16 of 33 `read` calls of arm B followed another
+  `read`. The bridge's `checkout` tool says that an `apply` reply with `checkout.dir` has written it.
 - Fewer calls per task. `apply` without `change` and with `intent` (and `paths`, ...) opens the change
   and applies in one call; the reply carries the id, overlaps and advice as `open_change` would (a
   failed edit abandons that change). Through the stdio bridge `apply` takes `checkout` and writes the

@@ -179,3 +179,83 @@ fn grep_context_adds_the_lines_around_each_match() {
     let plain = call(&url, "grep", json!({"pattern": "line 15"}));
     assert!(plain["matches"][0].get("before").is_none(), "{plain}");
 }
+
+#[test]
+fn grep_path_takes_a_file_as_well_as_a_directory() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 2, 5, &[("src/a.py", "class A:\n    pass\n"), ("src/ab.py", "class A:\n")]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let paths = |v: &Value| -> Vec<String> {
+        v["matches"].as_array().unwrap().iter().map(|m| m["path"].as_str().unwrap().to_string()).collect()
+    };
+    for index in [true, false] {
+        // A file: only its matches (not src/ab.py, which shares the prefix).
+        let v = call(&url, "grep", json!({"pattern": "class A", "path": "src/a.py", "index": index}));
+        assert_eq!(paths(&v), ["src/a.py"], "{v}");
+        assert!(v.get("note").is_none(), "{v}");
+        let v = call(&url, "grep", json!({"pattern": "line 3", "path": "f01.txt", "index": index}));
+        assert_eq!(paths(&v), ["f01.txt"], "{v}");
+        // A directory, with or without slashes, as before.
+        for dir in ["src", "src/", "/src/"] {
+            let v = call(&url, "grep", json!({"pattern": "class A", "path": dir, "index": index}));
+            assert_eq!(paths(&v), ["src/a.py", "src/ab.py"], "{dir}: {v}");
+        }
+        // A file and the change's own version of it.
+        let ch = call(
+            &url,
+            "apply",
+            json!({"agent": "a", "intent": "x", "edits": [{"path": "src/a.py", "content": "class B:\n"}]}),
+        );
+        let at = ch["id"].as_str().unwrap();
+        let v = call(&url, "grep", json!({"pattern": "class", "path": "src/a.py", "at": at, "index": index}));
+        assert_eq!(v["matches"][0]["text"], "class B:", "{v}");
+        call(&url, "abandon", json!({"change": at}));
+        // A path that names nothing says so; a real path without matches does not.
+        let v = call(&url, "grep", json!({"pattern": "class", "path": "src/nope.py", "index": index}));
+        assert!(v["note"].as_str().unwrap().contains("no file or directory src/nope.py"), "{v}");
+        let v = call(&url, "grep", json!({"pattern": "zzz", "path": "src/a.py", "index": index}));
+        assert!(v.get("note").is_none(), "{v}");
+    }
+}
+
+#[test]
+fn read_takes_several_ranges_and_several_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let url = serve(tmp.path());
+    let v = call(&url, "read", json!({"path": "f00.txt", "ranges": [[2, 3], [10, 10], [29, 1000]]}));
+    assert_eq!(
+        v["ranges"],
+        json!([
+            {"lines": [2, 3], "content": lines(2, 3)},
+            {"lines": [10, 10], "content": lines(10, 10)},
+            {"lines": [29, 30], "content": lines(29, 30)},
+        ]),
+        "{v}"
+    );
+    assert_eq!(v["total_lines"], 30);
+    assert!(v.get("content").is_none() && v.get("lines").is_none(), "{v}");
+    assert!(fails(&url, json!({"path": "f00.txt", "ranges": [[1, 2]], "start": 1})).contains("not both"));
+    assert!(fails(&url, json!({"path": "f00.txt", "ranges": [[40, 41]]})).contains("past the end"));
+
+    let v = call(
+        &url,
+        "read",
+        json!({"files": [{"path": "f00.txt", "start": 5, "end": 6}, {"path": "nope.txt"}, {"path": "f00.txt", "ranges": [[1, 1], [30, 30]]}, {"path": "blob.bin"}]}),
+    );
+    let f = v["files"].as_array().unwrap();
+    assert_eq!(f.len(), 4, "{v}");
+    assert_eq!((f[0]["content"].clone(), f[0]["lines"].clone()), (json!(lines(5, 6)), json!([5, 6])));
+    assert!(f[1]["error"].as_str().unwrap().contains("no such file nope.txt"), "{v}");
+    assert_eq!(f[2]["ranges"][1]["content"], lines(30, 30));
+    assert!(f[3].get("content_b64").is_some(), "{v}");
+    // Files without a range share max_bytes.
+    let one = lines(1, 1).len();
+    let v = call(&url, "read", json!({"files": [{"path": "f00.txt"}, {"path": "f00.txt"}], "max_bytes": one * 4}));
+    assert_eq!(v["files"][1]["content"], lines(1, 2), "{v}");
+    assert!(fails(&url, json!({"files": [{"path": "f00.txt"}], "path": "f00.txt"})).contains("path or files"));
+    assert!(fails(&url, json!({"files": [{"path": "f00.txt"}], "start": 1})).contains("per file"));
+    assert!(fails(&url, json!({})).contains("read needs path"));
+    assert!(fails(&url, json!({"files": []})).contains("1 to 20"));
+}

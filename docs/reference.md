@@ -29,7 +29,15 @@ is the byte size of the whole file, also for a range. A range from line 1 of an 
 `content` with `lines` `[1, 0]`; `at` may be a change id, so a range reads the change's own lines.
 `max_bytes` (no range) returns only the first whole lines up to that size with `truncated: true`,
 `lines` and a `note`; MCP clients get 50 KiB when they give neither a range nor `max_bytes`.
+`ranges` (several `[start, end]`) reads several ranges of the file in one call (reply `ranges`: `lines`
+and `content` each); `files` (up to 20 `{path, start?, end?, ranges?}`, instead of `path`) reads several
+files in one call (reply `files`: one read reply each, or `{path, error}` for a file that fails; files
+without a range share `max_bytes`).
 `grep` matches per line: `^` and `$` anchor at each line (`\r\n` counts as one line end). It takes `context` (0 to 20): each match gets `before` and `after` line arrays.
+Its `path` is a file or a directory; a `path` that names neither gets an empty `matches` and a `note`.
+A `replace` whose `old` text is missing fails the whole `apply` (nothing applied) and names every edit
+that missed (`edit i of n`), each with the closest text of the file as the change holds it (best match
+of the old text by lines, 3 lines of context, `lines a-b`; 4 KB in all), so one retry can fix them.
 
 `land` answers with one of six statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review
