@@ -63,6 +63,8 @@ MIX = ["claude", "claude", "claude", "codex", "codex"]
 LIMITS = {"max_turns": 80, "max_tokens": 4_000_000, "timeout_s": 1800, "claude_budget_usd": 3.0}
 HEALTH_EVERY_S = 2.0
 
+# The hand-back texts of preregistration v3 (section 6). Kept for reference: the runner now gives the
+# same file-editing hand-back in every arm (`HANDBACK`, `handback_text`); a run file records its sha256.
 HANDBACK_A = (
     "Your branch `{branch}` does not merge cleanly into `main`: git reports a conflict. Run `git merge main` "
     "in this directory, resolve every conflict so that your work and the work on `main` are both kept, "
@@ -325,7 +327,7 @@ def apply_patch(tree, patch, check=True):
     return git("apply", "--whitespace=nowarn", str(patch), cwd=tree, check=check)
 
 
-def validate(scratch, repos):
+def validate(scratch, repos, out_dir=None):
     lines, ok_all = [], True
     for repo in repos:
         rev = REPOS[repo]["rev"]
@@ -375,9 +377,10 @@ def validate(scratch, repos):
     lines.append(f"tasks that fail on the pin and pass with the reference: {n}/{TASK_TOTAL}")
     lines.append("validate: " + ("ok" if ok_all else "FAILED"))
     text = "\n".join(lines) + "\n"
-    RESULTS.mkdir(exist_ok=True)
+    out_dir = Path(out_dir or RESULTS)
+    out_dir.mkdir(parents=True, exist_ok=True)
     if set(repos) == set(REPOS):
-        (RESULTS / "validate.txt").write_text(text)
+        (out_dir / "validate.txt").write_text(text)
     print(text, end="")
     return ok_all
 
@@ -795,10 +798,20 @@ def emit(ev):
 
 
 def tool(cmd, cwd, env=None):
-    emit({"type": "tool_use", "name": cmd[0] if cmd[0] != str(treeyard_bin()) else "treeyard " + cmd[1]})
+    """One tool call of a scripted agent: `tool_use` and `tool_result` events (the reply in full for a
+    treeyard command, so that the warning metrics read it as they read a real agent's MCP replies)."""
+    is_ty = Path(cmd[0]).name.startswith("treeyard")
+    emit({"type": "tool_use", "name": "treeyard " + cmd[1] if is_ty else Path(cmd[0]).name, "cmd": [Path(cmd[0]).name, *cmd[1:]]})
     r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
-    emit({"type": "tool_result", "exit": r.returncode, "out": (r.stdout + r.stderr)[-400:]})
+    ev = {"type": "tool_result", "exit": r.returncode, "out": (r.stdout + r.stderr)[-400:]}
+    if is_ty:
+        ev["reply"] = r.stdout
+    emit(ev)
     return r
+
+
+def ctx_bin(c):
+    return c.get("treeyard") or str(treeyard_bin())
 
 
 def agent_noop(ctx, k):
@@ -807,7 +820,7 @@ def agent_noop(ctx, k):
     if c["arm"] == "A":
         tool(["git", "status", "--short"], c["agents"][k - 1]["cwd"])
     else:
-        tool([str(treeyard_bin()), "workspace", "status", c["agents"][k - 1]["workspace"], "--url", c["url"], "--home", c["home"]],
+        tool([ctx_bin(c), "workspace", "status", c["agents"][k - 1]["workspace"], "--url", c["url"], "--home", c["home"]],
              c["agents"][k - 1]["cwd"])
     emit({"type": "usage", "input_tokens": 0, "output_tokens": 0, "cost_usd": 0})
 
@@ -822,23 +835,20 @@ def agent_oracle(ctx, k, resume=False):
     cwd = a["cwd"]
     emit({"type": "turn"})
     resolved = td / f"resolved-{k}.patch"
-    if c["arm"] == "A":
+    if c["arm"] in ("A", "A2"):
         if not resume:
             tool(["git", "apply", str(td / "reference.patch")], cwd)
+            if c["arm"] == "A2":
+                return oracle_integrate(c, k, td, cwd)
             tool(["git", "add", "-A"], cwd)
-            tool(["git", "-c", "user.name=oracle", "-c", "user.email=oracle@example.com", "commit", "-q", "-m", a["title"]], cwd)
+            tool(["git", "commit", "-q", "-m", a["title"]], cwd)
             return
-        tool(["git", "-c", "user.name=oracle", "-c", "user.email=oracle@example.com", "merge", "-q", "--no-edit", "main"], cwd)
-        meta_ = meta(td)
-        for f in meta_["files"]:
-            show = subprocess.run(["git", "show", f"main:{f}"], cwd=cwd, capture_output=True, text=True)
-            Path(cwd, f).write_text(show.stdout)
-        tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], cwd)
-        tool(["git", "add", "-A"], cwd)
-        tool(["git", "-c", "user.name=oracle", "-c", "user.email=oracle@example.com", "commit", "-q", "--no-edit", "-m", "merge main"], cwd)
+        # The hand-back: the runner left main's work and this task's in the files, with markers.
+        # The oracle writes main's content of its files plus its resolved patch, and stops.
+        oracle_resolve(td, k, cwd)
         return
-    ty = str(treeyard_bin())
-    base = [ "--url", c["url"], "--home", c["home"]]
+    ty = ctx_bin(c)
+    base = ["--url", c["url"], "--home", c["home"]]
     name = a["workspace"]
     tool(["git", "apply", str(td / "reference.patch")], cwd)
     r = tool([ty, "workspace", "sync", name, *base], cwd)
@@ -872,10 +882,140 @@ def agent_oracle(ctx, k, resume=False):
     emit({"type": "note", "land_status": "gave up"})
 
 
+def oracle_resolve(td, k, cwd):
+    resolved = td / f"resolved-{k}.patch"
+    for f in meta(td)["files"]:
+        show = subprocess.run(["git", "show", f"main:{f}"], cwd=cwd, capture_output=True, text=True)
+        Path(cwd, f).write_text(show.stdout)
+    tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], cwd)
+
+
+def oracle_integrate(c, k, td, cwd):
+    """Arm A2: integrates in the fixed oracle order 1 to 5 with `t2-integrate`; on its conflict writes
+    main + resolved-k.patch into the files and integrates again."""
+    landed_dir = Path(c["run_dir"]) / "landed"
+    while not all((landed_dir / str(j)).exists() for j in range(1, k)):
+        time.sleep(0.2)
+    for _ in range(3):
+        r = tool(["t2-integrate"], cwd)
+        if r.returncode == 0:
+            landed_dir.mkdir(exist_ok=True)
+            (landed_dir / str(k)).write_text("")
+            return
+        oracle_resolve(td, k, cwd)
+    emit({"type": "note", "integrate": "gave up"})
+
+
+class StubTalk:
+    """The transcript dialect of a stub agent (T2_STUB_AS per slot: stub, claude or codex), so that the
+    runner's parser and resume path of each real harness are exercised without a model."""
+
+    def __init__(self, dialect, k, resume):
+        self.d, self.k, self.n = dialect, k, 0
+        sid = f"stub-session-{k}"
+        if self.d == "claude":
+            emit({"type": "system", "subtype": "init", "session_id": sid, "model": "stub-model"})
+        elif self.d == "codex":
+            emit({"type": "thread.started", "thread_id": sid})
+            emit({"type": "turn.started"})
+
+    def call(self, cmd, cwd):
+        self.n += 1
+        if self.d == "stub":
+            return tool(cmd, cwd)
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        out = r.stdout + r.stderr
+        if self.d == "claude":
+            tid = f"tu-{self.k}-{self.n}"
+            emit({"type": "assistant", "message": {"id": f"msg-{self.k}-{self.n}", "model": "stub-model", "content": [
+                {"type": "tool_use", "id": tid, "name": "Bash", "input": {"command": " ".join(cmd)}}],
+                "usage": {"input_tokens": 10, "output_tokens": 1}}})
+            emit({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": tid, "content": out, "is_error": r.returncode != 0}]}})
+        else:
+            emit({"type": "item.started", "item": {"type": "command_execution", "command": " ".join(cmd)}})
+            emit({"type": "item.completed", "item": {"type": "command_execution", "command": " ".join(cmd), "exit_code": r.returncode,
+                                                      "aggregated_output": out, "status": "completed"}})
+        return r
+
+    def noop(self):
+        if self.d == "stub":
+            emit({"type": "turn"})
+            emit({"type": "tool_use", "name": "noop"})
+        else:
+            self.call(["true"], ".")
+
+    def end(self):
+        if self.d == "claude":
+            emit({"type": "result", "session_id": f"stub-session-{self.k}", "num_turns": self.n, "total_cost_usd": 0.0,
+                  "usage": {"input_tokens": 10 * self.n, "output_tokens": self.n}})
+        elif self.d == "codex":
+            emit({"type": "turn.completed", "usage": {"input_tokens": 10 * self.n, "cached_input_tokens": 0, "output_tokens": self.n}})
+
+
+def stub_resolve(cwd, keep_markers=False):
+    """Settles every marked block under `cwd`: main's lines, then the change's lines."""
+    for f in sorted(Path(cwd).rglob("*.txt")):
+        text = f.read_text()
+        if not has_marker_text(text):
+            continue
+        if keep_markers:
+            f.write_text(text + "edited\n")
+            continue
+        f.write_text(re.sub(r"^<<<<<<< [^\n]*\n(.*?)^=======\n(.*?)^>>>>>>> [^\n]*\n", lambda m: m.group(1) + m.group(2),
+                            text, flags=re.S | re.M))
+
+
 def agent_stub(ctx, k, resume=False):
-    """Scripted misbehaviour for the stop tests; the mode comes from T2_STUB_MODES (comma list per slot)."""
+    """Scripted misbehaviour for the stop tests; the mode comes from T2_STUB_MODES (comma list per slot).
+
+    Hand-back modes (both arms): `edit-conflict` (rewrites line 1 of a.txt; arm A commits, arm B syncs
+    its workspace; on the hand-back it does nothing), `conflict-resolve` (on the hand-back it settles the
+    markers), `conflict-markers` (on the hand-back it edits the file but leaves the markers),
+    `mcp-conflict` (arm B: the edit goes into its own `open_change` + `apply` change; on the hand-back it
+    settles the markers on disk). `integrate` (arm A2): edits line 1, runs `t2-integrate`, settles a
+    conflict and runs it again."""
     modes = os.environ.get("T2_STUB_MODES", "ok,ok,ok,ok,ok").split(",")
     mode = modes[k - 1] if k - 1 < len(modes) else "ok"
+    dialects = os.environ.get("T2_STUB_AS", "").split(",")
+    dialect = dialects[k - 1] if k - 1 < len(dialects) and dialects[k - 1] else "stub"
+    if mode in ("edit-conflict", "conflict-resolve", "conflict-markers", "mcp-conflict", "integrate"):
+        c = json.loads(Path(ctx).read_text())
+        a = c["agents"][k - 1]
+        cwd = a["cwd"]
+        talk = StubTalk(dialect, k, resume)
+        if resume:
+            for f in sorted(Path(cwd).glob("*.txt")):
+                if has_marker_text(f.read_text()):
+                    emit({"type": "note", "handback_file": f.read_text()})
+            if mode in ("conflict-resolve", "mcp-conflict"):
+                stub_resolve(cwd)
+            elif mode == "conflict-markers":
+                stub_resolve(cwd, keep_markers=True)
+            talk.noop()
+            talk.end()
+            return
+        f = Path(cwd) / "a.txt"
+        if mode == "mcp-conflict":
+            ty = ctx_bin(c)
+            ch = json.loads(talk.call([ty, "call", "--url", c["url"], "open_change", json.dumps({"intent": f"stub {k}", "agent": a["agent"]})], cwd).stdout)
+            talk.call([ty, "call", "--url", c["url"], "apply", json.dumps({"change": ch["id"], "edits": [
+                {"path": "a.txt", "replace": {"old": "line 1\n", "new": f"agent {k}\n"}}]})], cwd)
+            talk.end()
+            return
+        lines = f.read_text().splitlines(True)
+        lines[0] = f"agent {k}\n"
+        f.write_text("".join(lines))
+        if c["arm"] == "A":
+            talk.call(["git", "commit", "-q", "-am", f"stub {k}"], cwd)
+        elif c["arm"] == "A2":
+            for _ in range(3):
+                if talk.call(["t2-integrate"], cwd).returncode == 0:
+                    break
+                stub_resolve(cwd)
+        else:
+            talk.call([ctx_bin(c), "workspace", "sync", a["workspace"], "--url", c["url"], "--home", c["home"]], cwd)
+        talk.end()
+        return
     if mode == "ok" or resume:
         emit({"type": "turn"})
         emit({"type": "tool_use", "name": "noop"})
@@ -898,15 +1038,6 @@ def agent_stub(ctx, k, resume=False):
     elif mode == "no-tools":
         emit({"type": "turn"})
         emit({"type": "usage", "input_tokens": 10, "output_tokens": 10})
-    elif mode == "edit-conflict":
-        # Arm A only: every agent rewrites line 1 and commits, so the merges conflict; on the
-        # hand-back it does nothing, so the runner must step in.
-        cwd = json.loads(Path(ctx).read_text())["agents"][k - 1]["cwd"]
-        f = Path(cwd) / "a.txt"
-        lines = f.read_text().splitlines(True)
-        lines[0] = f"agent {k}\n"
-        f.write_text("".join(lines))
-        tool(["git", "-c", "user.name=stub", "-c", "user.email=stub@example.com", "commit", "-q", "-am", f"stub {k}"], cwd)
     elif mode == "slow-ok":
         emit({"type": "turn"})
         emit({"type": "tool_use", "name": "noop"})
@@ -1020,7 +1151,7 @@ def user_config_hashes():
 
 class Run:
     def __init__(self, scratch, arm, repo, s, rep, harness, limits=None, agents=None, tasks_dir=None, repo_spec=None,
-                 run_dir=None, health_url=None, results=None, block_file=None):
+                 run_dir=None, health_url=None, results=None, block_file=None, agent_root=None):
         self.scratch, self.arm, self.repo, self.set, self.rep, self.harness = scratch, arm, repo, s, rep, harness
         self.limits = dict(LIMITS, **(limits or {}))
         self.n_agents = AGENTS if agents is None else agents
@@ -1032,8 +1163,10 @@ class Run:
         if self.block_file:
             self.name += f"-{self.block_file.stem}"
         self.run_dir = run_dir or scratch / "t2" / "runs" / self.name
-        self.results = results or RESULTS
+        self.results = Path(results) if results else RESULTS
+        self.agent_root_arg = Path(agent_root) if agent_root else None
         self.health_url = health_url
+        self.ty = treeyard_bin()
         self.registry = {}
         self.stop_reason = None
         self.log = []
@@ -1074,9 +1207,9 @@ class Run:
         tasks = tasks[: self.n_agents]
         self.agents = []
         counts = {}
-        ctx = {"arm": self.arm, "run_dir": str(self.run_dir), "agents": []}
+        ctx = {"arm": self.arm, "run_dir": str(self.run_dir), "agents": [], "treeyard": str(self.ty)}
         if self.arm == "B":
-            ty = treeyard_bin()
+            ty = self.ty
             r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(AGENTS), "--no-mirror"], cwd=self.repo_dir)
             self.note("connect: " + r.stdout.strip().splitlines()[0])
             st = json.loads(sh([str(ty), "connect", "status", "--json"], cwd=self.repo_dir).stdout)
@@ -1115,7 +1248,7 @@ class Run:
                 a["cwd"] = str(wt)
             else:
                 env = dict(os.environ, TREEYARD_HOME=str(self.home))
-                r = sh([str(treeyard_bin()), "workspace-hook", "create", "--name", f"agent-{k}", "--agent", agent,
+                r = sh([str(self.ty), "workspace-hook", "create", "--name", f"agent-{k}", "--agent", agent,
                         "--intent", m["title"], "--url", self.url, "--home", str(self.home)], cwd=self.repo_dir, env=env)
                 a["cwd"] = r.stdout.strip().splitlines()[-1]
                 a["workspace"] = f"agent-{k}"
@@ -1127,7 +1260,7 @@ class Run:
         if len(self.agents) != AGENTS:
             raise Stop(f"agent count {len(self.agents)}, want {AGENTS}")
         if self.arm == "B":
-            wss = json.loads(sh([str(treeyard_bin()), "call", "--url", self.url, "changes", "{}"]).stdout)
+            wss = json.loads(sh([str(self.ty), "call", "--url", self.url, "changes", "{}"]).stdout)
             n_open = len(wss.get("changes", wss) if isinstance(wss, dict) else wss)
             if n_open != AGENTS:
                 raise Stop(f"agent count: {n_open} open changes after setup, want {AGENTS}")
@@ -1142,7 +1275,12 @@ class Run:
         h = a["harness"]
         if h in ("oracle", "noop", "stub"):
             extra = ["--resume"] if resume_msg else []
-            return script_cmd(h, self.ctx, a["k"], extra), dict(os.environ), "script" if h != "stub" else "stub"
+            parser = "script"
+            if h == "stub":
+                dialects = os.environ.get("T2_STUB_AS", "").split(",")
+                d = dialects[a["k"] - 1] if a["k"] - 1 < len(dialects) else ""
+                parser = d if d in ("claude", "codex") else "stub"
+            return script_cmd(h, self.ctx, a["k"], extra), dict(os.environ), parser
         cmd, env = real_command(h, self.prompt(a), a, self.ctx_data, self.run_dir, self.limits, resume_msg, session)
         return cmd, env, h
 
@@ -1208,54 +1346,134 @@ class Run:
         # Three dots: from the merge base, so only the agent's own work counts (not the reverse of main's).
         return git("diff", f"{onto}...agent-{k}", cwd=self.repo_dir).stdout
 
+    def merging(self, wt):
+        return git("rev-parse", "-q", "--verify", "MERGE_HEAD", cwd=wt, check=False).returncode == 0
+
     def finalize_a(self):
+        """Arm A and A2: merges agent-1..5 into main in slot order (`git merge --no-ff`). On a conflict
+        the hand-back (`handback_a`): the agent's worktree gets the conflict as files with markers, the
+        agent edits them, the runner checks and commits. When that fails the agent's work stays out of
+        main (`needs_human`); nothing is resolved by taking one side."""
         merges, interventions = [], 0
         for a in self.agents:
-            k = a["k"]
-            wt = a["cwd"]
-            if git("status", "--porcelain", cwd=wt).stdout.strip():
-                git("add", "-A", cwd=wt)
-                git("commit", "-q", "-m", f"agent-{k}: work left in the worktree", cwd=wt)
+            k, wt = a["k"], a["cwd"]
+            rec = {"k": k, "conflict": False, "conflict_files": [], "handback": None, "needs_human": False,
+                   "intervention": False, "left_out": False, "errors": []}
+            if self.merging(wt):  # an A2 agent stopped inside an integration conflict
+                git("merge", "--abort", cwd=wt, check=False)
+                rec["aborted_open_merge"] = True
+            rec["skipped_paths"] = self.commit_work(wt, f"agent-{k}: work left in the worktree")
             onto = git("rev-parse", "main", cwd=self.repo_dir).stdout.strip()
-            rec = {"k": k, "conflict": False, "handback": None, "intervention": False}
-            r = git("merge", "-q", "--no-ff", "--no-edit", f"agent-{k}", cwd=self.repo_dir, check=False)
-            if r.returncode != 0:
-                rec["conflict"] = True
-                rec["conflict_files"] = conflict_files(self.repo_dir)
-                git("merge", "--abort", cwd=self.repo_dir, check=False)
-                # One hand-back to the agent, within its limits.
-                self.run_agents([a], resume={k: HANDBACK_A.format(branch=f"agent-{k}")})
-                if git("status", "--porcelain", cwd=wt).stdout.strip():
-                    git("add", "-A", cwd=wt)
-                    git("commit", "-q", "-m", f"agent-{k}: work left after the hand-back", cwd=wt)
-                r2 = git("merge", "-q", "--no-ff", "--no-edit", f"agent-{k}", cwd=self.repo_dir, check=False)
-                markers = has_markers(self.repo_dir) if r2.returncode == 0 else True
-                rec["handback"] = "resolved" if r2.returncode == 0 and not markers else "failed"
-                if r2.returncode != 0 or markers:
-                    if r2.returncode != 0:
-                        git("merge", "--abort", cwd=self.repo_dir, check=False)
-                    else:
-                        git("reset", "-q", "--hard", onto, cwd=self.repo_dir)
-                    # The stand-in for a person: take the agent's side of every conflicting hunk.
-                    interventions += 1
-                    rec["intervention"] = True
-                    r3 = git("merge", "-q", "--no-ff", "--no-edit", "-X", "theirs", f"agent-{k}", cwd=self.repo_dir, check=False)
-                    if r3.returncode != 0:
-                        git("checkout", "--theirs", "--", ".", cwd=self.repo_dir, check=False)
-                        git("add", "-A", cwd=self.repo_dir)
-                        git("commit", "-q", "--no-edit", cwd=self.repo_dir, check=False)
+            if git("merge-base", "--is-ancestor", f"agent-{k}", "main", cwd=self.repo_dir, check=False).returncode == 0:
+                rec["status"] = "on main" if git("rev-parse", f"agent-{k}", cwd=self.repo_dir).stdout.strip() != self.base else "no work"
+            else:
+                r = git("merge", "-q", "--no-ff", "--no-edit", f"agent-{k}", cwd=self.repo_dir, check=False)
+                if r.returncode == 0:
+                    rec["status"] = "merged"
+                else:
+                    rec["conflict"] = True
+                    rec["conflict_files"] = conflict_files(self.repo_dir)
+                    rec["errors"].append(tail(r.stdout + r.stderr))
+                    git("merge", "--abort", cwd=self.repo_dir, check=False)
+                    ok, why = self.handback_a(a, rec)
+                    if ok:
+                        r2 = git("merge", "-q", "--no-ff", "--no-edit", f"agent-{k}", cwd=self.repo_dir, check=False)
+                        if r2.returncode != 0:
+                            ok, why = False, "merge after the hand-back failed: " + tail(r2.stdout + r2.stderr)
+                            git("merge", "--abort", cwd=self.repo_dir, check=False)
+                    rec["handback"] = "resolved" if ok else "failed"
+                    rec["status"] = "merged" if ok else "left out"
+                    if not ok:
+                        rec["handback_failure"] = why
+                        rec.update(needs_human=True, intervention=True, left_out=True)
+                        interventions += 1
             rec["own_diff"] = self.own_diff_a(k, onto)
             merges.append(rec)
         return merges, interventions
 
+    def prepare_conflict_a(self, wt):
+        """Merges main into the agent's branch in its worktree (`--no-commit`) and writes each conflicted
+        file with the markers of arm B: `<<<<<<< main`, `=======`, `>>>>>>> change` (main first, no base
+        section; `git merge-file` on the index stages). Returns {path: prepared text} ({} = merged clean)."""
+        r = git("merge", "--no-ff", "--no-commit", "main", cwd=wt, check=False)
+        if r.returncode == 0:
+            return {}
+        stages = {}
+        for line in git("ls-files", "-u", "-z", cwd=wt).stdout.split("\0"):
+            if not line.strip():
+                continue
+            meta_, path = line.split("\t", 1)
+            _, blob, stage = meta_.split()
+            stages.setdefault(path, {})[int(stage)] = blob
+        out = {}
+        tmp = self.run_dir / "tmp"
+        tmp.mkdir(exist_ok=True)
+        for path, st in sorted(stages.items()):
+            f = Path(wt) / path
+            if 2 in st and 3 in st:
+                files = []
+                for n, stage in (("main", 3), ("base", 1), ("change", 2)):
+                    p = tmp / f"merge-{n}"
+                    p.write_bytes(git_bytes(["cat-file", "blob", st[stage]], wt) if stage in st else b"")
+                    files.append(str(p))
+                m = subprocess.run(["git", "merge-file", "-p", "--diff-algorithm=histogram", "-L", "main", "-L", "base", "-L", "change", *files],
+                                   capture_output=True)
+                f.write_bytes(m.stdout)
+            out[path] = f.read_text(errors="replace") if f.is_file() else None
+        return out
+
+    def handback_a(self, a, rec):
+        """One hand-back (section 6 of the preregistration, file mechanics). Returns (ok, why)."""
+        k, wt = a["k"], a["cwd"]
+        prepared = self.prepare_conflict_a(wt)
+        rec["handback_files"] = sorted(prepared)
+        if prepared:
+            self.run_agents([a], resume={k: handback_text(sorted(prepared))})
+        if self.merging(wt):
+            left = [p for p in prepared if (Path(wt) / p).is_file() and has_marker_text((Path(wt) / p).read_text(errors="replace"))]
+            if left:
+                git("merge", "--abort", cwd=wt, check=False)
+                return False, "conflict markers left in " + ", ".join(left)
+            self.commit_work(wt, f"agent-{k}: merge main (hand-back)", extra=list(prepared))
+            if self.merging(wt):
+                why = "the merge commit failed"
+                git("merge", "--abort", cwd=wt, check=False)
+                return False, why
+        else:
+            self.commit_work(wt, f"agent-{k}: work left after the hand-back")
+        if git("merge-base", "--is-ancestor", "main", f"agent-{k}", cwd=self.repo_dir, check=False).returncode != 0:
+            return False, "main is not merged into the branch after the hand-back"
+        added = git("diff", "main", f"agent-{k}", cwd=self.repo_dir).stdout
+        if re.search(r"^\+(<<<<<<<|>>>>>>>)( |$)", added, re.M):
+            return False, "the branch holds conflict markers"
+        return True, None
+
+    def commit_work(self, wt, message, extra=()):
+        """Commits what the agent changed in `wt` under the commit rule (`commit_paths`); returns the
+        paths that the rule kept out. `extra` paths (conflicted ones) are always staged."""
+        paths, skipped = commit_paths(wt, self.tracked_at_pin())
+        paths = sorted(set(paths) | set(extra))
+        for i in range(0, len(paths), 200):
+            git("add", "-A", "--", *paths[i:i + 200], cwd=wt)
+        for i in range(0, len(skipped), 200):  # staged by the agent itself: out of the index again
+            git("rm", "-q", "--cached", "--ignore-unmatch", "--", *skipped[i:i + 200], cwd=wt, check=False)
+        if paths or self.merging(wt):
+            git("commit", "-q", "--no-verify", "-m", message, cwd=wt, check=False)
+        return skipped
+
+    def tracked_at_pin(self):
+        if getattr(self, "_tracked", None) is None:
+            self._tracked = set(git("ls-tree", "-r", "-z", "--name-only", self.base, cwd=self.repo_dir).stdout.split("\0")) - {""}
+        return self._tracked
+
     # -------------------------------------------------------------- finalize, arm B
 
     def call(self, op, args):
-        r = sh([str(treeyard_bin()), "call", "--url", self.url, op, json.dumps(args)], check=False)
+        r = sh([str(self.ty), "call", "--url", self.url, op, json.dumps(args)], check=False)
         try:
             return json.loads(r.stdout)
         except ValueError:
-            return {"error": (r.stdout + r.stderr)[-400:]}
+            return {"error": tail(r.stdout + r.stderr, 400)}
 
     def changes_of(self, agent):
         out = []
@@ -1266,43 +1484,134 @@ class Run:
                     out.append(ch)
         return out
 
+    def land_b(self, a, cid, is_ws):
+        """One land by the runner: the workspace change through `workspace land` (it syncs first and, on a
+        conflict, writes the markers into the workspace), any other change through `land`."""
+        if is_ws:
+            r = sh([str(self.ty), "workspace", "land", a["workspace"], "--wait-s", "0", "--url", self.url, "--home", str(self.home)], check=False)
+            try:
+                d = json.loads(r.stdout)
+                land = d.get("land") or {"status": "error", "error": tail(r.stdout + r.stderr, 600)}
+            except ValueError:
+                land = {"status": "error", "error": tail(r.stdout + r.stderr, 600)}
+        else:
+            land = self.call("land", {"change": cid})
+        status = land.get("status") or "error"
+        if status == "error" and re.search(r"\bis empty\b", str(land.get("error") or "")):
+            status = "empty"  # an idle change (the agent's work went through another change)
+        rec = {"change": cid, "workspace": is_ws, "status": status}
+        if status not in ("landed", "conflict", "already_on_main"):
+            rec["error"] = land.get("error") or land.get("detail") or tail(json.dumps(land), 600)
+        return rec
+
     def finalize_b(self):
+        """Arm B: lands every open change of each agent in slot order. On a conflict the hand-back
+        (`handback_b`) with the same file mechanics as arm A; when it fails the change stays open and
+        out of main (`needs_human`)."""
         lands, interventions = [], 0
-        ty = str(treeyard_bin())
         for a in self.agents:
             k = a["k"]
-            rec = {"k": k, "conflict": False, "handback": None, "intervention": False, "runner_landed": []}
+            rec = {"k": k, "conflict": False, "handback": None, "needs_human": False, "intervention": False,
+                   "runner_landed": [], "left_out": []}
+            rec["skipped_paths"] = self.clean_workspace(a)
             for ch in [c for c in self.changes_of(a["agent"]) if c.get("state") == "open"]:
                 cid = ch["id"]
                 is_ws = ch.get("session") == f"workspace:{a['workspace']}"
-                if is_ws:
-                    r = sh([ty, "workspace", "land", a["workspace"], "--wait-s", "0", "--url", self.url, "--home", str(self.home)], check=False)
-                    try:
-                        land = json.loads(r.stdout).get("land") or {}
-                    except ValueError:
-                        land = {"status": "error", "detail": (r.stdout + r.stderr)[-300:]}
-                else:
-                    land = self.call("land", {"change": cid})
-                status = land.get("status") or land.get("error", "error")
-                rec["runner_landed"].append({"change": cid, "status": status})
-                if status == "conflict":
-                    rec["conflict"] = True
-                    self.run_agents([a], resume={k: HANDBACK_B.format(name=a["workspace"], url=self.url)})
-                    if self.call("change", {"change": cid}).get("state") != "landed":
-                        if is_ws:
-                            sh([ty, "workspace", "land", a["workspace"], "--wait-s", "0", "--url", self.url, "--home", str(self.home)], check=False)
-                    info = self.call("change", {"change": cid})
-                    if info.get("state") == "landed":
-                        rec["handback"] = "resolved"
-                    else:
-                        rec["handback"] = "failed"
+                lr = self.land_b(a, cid, is_ws)
+                rec["runner_landed"].append(lr)
+                if lr["status"] != "conflict":
+                    continue
+                rec["conflict"] = True
+                ok, why = self.handback_b(a, cid, is_ws, rec)
+                rec["handback"] = "resolved" if ok and rec["handback"] != "failed" else "failed"
+                if not ok:
+                    rec.setdefault("handback_failure", []).append(f"{cid}: {why}")
+                    rec["left_out"].append(cid)
+                    if not rec["needs_human"]:
                         interventions += 1
-                        rec["intervention"] = True
-                        for cf in info.get("conflicts") or []:
-                            self.call("resolve", {"change": cid, "path": cf["path"], "take": "ours"})
-                        rec["runner_landed"].append({"change": cid, "status": self.call("land", {"change": cid}).get("status")})
+                    rec.update(needs_human=True, intervention=True)
             lands.append(rec)
         return lands, interventions
+
+    def handback_b(self, a, cid, is_ws, rec):
+        """The arm B hand-back: the conflicted paths of the change, as the server holds them (text with
+        `<<<<<<< main` / `>>>>>>> change` markers), are files in the agent's workspace directory; the agent
+        edits them; the runner writes them into the change with `apply` and lands. For a change other
+        than the workspace change the runner puts the workspace files back afterwards. A path that the
+        agent left as prepared but settled through its own tools is taken from the server."""
+        k, cwd = a["k"], Path(a["cwd"])
+        info = self.call("change", {"change": cid})
+        paths = sorted({c["path"] for c in info.get("conflicts") or [] if c.get("path")})
+        prepared, saved = {}, {}
+        for p in paths:
+            text = self.call("read", {"path": p, "at": cid}).get("content")
+            f = cwd / p
+            if not is_ws:
+                saved[p] = f.read_bytes() if f.is_file() else None
+            if text is not None:
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(text)
+            prepared[p] = text
+        rec.setdefault("handback_files", []).extend(paths)
+        if paths:
+            self.run_agents([a], resume={k: handback_text(paths)})
+        final = {}
+        for p in paths:
+            f = cwd / p
+            disk = f.read_text(errors="replace") if f.is_file() else None
+            server = self.call("read", {"path": p, "at": cid}).get("content")
+            if disk != prepared[p]:
+                final[p] = disk
+            elif server is not None and not has_marker_text(server):
+                final[p] = server
+            else:
+                final[p] = disk
+        for p, b in saved.items():
+            f = cwd / p
+            if b is None:
+                if f.exists():
+                    f.unlink()
+            else:
+                f.write_bytes(b)
+        left = [p for p, t in final.items() if t is None or has_marker_text(t)]
+        if left:
+            return False, "conflict markers left in " + ", ".join(left)
+        if final:
+            r = self.call("apply", {"change": cid, "edits": [{"path": p, "content": t} for p, t in final.items()]})
+            if "error" in r and not r.get("id") and not r.get("change"):
+                return False, "apply failed: " + str(r["error"])
+        land = self.call("land", {"change": cid})
+        rec["runner_landed"].append({"change": cid, "workspace": is_ws, "status": land.get("status") or "error",
+                                     **({} if land.get("status") == "landed" else {"error": tail(json.dumps(land), 600)})})
+        if land.get("status") != "landed":
+            return False, f"land after the hand-back: {land.get('status') or land.get('error')}"
+        return True, None
+
+    def clean_workspace(self, a):
+        """Arm B side of the commit rule: files that `commit_paths` keeps out of a commit in arm A (env,
+        lock and cache files that the pin does not track) are removed from the workspace before the runner
+        syncs it. Returns their paths."""
+        cwd = Path(a["cwd"])
+        tracked = self.tracked_at_pin()
+        tracked_dirs = {str(Path(t).parent) for t in tracked}
+        gone = []
+        for root, dirs, files in os.walk(cwd):
+            rel = Path(root).relative_to(cwd)
+            if rel.parts[:1] in ((".treeyard",), (".git",)):
+                dirs[:] = []
+                continue
+            for d in list(dirs):
+                p = str(rel / d) if str(rel) != "." else d
+                if kit_ignored(p, is_dir=True) and p not in tracked_dirs and not any(t.startswith(p + "/") for t in tracked):
+                    shutil.rmtree(Path(root) / d, ignore_errors=True)
+                    dirs.remove(d)
+                    gone.append(p + "/")
+            for fn in files:
+                p = str(rel / fn) if str(rel) != "." else fn
+                if p not in tracked and kit_ignored(p):
+                    (Path(root) / fn).unlink(missing_ok=True)
+                    gone.append(p)
+        return sorted(gone)
 
     def own_diffs_b(self):
         out = {}
@@ -1398,7 +1707,7 @@ class Run:
         finally:
             os.environ.pop("T2_DRY", None)
             if self.arm == "B" and (self.repo_dir / ".git" / "treeyard").exists():
-                sh([str(treeyard_bin()), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
+                sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
         return lines
 
     # -------------------------------------------------------------- the whole run
@@ -1445,7 +1754,7 @@ class Run:
         finally:
             kill_all(self.registry)
             if self.arm == "B" and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
-                sh([str(treeyard_bin()), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
+                sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
             for p in (self.run_dir / "home").glob("*/auth.json") if (self.run_dir / "home").exists() else []:
                 p.unlink()
         result["agent_stats"] = [{"k": a["k"], "harness": a["harness"], "invocations": a.get("invocations", 0),
@@ -1482,6 +1791,76 @@ def parse_codex_config(repo):
     args = json.loads(re.search(r"^args = (\[.*\])$", text, re.M).group(1))
     url = re.search(r'^TREEYARD_URL = "(.*)"$', text, re.M).group(1)
     return cmd, args, url
+
+
+def tail(text, n=2000):
+    return (text or "")[-n:]
+
+
+def git_bytes(args, cwd):
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, check=True).stdout
+
+
+MARKER_RE = re.compile(r"^(<<<<<<<|>>>>>>>)( |$)", re.M)
+
+
+def has_marker_text(text):
+    """A conflict start or end marker at the start of a line (`=======` alone is a heading underline)."""
+    return bool(MARKER_RE.search(text or ""))
+
+
+# Env, lock and cache files that agents' tools create. The commit rule (`commit_paths`) keeps them out
+# of the agent's commit when the pin does not track the path: a path the pinned commit tracks is always
+# committed, an untracked one only when the repository's ignore rules and this list both let it in.
+KIT_IGNORE_FILES = ("uv.lock", "poetry.lock", "Pipfile.lock", "pdm.lock", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+                    "bun.lockb", "Cargo.lock", ".coverage", ".DS_Store", "*.pyc", "*.pyo", "*.orig", "*.rej")
+KIT_IGNORE_DIRS = (".venv", "venv", ".tox", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".hypothesis",
+                   "node_modules", "target", ".cache", "*.egg-info", ".eggs", "build", "dist", ".t2")
+
+
+def kit_ignored(path, is_dir=False):
+    import fnmatch
+
+    parts = Path(path).parts
+    dirs = parts if is_dir else parts[:-1]
+    if any(fnmatch.fnmatch(d, pat) for d in dirs for pat in KIT_IGNORE_DIRS):
+        return True
+    return not is_dir and any(fnmatch.fnmatch(parts[-1], pat) for pat in KIT_IGNORE_FILES)
+
+
+def commit_paths(wt, tracked):
+    """(paths to stage, paths kept out) for the changes in worktree `wt` under the commit rule."""
+    out = git("status", "--porcelain=v1", "-z", "--untracked-files=all", cwd=wt).stdout.split("\0")
+    keep, skip = [], []
+    i = 0
+    while i < len(out):
+        e = out[i]
+        i += 1
+        if len(e) < 4:
+            continue
+        code, path = e[:2], e[3:]
+        if code[0] in "RC":  # a staged rename or copy: the source path follows
+            if i < len(out) and out[i]:
+                keep.append(out[i])
+            i += 1
+        if path in tracked or not kit_ignored(path):
+            keep.append(path)
+        else:
+            skip.append(path)
+    return keep, skip
+
+
+HANDBACK = (
+    "Your work conflicts with work that is already on main. The files listed below, in this directory, now hold "
+    "both versions with conflict markers: the lines between `<<<<<<< main` and `=======` are on main, the lines "
+    "between `=======` and `>>>>>>> change` are yours. Edit these files so that your work and the work on main are "
+    "both kept, and remove every marker. Edit the files only: do not merge, commit or land anything, the runner "
+    "does that when you stop.\n\nFiles: {files}"
+)
+
+
+def handback_text(paths):
+    return HANDBACK.format(files=", ".join(f"`{p}`" for p in paths))
 
 
 def conflict_files(tree):
@@ -1693,6 +2072,11 @@ def main(argv=None):
     for n in ("setup", "generate", "validate", "run", "rehearse", "pilot"):
         p = sub.add_parser(n)
         p.add_argument("--scratch", required=True, type=Path)
+        if n in ("validate", "run", "rehearse", "pilot"):
+            p.add_argument("--results", type=Path, help="where run files go (default: the kit's results/ or dev/results/)")
+        if n in ("run", "rehearse", "pilot"):
+            p.add_argument("--agent-root", type=Path, help="where agent directories go (default: a new directory in the "
+                           "system temp dir for real runs, <scratch>/agents for the scripted harnesses)")
         if n in ("setup", "generate") and DEV_REPOS:
             p.add_argument("--repo", action="append", choices=list(DEV_REPOS),
                            help="the development set (dev/README.md); without it, the T2 repositories")
@@ -1753,16 +2137,17 @@ def main(argv=None):
     if a.cmd == "generate":
         return generate(scratch)
     if a.cmd == "validate":
-        sys.exit(0 if validate(scratch, a.repo or list(REPOS)) else 1)
+        sys.exit(0 if validate(scratch, a.repo or list(REPOS), a.results) else 1)
+    kw = {"results": getattr(a, "results", None), "agent_root": getattr(a, "agent_root", None)}
     if a.cmd == "run":
         if a.dry_run:
-            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block).dry_run():
+            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).dry_run():
                 print(line)
             return
         if a.harness == "real" and not a.yes_real:
             raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
         truth = pair_table(scratch, a.repo, a.set) if a.arm == "B" else None
-        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block).execute(truth)
+        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).execute(truth)
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green", "merge_conflicts",
                                                  "warned_before_land", "interventions", "wall_s")}))
         sys.exit(0 if r["status"] == "done" else 3)
@@ -1775,7 +2160,7 @@ def main(argv=None):
             return
         bad = 0
         for arm, s, rep in order:
-            r = Run(scratch, arm, "requests", s, rep, "real").execute(pair_table(scratch, "requests", s) if arm == "B" else None)
+            r = Run(scratch, arm, "requests", s, rep, "real", **kw).execute(pair_table(scratch, "requests", s) if arm == "B" else None)
             bad += r["status"] != "done"
             print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "interventions", "wall_s")}), flush=True)
         sys.exit(1 if bad else 0)
@@ -1786,7 +2171,7 @@ def main(argv=None):
             for harness in ("oracle", "noop"):
                 for s in SETS:
                     for arm in ARMS:
-                        r = Run(scratch, arm, repo, s, 1, harness).execute(truth[s] if arm == "B" else None)
+                        r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm == "B" else None)
                         bad += r["status"] != "done"
                         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green",
                                                                  "merge_conflicts", "warned_before_land", "reacted", "interventions",

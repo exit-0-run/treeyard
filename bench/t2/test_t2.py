@@ -52,7 +52,7 @@ class Health(http.server.BaseHTTPRequestHandler):
         pass
 
 
-class StopTests(unittest.TestCase):
+class StubBase(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="t2-stop-"))
         self.spec, self.tasks = mini_world(self.tmp)
@@ -62,14 +62,16 @@ class StopTests(unittest.TestCase):
 
     def tearDown(self):
         k.HEALTH_EVERY_S = self.old_every
+        os.environ.pop("T2_STUB_AS", None)
         if self.old_env is None:
             os.environ.pop("T2_STUB_MODES", None)
         else:
             os.environ["T2_STUB_MODES"] = self.old_env
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def run_stub(self, modes, arm="A", limits=None, agents=None, health_url=None):
+    def run_stub(self, modes, arm="A", limits=None, agents=None, health_url=None, dialects=""):
         os.environ["T2_STUB_MODES"] = modes
+        os.environ["T2_STUB_AS"] = dialects
         r = k.Run(self.tmp, arm, "mini", "colliding", 1, "stub", limits=limits or {"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
                   agents=agents, tasks_dir=self.tasks, repo_spec=self.spec, run_dir=self.tmp / "run", health_url=health_url,
                   results=self.tmp / "results")
@@ -80,6 +82,8 @@ class StopTests(unittest.TestCase):
             self.assertIsNotNone(p.poll(), "an agent process is still alive after the run")
         return res
 
+
+class StopTests(StubBase):
     def test_turn_limit_kills_the_agent(self):
         res = self.run_stub("loop-turns,ok,ok,ok,ok", limits={"max_turns": 5, "max_tokens": 10**9, "timeout_s": 60})
         self.assertEqual(res["status"], "done")
@@ -140,7 +144,9 @@ class StopTests(unittest.TestCase):
         self.assertEqual(res["merge_conflicts"], 4)
         self.assertEqual(res["interventions"], 4)
         self.assertEqual([m["handback"] for m in res["merges"]], [None, "failed", "failed", "failed", "failed"])
-        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text().splitlines()[0], "agent 5")
+        self.assertEqual([m["needs_human"] for m in res["merges"]], [False, True, True, True, True])
+        # nothing is resolved by taking a side: the 4 changes stay out of main
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text().splitlines()[0], "agent 1")
 
     @unittest.skipUnless(k.treeyard_bin().exists(), "needs target/debug/treeyard")
     def test_server_down_stops_the_run_arm_b(self):
@@ -165,6 +171,83 @@ class StopTests(unittest.TestCase):
         self.assertTrue(res["stop_reason"].startswith("server down: http://127.0.0.1:"), res["stop_reason"])
         self.assertNotIn(":7420/", res["stop_reason"])
         self.assertLess(res["_elapsed"], 15)
+
+
+HAS_TREEYARD = k.treeyard_bin().exists()
+
+
+class HandbackTests(StubBase):
+    """The hand-back in every arm with stub agents that settle the markers, leave them, or do nothing,
+    in the transcript dialects of both real harnesses (`T2_STUB_AS`)."""
+
+    def final(self):
+        return (self.tmp / "run" / "final" / "a.txt").read_text()
+
+    def assert_all_kept(self, res, key):
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["interventions"], 0)
+        self.assertEqual([m["handback"] for m in res[key]], [None, "resolved", "resolved", "resolved", "resolved"])
+        text = self.final()
+        self.assertFalse(k.has_marker_text(text), text)
+        for i in range(1, 6):
+            self.assertIn(f"agent {i}\n", text)
+
+    def assert_left_out(self, res, key):
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["interventions"], 4)
+        self.assertEqual([m["needs_human"] for m in res[key]], [False, True, True, True, True])
+        text = self.final()
+        self.assertFalse(k.has_marker_text(text), text)
+        self.assertTrue(text.startswith("agent 1\n"), text)
+        self.assertNotIn("agent 2", text)
+
+    def test_arm_a_claude_dialect_resolves(self):
+        res = self.run_stub(",".join(["conflict-resolve"] * 5), dialects=",".join(["claude"] * 5))
+        self.assertEqual(res["merge_conflicts"], 4)
+        self.assert_all_kept(res, "merges")
+        self.assertEqual(res["merges"][1]["handback_files"], ["a.txt"])
+        self.assertEqual(res["agent_stats"][1]["invocations"], 2)
+        self.assertEqual(res["agent_stats"][1]["turns"], 2)  # num_turns of both results
+
+    def test_arm_a_codex_dialect_leaves_markers(self):
+        res = self.run_stub(",".join(["conflict-markers"] * 5), dialects=",".join(["codex"] * 5))
+        self.assert_left_out(res, "merges")
+        self.assertIn("markers", res["merges"][1]["handback_failure"])
+
+    def test_hand_back_files_carry_the_same_markers_in_both_arms(self):
+        arms = ["A"] + (["B"] if HAS_TREEYARD else [])
+        for arm in arms:
+            res = self.run_stub("edit-conflict,conflict-markers,ok,ok,ok", arm=arm)
+            self.assertEqual(res["interventions"], 1, arm)
+            notes = [json.loads(x) for x in (self.tmp / "run" / "agent-2.jsonl").read_text().splitlines() if '"handback_file"' in x]
+            self.assertEqual(len(notes), 1, arm)
+            text = notes[0]["handback_file"]
+            self.assertIn("<<<<<<< main\nagent 1\n=======\nagent 2\n>>>>>>> change\n", text, arm)
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_arm_b_claude_dialect_resolves(self):
+        res = self.run_stub(",".join(["conflict-resolve"] * 5), arm="B", dialects=",".join(["claude"] * 5))
+        self.assert_all_kept(res, "lands")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_arm_b_codex_dialect_leaves_markers(self):
+        res = self.run_stub(",".join(["conflict-markers"] * 5), arm="B", dialects=",".join(["codex"] * 5))
+        self.assert_left_out(res, "lands")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_arm_b_do_nothing_is_left_out(self):
+        res = self.run_stub(",".join(["edit-conflict"] * 5), arm="B")
+        self.assert_left_out(res, "lands")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_arm_b_mcp_change_resolves_on_disk(self):
+        res = self.run_stub(",".join(["mcp-conflict"] * 5), arm="B", dialects="codex,claude,codex,claude,codex")
+        self.assert_all_kept(res, "lands")
+        # the workspace files went back after the hand-back of a change that is not the workspace one
+        for a in range(2, 6):
+            ws = [p for p in (self.tmp / "t2").rglob(f"ws/agent-{a}/a.txt")]
+            for p in ws:
+                self.assertFalse(k.has_marker_text(p.read_text()))
 
 
 class KitTests(unittest.TestCase):
