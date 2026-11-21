@@ -82,3 +82,26 @@ Two changes answer these two findings. Neither was part of the pilot, and no run
 
 The instruction block of the pilot names neither of them. A new block and a new preregistration come
 before the next measurement.
+
+## Corrections after an audit (2026-11-21)
+
+An audit of the kit after this pilot found faults in the runner. They change how the tables above read.
+The run files are unchanged.
+
+- **Tokens of Claude Code are counted about 1.7 times too high.** The runner adds the usage of every
+  stream event, and one message has several events. Counted once per message, the B / A token ratios
+  are: pilot v2 disjoint 1.29, colliding 1.38, all 1.34; pilot v3 disjoint 1.31, colliding 0.86, all 1.02.
+  The token overhead on the disjoint sets did not fall between the two pilots.
+- **Every intervention of arm A comes from the Codex sandbox, not from git.** A git worktree keeps its
+  metadata outside the directory Codex may write, so a Codex agent cannot finish the merge of a
+  hand-back: 7 of 7 failed, against 0 of 15 for Claude Code. The runner then takes one side of the
+  conflict, and that removed the lines of another task in arm A.
+- **The two arms did not do the same work.** Arm A agents added tests and a changelog entry in most runs.
+  Arm B agents did not, and few of them ran the repository tests before `land`. 15 of the 21 merge
+  conflicts of arm A in the two pilots are only in the changelog or in a test file.
+- **`warned_before_land` and `reacted` count other things than section 5 of the preregistration says.**
+  3 of the 10 warned agents of pilot v3 never got the warning in a tool reply, and a rebase does not
+  count as a reaction.
+
+With these faults the pilots do not support a conclusion for either arm. The fixes come before any run
+on ripgrep or astro.

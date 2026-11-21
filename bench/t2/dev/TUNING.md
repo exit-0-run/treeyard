@@ -34,3 +34,5 @@ What the runs show, and what they do not:
   imported `difflib` at module level, and click has a test on its import list. It is not a merge fault.
 
 v3 is the block of preregistration v3 and of `treeyard connect`.
+
+See "Corrections after an audit" in `../results/pilot-v3/README.md`: the token counts of Claude Code in the table are too high, and the arm A run carries a runner fault.
