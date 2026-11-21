@@ -25,6 +25,14 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- `checkout` (a tool of the stdio bridge `treeyard mcp`, and `treeyard checkout CHANGE [--into DIR]`):
+  writes the tree of a change into a directory of its own under the temp directory, so an agent runs
+  the repository's real tests on exactly what it will land, with no retyping. The bridge rewrites the
+  directory after each `apply`, `resolve`, `rebase`, `restore_change` and `land` of the change (only the
+  files that differ); local edits there are put back (`reverted`), untracked files are listed (`extra`),
+  and `main_moved` says when work landed after the change's base. In the last pilot 0 of 15 TreeYard
+  agents ran the tests to green (they retyped files into temp directories), against 9 of 15 with git
+  worktrees.
 - `read` takes optional `start` and `end` (1-based, inclusive line numbers) and then returns only those
   lines, with `lines` (the range returned, clamped to the file) and `total_lines`; a whole-file read
   of a text file now has `total_lines` too. A range on a binary file or a submodule is an error. In the

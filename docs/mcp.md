@@ -136,6 +136,49 @@ In `opencode.json` (project) or the global OpenCode config:
 
 Check with `opencode mcp list`. For a directory, start OpenCode inside a workspace as for Codex.
 
+## Test a change: `checkout`
+
+An agent that edits through `apply` has no files on disk, so it cannot run the tests. The stdio
+bridge `treeyard mcp` has one tool of its own for that, `checkout` (it is not in the server's
+operation table: only the bridge runs on the agent's machine):
+
+```text
+checkout {"change": "ch_..."}   ->   {"dir": "/tmp/.../treeyard-checkouts-501/ch_...", "files": 120, "written": 120, ...}
+```
+
+- `dir` holds exactly the tree of the change as the server has it: its base plus its edits, exec
+  bits and symlinks, without the files it deleted. The agent runs the repository's own tests there
+  (`cd DIR && make test`). No file is retyped.
+- The default directory is one per change under the system temp directory (`$TMPDIR`, else `/tmp`).
+  Both Claude Code and Codex under `sandbox_mode = "workspace-write"` let shell commands write there,
+  and nothing is written into the repository checkout or a workspace that another agent or the daemon
+  syncs. `into` names another directory; it must be new, empty or an earlier checkout
+  (`.treeyard/checkout.json` marks one), so a checkout never overwrites a working tree.
+- After the first `checkout`, every `apply`, `resolve`, `rebase`, `restore_change` and `land` of that
+  change through the same bridge rewrites the directory, and the reply has a `checkout` field. Only
+  files that differ are written, so build output (`target/`, `__pycache__/`) and mtimes stay.
+- Edits made in the directory never reach the change: the next rewrite puts the change's content back
+  and lists the paths in `reverted`. Files that the change does not have stay; those that no
+  `.gitignore` excludes are listed in `extra` (they would not land).
+- `main_moved: true`: work landed after the change's base, so the directory lacks it. `rebase`, then
+  `checkout` again, to test what `land` will put on main. After a `land`, the directory holds the
+  landed tree.
+
+`treeyard checkout CHANGE [--into DIR]` does the same from a script. Test: `tests/checkout.rs` drives the
+bridge over stdio against a real server: the fixture's test script fails in the checkout of the
+repository and passes in the directory of the change, local edits are reverted, a landing by another
+agent sets `main_moved`, `rebase` brings it in, and after `land` every file of main equals the file in
+the directory. A second case runs the bridge inside a `workspace-hook` workspace: the workspace and its
+change stay untouched, and the `apply` reply still has the `conflict` collision.
+
+Why not the other two ways. (a) The bridge could keep the agent's working directory in step with its
+change. But that directory is often shared: after `treeyard connect` every agent of the repository runs
+in the one checkout, and in a `workspace-hook` workspace the daemon would sync the written files into the
+workspace's own change, a second change of the same agent that then collides with the first. (b) Agents
+could edit on disk and land with `treeyard workspace land`. Then the collision warnings would come only
+at sync time, not in each `apply` reply. A separate directory per change has neither problem and costs
+one call.
+
 ## Many agents, one machine or many
 
 - One server serves all agents on all machines. Each agent needs only the URL (and a token when

@@ -120,8 +120,9 @@ bridge uses `<h>-1-<pid>`.
 
 - One repository and one machine. Connect writes absolute paths and the port into the configs, so
   they are excluded from git and are not for a team to share.
-- Agents edit through the API (MCP tools). For an agent that builds and runs tests, give it a
-  workspace directory: [workspaces.md](workspaces.md), and the Claude Code hooks in [mcp.md](mcp.md).
+- Agents edit through the API (MCP tools). They run the tests in the directory that the bridge's
+  `checkout` tool writes for their change ([mcp.md](mcp.md#test-a-change-checkout)). For an agent that
+  edits files on disk, give it a workspace directory: [workspaces.md](workspaces.md).
 - Connect does not change trust or approval settings of a harness: these are user-level settings.
 
 Tests: `tests/connect.rs` (init and idempotency, the three configs, the instruction block, byte

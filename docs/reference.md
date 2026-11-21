@@ -72,6 +72,14 @@ workspace (these directories plus root files, git cone mode); sync never treats 
 Details and limits: [docs/workspaces.md](workspaces.md). Tests:
 `tests/workspace.rs`; Linux paths: `make test-linux` (Docker).
 
+`treeyard checkout CHANGE [--into DIR]` (and the `checkout` tool of the stdio bridge `treeyard mcp`)
+writes the tree of a change, its base plus its edits with exec bits, symlinks and deletions, into a
+directory and prints its path in `dir`; run the repository's tests there. Default directory: one per
+change under the system temp directory. A second run writes only what differs, so build output stays.
+Edits made in the directory are replaced (`reverted`); files that are not in the change and not
+gitignored are listed in `extra`; `main_moved` says that work landed after the change's base. Details:
+[docs/mcp.md](mcp.md#test-a-change-checkout). Tests: `tests/checkout.rs`.
+
 `treeyard workspace-hook create [--name N] [--from-dir PATH] [--agent A] [--intent I] [--setup CMD] [--no-git]`
 and `workspace-hook remove [NAME|PATH] [--from-dir PATH] [--abandon] [--force]` are the commands an
 orchestrator runs when it makes and removes an agent's workspace. Inputs are arguments and environment

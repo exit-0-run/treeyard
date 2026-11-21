@@ -588,20 +588,7 @@ impl Node {
     }
 
     fn fetch_blobs(&self, ids: &[String]) -> Result<BTreeMap<String, Vec<u8>>> {
-        let mut out = BTreeMap::new();
-        let mut todo: Vec<String> = ids.to_vec();
-        while !todo.is_empty() {
-            let chunk: Vec<String> = todo.drain(..todo.len().min(2000)).collect();
-            let mut ask = chunk;
-            while !ask.is_empty() {
-                let r = self.call("blobs", json!({"ids": ask}))?;
-                for (id, b) in r["blobs"].as_object().context("blobs reply")? {
-                    out.insert(id.clone(), B64.decode(b.as_str().unwrap_or(""))?);
-                }
-                ask = serde_json::from_value(r["rest"].clone())?;
-            }
-        }
-        Ok(out)
+        fetch_blobs(&self.url, ids)
     }
 
     // ---- layers --------------------------------------------------------------------------
@@ -1645,6 +1632,202 @@ impl Node {
 
 fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
+}
+
+/// Blob contents by id from the server at `url`, in chunks of 2000 ids.
+fn fetch_blobs(url: &str, ids: &[String]) -> Result<BTreeMap<String, Vec<u8>>> {
+    let mut out = BTreeMap::new();
+    let mut todo: Vec<String> = ids.to_vec();
+    while !todo.is_empty() {
+        let mut ask: Vec<String> = todo.drain(..todo.len().min(2000)).collect();
+        while !ask.is_empty() {
+            let r = client::call(url, "blobs", json!({"ids": ask}))?;
+            for (id, b) in r["blobs"].as_object().context("blobs reply")? {
+                out.insert(id.clone(), B64.decode(b.as_str().unwrap_or(""))?);
+            }
+            ask = serde_json::from_value(r["rest"].clone())?;
+        }
+    }
+    Ok(out)
+}
+
+// ---- checkout: a change's files in a directory, for its tests -----------------------------
+
+/// The file in a checkout directory that records what `checkout` wrote there (and marks the
+/// directory as a checkout). It sits in `.treeyard/`, which `scan` never counts as a repo file.
+pub const CHECKOUT_MARK: &str = ".treeyard/checkout.json";
+/// A checkout reply lists at most this many paths per list.
+const CHECKOUT_LIST_MAX: usize = 20;
+
+#[derive(Default, Serialize, Deserialize)]
+struct CheckoutMark {
+    change: String,
+    head: String,
+    files: State,
+}
+
+/// Where `checkout` puts a change when no directory is given: one directory per change under
+/// the system temp directory. Sandboxed agent tools let commands write there (Codex
+/// `workspace-write` allows `$TMPDIR` and `/tmp`), and nothing lands in the repository checkout.
+pub fn checkout_dir(change: &str) -> Result<PathBuf> {
+    if !crate::hook::valid_name(change) {
+        bail!("bad change id {change:?}");
+    }
+    // SAFETY: getuid has no preconditions.
+    let uid = unsafe { libc::getuid() };
+    Ok(std::env::temp_dir().join(format!("treeyard-checkouts-{uid}")).join(change))
+}
+
+fn capped(mut v: Vec<String>) -> Value {
+    let n = v.len();
+    v.truncate(CHECKOUT_LIST_MAX);
+    if n > CHECKOUT_LIST_MAX {
+        v.push(format!("... and {} more", n - CHECKOUT_LIST_MAX));
+    }
+    json!(v)
+}
+
+/// Makes directory `into` hold exactly the tree of `change` as the server has it now: its base
+/// plus its edits, with exec bits and symlinks; files the change deleted are gone. The first call
+/// writes every file; later calls write only what differs from the last one, so build output
+/// and unchanged files (and their mtimes) stay. Local edits to the change's files are replaced
+/// (listed in `reverted`): code that is tested here is the code that lands. Files the change
+/// does not have stay untouched; those that no `.gitignore` excludes are listed in `extra`.
+/// `into` must be new, empty, or an earlier checkout (it holds [`CHECKOUT_MARK`]).
+pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
+    let t0 = Instant::now();
+    let dir = std::path::absolute(into)?;
+    let mark_path = dir.join(CHECKOUT_MARK);
+    if let Ok(md) = fs::symlink_metadata(&dir) {
+        if !md.is_dir() {
+            bail!("{} is not a directory", dir.display());
+        }
+        let empty = fs::read_dir(&dir).with_context(|| format!("read {}", dir.display()))?.next().is_none();
+        if !empty && !mark_path.exists() {
+            bail!(
+                "{} is not empty and not a checkout (no {CHECKOUT_MARK}); give a new or empty directory, \
+                 or leave out `into` for a directory of its own",
+                dir.display()
+            );
+        }
+    }
+    let ch = client::call(url, "change", json!({"change": change}))?;
+    let head = ch["head"].as_str().context("change reply has no head")?.to_string();
+    let tree = client::call(url, "tree", json!({"at": head}))?;
+    let mut want: BTreeMap<String, (u32, String)> = BTreeMap::new();
+    let mut gitlinks = Vec::new();
+    for row in tree["entries"].as_array().context("tree has no entries")? {
+        let path = row[0].as_str().context("bad tree row")?.to_string();
+        check_rel(&path)?;
+        let mode = row[1].as_u64().context("bad tree row")? as u32;
+        if mode == MODE_GITLINK {
+            gitlinks.push(path);
+        } else {
+            want.insert(path, (mode, row[2].as_str().context("bad tree row")?.to_string()));
+        }
+    }
+    crate::safety::check_tree(want.keys().map(String::as_str))?;
+    fs::create_dir_all(dir.join(PRIVATE))?;
+    let _l = lock(&dir.join(PRIVATE).join("checkout.lock"))?;
+    let mut mark: CheckoutMark = if mark_path.exists() { read_json(&mark_path)? } else { CheckoutMark::default() };
+
+    // What changed here since the last checkout: edits to its files, and new files.
+    let found = scan(&dir, &mark.files, &BTreeSet::new())?;
+    let mut dirty: BTreeSet<String> = BTreeSet::new();
+    let mut extra = Vec::new();
+    for (path, f) in found.diffs {
+        if mark.files.contains_key(&path) {
+            dirty.insert(path);
+        } else if f.is_some() {
+            extra.push(path);
+        }
+    }
+    for (path, f) in found.touched {
+        mark.files.insert(path, f);
+    }
+    let gone: Vec<String> = mark.files.keys().filter(|p| !want.contains_key(*p)).cloned().collect();
+    for p in &gone {
+        let dst = dir.join(p);
+        if fs::symlink_metadata(&dst).is_ok_and(|m| m.is_dir()) {
+            cow::remove_tree(&dst)?;
+        } else {
+            let _ = fs::remove_file(&dst);
+        }
+        mark.files.remove(p);
+    }
+    prune_empty_dirs(&dir, gone.iter())?;
+    let same = |st: Option<&FileState>, w: &(u32, String)| st.is_some_and(|s| (s.mode, &s.blob) == (w.0, &w.1));
+    let todo: Vec<(String, (u32, String))> = want
+        .iter()
+        .filter(|(p, w)| dirty.contains(*p) || !same(mark.files.get(*p), w))
+        .map(|(p, w)| (p.clone(), w.clone()))
+        .collect();
+    let ids: Vec<String> = todo.iter().map(|(_, (_, b))| b.clone()).collect::<BTreeSet<_>>().into_iter().collect();
+    let blobs = fetch_blobs(url, &ids)?;
+    let mut reverted: Vec<String> = dirty.iter().cloned().collect();
+    for (path, (mode, blob)) in &todo {
+        let p = crate::safety::dest(&dir, path)?;
+        if let Some(parent) = p.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        match fs::symlink_metadata(&p) {
+            Ok(m) if m.is_dir() => cow::remove_tree(&p)?,
+            Ok(_) => fs::remove_file(&p)?,
+            Err(_) => {}
+        }
+        if extra.contains(path) {
+            reverted.push(path.clone());
+        }
+        let data = blobs.get(blob).with_context(|| format!("the server sent no blob {blob}"))?;
+        if *mode == MODE_LINK {
+            std::os::unix::fs::symlink(String::from_utf8_lossy(data).into_owned(), &p)?;
+        } else {
+            fs::write(&p, data)?;
+            let perm = if *mode == MODE_EXEC { 0o755 } else { 0o644 };
+            fs::set_permissions(&p, fs::Permissions::from_mode(perm))?;
+        }
+        let md = fs::symlink_metadata(&p)?;
+        mark.files.insert(
+            path.clone(),
+            FileState { mode: *mode, blob: blob.clone(), size: md.len(), mtime_ns: mtime_ns(&md) },
+        );
+    }
+    for g in &gitlinks {
+        fs::create_dir_all(crate::safety::dest(&dir, g)?)?;
+    }
+    extra.retain(|p| !want.contains_key(p));
+    reverted.sort();
+    reverted.dedup();
+    mark.change = change.to_string();
+    mark.head = head.clone();
+    write_json(&mark_path, &mark)?;
+
+    let main = client::call(url, "status", json!({}))?["main"].as_str().unwrap_or_default().to_string();
+    let main_moved = ch["state"] == "open" && ch["base"].as_str().is_some_and(|b| b != main);
+    let mut advice = Vec::new();
+    if main_moved {
+        advice.push(
+            "main moved since this change's base: these files lack the work that landed since. Call rebase, \
+             then checkout again, to test what land will put on main.",
+        );
+    }
+    if !reverted.is_empty() {
+        advice.push(
+            "edits made in this directory were replaced by the change's content: they never reach the change. \
+             Edit with apply.",
+        );
+    }
+    if !extra.is_empty() {
+        advice.push(
+            "files in `extra` are here but not in the change (and no .gitignore excludes them): they will not \
+             land. Add them with apply, or delete them.",
+        );
+    }
+    Ok(json!({
+        "change": change, "state": ch["state"], "dir": dir, "head": head, "files": want.len(),
+        "written": todo.len(), "deleted": gone.len(), "reverted": capped(reverted), "extra": capped(extra),
+        "main_moved": main_moved, "advice": advice, "seconds": round(t0.elapsed().as_secs_f64()),
+    }))
 }
 
 /// Writes the synced files of workspace `name` (`state`, bytes from `ws_dir`) into the mirror

@@ -9,7 +9,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
-- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME`,
+- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME` (its own tool `checkout`; CLI `treeyard checkout CH [--into DIR]`),
   `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`, `treeyard connect [--harness all] [--agents N] [--mirror]`, `connect status`, `disconnect [--purge]` (docs/connect.md; state in `.git/treeyard/`).
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,
@@ -42,7 +42,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/coord.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews |
 | `src/drivers.rs` | merge drivers: union, Cargo.lock per package, mergiraf; regenerate is in `repo.rs` |
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
-| `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP, CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
+| `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP (+ `checkout` tool, `workspace::checkout`; `tests/checkout.rs`), CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
 | `src/cow.rs` | directory clones: APFS `clonefile`, reflink (`FICLONE`), overlayfs mount, hardlink, copy |
 | `src/workspace.rs`, `src/daemon.rs`, `src/hook.rs` | node home: bases, workspaces, layers by lockfile hash, ports, `sync`; `notify` daemon; `workspace-hook` (`tests/workspace_hook.rs`) |
 | `src/hunks.rs`, `src/share.rs` | one shared directory, many agents: hunk ids, owners (claim, intent, sticky), `depends_on`; `treeyard share join\|sync\|claim` (`tests/share.rs`) |

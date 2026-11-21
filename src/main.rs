@@ -197,6 +197,17 @@ enum Cmd {
         #[arg(long)]
         json: bool,
     },
+    /// Write the files of a change into a directory to run its tests there (the `checkout` tool
+    /// of `treeyard mcp`). A second run writes only what changed. Prints JSON.
+    Checkout {
+        /// Change id, ch_...
+        change: String,
+        /// A new, empty or earlier checkout directory. Default: one per change under the temp dir.
+        #[arg(long)]
+        into: Option<PathBuf>,
+        #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
+        url: String,
+    },
     /// Call one operation, e.g. `treeyard call read '{"path":"README.md"}'`.
     Call {
         op: String,
@@ -755,6 +766,13 @@ fn main() -> Result<()> {
             } else {
                 print!("{}", treeyard::apidoc::markdown(&tools));
             }
+        }
+        Cmd::Checkout { change, into, url } => {
+            let dir = match into {
+                Some(d) => d,
+                None => treeyard::workspace::checkout_dir(&change)?,
+            };
+            print(&treeyard::workspace::checkout(&url, &change, &dir)?)?;
         }
         Cmd::Call { op, params, url } => {
             let params: Value = match params {
