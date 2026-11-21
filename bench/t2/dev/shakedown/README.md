@@ -47,3 +47,18 @@ What each round showed:
 
 On these tasks plain git with one merge at the end also delivers every task. The runs show no gain of
 arm B in tasks on main here, and a token cost above arm A.
+
+## The mixed set: 10 agents, 10 tasks (`mixed1/`)
+
+One real run per arm on the `mixed` set of click (6 Claude Code, 4 Codex; tasks of 2 to 4 edits with
+designed conflicts, a trap pair, same-line pairs and interface dependencies; 6 integration tests).
+
+| Run | Tasks on main | Integration | Conflicts | Interventions | Tokens | Tool calls | Wall s | Agent time s |
+|---|---|---|---|---|---|---|---|---|
+| A | 10/10 | 6/6 | 3 | 0 | 2.26 M | 118 | 126 | 23 to 65 |
+| A2 | 10/10 | 6/6 | 0 | 0 | 2.19 M | 115 | 84 | 25 to 83 |
+| B | 10/10 | 6/6 | 0 | 0 | 3.84 M | 153 | 124 | 31 to 123 |
+
+The tasks were meant to take 5 to 10 minutes of agent work. They took 0.5 to 2 minutes. All three arms
+deliver every task and every integration test, so this set does not separate the arms either. Arm B
+used 1.7 x the tokens of arm A.
