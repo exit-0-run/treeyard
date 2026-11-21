@@ -5,6 +5,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Fixed
+- `grep`: `^` and `$` are line anchors in the indexed and the scan path. A whole-file prefilter ran
+  the pattern without multi-line mode, so `^x` matched only on the first line and `x$` only on the
+  last; it now runs in multi-line mode (also before `\r\n`), and is skipped for `\A` / `\z`.
+
 ### Changed
 - Leaner MCP replies. The bridge and `POST /mcp` send compact JSON. With `--tools agent`, change
   replies drop `base`, `head`, `created`, `group`, `landed_as`, `model`, `session`, `view`, `revisions`

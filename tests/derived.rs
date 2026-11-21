@@ -261,6 +261,36 @@ fn indexed_grep_equals_the_scan_on_main_and_on_a_change() {
 }
 
 #[test]
+fn grep_anchors_are_line_anchors_in_the_index_and_the_scan() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = history_repo(tmp.path());
+    let data = tmp.path().join("data");
+    Repo::init_with_history(&data, &src, "main", None, 5).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let ch = call(&url, "open_change", json!({"agent": "a", "intent": "anchors"}));
+    let id = ch["id"].as_str().unwrap().to_string();
+    let text = "    let x = 1;\nend_marker_q\nnot end_marker_q here\r\nlast end_marker_q\r\ntail end_marker_q";
+    call(&url, "apply", json!({"change": id, "edits": [{"path": "anchors.txt", "content": text}]}));
+    let cases: [(&str, Vec<u64>); 6] = [
+        (r"end_marker_q$", vec![2, 4, 5]),
+        (r"^end_marker_q", vec![2]),
+        (r"^end_marker_q$", vec![2]),
+        (r"^\s+let", vec![1]),
+        (r"here$", vec![3]),
+        (r"\Aend_marker_q\z", vec![2]),
+    ];
+    for (pat, want) in cases {
+        for index in [true, false] {
+            let v = call(&url, "grep", json!({"pattern": pat, "at": id, "index": index}));
+            let ms = v["matches"].as_array().unwrap();
+            let got: Vec<u64> =
+                ms.iter().filter(|m| m["path"] == "anchors.txt").map(|m| m["line"].as_u64().unwrap()).collect();
+            assert_eq!(got, want, "pattern {pat}, index {index}: {v}");
+        }
+    }
+}
+
+#[test]
 fn symbols_are_found_at_main_and_in_an_open_change() {
     let tmp = tempfile::tempdir().unwrap();
     let src = history_repo(tmp.path());

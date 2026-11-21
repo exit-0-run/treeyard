@@ -29,7 +29,7 @@ is the byte size of the whole file, also for a range. A range from line 1 of an 
 `content` with `lines` `[1, 0]`; `at` may be a change id, so a range reads the change's own lines.
 `max_bytes` (no range) returns only the first whole lines up to that size with `truncated: true`,
 `lines` and a `note`; MCP clients get 50 KiB when they give neither a range nor `max_bytes`.
-`grep` takes `context` (0 to 20): each match gets `before` and `after` line arrays.
+`grep` matches per line: `^` and `$` anchor at each line (`\r\n` counts as one line end). It takes `context` (0 to 20): each match gets `before` and `after` line arrays.
 
 `land` answers with one of five statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review

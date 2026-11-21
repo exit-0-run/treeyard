@@ -578,10 +578,11 @@ impl Inner {
 
     fn verify(&mut self, re: &Regex, files: &[(String, String)], max: usize) -> Result<(Vec<Value>, bool)> {
         let mut matches = Vec::new();
+        let whole = prefilter(re.as_str());
         for (path, blob) in files {
             let data = self.blob(blob)?;
             let Some(text) = as_text(&data) else { continue };
-            if !re.is_match(&text) {
+            if whole.as_ref().is_some_and(|w| !w.is_match(&text)) {
                 continue;
             }
             for (i, line) in text.lines().enumerate() {
@@ -619,6 +620,20 @@ impl Inner {
             json!({"at": cs, "matches": matches, "truncated": truncated, "index": {"used": false, "files": files.len()}}),
         )
     }
+}
+
+/// The whole-file test before the per-line one: the pattern in multi-line mode (`^` and `$` at
+/// every line, also before `\r\n`), so a file passes whenever one of its lines would. `None` (test
+/// every line) when the pattern has `\A` or `\z`: those mean the ends of a line per line, but the
+/// ends of the file in a whole-file test.
+fn prefilter(pattern: &str) -> Option<Regex> {
+    use regex_syntax::hir::Look;
+    let hir = regex_syntax::ParserBuilder::new().multi_line(true).crlf(true).build().parse(pattern).ok()?;
+    let looks = hir.properties().look_set();
+    if looks.contains(Look::Start) || looks.contains(Look::End) {
+        return None;
+    }
+    regex::RegexBuilder::new(pattern).multi_line(true).crlf(true).build().ok()
 }
 
 /// The stored row for a blob: encoded trigrams, or the binary marker.
