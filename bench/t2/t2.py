@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """T2 experiment kit: plain git worktrees (arm A), worktrees plus `t2-integrate` (arm A2) and `treeyard
-connect` (arm B), 5 agents at once.
+connect` (arm B), 5 agents at once (10 on the development set `mixed`).
 
 Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.md):
 
   setup     --scratch S                 pinned clones, the requests venv, a warm cargo build
   generate                              tasks/ from taskdefs.py (prompts, hidden tests, patches)
   validate  --scratch S [--repo R]      each test fails on the pin and passes with its reference
-  run       --scratch S --arm A|A2|B --repo R --set disjoint|colliding --rep N --harness H [--results D] [--agent-root D]
+  run       --scratch S --arm A|A2|B --repo R --set disjoint|colliding|mixed --rep N --harness H [--results D] [--agent-root D]
   rehearse  --scratch S [--repo R]      oracle and noop runs of every cell (no model, no cost)
   collect   [--results DIR]             metrics.json and a summary table from the run files
   pilot     --scratch S [--yes-real]    the 12 pilot runs in the frozen order (without --yes-real: the order only)
@@ -18,7 +18,8 @@ Development set (dev/README.md, for tuning the arm B block): `--repo click` on s
 validate, rehearse and run uses dev/ instead; `run --arm B --block FILE` swaps the instruction block.
 
 Harnesses: oracle (applies the reference patches), noop (changes nothing, one tool call),
-stub (scripted misbehaviour for the stop tests), real (3 Claude Code, 2 Codex).
+stub (scripted misbehaviour for the stop tests), real (3 Claude Code, 2 Codex; a set.json can set
+other slots: the `mixed` set has 6 Claude Code, 4 Codex).
 The `real` harness needs the owner's yes and a budget; this kit never starts it on its own.
 """
 
@@ -55,6 +56,10 @@ TASKDEFS = HERE
 VENV = "requests-venv"
 TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
+# Sets beyond the two of preregistration v3, defined in sibling modules `taskdefs_<name>.py` (only the
+# development set has one: dev/taskdefs_mixed.py). Their tasks/<repo>/<set>/set.json holds the set-level
+# settings: agent count, harness slots, limits, integration tests (`set_spec`).
+EXTRA_SETS = ("mixed",)
 ARMS = ("A", "A2", "B")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 AGENTS = 5
 # Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
@@ -182,6 +187,33 @@ def apply_edits(files, tasks):
     return out
 
 
+def _apply_op(text, e):
+    """One edit op on `text`, or None when its `old` or anchor does not occur exactly once."""
+    key = e["old"] if e["op"] == "replace" else e["anchor"]
+    if text.count(key) != 1:
+        return None
+    if e["op"] == "replace":
+        return text.replace(key, e["new"])
+    return text.replace(key, e["text"] + key if e["op"] == "insert_before" else key + e["text"])
+
+
+def apply_seq(files, tasks, combined=True):
+    """Applies the edits of `tasks` one task after the other (sets with `"sequential": true`). An op may
+    carry `alts`, the same edit written for a tree that already holds another task's lines: a combined
+    tree (`combined`) tries the alts first, then the op; a task alone uses only the op."""
+    out = dict(files)
+    for t in tasks:
+        for e in t["edits"]:
+            for o in ([*e.get("alts", []), e] if combined else [e]):
+                new = _apply_op(out[o["file"]], o)
+                if new is not None:
+                    out[o["file"]] = new
+                    break
+            else:
+                raise ValueError(f"{t['id']}: an edit does not apply in {e['file']}: {(e.get('old') or e.get('anchor'))[:60]!r}")
+    return out
+
+
 def unified(before, after):
     """A git-style patch for the files that differ."""
     parts = []
@@ -254,11 +286,102 @@ def generate(scratch):
                     manifest[str(f.relative_to(HERE))] = sha256(f)
     (TASKS_DIR / "MANIFEST.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
     print(f"generated {sum(1 for k in manifest if k.endswith('prompt.md'))} tasks, {len(manifest)} files")
+    for mod in extra_taskdefs():
+        generate_extra(scratch, mod)
+
+
+def extra_taskdefs():
+    """The sibling modules `taskdefs_<name>.py` of the kit's taskdefs.py (sets beyond `SETS`)."""
+    import importlib.util
+
+    mods = []
+    for f in sorted(Path(TASKDEFS).glob("taskdefs_*.py")):
+        spec = importlib.util.spec_from_file_location(f"t2_{Path(TASKDEFS).name}_{f.stem}", f)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mods.append(mod)
+    return mods
+
+
+def generate_extra(scratch, mod):
+    """Writes the sets of one sibling module: tasks/<repo>/<set>/ as `generate` does, plus resolved-<k>.patch
+    for every k, set.json (agent count, slots, limits, integration tests) and integration/<id>/ (hidden
+    test, and `without-<k>.patch`: all tasks but partner k, for `validate`). Its own manifest is
+    tasks/MANIFEST-<set>.json, so tasks/MANIFEST.json stays that of the sets in `SETS`."""
+    td = mod
+    for s in td.SETS:
+        manifest = {}
+        settings = td.SET_SETTINGS[s]
+        for repo, sets in td.TASKS.items():
+            tasks = sets[s]
+            assert len(tasks) == settings["agents"], (repo, s, len(tasks))
+            assert len(settings["mix"]) == settings["agents"], (repo, s)
+            src = scratch / "t2" / "src" / repo
+            rev = REPOS[repo]["rev"]
+            paths = sorted({o["file"] for t in tasks for e in t["edits"] for o in [e, *e.get("alts", [])]})
+            base = pinned_files(src, rev, paths)
+            seq = settings.get("sequential")
+            apply = (lambda b, ts, combined=True: apply_seq(b, ts, combined)) if seq else (lambda b, ts, combined=True: apply_edits(b, ts))
+            for t in tasks:  # an alt is for a tree with other tasks in: it may not fit the pin
+                for e in t["edits"]:
+                    for alt in e.get("alts", []):
+                        if _apply_op(base[alt["file"]], alt) is not None:
+                            raise SystemExit(f"{t['id']}: an alt applies to the pin: {alt}")
+            set_dir = TASKS_DIR / repo / s
+            if set_dir.exists():
+                shutil.rmtree(set_dir)
+            for k, t in enumerate(tasks, 1):
+                d = set_dir / f"{k}-{t['id']}"
+                d.mkdir(parents=True)
+                prompt = f"# {t['title']}\n\n{t['prompt']}{td.SUFFIX}"
+                if "treeyard" in prompt.lower():
+                    raise SystemExit(f"{t['id']}: the prompt names TreeYard")
+                (d / "prompt.md").write_text(prompt)
+                (d / "reference.patch").write_text(unified(base, apply(base, [t], False)))
+                hidden = d / "hidden" / test_path(repo, t)
+                hidden.parent.mkdir(parents=True)
+                hidden.write_text(t["test"])
+                (d / f"resolved-{k}.patch").write_text(unified(apply(base, tasks[: k - 1]), apply(base, tasks[:k])))
+                files = sorted({o["file"] for e in t["edits"] for o in [e, *e.get("alts", [])]})
+                meta_ = {"repo": repo, "set": s, "k": k, "id": t["id"], "title": t["title"], "files": files,
+                         "test": test_path(repo, t)}
+                (d / "meta.json").write_text(json.dumps(meta_, indent=2) + "\n")
+            integ = []
+            for it in td.INTEGRATIONS.get(repo, {}).get(s, []):
+                d = set_dir / "integration" / it["id"]
+                test = test_path(repo, it)
+                (d / "hidden" / test).parent.mkdir(parents=True)
+                (d / "hidden" / test).write_text(it["test"])
+                for k in it["pair"]:
+                    rest = [t for j, t in enumerate(tasks, 1) if j != k]
+                    (d / f"without-{k}.patch").write_text(unified(base, apply(base, rest)))
+                integ.append({"id": it["id"], "pair": it["pair"], "test": test, "why": it.get("why", "")})
+            spec = {"set": s, "agents": settings["agents"], "mix": settings["mix"], "limits": settings.get("limits", {}),
+                    "sequential": bool(seq), "tasks": [t["id"] for t in tasks], "integration": integ}
+            (set_dir / "set.json").write_text(json.dumps(spec, indent=2) + "\n")
+            for f in sorted(p for p in set_dir.rglob("*") if p.is_file()):
+                manifest[str(f.relative_to(HERE))] = sha256(f)
+        (TASKS_DIR / f"MANIFEST-{s}.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
+        print(f"generated {s}: {sum(1 for k in manifest if k.endswith('prompt.md'))} tasks, {len(manifest)} files")
+
+
+def set_spec(tasks_dir, repo, s):
+    """The set-level settings of a set: its set.json, or those of the sets of preregistration v3 (5 agents,
+    `MIX`, the frozen `LIMITS`, no integration tests)."""
+    f = Path(tasks_dir) / repo / s / "set.json"
+    spec = json.loads(f.read_text()) if f.is_file() else {}
+    return {"agents": spec.get("agents", AGENTS), "mix": spec.get("mix", MIX), "limits": spec.get("limits", {}),
+            "integration": spec.get("integration", []), "from_file": f.is_file()}
+
+
+def sets_of(repo):
+    """The extra sets that this repository has tasks for (in `EXTRA_SETS` order)."""
+    return [s for s in EXTRA_SETS if (TASKS_DIR / repo / s / "set.json").is_file()]
 
 
 def task_dirs(repo, s):
     d = TASKS_DIR / repo / s
-    out = sorted((p for p in d.iterdir() if p.is_dir()), key=lambda p: int(p.name.split("-")[0]))
+    out = sorted((p for p in d.iterdir() if p.is_dir() and p.name.split("-")[0].isdigit()), key=lambda p: int(p.name.split("-")[0]))
     return out
 
 
@@ -329,9 +452,10 @@ def apply_patch(tree, patch, check=True):
     return git("apply", "--whitespace=nowarn", str(patch), cwd=tree, check=check)
 
 
-def validate(scratch, repos, out_dir=None):
+def validate(scratch, repos, out_dir=None, only_sets=None):
     lines, ok_all = [], True
-    for repo in repos:
+    old_sets = only_sets is None or any(x in only_sets for x in SETS)
+    for repo in repos if old_sets else []:
         rev = REPOS[repo]["rev"]
         tree = scratch / "t2" / "validate" / repo
         if not tree.exists():
@@ -342,7 +466,7 @@ def validate(scratch, repos, out_dir=None):
         ok, _, secs = suite(repo, tree, scratch)
         lines.append(f"{repo} pinned {rev[:10]} suite: {'pass' if ok else 'FAIL'} ({secs} s)")
         ok_all &= ok
-        for s in SETS:
+        for s in (SETS if only_sets is None else [x for x in SETS if x in only_sets]):
             dirs = task_dirs(repo, s)
             for d in dirs:
                 m = meta(d)
@@ -375,20 +499,111 @@ def validate(scratch, repos, out_dir=None):
             else:
                 pairs = pair_conflicts(scratch, repo, dirs)
                 lines.append(f"{repo} disjoint: {pairs} of 10 pairs of reference patches conflict in git")
-    n = sum(1 for x in lines if x.endswith("-> ok") and " all 5 " not in x)
-    lines.append(f"tasks that fail on the pin and pass with the reference: {n}/{TASK_TOTAL}")
-    lines.append("validate: " + ("ok" if ok_all else "FAILED"))
-    text = "\n".join(lines) + "\n"
     out_dir = Path(out_dir or RESULTS)
     out_dir.mkdir(parents=True, exist_ok=True)
-    if set(repos) == set(REPOS):
-        (out_dir / "validate.txt").write_text(text)
-    print(text, end="")
+    if old_sets:
+        n = sum(1 for x in lines if x.endswith("-> ok") and " all 5 " not in x)
+        lines.append(f"tasks that fail on the pin and pass with the reference: {n}/{TASK_TOTAL}")
+        lines.append("validate: " + ("ok" if ok_all else "FAILED"))
+        text = "\n".join(lines) + "\n"
+        if set(repos) == set(REPOS) and (only_sets is None or set(SETS) <= set(only_sets)):
+            (out_dir / "validate.txt").write_text(text)
+        print(text, end="")
+    # The extra sets (set.json) of these repositories: their own report, validate-<set>.txt.
+    for s in EXTRA_SETS:
+        have = [r for r in repos if s in sets_of(r)]
+        if have and (only_sets is None or s in only_sets):
+            ok_set, extra = validate_extra(scratch, have, s)
+            ok_all &= ok_set
+            if set(have) == {r for r in REPOS if s in sets_of(r)}:
+                (out_dir / f"validate-{s}.txt").write_text(extra)
+            print(extra, end="")
     return ok_all
 
 
+def validate_extra(scratch, repos, s):
+    """Validates one extra set: each hidden test fails on the pin and passes with its reference (and the
+    suite stays green with the reference alone); resolved-1..n together pass the suite, every hidden
+    test and every integration test; an integration test fails on the pin, with either partner alone,
+    and with all tasks but either partner (`without-<k>.patch`). Returns (ok, report text)."""
+    lines, ok_all = [], True
+    for repo in repos:
+        rev = REPOS[repo]["rev"]
+        tree = scratch / "t2" / "validate" / repo
+        if not tree.exists():
+            tree.parent.mkdir(parents=True, exist_ok=True)
+            git("clone", "-q", "--no-checkout", str(scratch / "t2" / "src" / repo), str(tree), cwd=scratch)
+            git("checkout", "-q", "--detach", rev, cwd=tree)
+        spec = set_spec(TASKS_DIR, repo, s)
+        dirs = task_dirs(repo, s)
+        n = len(dirs)
+        good_n = 0
+        for d in dirs:
+            m = meta(d)
+            reset_tree(tree, rev)
+            fail_ok, out1, s1 = decide(repo, d, tree, scratch)
+            reset_tree(tree, rev)
+            apply_patch(tree, d / "reference.patch")
+            sok, sout, _ = suite(repo, tree, scratch)
+            pass_ok, out2, s2 = decide(repo, d, tree, scratch)
+            good = (not fail_ok) and pass_ok and sok
+            good_n += good
+            ok_all &= good
+            size = sum(1 for x in (d / "reference.patch").read_text().splitlines() if x[:1] in "+-" and x[:3] not in ("+++", "---"))
+            lines.append(f"{repo} {s} {m['k']} {m['id']}: pinned {'pass' if fail_ok else 'fail'} ({s1} s), reference "
+                         f"{'pass' if pass_ok else 'fail'} ({s2} s), suite with the reference alone {'pass' if sok else 'FAIL'}, "
+                         f"{len(m['files'])} files, {size} diff lines -> {'ok' if good else 'BAD'}")
+            if not good:
+                lines.append("    " + (sout if not sok else out2 if not pass_ok else out1)[-600:].replace("\n", "\n    "))
+        reset_tree(tree, rev)
+        for d in dirs:
+            apply_patch(tree, d / f"resolved-{meta(d)['k']}.patch")
+        sok, _, ssecs = suite(repo, tree, scratch)
+        done = [decide(repo, d, tree, scratch)[0] for d in dirs]
+        integ = {it["id"]: decide_integration(repo, s, it, tree, scratch)[0] for it in spec["integration"]}
+        good = sok and all(done) and all(integ.values())
+        ok_all &= good
+        lines.append(f"{repo} {s} all {n} (resolved-1..{n}): suite {'pass' if sok else 'FAIL'} ({ssecs} s), tests {sum(done)}/{n} pass, "
+                     f"integration {sum(integ.values())}/{len(integ)} pass -> {'ok' if good else 'BAD'}")
+        by_k = {meta(d)["k"]: d for d in dirs}
+        for it in spec["integration"]:
+            idir = TASKS_DIR / repo / s / "integration" / it["id"]
+            checks = {}
+            reset_tree(tree, rev)
+            checks["pin"] = decide_integration(repo, s, it, tree, scratch)[0]
+            for k in it["pair"]:
+                reset_tree(tree, rev)
+                apply_patch(tree, by_k[k] / "reference.patch")
+                checks[f"only {k}"] = decide_integration(repo, s, it, tree, scratch)[0]
+                reset_tree(tree, rev)
+                apply_patch(tree, idir / f"without-{k}.patch")
+                checks[f"all but {k}"] = decide_integration(repo, s, it, tree, scratch)[0]
+            good = not any(checks.values())
+            ok_all &= good
+            lines.append(f"{repo} {s} integration {it['id']} (tasks {it['pair'][0]} and {it['pair'][1]}): "
+                         + ", ".join(f"{c} {'PASSES' if v else 'fails'}" for c, v in checks.items()) + f" -> {'ok' if good else 'BAD'}")
+        table = pair_table(scratch, repo, s)
+        hits = sorted(p for p, v in table.items() if v)
+        lines.append(f"{repo} {s}: {len(hits)} of {len(table)} pairs of reference patches conflict in git: {', '.join(hits)}")
+        lines.append(f"{repo} {s}: tasks that fail on the pin and pass with the reference: {good_n}/{n}; agents {spec['agents']}, "
+                     f"slots {','.join(spec['mix'])}, limits {json.dumps(spec['limits'], sort_keys=True)}")
+    lines.append(f"validate {s}: " + ("ok" if ok_all else "FAILED"))
+    return ok_all, "\n".join(lines) + "\n"
+
+
+def decide_integration(repo, s, it, tree, scratch):
+    """Copies one integration test of set `s` into `tree` and runs the deciding command. True = passes."""
+    m = {"repo": repo, "test": it["test"]}
+    src = TASKS_DIR / repo / s / "integration" / it["id"] / "hidden" / it["test"]
+    dst = tree / it["test"]
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
+    rc, out, secs = run_cmd(repo, fill(REPOS[repo]["decide"], scratch, m), tree, scratch)
+    return rc == 0, out, secs
+
+
 def pair_conflicts(scratch, repo, dirs):
-    """How many of the 10 task pairs conflict when both reference patches merge on the pinned commit."""
+    """How many of the task pairs (10 for 5 tasks) conflict when both reference patches merge on the pinned commit."""
     rev = REPOS[repo]["rev"]
     work = scratch / "t2" / "pairs" / repo
     if not work.exists():
@@ -427,8 +642,8 @@ def pair_table(scratch, repo, s):
         commits.append(git("rev-parse", "HEAD", cwd=work).stdout.strip())
         git("checkout", "-q", "--detach", rev, cwd=work)
     out = {}
-    for i in range(5):
-        for j in range(i + 1, 5):
+    for i in range(len(commits)):
+        for j in range(i + 1, len(commits)):
             out[f"{i + 1}-{j + 1}"] = git("merge-tree", "--write-tree", commits[i], commits[j], cwd=work, check=False).returncode != 0
     return out
 
@@ -869,7 +1084,7 @@ def agent_oracle(ctx, k, resume=False):
             return
         if status != "conflict":
             emit({"type": "note", "land_status": status})
-            return
+            break
         # Resolve: main's content of the task files plus this task's resolved patch.
         tmp = Path(c["run_dir"]) / f"oracle-{k}-{attempt}"
         tmp.mkdir()
@@ -882,7 +1097,12 @@ def agent_oracle(ctx, k, resume=False):
         tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], tmp)
         for f in meta(td)["files"]:
             shutil.copyfile(tmp / f, Path(cwd) / f)
-    emit({"type": "note", "land_status": "gave up"})
+    else:
+        emit({"type": "note", "land_status": "gave up"})
+    # Not landed (held, an error, gave up): the next oracle in the fixed order goes on all the same, so the
+    # run ends and the runner's own land of this change records the status.
+    landed_dir.mkdir(exist_ok=True)
+    (landed_dir / str(k)).write_text("not landed")
 
 
 def oracle_resolve(td, k, cwd):
@@ -907,6 +1127,8 @@ def oracle_integrate(c, k, td, cwd):
             return
         oracle_resolve(td, k, cwd)
     emit({"type": "note", "integrate": "gave up"})
+    landed_dir.mkdir(exist_ok=True)  # the next oracle in the order goes on; the runner merges what is left
+    (landed_dir / str(k)).write_text("not integrated")
 
 
 class StubTalk:
@@ -1578,9 +1800,14 @@ class Run:
     def __init__(self, scratch, arm, repo, s, rep, harness, limits=None, agents=None, tasks_dir=None, repo_spec=None,
                  run_dir=None, health_url=None, results=None, block_file=None, agent_root=None):
         self.scratch, self.arm, self.repo, self.set, self.rep, self.harness = scratch, arm, repo, s, rep, harness
-        self.limits = dict(LIMITS, **(limits or {}))
-        self.n_agents = AGENTS if agents is None else agents
         self.tasks_dir = tasks_dir or TASKS_DIR
+        # Set-level settings (set.json of an extra set; else 5 agents, MIX, the frozen LIMITS): the agent
+        # count that the stop rule wants, the harness slots, and limits that the `limits` argument overrides.
+        self.set_spec = set_spec(self.tasks_dir, repo, s)
+        self.expected = self.set_spec["agents"]
+        self.mix = self.set_spec["mix"]
+        self.limits = {**LIMITS, **self.set_spec["limits"], **(limits or {})}
+        self.n_agents = self.expected if agents is None else agents
         self.spec = repo_spec or REPOS[repo]
         self.name = f"{arm}-{repo}-{s}-r{rep}-{harness}"
         # --block: another instruction block for arm B (dev set only); the run name carries its file stem.
@@ -1606,7 +1833,7 @@ class Run:
 
     def tasks(self):
         d = self.tasks_dir / self.repo / self.set
-        return sorted((p for p in d.iterdir() if p.is_dir()), key=lambda p: int(p.name.split("-")[0]))
+        return sorted((p for p in d.iterdir() if p.is_dir() and p.name.split("-")[0].isdigit()), key=lambda p: int(p.name.split("-")[0]))
 
     def make_repo(self, where):
         repo = where / "repo"
@@ -1621,7 +1848,7 @@ class Run:
     def harness_of(self, k):
         if self.harness != "real":
             return self.harness
-        return MIX[(k - 1 + self.rep - 1) % len(MIX)]
+        return self.mix[(k - 1 + self.rep - 1) % len(self.mix)]
 
     def agent_area(self):
         """The directory that holds everything an agent can reach in this run (README, "Layout").
@@ -1666,15 +1893,15 @@ class Run:
         self.repo_dir = self.make_repo(self.adir if self.arm in ("A", "A2") else self.run_dir)
         self.base = git("rev-parse", "HEAD", cwd=self.repo_dir).stdout.strip()
         tasks = self.tasks()
-        if len(tasks) != AGENTS:
-            raise Stop(f"agent count {len(tasks)} tasks, want {AGENTS}")
+        if len(tasks) != self.expected:
+            raise Stop(f"agent count {len(tasks)} tasks, want {self.expected}")
         tasks = tasks[: self.n_agents]
         self.agents = []
         counts = {}
         ctx = {"arm": self.arm, "run_dir": str(self.run_dir), "agents": [], "treeyard": str(self.ty)}
         if self.arm == "B":
             ty = self.ty
-            r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(AGENTS), "--no-mirror"], cwd=self.repo_dir)
+            r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror"], cwd=self.repo_dir)
             self.note("connect: " + r.stdout.strip().splitlines()[0])
             st = json.loads(sh([str(ty), "connect", "status", "--json"], cwd=self.repo_dir).stdout)
             self.url = st["url"]
@@ -1702,7 +1929,7 @@ class Run:
         for k, td in enumerate(tasks, 1):
             m = json.loads((td / "meta.json").read_text())
             h = self.harness_of(k)
-            slot = MIX[(k - 1 + self.rep - 1) % len(MIX)]
+            slot = self.mix[(k - 1 + self.rep - 1) % len(self.mix)]
             counts[slot] = counts.get(slot, 0) + 1
             agent = f"{slot}-{counts[slot]}"
             a = {"k": k, "agent": agent, "harness": h, "task_dir": str(td), "title": m["title"], "id": m["id"]}
@@ -1723,13 +1950,13 @@ class Run:
         self.ctx = self.run_dir / "ctx.json"
         self.ctx.write_text(json.dumps(ctx, indent=2))
         self.ctx_data = ctx
-        if len(self.agents) != AGENTS:
-            raise Stop(f"agent count {len(self.agents)}, want {AGENTS}")
+        if len(self.agents) != self.expected:
+            raise Stop(f"agent count {len(self.agents)}, want {self.expected}")
         if self.arm == "B":
             wss = json.loads(sh([str(self.ty), "call", "--url", self.url, "changes", "{}"]).stdout)
             n_open = len(wss.get("changes", wss) if isinstance(wss, dict) else wss)
-            if n_open != AGENTS:
-                raise Stop(f"agent count: {n_open} open changes after setup, want {AGENTS}")
+            if n_open != self.expected:
+                raise Stop(f"agent count: {n_open} open changes after setup, want {self.expected}")
 
     # -------------------------------------------------------------- the agent's box: home, tmp, test env
 
@@ -1834,8 +2061,8 @@ class Run:
     def run_agents(self, which=None, resume=None):
         """Starts the agents (all, or `which`) at once; stops the run on an anomaly."""
         which = which or self.agents
-        if resume is None and len(which) != AGENTS:
-            raise Stop(f"agent count {len(which)}, want {AGENTS}")
+        if resume is None and len(which) != self.expected:
+            raise Stop(f"agent count {len(which)}, want {self.expected}")
         if not self.healthy():
             raise Stop(f"server down: {self.health_url} does not answer")
         results = {}
@@ -2343,6 +2570,20 @@ class Run:
             done[m["id"]] = ok
         out["done"] = done
         out["tasks_on_main"] = sum(done.values())
+        out["n_tasks"] = len(done)
+        # Integration tests of an extra set: both behaviours of a designed pair at once, a metric of its own.
+        if self.set_spec["integration"]:
+            integ = {}
+            for it in self.set_spec["integration"]:
+                src = self.tasks_dir / self.repo / self.set / "integration" / it["id"] / "hidden" / it["test"]
+                dst = tree / it["test"]
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dst)
+                ok, text, secs = run_cmd_spec(self.spec, self.spec["decide"], tree, self.scratch, {"repo": self.repo, "test": it["test"]})
+                integ[it["id"]] = ok
+            out["integration"] = integ
+            out["integration_passed"] = sum(integ.values())
+            out["integration_total"] = len(integ)
         return out
 
     # -------------------------------------------------------------- legacy warnings (arm B, server events)
@@ -2386,7 +2627,7 @@ class Run:
                 "false_alarms": false_alarms, "land_conflicts": land_conflicts}
 
     def dry_run(self):
-        """Arm setup, the final prompts and the 5 real-agent command lines, with no agent started (wiring
+        """Arm setup, the final prompts and the real-agent command lines, with no agent started (wiring
         check, free). The box environments are made as in a real run (venvs from the uv cache)."""
         os.environ["T2_DRY"] = "1"
         lines = []
@@ -2450,6 +2691,9 @@ class Run:
         result = {"run": self.name, "arm": self.arm, "repo": self.repo, "set": self.set, "rep": self.rep, "kit": KIT_VERSION,
                   "harness": self.harness, "limits": self.limits, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                   "preamble_sha256": sha_text(preamble(self.arm)), "handback_sha256": sha_text(HANDBACK)}
+        if self.set_spec["from_file"]:
+            result["set_agents"] = self.expected
+            result["set_mix"] = self.mix
         if self.harness == "real":
             result["user_config_before"] = user_config_hashes()
         service = None
@@ -2668,7 +2912,7 @@ def lost_lines(own, tree):
 METRICS = ["suite_green", "suite_green_all", "suite_green_pinned", "tasks_on_main", "merge_conflicts", "warned", "reacted",
            "legacy_warned_before_land", "legacy_reacted", "interventions", "wall_s", "lost_lines", "tokens_in", "tokens_out",
            "tokens_fresh_in", "tokens_cached_in", "cost_usd_claude_only", "false_alarms", "tool_calls", "test_passed_agents",
-           "integrate_conflicts"]
+           "integrate_conflicts", "n_tasks", "integration_passed", "integration_total"]
 
 
 def normalize(r):
@@ -2712,7 +2956,7 @@ def collect(results_dir, out_json, out_txt, only=None):
         table.append(row)
     Path(out_json).write_text(json.dumps({"runs": table}, indent=1) + "\n")
     fmt = lambda v: {True: "green", False: "red", None: "-"}.get(v, v) if isinstance(v, bool) or v is None else v  # noqa: E731
-    hdr = ["run", "status", "suite all", "suite pinned", "done", "merge/land conflicts", "warned", "reacted", "legacy warned",
+    hdr = ["run", "status", "suite all", "suite pinned", "done", "integration", "merge/land conflicts", "warned", "reacted", "legacy warned",
            "legacy reacted", "interv", "lost", "tests passed", "tool calls", "tokens", "Claude tokens", "Codex tokens",
            "cost (Claude only)", "wall s"]
     lines = ["| " + " | ".join(hdr) + " |", "|" + "---|" * len(hdr)]
@@ -2721,7 +2965,8 @@ def collect(results_dir, out_json, out_txt, only=None):
         lines.append("| " + " | ".join(str(x) for x in [
             r["run"], r["status"] if r["status"] == "done" else f"stopped: {r['stop_reason']}",
             fmt(r["suite_green_all"]), fmt(r["suite_green_pinned"]),
-            f"{r['tasks_on_main']}/5" if r["tasks_on_main"] is not None else "-",
+            f"{r['tasks_on_main']}/{r['n_tasks'] or 5}" if r["tasks_on_main"] is not None else "-",
+            f"{r['integration_passed']}/{r['integration_total']}" if r["integration_total"] else "-",
             fmt(r["merge_conflicts"]), fmt(r["warned"]), fmt(r["reacted"]), fmt(r["legacy_warned_before_land"]), fmt(r["legacy_reacted"]),
             fmt(r["interventions"]), fmt(r["lost_lines"]), fmt(r["test_passed_agents"]), fmt(r["tool_calls"]),
             (r["tokens_in"] or 0) + (r["tokens_out"] or 0),
@@ -2806,7 +3051,7 @@ def recount(runs_dir, results_dirs=()):
             *(f"{hb[h]['old']} -> {hb[h]['new']}" if h in hb else "-" for h in ("claude", "codex"))]) + " |")
     cells = {}
     for r in rows:
-        m = re.match(r"^(A2|A|B)-(\w+)-(disjoint|colliding)-", r["run"])
+        m = re.match(r"^(A2|A|B)-(\w+)-(disjoint|colliding|mixed)-", r["run"])
         if m:
             c = cells.setdefault((m.group(2), m.group(3)), {}).setdefault(m.group(1), {"old": 0, "new": 0, "n": 0})
             if r["old"]:
@@ -2885,12 +3130,14 @@ def main(argv=None):
                            help="the development set (dev/README.md); without it, the T2 repositories")
         if n in ("validate", "rehearse"):
             p.add_argument("--repo", action="append", choices=list(REPOS) + list(DEV_REPOS))
+            p.add_argument("--set", action="append", choices=list(SETS) + list(EXTRA_SETS),
+                           help="only these sets (default: every set the repository has)")
         if n == "pilot":
             p.add_argument("--yes-real", action="store_true")
         if n == "run":
             p.add_argument("--arm", required=True, choices=ARMS)
             p.add_argument("--repo", required=True, choices=list(REPOS) + list(DEV_REPOS))
-            p.add_argument("--set", required=True, choices=SETS)
+            p.add_argument("--set", required=True, choices=list(SETS) + list(EXTRA_SETS))
             p.add_argument("--rep", required=True, type=int)
             p.add_argument("--harness", required=True, choices=["oracle", "noop", "stub", "real"])
             p.add_argument("--yes-real", action="store_true", help="needed for --harness real (owner's yes and budget)")
@@ -2940,7 +3187,7 @@ def main(argv=None):
     if a.cmd == "generate":
         return generate(scratch)
     if a.cmd == "validate":
-        sys.exit(0 if validate(scratch, a.repo or list(REPOS), a.results) else 1)
+        sys.exit(0 if validate(scratch, a.repo or list(REPOS), a.results, a.set) else 1)
     kw = {"results": getattr(a, "results", None), "agent_root": getattr(a, "agent_root", None)}
     if a.cmd == "run":
         if a.dry_run:
@@ -2952,7 +3199,8 @@ def main(argv=None):
         truth = pair_table(scratch, a.repo, a.set) if a.arm == "B" else None
         r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).execute(truth)
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all", "suite_green_pinned",
-                                                 "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}))
+                                                 "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}
+                         | ({"integration": f"{r['integration_passed']}/{r['integration_total']}"} if r.get("integration_total") else {})))
         sys.exit(0 if r["status"] == "done" else 3)
     if a.cmd == "pilot":
         order = pilot_order()
@@ -2970,15 +3218,18 @@ def main(argv=None):
     if a.cmd == "rehearse":
         bad = 0
         for repo in a.repo or list(REPOS):
-            truth = {s: pair_table(scratch, repo, s) for s in SETS}
+            sets = [x for x in (*SETS, *sets_of(repo)) if a.set is None or x in a.set]
+            truth = {s: pair_table(scratch, repo, s) for s in sets}
             for harness in ("oracle", "noop"):
-                for s in SETS:
+                for s in sets:
                     for arm in ARMS:
                         r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm == "B" else None)
                         bad += r["status"] != "done"
                         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all",
                                                                  "suite_green_pinned", "merge_conflicts", "warned", "reacted",
-                                                                 "interventions", "false_alarms", "wall_s")}), flush=True)
+                                                                 "interventions", "false_alarms", "wall_s")}
+                                         | ({"integration": f"{r['integration_passed']}/{r['integration_total']}",
+                                             "setup_s": r.get("setup_s")} if r.get("integration_total") else {})), flush=True)
         sys.exit(1 if bad else 0)
 
 

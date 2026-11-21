@@ -1,6 +1,6 @@
 # T2 experiment kit
 
-Five coding agents at once on one repository: plain `git worktree` per agent (arm A), worktrees plus a
+Five coding agents at once on one repository (ten in the development set `mixed`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
 git-native way to integrate early (arm A2), and `treeyard connect` (arm B). The design, the metrics and
 the thresholds of version 3 are frozen in [PREREGISTRATION.md](PREREGISTRATION.md); its pilot on
 requests ran in [results/pilot-v3/](results/pilot-v3/README.md) and an audit after it found faults in
@@ -21,7 +21,8 @@ python3 bench/t2/t2.py run --scratch S --arm A2 --repo requests --set colliding 
 python3 bench/t2/t2.py recount --runs S/t2/runs --results bench/t2/results/pilot-v3
 ```
 
-`run`, `rehearse` and `validate` take `--results DIR` (default: `results/`, or `dev/results/` for the
+`validate` and `rehearse` take `--set NAME` (repeatable) to run only those sets; without it they run every
+set the repository has (an extra set writes its own `validate-<set>.txt`). `run`, `rehearse` and `validate` take `--results DIR` (default: `results/`, or `dev/results/` for the
 development set). Point it at a scratch directory for checks: the run files in `results/` are frozen.
 `run`, `rehearse` and `pilot` take `--agent-root DIR` (see "Layout").
 
@@ -31,8 +32,10 @@ development set). Point it at a scratch directory for checks: the run files in `
 |---|---|
 | `repos.json` | pinned URL and commit per repository; `decide`, `suite`, `test_prefix` (`t2-test ARGS`), `test_globs` (test files, for `suite_green_pinned`) |
 | `taskdefs.py` | the 30 tasks: prompt, hidden test, reference edits |
+| `taskdefs_<name>.py` (optional, next to a `taskdefs.py`) | sets beyond `disjoint` and `colliding`, with their set-level settings and integration tests; today only `dev/taskdefs_mixed.py` |
 | `tasks/<repo>/<set>/<k>-<id>/` | `prompt.md`, `hidden/<path>`, `reference.patch`, `resolved-<k>.patch` (colliding), `meta.json` |
-| `tasks/MANIFEST.json` | sha256 of every task file (checked by `test_t2.py`) |
+| `tasks/MANIFEST.json` | sha256 of every task file of `disjoint` and `colliding` (checked by `test_t2.py`) |
+| `tasks/<repo>/<set>/set.json`, `tasks/MANIFEST-<set>.json` | an extra set: agent count, harness slots, limits, integration tests (`integration/<id>/`); its own manifest |
 | `block-b.md` | the instruction block that `treeyard connect` writes; arm B refuses another one |
 | `astro_hook.mjs` | node resolve hook: astro tests run on the `.ts` sources with no install and no build |
 | `t2.py` | setup, generate, validate, run, rehearse, pilot, collect, budget, recount; the scripted agents |
@@ -42,8 +45,9 @@ development set). Point it at a scratch directory for checks: the run files in `
 
 ## Arms
 
-- **A**: one worktree and branch `agent-<k>` per agent. When all 5 stop, the runner commits what each
-  agent left (commit rule below) and merges `agent-1` to `agent-5` into `main` with `git merge --no-ff`.
+- **A**: one worktree and branch `agent-<k>` per agent. When all agents stop (5; an extra set can have
+  more, `mixed` has 10), the runner commits what each agent left (commit rule below) and merges `agent-1`
+  to `agent-N` into `main` with `git merge --no-ff`.
 - **A2**: A plus the block `A2_BLOCK` in the prompt and `t2-integrate` on the agent's PATH. The agent
   integrates itself when its change passes `t2-test`: the command merges `main` into its branch and,
   when that is clean, fast-forwards `main` to it; on a conflict it leaves the markers in the files and
@@ -133,19 +137,21 @@ Arm B removes the same files from the workspace before the runner lands it. The 
 ## Harnesses
 
 - `oracle`: applies `reference.patch`. Arm A: it commits; on the hand-back it writes main's content of
-  its files plus `resolved-<k>.patch`. Arm A2: it integrates in the fixed order 1 to 5 and settles its
-  conflicts the same way. Arm B: it syncs its workspace and lands in the fixed order 1 to 5; on a land
-  conflict it writes main plus `resolved-<k>.patch`, then lands again.
+  its files plus `resolved-<k>.patch`. Arm A2: it integrates in the fixed order 1 to N and settles its
+  conflicts the same way. Arm B: it syncs its workspace and lands in the fixed order 1 to N; on a land
+  conflict it writes main plus `resolved-<k>.patch`, then lands again. An oracle that does not get its
+  change in (held, an error, three conflicts) still lets the next one go on, so the run ends.
 - `noop`: changes nothing and makes one tool call, so the zero-tool-call stop does not fire.
 - `stub`: scripted behaviour for the tests (`T2_STUB_MODES` per slot; `T2_STUB_AS` per slot = `claude` or
   `codex` makes it print that CLI's transcript format, so the parser and resume path of each harness run).
-- `real`: 3 Claude Code, 2 Codex. It needs `--yes-real`: the owner's yes and a budget.
+- `real`: 3 Claude Code, 2 Codex (an extra set's `set.json` gives its own slots: `mixed` has 6 Claude
+  Code, 4 Codex). It needs `--yes-real`: the owner's yes and a budget.
 
 ## Stops
 
 Per agent, the runner kills the process group at the turn limit, the token limit or the wall-clock
 timeout, and the run goes on. The whole run stops with exit 3 and a `stop_reason` on one of these
-anomalies: the agent count is not 5; the arm B server does not answer `/health`; an agent makes zero
+anomalies: the agent count is not the set's (5, or `agents` of its `set.json`); the arm B server does not answer `/health`; an agent makes zero
 tool calls in its first invocation (a hand-back answered in words is not an anomaly).
 
 ## Metrics of a run file (`"kit": 2`)
@@ -154,7 +160,9 @@ tool calls in its first invocation (a hand-back answered in words is not an anom
 |---|---|
 | `suite_green_all` (`suite_green`) | the `suite` command on final main as it is, agent-written tests included |
 | `suite_green_pinned` | the same with the test files of the pin (`test_globs`): agent tests removed, changed ones restored; `test_files_restored`, `suite_tail_all`, `suite_tail_pinned` |
-| `tasks_on_main`, `done` | hidden deciding tests that pass on final main |
+| `tasks_on_main`, `done`, `n_tasks` | hidden deciding tests that pass on final main; the set's task count |
+| `integration`, `integration_passed`, `integration_total` | extra sets: hidden integration tests (both behaviours of a designed pair at once) on final main, a metric apart from `tasks_on_main` |
+| `set_agents`, `set_mix` | extra sets: the agent count and the harness slots of its `set.json` |
 | `merge_conflicts` | A, A2: runner merges with a conflict at the first try; B: `conflict` events with cause `land` |
 | `interventions` = `needs_human` | failed hand-backs (agents left out of main) |
 | `merges` / `lands` | per agent: conflict, `handback_files`, `handback`, `handback_failure`, `needs_human`, `skipped_paths`, `merge_output`; B: every runner land with its `status` and `error` text (`empty` = an idle workspace change), `undoes_held` (lands held with status `undoes`) |
