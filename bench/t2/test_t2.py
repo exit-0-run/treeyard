@@ -218,6 +218,84 @@ class KitTests(unittest.TestCase):
                                                                                     "cache": {"read": 4, "write": 5}}, "cost": 0.5}}), st)
         self.assertEqual((st["turns"], st["tool_calls"], st["tokens_in"], st["tokens_out"], st["cost_usd"]), (2, 1, 128, 21, 0.5))
 
+    def test_claude_counts_once_per_message_and_takes_the_result_usage(self):
+        """Excerpt of a real stream-json transcript (one agent, a first run and a resumed hand-back), trimmed."""
+        u1 = {"input_tokens": 3, "cache_creation_input_tokens": 100, "cache_read_input_tokens": 1000, "output_tokens": 16}
+        u2 = {"input_tokens": 1, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 1200, "output_tokens": 21}
+
+        def msg(mid, kind, u, tid=None):
+            block = {"type": kind, **({"id": tid, "name": "Bash", "input": {}} if tid else {})}
+            return json.dumps({"type": "assistant", "message": {"id": mid, "model": "model-x", "content": [block], "usage": u}})
+
+        lines = [
+            json.dumps({"type": "system", "subtype": "init", "session_id": "s1", "model": "model-x"}),
+            msg("m1", "thinking", u1), msg("m1", "tool_use", u1, "t1"), msg("m1", "tool_use", u1, "t2"),
+            msg("m2", "text", u2),
+        ]
+        st = k.new_stats()
+        for line in lines:
+            k.parse_line("claude", line, st)
+        # live: each message id once (the old count added m1 three times)
+        self.assertEqual((st["tokens_in"], st["tokens_out"], st["turns"], st["tool_calls"]), (1103 + 1201, 37, 2, 2))
+        self.assertEqual(k.legacy_count("claude", lines)["tokens_in"], 3 * 1103 + 1201)
+        lines.append(json.dumps({"type": "result", "session_id": "s1", "num_turns": 3, "total_cost_usd": 0.5, "usage": {
+            "input_tokens": 4, "cache_creation_input_tokens": 100, "cache_read_input_tokens": 2300, "output_tokens": 40}}))
+        # resumed hand-back: the session total cost goes on, the usage is this invocation's
+        lines += [json.dumps({"type": "system", "subtype": "init", "session_id": "s1", "model": "model-x"}),
+                  msg("m3", "tool_use", u2, "t3"),
+                  json.dumps({"type": "result", "session_id": "s1", "num_turns": 2, "total_cost_usd": 0.75, "usage": u2})]
+        c = k.count_transcript("claude", lines)
+        self.assertEqual(c["tokens_in"], 2404 + 1201)
+        self.assertEqual(c["tokens_out"], 40 + 21)
+        self.assertEqual((c["tokens_fresh_in"], c["tokens_cached_in"], c["tokens_cache_write"]), (104 + 1, 2300 + 1200, 100))
+        self.assertEqual((c["turns"], c["tool_calls"], c["cost_usd"], c["models"]), (5, 3, 0.75, ["model-x"]))
+
+    def test_codex_resume_reports_the_thread_total(self):
+        """Codex `turn.completed` usage is the thread total; the resumed turn adds only the difference."""
+        lines = [json.dumps({"type": "thread.started", "thread_id": "th"}),
+                 json.dumps({"type": "item.started", "item": {"type": "command_execution"}}),
+                 json.dumps({"type": "turn.completed", "usage": {"input_tokens": 230757, "cached_input_tokens": 211456, "output_tokens": 1122}}),
+                 json.dumps({"type": "thread.started", "thread_id": "th"}),
+                 json.dumps({"type": "turn.completed", "usage": {"input_tokens": 426515, "cached_input_tokens": 397824, "output_tokens": 2064}})]
+        c = k.count_transcript("codex", lines)
+        self.assertEqual((c["tokens_in"], c["tokens_out"], c["tokens_cached_in"], c["tokens_fresh_in"]),
+                         (426515, 2064, 397824, 426515 - 397824))
+        self.assertEqual(k.legacy_count("codex", lines)["tokens_in"], 230757 + 426515)
+        # a resume in a new process carries the thread total through `prior`
+        first = k.count_transcript("codex", lines[:3])
+        st = k.new_stats({"_codex_cum": {"th": {"in": 230757, "cached": 211456, "out": 1122}}})
+        for line in lines[3:]:
+            k.parse_line("codex", line, st)
+        self.assertEqual(first["tokens_in"] + st["tokens_in"], 426515)
+
+    def test_codex_live_usage_reads_the_rollout(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-rollout-"))
+        try:
+            d = tmp / "sessions" / "2026" / "01" / "01"
+            d.mkdir(parents=True)
+            ev = lambda n: json.dumps({"type": "event_msg", "payload": {"type": "token_count", "info": {
+                "total_token_usage": {"input_tokens": n, "cached_input_tokens": n // 2, "output_tokens": 7}}}})
+            (d / "rollout-2026-01-01T00-00-00-th.jsonl").write_text(
+                json.dumps({"type": "turn_context", "payload": {"model": "model-y"}}) + "\n" + ev(10) + "\n" + ev(30) + "\n")
+            self.assertEqual(k.codex_live_usage(tmp, "th"), {"in": 30, "cached": 15, "out": 7})
+            self.assertIsNone(k.codex_live_usage(tmp, "other"))
+            self.assertEqual(k.codex_models(tmp), ["model-y"])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_recount_prints_old_and_new(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-recount-"))
+        try:
+            run = tmp / "A-mini-colliding-r1-real"
+            run.mkdir()
+            u = {"input_tokens": 1, "cache_read_input_tokens": 9, "output_tokens": 2}
+            m = json.dumps({"type": "assistant", "message": {"id": "m", "content": [{"type": "text"}], "usage": u}})
+            (run / "agent-1.jsonl").write_text("\n".join([json.dumps({"type": "system", "session_id": "s"}), m, m]) + "\n")
+            rows = k.recount(tmp)
+            self.assertEqual((rows[0]["old"], rows[0]["new"]), (24, 12))
+        finally:
+            shutil.rmtree(tmp)
+
 
 KIT_GLOBALS = ("REPOS", "TASKS_DIR", "RESULTS", "TASKDEFS", "VENV", "TASK_TOTAL")
 

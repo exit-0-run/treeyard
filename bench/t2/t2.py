@@ -11,6 +11,7 @@ Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.m
   collect   [--results DIR]             metrics.json and a summary table from the run files
   pilot     --scratch S [--yes-real]    the 12 pilot runs in the frozen order (without --yes-real: the order only)
   budget    --pilot DIR                 full budget from the pilot run files (formula only)
+  recount   --runs DIR [--results DIR]  tokens of old runs from their transcripts, old count against new
 
 Development set (dev/README.md, for tuning the arm B block): `--repo click` on setup, generate,
 validate, rehearse and run uses dev/ instead; `run --arm B --block FILE` swaps the instruction block.
@@ -430,8 +431,53 @@ def pair_table(scratch, repo, s):
 # ===================================================================================== agents
 
 
+# Token fields of one agent. tokens_in is every input token, cached or not (preregistration section 4);
+# the split is the price-free cost: fresh input (not read from a cache; Claude's cache writes are in it
+# and also in tokens_cache_write), cached input, output.
+TOKEN_KEYS = ("tokens_in", "tokens_out", "tokens_fresh_in", "tokens_cached_in", "tokens_cache_write")
+SUM_KEYS = ("turns", "tool_calls", *TOKEN_KEYS, "cost_usd", "wall_s")
+
+
+def new_stats(prior=None):
+    """Counters of one agent process. `prior` carries the cumulative state of a resumed session (both CLIs
+    report session totals on resume: Claude's `total_cost_usd`, Codex's `turn.completed` usage)."""
+    st = {"turns": 0, "tool_calls": 0, **{k: 0 for k in TOKEN_KEYS}, "cost_usd": 0.0, "session": None,
+          "models": [], "killed": None, "exit": None,
+          # private (dropped from the run file): committed totals, the live segment of the current
+          # Claude invocation (usage per message id), seen tool_use ids, session totals for deltas
+          "_done": {k: 0 for k in ("turns", *TOKEN_KEYS)}, "_msgs": {}, "_tools": set(),
+          "_cost_cum": {}, "_codex_cum": {}}
+    for key in ("_cost_cum", "_codex_cum"):
+        st[key] = dict((prior or {}).get(key) or {})
+    return st
+
+
+def _claude_usage(u):
+    fresh = int(u.get("input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0)
+    cached = int(u.get("cache_read_input_tokens") or 0)
+    return {"tokens_in": fresh + cached, "tokens_out": int(u.get("output_tokens") or 0), "tokens_fresh_in": fresh,
+            "tokens_cached_in": cached, "tokens_cache_write": int(u.get("cache_creation_input_tokens") or 0)}
+
+
+def _refresh(st):
+    """tokens/turns = committed totals + the live segment (Claude messages since the last `result`)."""
+    seg = {k: 0 for k in TOKEN_KEYS}
+    for u in st["_msgs"].values():
+        for k, v in _claude_usage(u).items():
+            seg[k] += v
+    for k in TOKEN_KEYS:
+        st[k] = st["_done"][k] + seg[k]
+    st["turns"] = st["_done"]["turns"] + len(st["_msgs"])
+
+
 def parse_line(harness, line, st):
-    """Updates the counters in `st` from one transcript line: turns, tool calls, tokens, cost, session."""
+    """Updates the counters in `st` from one transcript line: turns, tool calls, tokens, cost, session, model.
+
+    Claude Code (stream-json) emits one `assistant` event per content block, all with the same message id
+    and the same usage: usage and turns count once per message id while it runs, and the `result` event of
+    the invocation replaces them with its own `usage` and `num_turns` (the unit of `--max-turns`).
+    `total_cost_usd` is the session total, so a resumed session adds only the difference.
+    Codex (`--json`) reports usage only at `turn.completed`, as the thread total: a resume adds the difference."""
     try:
         ev = json.loads(line)
     except ValueError:
@@ -439,27 +485,61 @@ def parse_line(harness, line, st):
     if not isinstance(ev, dict):
         return
     t = ev.get("type")
+    if "_done" not in st:  # a plain dict from an old caller
+        st.update({k: v for k, v in new_stats().items() if k not in st})
     if harness in ("script", "stub"):
         if t == "turn":
             st["turns"] += 1
+            st["_done"]["turns"] += 1
         elif t == "tool_use":
             st["tool_calls"] += 1
         elif t == "usage":
-            st["tokens_in"] += int(ev.get("input_tokens", 0))
-            st["tokens_out"] += int(ev.get("output_tokens", 0))
+            fresh, out = int(ev.get("input_tokens", 0)), int(ev.get("output_tokens", 0))
+            for k, v in (("tokens_in", fresh), ("tokens_fresh_in", fresh), ("tokens_out", out)):
+                st[k] += v
+                st["_done"][k] += v
             st["cost_usd"] += float(ev.get("cost_usd", 0))
     elif harness == "claude":
         if t == "system" and ev.get("session_id"):
             st["session"] = ev["session_id"]
+            if ev.get("model") and ev["model"] not in st["models"]:
+                st["models"].append(ev["model"])
         if t == "assistant":
             msg = ev.get("message") or {}
-            st["turns"] += 1
-            st["tool_calls"] += sum(1 for c in msg.get("content") or [] if isinstance(c, dict) and c.get("type") == "tool_use")
-            u = msg.get("usage") or {}
-            st["tokens_in"] += int(u.get("input_tokens", 0)) + int(u.get("cache_read_input_tokens", 0)) + int(u.get("cache_creation_input_tokens", 0))
-            st["tokens_out"] += int(u.get("output_tokens", 0))
+            mid = msg.get("id") or ev.get("uuid") or f"event-{len(st['_msgs'])}"
+            for c in msg.get("content") or []:
+                if isinstance(c, dict) and c.get("type") == "tool_use":
+                    tid = c.get("id") or f"{mid}-{len(st['_tools'])}"
+                    if tid not in st["_tools"]:
+                        st["_tools"].add(tid)
+                        st["tool_calls"] += 1
+            if msg.get("model") and msg["model"] not in st["models"] and not msg["model"].startswith("<"):
+                st["models"].append(msg["model"])
+            st["_msgs"][mid] = msg.get("usage") or {}
+            _refresh(st)
         if t == "result":
-            st["cost_usd"] += float(ev.get("total_cost_usd") or 0)
+            u = ev.get("usage")
+            seg = _claude_usage(u) if isinstance(u, dict) else None
+            if seg is None:
+                seg = {k: 0 for k in TOKEN_KEYS}
+                for mu in st["_msgs"].values():
+                    for k, v in _claude_usage(mu).items():
+                        seg[k] += v
+            for k in TOKEN_KEYS:
+                st["_done"][k] += seg[k]
+            st["_done"]["turns"] += int(ev["num_turns"]) if isinstance(ev.get("num_turns"), int) else len(st["_msgs"])
+            st["_msgs"] = {}
+            _refresh(st)
+            since = ev.get("model_usage_since_last_result")
+            if isinstance(since, dict) and since:
+                st["cost_usd"] += sum(float((m or {}).get("costUSD") or 0) for m in since.values())
+            else:
+                sid = ev.get("session_id") or st.get("session") or ""
+                total = float(ev.get("total_cost_usd") or 0)
+                prev = st["_cost_cum"].get(sid, 0.0)
+                st["cost_usd"] += total - prev if total >= prev else total
+            sid = ev.get("session_id") or st.get("session") or ""
+            st["_cost_cum"][sid] = float(ev.get("total_cost_usd") or 0)
     elif harness == "codex":
         if t == "thread.started":
             st["session"] = ev.get("thread_id")
@@ -467,10 +547,21 @@ def parse_line(harness, line, st):
         if t == "item.started" and item.get("type") in ("mcp_tool_call", "command_execution", "file_change", "web_search"):
             st["tool_calls"] += 1
             st["turns"] += 1
+            st["_done"]["turns"] += 1
         if t == "turn.completed":
             u = ev.get("usage") or {}
-            st["tokens_in"] += int(u.get("input_tokens", 0))
-            st["tokens_out"] += int(u.get("output_tokens", 0))
+            cur = {"in": int(u.get("input_tokens", 0)), "cached": int(u.get("cached_input_tokens", 0)),
+                   "out": int(u.get("output_tokens", 0))}
+            tid = st.get("session") or ""
+            prev = st["_codex_cum"].get(tid) or {"in": 0, "cached": 0, "out": 0}
+            if cur["in"] < prev["in"] or cur["out"] < prev["out"]:
+                prev = {"in": 0, "cached": 0, "out": 0}  # not a running total: take it as is
+            d = {k: cur[k] - prev[k] for k in cur}
+            st["_codex_cum"][tid] = cur
+            for k, v in (("tokens_in", d["in"]), ("tokens_out", d["out"]), ("tokens_cached_in", d["cached"]),
+                         ("tokens_fresh_in", d["in"] - d["cached"])):
+                st[k] += v
+                st["_done"][k] += v
     elif harness == "opencode":
         part = ev.get("part") or {}
         if ev.get("sessionID"):
@@ -479,50 +570,208 @@ def parse_line(harness, line, st):
             st["tool_calls"] += 1
         if t == "step_finish":
             st["turns"] += 1
+            st["_done"]["turns"] += 1
             tok = part.get("tokens") or {}
             cache = tok.get("cache") or {}
-            st["tokens_in"] += int(tok.get("input", 0)) + int(cache.get("read", 0)) + int(cache.get("write", 0))
-            st["tokens_out"] += int(tok.get("output", 0)) + int(tok.get("reasoning", 0))
+            fresh = int(tok.get("input", 0)) + int(cache.get("write", 0))
+            vals = {"tokens_in": fresh + int(cache.get("read", 0)), "tokens_out": int(tok.get("output", 0)) + int(tok.get("reasoning", 0)),
+                    "tokens_fresh_in": fresh, "tokens_cached_in": int(cache.get("read", 0)), "tokens_cache_write": int(cache.get("write", 0))}
+            for k, v in vals.items():
+                st[k] += v
+                st["_done"][k] += v
             st["cost_usd"] += float(part.get("cost") or 0)
 
 
-def supervise(name, harness, cmd, cwd, env, out_path, limits, registry):
-    """Runs one agent in its own process group and kills the group at a limit. Returns its counters."""
-    st = {"turns": 0, "tool_calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "session": None,
-          "killed": None, "exit": None}
+def count_transcript(harness, lines):
+    """The counters of a whole transcript file (all invocations of one agent, hand-backs included)."""
+    st = new_stats()
+    for line in lines:
+        parse_line(harness, line, st)
+    return public_stats(st)
+
+
+def public_stats(st):
+    out = {k: v for k, v in st.items() if not k.startswith("_")}
+    out["cost_usd"] = round(out.get("cost_usd", 0.0), 6)
+    return out
+
+
+def merge_stats(prev, st):
+    """The counters of all invocations of one agent: sums, the first limit kill, the newest session."""
+    if not prev:
+        return dict(st)
+    out = dict(st)
+    for key in SUM_KEYS:
+        out[key] = round(prev.get(key, 0) + st.get(key, 0), 6)
+    out["session"] = st.get("session") or prev.get("session")
+    out["killed"] = prev.get("killed") or st.get("killed")
+    out["models"] = list(dict.fromkeys((prev.get("models") or []) + (st.get("models") or [])))
+    for key in ("_cost_cum", "_codex_cum"):
+        out[key] = {**(prev.get(key) or {}), **(st.get(key) or {})}
+    return out
+
+
+def legacy_count(harness, lines):
+    """Tokens and turns as the runner counted them before the fix (every Claude stream event, every
+    Codex `turn.completed` in full). Only for `recount`, to restate old run files."""
+    tin = tout = turns = 0
+    for line in lines:
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(ev, dict):
+            continue
+        if harness == "claude" and ev.get("type") == "assistant":
+            u = (ev.get("message") or {}).get("usage") or {}
+            turns += 1
+            tin += int(u.get("input_tokens", 0)) + int(u.get("cache_read_input_tokens", 0)) + int(u.get("cache_creation_input_tokens", 0))
+            tout += int(u.get("output_tokens", 0))
+        elif harness == "codex" and ev.get("type") == "turn.completed":
+            u = ev.get("usage") or {}
+            tin += int(u.get("input_tokens", 0))
+            tout += int(u.get("output_tokens", 0))
+        elif harness == "codex" and ev.get("type") == "item.started" and (ev.get("item") or {}).get("type") in (
+                "mcp_tool_call", "command_execution", "file_change", "web_search"):
+            turns += 1
+    return {"tokens_in": tin, "tokens_out": tout, "turns": turns}
+
+
+def transcript_harness(path):
+    """claude, codex or script, from the first events of a transcript file."""
+    with open(path, errors="replace") as f:
+        for line in f:
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            t = ev.get("type") if isinstance(ev, dict) else None
+            if t in ("system", "assistant", "result"):
+                return "claude"
+            if t in ("thread.started", "turn.started", "turn.completed", "item.started", "item.completed"):
+                return "codex"
+            if t in ("turn", "tool_use", "usage", "note"):
+                return "script"
+    return None
+
+
+def codex_live_usage(codex_home, thread_id):
+    """The thread total that Codex writes to its rollout file after every model call (`token_count`
+    events), or None. `--json` prints usage only at `turn.completed`; this is the live source."""
+    if not codex_home or not thread_id:
+        return None
+    files = sorted(Path(codex_home).glob(f"sessions/**/rollout-*{thread_id}.jsonl"))
+    if not files:
+        return None
+    last = None
+    try:
+        with open(files[-1], errors="replace") as f:
+            for line in f:
+                if '"token_count"' not in line:
+                    continue
+                try:
+                    p = json.loads(line).get("payload") or {}
+                except ValueError:
+                    continue
+                total = ((p.get("info") or {}).get("total_token_usage")) if p.get("type") == "token_count" else None
+                if total:
+                    last = total
+    except OSError:
+        return None
+    if not last:
+        return None
+    return {"in": int(last.get("input_tokens", 0)), "cached": int(last.get("cached_input_tokens", 0)),
+            "out": int(last.get("output_tokens", 0))}
+
+
+def codex_models(codex_home):
+    """Model names in the Codex rollout files (`turn_context`); `--json` does not print the model."""
+    out = []
+    for f in sorted(Path(codex_home).glob("sessions/**/rollout-*.jsonl")) if codex_home else []:
+        try:
+            for line in open(f, errors="replace"):
+                if '"turn_context"' in line:
+                    m = (json.loads(line).get("payload") or {}).get("model")
+                    if m and m not in out:
+                        out.append(m)
+        except (OSError, ValueError):
+            pass
+    return out
+
+
+def supervise(name, harness, cmd, cwd, env, out_path, limits, registry, prior=None, codex_home=None):
+    """Runs one agent in its own process group and kills the group at a limit. Returns its counters.
+
+    The limits hold over all invocations of the agent: `prior` is the agent's counters before this one
+    (a hand-back resumes the session within what is left). Codex tokens come from its rollout file
+    every HEALTH_EVERY_S while it runs (`codex_live_usage`), else only at `turn.completed`."""
+    st = new_stats(prior)
+    base = {k: (prior or {}).get(k, 0) for k in ("turns", "tokens_in", "tokens_out", "wall_s")}
     t0 = time.time()
     env = dict(env, PWD=str(cwd))  # OpenCode takes its project from $PWD
+    left_s = limits["timeout_s"] - base["wall_s"]
     with open(out_path, "a") as out, open(str(out_path) + ".err", "a") as err:
+        if left_s <= 0:
+            st["killed"] = f"timeout {limits['timeout_s']} s"
+            st["exit"] = None
+            st["wall_s"] = 0.0
+            return public_stats(st)
         p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=err, stdin=subprocess.DEVNULL,
                              text=True, start_new_session=True)
         registry[name] = p
+        lock = threading.Lock()
 
         def kill(why):
-            if st["killed"] is None:
-                st["killed"] = why
+            with lock:
+                if st["killed"] is None:
+                    st["killed"] = why
             try:
                 os.killpg(p.pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
 
-        timer = threading.Timer(limits["timeout_s"], kill, args=(f"timeout {limits['timeout_s']} s",))
+        def over(tokens):
+            if base["turns"] + st["turns"] > limits["max_turns"]:
+                return f"turns > {limits['max_turns']}"
+            if base["tokens_in"] + base["tokens_out"] + tokens > limits["max_tokens"]:
+                return f"tokens > {limits['max_tokens']}"
+            return None
+
+        timer = threading.Timer(left_s, kill, args=(f"timeout {limits['timeout_s']} s",))
         timer.start()
+        done = threading.Event()
+        if harness == "codex" and codex_home:
+            start_cum = dict(st["_codex_cum"])
+
+            def probe():
+                while not done.wait(HEALTH_EVERY_S):
+                    live = codex_live_usage(codex_home, st.get("session"))
+                    if live is None:
+                        continue
+                    prev = start_cum.get(st.get("session") or "") or {"in": 0, "out": 0}
+                    tokens = max(live["in"] - prev.get("in", 0), 0) + max(live["out"] - prev.get("out", 0), 0)
+                    st["live_tokens"] = tokens
+                    why = over(max(tokens, st["tokens_in"] + st["tokens_out"]))
+                    if why:
+                        kill(why)
+                        return
+
+            threading.Thread(target=probe, daemon=True).start()
         for line in p.stdout:
             out.write(line)
             out.flush()
             parse_line(harness, line, st)
-            if st["turns"] > limits["max_turns"]:
-                kill(f"turns > {limits['max_turns']}")
-            elif st["tokens_in"] + st["tokens_out"] > limits["max_tokens"]:
-                kill(f"tokens > {limits['max_tokens']}")
+            why = over(st["tokens_in"] + st["tokens_out"])
+            if why:
+                kill(why)
             if st["killed"]:
                 break
         p.stdout.close()
         st["exit"] = p.wait()
+        done.set()
         timer.cancel()
     st["wall_s"] = round(time.time() - t0, 2)
-    st["cost_usd"] = round(st["cost_usd"], 6)
-    return st
+    return public_stats(st) | {"_cost_cum": st["_cost_cum"], "_codex_cum": st["_codex_cum"]}
 
 
 def kill_all(registry):
@@ -932,9 +1181,11 @@ class Run:
             msg = (resume or {}).get(a["k"])
             cmd, env, parser = self.command(a, resume_msg=msg, session=(a.get("stats") or {}).get("session"))
             out = self.run_dir / f"agent-{a['k']}.jsonl"
-            st = supervise(f"agent-{a['k']}", parser, cmd, a["cwd"], env, out, self.limits, self.registry)
+            st = supervise(f"agent-{a['k']}", parser, cmd, a["cwd"], env, out, self.limits, self.registry,
+                           prior=a.get("stats"), codex_home=env.get("CODEX_HOME"))
             results[a["k"]] = st
-            if st["tool_calls"] == 0 and self.stop_reason is None and st["killed"] is None:
+            # The anomaly is an agent that never acts; a hand-back answered in words is not one.
+            if resume is None and st["tool_calls"] == 0 and self.stop_reason is None and st["killed"] is None:
                 self.stop_reason = f"zero tool calls: agent-{a['k']} ({a['agent']}) made no tool call"
                 kill_all(self.registry)
 
@@ -946,14 +1197,8 @@ class Run:
         done.set()
         mon.join()
         for a in which:
-            prev = a.get("stats")
-            st = results.get(a["k"], {})
-            if prev:
-                for key in ("turns", "tool_calls", "tokens_in", "tokens_out", "cost_usd", "wall_s"):
-                    st[key] = round(prev.get(key, 0) + st.get(key, 0), 6)
-                st["session"] = st.get("session") or prev.get("session")
-                st["killed"] = prev.get("killed") or st.get("killed")
-            a["stats"] = st
+            a["stats"] = merge_stats(a.get("stats"), results.get(a["k"], {}))
+            a["invocations"] = a.get("invocations", 0) + 1
         if self.stop_reason:
             raise Stop(self.stop_reason)
 
@@ -1203,7 +1448,8 @@ class Run:
                 sh([str(treeyard_bin()), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
             for p in (self.run_dir / "home").glob("*/auth.json") if (self.run_dir / "home").exists() else []:
                 p.unlink()
-        result["agent_stats"] = [{"k": a["k"], **{k: v for k, v in (a.get("stats") or {}).items() if k != "session"}}
+        result["agent_stats"] = [{"k": a["k"], "harness": a["harness"], "invocations": a.get("invocations", 0),
+                                  **{k: v for k, v in (a.get("stats") or {}).items() if k != "session" and not k.startswith("_")}}
                                  for a in getattr(self, "agents", [])]
         result["tokens_in"] = sum(s.get("tokens_in", 0) for s in result["agent_stats"])
         result["tokens_out"] = sum(s.get("tokens_out", 0) for s in result["agent_stats"])
@@ -1332,6 +1578,69 @@ def budget(pilot_dir):
     return out
 
 
+def recount(runs_dir, results_dirs=()):
+    """Tokens of old runs from their transcripts, counted the old way and the new way (`parse_line`).
+    Prints one row per run directory and the B / A ratio per set; changes no file."""
+    recorded = {}
+    for d in results_dirs or ():
+        for f in Path(d).glob("*.json"):
+            try:
+                r = json.loads(f.read_text())
+            except ValueError:
+                continue
+            if isinstance(r, dict) and "run" in r and "tokens_in" in r:
+                recorded.setdefault(r["run"], r.get("tokens_in", 0) + r.get("tokens_out", 0))
+    rows = []
+    for run in sorted(p for p in Path(runs_dir).iterdir() if p.is_dir() and list(p.glob("agent-*.jsonl"))):
+        harness_of = {}
+        ctx = run / "ctx.json"
+        if ctx.is_file():
+            try:
+                harness_of = {a["k"]: a["harness"] for a in json.loads(ctx.read_text()).get("agents", [])}
+            except (ValueError, KeyError):
+                pass
+        row = {"run": run.name, "old": 0, "new": 0, "recorded": recorded.get(run.name), "by_harness": {}}
+        for t in sorted(run.glob("agent-*.jsonl"), key=lambda p: int(p.stem.split("-")[1])):
+            k = int(t.stem.split("-")[1])
+            h = harness_of.get(k) or transcript_harness(t)
+            if h not in ("claude", "codex"):
+                continue
+            lines = t.read_text(errors="replace").splitlines()
+            old = legacy_count(h, lines)
+            new = count_transcript(h, lines)
+            row["old"] += old["tokens_in"] + old["tokens_out"]
+            n = new["tokens_in"] + new["tokens_out"]
+            row["new"] += n
+            hb = row["by_harness"].setdefault(h, {"old": 0, "new": 0})
+            hb["old"] += old["tokens_in"] + old["tokens_out"]
+            hb["new"] += n
+        rows.append(row)
+    lines = ["| run | recorded | old count | new count | new / old | Claude old -> new | Codex old -> new |", "|---|---|---|---|---|---|---|"]
+    for r in rows:
+        hb = r["by_harness"]
+        lines.append("| " + " | ".join(str(x) for x in [
+            r["run"], r["recorded"] if r["recorded"] is not None else "-", r["old"], r["new"],
+            f"{r['new'] / r['old']:.3f}" if r["old"] else "-",
+            *(f"{hb[h]['old']} -> {hb[h]['new']}" if h in hb else "-" for h in ("claude", "codex"))]) + " |")
+    cells = {}
+    for r in rows:
+        m = re.match(r"^(A2|A|B)-(\w+)-(disjoint|colliding)-", r["run"])
+        if m:
+            c = cells.setdefault((m.group(2), m.group(3)), {}).setdefault(m.group(1), {"old": 0, "new": 0, "n": 0})
+            if r["old"]:
+                c["old"] += r["old"]
+                c["new"] += r["new"]
+                c["n"] += 1
+    for (repo, s), c in sorted(cells.items()):
+        if c.get("A", {}).get("n") and c.get("B", {}).get("n"):
+            ratio = {key: (c["B"][key] / c["B"]["n"]) / (c["A"][key] / c["A"]["n"]) for key in ("old", "new")}
+            lines.append(f"{repo} {s}: B / A mean tokens per run ({c['B']['n']} B, {c['A']['n']} A runs): "
+                         f"old {ratio['old']:.2f}, new {ratio['new']:.2f}")
+    text = "\n".join(lines) + "\n"
+    print(text, end="")
+    return rows
+
+
 # ===================================================================================== setup
 
 
@@ -1407,6 +1716,9 @@ def main(argv=None):
     p.add_argument("--only", action="append")
     p = sub.add_parser("budget")
     p.add_argument("--pilot", required=True, type=Path)
+    p = sub.add_parser("recount", help="tokens of old runs from their transcripts: old count against new")
+    p.add_argument("--runs", required=True, type=Path, help="a directory of run directories (agent-N.jsonl)")
+    p.add_argument("--results", action="append", type=Path, help="run files to show the recorded total from")
     for n in ("agent-oracle", "agent-noop", "agent-stub"):
         p = sub.add_parser(n)
         p.add_argument("--ctx", required=True)
@@ -1424,6 +1736,9 @@ def main(argv=None):
         return
     if a.cmd == "budget":
         budget(a.pilot)
+        return
+    if a.cmd == "recount":
+        recount(a.runs, a.results or ())
         return
     scratch = a.scratch.resolve()
     dev = select_kit([a.repo] if isinstance(getattr(a, "repo", None), str) else getattr(a, "repo", None))
