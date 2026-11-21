@@ -1,0 +1,14 @@
+| run | status | suite | done | merge/land conflicts | warned | reacted | interv | lost | false alarms | tool calls | tokens | cost | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-requests-colliding-r1-real | done | green | 5/5 | 3 | 0 | 0 | 1 | 5 | 0 | 69 | 2236942 | 0.467015 | 108.68 |
+| A-requests-colliding-r2-real | done | green | 4/5 | 4 | 0 | 0 | 2 | 7 | 0 | 76 | 2935796 | 0.548419 | 150.05 |
+| A-requests-colliding-r3-real | done | red | 5/5 | 3 | 0 | 0 | 1 | 3 | 0 | 64 | 2422712 | 0.569391 | 108.51 |
+| A-requests-disjoint-r1-real | done | green | 5/5 | 1 | 0 | 0 | 0 | 0 | 0 | 51 | 1522505 | 0.390467 | 47.65 |
+| A-requests-disjoint-r2-real | done | green | 5/5 | 1 | 0 | 0 | 0 | 0 | 0 | 54 | 1483653 | 0.355745 | 56.56 |
+| A-requests-disjoint-r3-real | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 46 | 1189925 | 0.249979 | 36.61 |
+| B-requests-colliding-r1-real | done | green | 5/5 | 1 | 4 | 2 | 0 | 1 | 2 | 72 | 2385095 | 0.325702 | 73.65 |
+| B-requests-colliding-r2-real | done | green | 5/5 | 0 | 4 | 1 | 0 | 0 | 1 | 62 | 1924205 | 0.242646 | 85.23 |
+| B-requests-colliding-r3-real | done | green | 5/5 | 0 | 2 | 0 | 0 | 0 | 0 | 54 | 1665896 | 0.245123 | 62.0 |
+| B-requests-disjoint-r1-real | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 45 | 1558536 | 0.302488 | 62.79 |
+| B-requests-disjoint-r2-real | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 54 | 1769167 | 0.303057 | 75.77 |
+| B-requests-disjoint-r3-real | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 46 | 1599457 | 0.26296 | 57.99 |
