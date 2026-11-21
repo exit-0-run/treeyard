@@ -653,7 +653,8 @@ def real_command(harness, prompt, a, c, run_dir, limits, resume_msg=None, sessio
         cmd = ["codex", "exec"]
         if session:
             cmd += ["resume", session]
-        cmd += ["--json", "--skip-git-repo-check", "-s", "workspace-write", "-c", "approval_policy=\"never\""]
+        # `codex exec resume` has no -s flag: the sandbox mode goes in as a config value, which both forms take.
+        cmd += ["--json", "--skip-git-repo-check", "-c", "sandbox_mode=\"workspace-write\"", "-c", "approval_policy=\"never\""]
         if c["arm"] == "B":
             margs = c["mcp_args"] + ["--agent", a["agent"]]
             cmd += ["-c", f"mcp_servers.treeyard.command={json.dumps(c['mcp_command'])}", "-c", f"mcp_servers.treeyard.args={json.dumps(margs)}",
