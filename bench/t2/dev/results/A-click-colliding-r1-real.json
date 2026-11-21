@@ -1,0 +1,196 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.091954,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 259123,
+   "tokens_out": 662,
+   "tool_calls": 8,
+   "turns": 11,
+   "wall_s": 39.06
+  },
+  {
+   "cost_usd": 0.284067,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 851678,
+   "tokens_out": 1129,
+   "tool_calls": 19,
+   "turns": 31,
+   "wall_s": 58.78
+  },
+  {
+   "cost_usd": 0.26217,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 693512,
+   "tokens_out": 1155,
+   "tool_calls": 17,
+   "turns": 27,
+   "wall_s": 53.89
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 355755,
+   "tokens_out": 1237,
+   "tool_calls": 13,
+   "turns": 13,
+   "wall_s": 61.15
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 975304,
+   "tokens_out": 4385,
+   "tool_calls": 19,
+   "turns": 19,
+   "wall_s": 118.35
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "c1-strip-spaces",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "c2-unique-prefix",
+   "k": 2
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "c3-did-you-mean",
+   "k": 3
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "c4-lower-only",
+   "k": 4
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "c5-ambiguous",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.638191,
+ "done": {
+  "c1-strip-spaces": false,
+  "c2-unique-prefix": false,
+  "c3-did-you-mean": true,
+  "c4-lower-only": true,
+  "c5-ambiguous": true
+ },
+ "false_alarms": 0,
+ "harness": "real",
+ "interventions": 1,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 13,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 13
+ },
+ "merge_conflicts": 3,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "CHANGES.md"
+   ],
+   "handback": "resolved",
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "CHANGES.md",
+    "tests/test_basic.py"
+   ],
+   "handback": "resolved",
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "src/click/types.py"
+   ],
+   "handback": "failed",
+   "intervention": true,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 1,
+ "repo": "click",
+ "run": "A-click-colliding-r1-real",
+ "set": "colliding",
+ "setup_s": 0.37,
+ "started": "2026-11-21T16:43:30",
+ "status": "done",
+ "suite_green": false,
+ "suite_s": 3.46,
+ "tasks_on_main": 3,
+ "tokens_in": 3135372,
+ "tokens_out": 8568,
+ "tool_calls": 76,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 160.25,
+ "warned_before_land": 0
+}

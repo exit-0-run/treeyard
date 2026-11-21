@@ -1,0 +1,242 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.099225,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 256162,
+   "tokens_out": 547,
+   "tool_calls": 7,
+   "turns": 10,
+   "wall_s": 16.01
+  },
+  {
+   "cost_usd": 0.288915,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 1463939,
+   "tokens_out": 1225,
+   "tool_calls": 30,
+   "turns": 44,
+   "wall_s": 183.47
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 1100776,
+   "tokens_out": 3964,
+   "tool_calls": 37,
+   "turns": 37,
+   "wall_s": 131.64
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 779247,
+   "tokens_out": 1764,
+   "tool_calls": 26,
+   "turns": 26,
+   "wall_s": 96.19
+  },
+  {
+   "cost_usd": 0.209778,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 1071189,
+   "tokens_out": 1126,
+   "tool_calls": 21,
+   "turns": 34,
+   "wall_s": 40.78
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "c1-strip-spaces",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "c2-unique-prefix",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "c3-did-you-mean",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "c4-lower-only",
+   "k": 4
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "c5-ambiguous",
+   "k": 5
+  }
+ ],
+ "arm": "B",
+ "block_file": "v3.md",
+ "block_sha256": "40c55d6e776465ccd76eeee1feb82e4c9d7abecf2afe4e459ad121d443835421",
+ "cost_usd": 0.597918,
+ "done": {
+  "c1-strip-spaces": true,
+  "c2-unique-prefix": true,
+  "c3-did-you-mean": true,
+  "c4-lower-only": true,
+  "c5-ambiguous": true
+ },
+ "false_alarms": 2,
+ "harness": "real",
+ "interventions": 0,
+ "land_conflicts": 1,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "runner_landed": [
+    {
+     "change": "ch_153038ab9c26",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "runner_landed": [
+    {
+     "change": "ch_b2cb7fdb57eb",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "runner_landed": [
+    {
+     "change": "ch_0cb28ba8b90e",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "runner_landed": [
+    {
+     "change": "ch_0042dff21ccd",
+     "status": "error"
+    }
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "runner_landed": [
+    {
+     "change": "ch_7f8312028c3c",
+     "status": "error"
+    }
+   ]
+  }
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "17:01:57 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 1,
+ "reacted": 2,
+ "rep": 2,
+ "repo": "click",
+ "run": "B-click-colliding-r2-real-v3",
+ "set": "colliding",
+ "setup_s": 1.17,
+ "started": "2026-11-21T17:01:57",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 4.38,
+ "tasks_on_main": 5,
+ "tokens_in": 4671313,
+ "tokens_out": 8626,
+ "tool_calls": 121,
+ "true_conflict_pairs": [
+  "2-3"
+ ],
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 183.9,
+ "warned_before_land": 3,
+ "warned_pair_kinds": {
+  "1-5": [
+   "conflict"
+  ],
+  "3-5": [
+   "conflict",
+   "overlap"
+  ]
+ },
+ "warned_pairs": [
+  [
+   1,
+   5
+  ],
+  [
+   3,
+   5
+  ]
+ ]
+}

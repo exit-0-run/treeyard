@@ -6,6 +6,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- The connect instruction block has two new points: read a line range in few calls, and keep the
+  lines other agents landed (put them back when `apply` returns `undoes`). On a development set of 10
+  tasks, the old block lost a task in 1 of 2 colliding runs although `apply` returned `undoes`; the new
+  rule lost none in 3 runs (`bench/t2/dev/TUNING.md`).
 - The connect instruction block tells the agent to test its change on a copy before `land`, and that
   the files on disk do not change at land (`read` shows landed work). In the T1 trial with the old
   block, all 3 agents looked for the landed work in the checkout, and 2 of 3 ran the tests only after

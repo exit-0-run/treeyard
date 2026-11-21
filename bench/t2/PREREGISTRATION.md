@@ -1,7 +1,7 @@
-# T2 preregistration v2: plain git worktrees against `treeyard connect`, 5 agents at once
+# T2 preregistration v3: plain git worktrees against `treeyard connect`, 5 agents at once
 
-Status: version 2, frozen before any real-agent run of version 2. This file holds no result.
-Section 12 gives the changes against version 1 and the reason. The kit, the free rehearsals
+Status: version 3, frozen before any real-agent run of version 3. This file holds no result.
+Sections 12 and 13 give the changes against versions 1 and 2 and the reason. The kit, the free rehearsals
 and their outputs are in [README.md](README.md). A change to this file after the first real run makes
 the experiment exploratory, and the report must say so.
 
@@ -46,8 +46,8 @@ sequence (arm A)? Does it keep correctness? What does it cost on tasks that do n
    claude,codex,opencode --agents 5 --no-mirror` on a free loopback port (never 7420).
 2. Each agent gets a TreeYard workspace from `treeyard workspace-hook create` (Workspace mode) and
    works in it. Its MCP bridge is `treeyard mcp` with a fixed agent name per slot.
-3. The prompt is the instruction block of `connect` ([block-b.md](block-b.md), sha256 of the text
-   between the markers `3fd268440d0b22471c232d768bcf667bcfc7606017fd15de21e5d19a4604f898`), one empty
+3. The prompt is the instruction block of `connect` ([block-b.md](block-b.md), sha256 of the file
+   `ccfa8947faa96442882b9973ed269fc8429f9588052ad8d5f8c93370b70cf8a2`), one empty
    line, and the task prompt. The runner refuses a run when `connect` writes another block.
 4. When all 5 agents stop, the runner lands every open change of each agent, in slot order.
 5. On a land conflict, the runner gives the conflict back to the agent once (hand-back text B), within
@@ -230,3 +230,22 @@ runs are exploratory. They do not count toward the 36 runs or toward any thresho
 
 Nothing else changed: the tasks, the prompts and their hashes, the hidden tests, the block of arm B, the
 limits, the hand-back texts, the metrics and the thresholds are those of version 1.
+
+## 13. Changes against version 2
+
+Version 2 is this file at commit `add85c8`. Its pilot of 12 runs on requests is in `results/pilot-v2/`.
+Stop threshold 2 held, so version 2 ended there. Those runs are exploratory for version 3. They do not
+count toward the 36 runs or toward any threshold of version 3.
+
+1. The server: `apply` returns `undoes` (lines an edit removes that another agent landed), and `read`
+   takes `start` and `end`. Reason: the two findings of the pilot (`results/pilot-v2/README.md`).
+2. The block of arm B: 8 points in place of 6. Point 2 (read a line range in few calls) and point 4 (keep
+   the landed lines of other agents, react to `undoes`) are new. The block was tuned on the development
+   set in `dev/` (repository click, 12 real runs, `dev/TUNING.md`), not on a T2 task.
+3. One T2 cell is no longer blind for point 4 of the block: the rule comes from the loss of task
+   `c1-rel-lower` in the colliding set of requests. The report must say so for that cell. The sets of
+   ripgrep and astro, and the disjoint set of requests, had no part in the change.
+
+Nothing else changed: the tasks, the prompts and their hashes, the hidden tests, the agent mix, the limits,
+the hand-back texts, the metrics, the thresholds, the pilot plan and the budget formula are those of
+version 2.
