@@ -1,0 +1,78 @@
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -3415,7 +3415,7 @@
+         if "default" in extra:
+             extra_items.append(_("default: {default}").format(default=extra["default"]))
+         if "range" in extra:
+-            extra_items.append(extra["range"])
++            extra_items.append(_("range: {range}").format(range=extra["range"]))
+         if "multiple" in extra:
+             extra_items.append(_(extra["multiple"]))
+         if "required" in extra:
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -638,6 +638,7 @@
+     min_open: bool
+     max_open: bool
+     clamp: bool
++    unit: str | None
+ 
+     def __init__(
+         self,
+@@ -646,12 +647,14 @@
+         min_open: bool = False,
+         max_open: bool = False,
+         clamp: bool = False,
++        unit: str | None = None,
+     ) -> None:
+         self.min = min
+         self.max = max
+         self.min_open = min_open
+         self.max_open = max_open
+         self.clamp = clamp
++        self.unit = unit
+ 
+     def to_info_dict(self) -> NumberRangeInfoDict[_FloatValueT_co]:
+         return {
+@@ -716,6 +719,11 @@
+ 
+     def _describe_range(self) -> str:
+         """Describe the range for use in help text."""
++        text = self._describe_bounds()
++        return f"{text} {self.unit}" if self.unit else text
++
++    def _describe_bounds(self) -> str:
++        """The bounds of the range, without the unit."""
+         if self.min is None:
+             op = "<" if self.max_open else "<="
+             return f"x{op}{self.max}"
+@@ -798,9 +806,15 @@
+         min_open: bool = False,
+         max_open: bool = False,
+         clamp: bool = False,
++        unit: str | None = None,
+     ) -> None:
+         super().__init__(
+-            min=min, max=max, min_open=min_open, max_open=max_open, clamp=clamp
++            min=min,
++            max=max,
++            min_open=min_open,
++            max_open=max_open,
++            clamp=clamp,
++            unit=unit,
+         )
+ 
+         if (min_open or max_open) and clamp:
+diff --git a/tests/test_options.py b/tests/test_options.py
+--- a/tests/test_options.py
++++ b/tests/test_options.py
+@@ -758,6 +758,7 @@
+         (click.IntRange(1, 32, min_open=True, max_open=True), "1<x<32"),
+         (click.IntRange(1), "x>=1"),
+         (click.IntRange(max=32), "x<=32"),
++        (click.IntRange(1, 5, unit="s"), "1<=x<=5 s"),
+     ],
+ )
+ def test_intrange_default_help_text(type, expect):

@@ -1,0 +1,12 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 3,
+  "id": "m3-hidden-default",
+  "title": "Never show the default of a hidden input",
+  "files": [
+    "src/click/core.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_m3_hidden_default.py"
+}

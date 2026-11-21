@@ -1,0 +1,69 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -20,6 +20,7 @@
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
++from .types import _NumberRangeBase
+ from .types import convert_type
+ from .types import ParamType
+ from .utils import _LazyFile
+@@ -115,6 +116,7 @@
+     type: object | None = None,
+     hide_default: bool = False,
+     max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+@@ -122,6 +124,8 @@
+         if max_choices is not None and len(names) > max_choices:
+             names = [*names[:max_choices], "..."]
+         prompt += f" ({', '.join(names)})"
++    if type is not None and show_range and isinstance(type, _NumberRangeBase):
++        prompt += f" ({type._describe_range()})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+@@ -158,6 +162,7 @@
+     err: bool = False,
+     show_choices: bool = True,
+     max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> str: ...
+ 
+ 
+@@ -174,6 +179,7 @@
+     err: bool = False,
+     show_choices: bool = True,
+     max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> V: ...
+ 
+ 
+@@ -189,6 +195,7 @@
+     err: bool = False,
+     show_choices: bool = True,
+     max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -220,6 +227,8 @@
+                          prompt will be "Group by (day, week): ".
+     :param max_choices: List at most this many choices in the prompt,
+                         followed by ``...``.
++    :param show_range: Show the accepted range of an :class:`IntRange` or
++                       :class:`FloatRange` type after the text.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -271,6 +280,7 @@
+         type,
+         hide_default=hide_input,
+         max_choices=max_choices,
++        show_range=show_range,
+     )
+ 
+     if confirmation_prompt:

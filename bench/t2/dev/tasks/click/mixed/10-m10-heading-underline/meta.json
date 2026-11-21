@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 10,
+  "id": "m10-heading-underline",
+  "title": "Help: an optional underline for section headings",
+  "files": [
+    "src/click/formatting.py"
+  ],
+  "test": "tests/test_t2_m10_heading_underline.py"
+}

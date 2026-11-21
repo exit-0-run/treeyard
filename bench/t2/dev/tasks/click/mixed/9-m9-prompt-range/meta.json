@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 9,
+  "id": "m9-prompt-range",
+  "title": "Prompts: show the accepted range",
+  "files": [
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_m9_prompt_range.py"
+}

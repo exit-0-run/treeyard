@@ -1,0 +1,58 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -114,10 +114,13 @@
+     show_choices: bool = True,
+     type: object | None = None,
+     hide_default: bool = False,
++    max_choices: int | None = None,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+         names = [c.name if isinstance(c, enum.Enum) else str(c) for c in type.choices]
++        if max_choices is not None and len(names) > max_choices:
++            names = [*names[:max_choices], "..."]
+         prompt += f" ({', '.join(names)})"
+     default_preview = ""
+     if show_default:
+@@ -154,6 +157,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> str: ...
+ 
+ 
+@@ -169,6 +173,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> V: ...
+ 
+ 
+@@ -183,6 +188,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -212,6 +218,8 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param max_choices: List at most this many choices in the prompt,
++                        followed by ``...``.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -262,6 +270,7 @@
+         show_choices,
+         type,
+         hide_default=hide_input,
++        max_choices=max_choices,
+     )
+ 
+     if confirmation_prompt:

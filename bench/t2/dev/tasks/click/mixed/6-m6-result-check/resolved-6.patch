@@ -1,0 +1,59 @@
+diff --git a/src/click/testing.py b/src/click/testing.py
+--- a/src/click/testing.py
++++ b/src/click/testing.py
+@@ -308,6 +308,20 @@
+         return self.stderr_bytes.decode(self.runner.charset, "replace").replace(
+             "\r\n", "\n"
+         )
++
++    def check(self, exit_code: int = 0) -> Result:
++        """Return this result when its exit code is ``exit_code``, else raise
++        :exc:`AssertionError` with the exit code, the exception and the end of
++        the output.
++        """
++        if self.exit_code == exit_code:
++            return self
++        lines = [f"exit code {self.exit_code}, expected {exit_code}"]
++        if self.exception is not None and not isinstance(self.exception, SystemExit):
++            lines.append(f"exception: {self.exception!r}")
++        lines.append("output:")
++        lines.extend(self.output.splitlines()[-20:])
++        raise AssertionError("\n".join(lines))
+ 
+     def __repr__(self) -> str:
+         exc_str = repr(self.exception) if self.exception else "okay"
+@@ -600,6 +614,7 @@
+         env: cabc.Mapping[str, str | None] | None = None,
+         catch_exceptions: bool | None = None,
+         color: bool = False,
++        check: bool = False,
+         **extra: t.Any,
+     ) -> Result:
+         """Invokes a command in an isolated environment.  The arguments are
+@@ -619,6 +634,7 @@
+         :param catch_exceptions: Whether to catch any other exceptions than
+                                  ``SystemExit``. If :data:`None`, the value
+                                  from :class:`CliRunner` is used.
++        :param check: call :meth:`Result.check` on the result before returning it.
+         :param extra: the keyword arguments to pass to :meth:`main`.
+         :param color: whether the output should contain color codes. The
+                       application can still override this explicitly.
+@@ -726,7 +742,7 @@
+                 stderr = outstreams[1].getvalue()
+                 output = outstreams[2].getvalue()
+ 
+-        return Result(
++        result = Result(
+             runner=self,
+             stdout_bytes=stdout,
+             stderr_bytes=stderr,
+@@ -736,6 +752,9 @@
+             exception=exception,
+             exc_info=exc_info,  # type: ignore
+         )
++        if check:
++            result.check()
++        return result
+ 
+     @contextlib.contextmanager
+     def isolated_filesystem(

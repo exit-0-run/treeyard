@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 6,
+  "id": "m6-result-check",
+  "title": "CliRunner: check the exit code",
+  "files": [
+    "src/click/testing.py"
+  ],
+  "test": "tests/test_t2_m6_result_check.py"
+}

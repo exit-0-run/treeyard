@@ -1,0 +1,11 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 2,
+  "id": "m2-prompt-enum-names",
+  "title": "Prompts: show enum choices by name",
+  "files": [
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_m2_prompt_enum_names.py"
+}

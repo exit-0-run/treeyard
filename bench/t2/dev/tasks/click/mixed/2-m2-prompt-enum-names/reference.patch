@@ -1,0 +1,31 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
++import enum
+ import inspect
+ import io
+ import itertools
+@@ -115,7 +116,8 @@
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
++        names = [c.name if isinstance(c, enum.Enum) else str(c) for c in type.choices]
++        prompt += f" ({', '.join(names)})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+@@ -126,6 +128,9 @@
+ 
+ 
+ def _format_default(default: V) -> V | str:
++    if isinstance(default, enum.Enum):
++        return default.name
++
+     if isinstance(default, (io.IOBase, _LazyFile)):
+         name = getattr(default, "name", None)
+ 

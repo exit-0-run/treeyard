@@ -1,0 +1,44 @@
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -117,18 +117,22 @@
+     :param indent_increment: the additional increment for each level.
+     :param width: the width for the text.  This defaults to the terminal
+                   width clamped to a maximum of 78.
++    :param heading_underline: a character that underlines each heading on
++                              the line below it, as wide as the heading.
+     """
+ 
+     indent_increment: int
+     width: int
+     current_indent: int
+     buffer: list[str]
++    heading_underline: str | None
+ 
+     def __init__(
+         self,
+         indent_increment: int = 2,
+         width: int | None = None,
+         max_width: int | None = None,
++        heading_underline: str | None = None,
+     ) -> None:
+         self.indent_increment = indent_increment
+         if max_width is None:
+@@ -142,6 +146,7 @@
+         self.width = width
+         self.current_indent = 0
+         self.buffer = []
++        self.heading_underline = heading_underline
+ 
+     def write(self, string: str) -> None:
+         """Writes a unicode string into the internal buffer."""
+@@ -204,6 +209,9 @@
+     def write_heading(self, heading: str) -> None:
+         """Writes a heading into the buffer."""
+         self.write(f"{'':>{self.current_indent}}{heading}:\n")
++        if self.heading_underline:
++            line = self.heading_underline * term_len(f"{heading}:")
++            self.write(f"{'':>{self.current_indent}}{line}\n")
+ 
+     def write_paragraph(self) -> None:
+         """Writes a paragraph into the buffer."""

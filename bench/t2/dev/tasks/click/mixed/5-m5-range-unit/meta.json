@@ -1,0 +1,13 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 5,
+  "id": "m5-range-unit",
+  "title": "Ranges: a unit, and a label in the option help",
+  "files": [
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+  ],
+  "test": "tests/test_t2_m5_range_unit.py"
+}

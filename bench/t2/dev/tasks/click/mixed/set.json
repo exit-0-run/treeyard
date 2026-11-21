@@ -1,0 +1,91 @@
+{
+  "set": "mixed",
+  "agents": 10,
+  "mix": [
+    "codex",
+    "claude",
+    "claude",
+    "codex",
+    "claude",
+    "claude",
+    "codex",
+    "claude",
+    "codex",
+    "claude"
+  ],
+  "limits": {
+    "max_turns": 150,
+    "max_tokens": 8000000,
+    "timeout_s": 2400,
+    "claude_budget_usd": 5.0
+  },
+  "sequential": true,
+  "tasks": [
+    "m1-help-multiple",
+    "m2-prompt-enum-names",
+    "m3-hidden-default",
+    "m4-style-link",
+    "m5-range-unit",
+    "m6-result-check",
+    "m7-prompt-max-choices",
+    "m8-duration-type",
+    "m9-prompt-range",
+    "m10-heading-underline"
+  ],
+  "integration": [
+    {
+      "id": "i1-multiple-and-range-label",
+      "pair": [
+        1,
+        5
+      ],
+      "test": "tests/test_t2_i1_multiple_and_range_label.py",
+      "why": "undo trap: m5's rule must leave m1's bare `multiple` alone"
+    },
+    {
+      "id": "i2-enum-names-cut",
+      "pair": [
+        2,
+        7
+      ],
+      "test": "tests/test_t2_i2_enum_names_cut.py",
+      "why": "same line: the choices line of `_build_prompt` holds both edits"
+    },
+    {
+      "id": "i3-prompt-range-unit",
+      "pair": [
+        5,
+        9
+      ],
+      "test": "tests/test_t2_i3_prompt_range_unit.py",
+      "why": "interface: m9 must show the range through `_describe_range()`, which m5 extends"
+    },
+    {
+      "id": "i4-link-underline",
+      "pair": [
+        4,
+        10
+      ],
+      "test": "tests/test_t2_i4_link_underline.py",
+      "why": "interface: m10 must measure with `term_len`, whose `strip_ansi` m4 extends to links"
+    },
+    {
+      "id": "i5-hidden-default-range",
+      "pair": [
+        3,
+        9
+      ],
+      "test": "tests/test_t2_i5_hidden_default_range.py",
+      "why": "the `_build_prompt` call: m3 and m9 edit the same lines"
+    },
+    {
+      "id": "i6-hidden-default-cut",
+      "pair": [
+        3,
+        7
+      ],
+      "test": "tests/test_t2_i6_hidden_default_cut.py",
+      "why": "the `_build_prompt` call and signature: m3 and m7 edit the same lines"
+    }
+  ]
+}

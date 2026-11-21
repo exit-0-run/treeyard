@@ -1,0 +1,58 @@
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -3485,6 +3485,9 @@
+             else:
+                 default_string = str(default_value)
+ 
++            if self.hide_input and not show_default_is_str:
++                default_string = _("(hidden)")
++
+             if default_string:
+                 extra["default"] = default_string
+ 
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -112,6 +112,7 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    hide_default: bool = False,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+@@ -121,7 +122,8 @@
+         if isinstance(show_default, str):
+             default_preview = f" [({show_default})]"
+         elif default is not None:
+-            default_preview = f" [{_format_default(default)}]"
++            shown = _("(hidden)") if hide_default else _format_default(default)
++            default_preview = f" [{shown}]"
+     return f"{prompt}{default_preview}{suffix}"
+ 
+ 
+@@ -187,7 +189,7 @@
+     :param default: the default value to use if no input happens.  If this
+                     is not given it will prompt until it's aborted.
+     :param hide_input: if this is set to true then the input value will
+-                       be hidden.
++                       be hidden, and the default is shown as ``(hidden)``.
+     :param confirmation_prompt: Prompt a second time to confirm the
+         value. Can be set to a string instead of ``True`` to customize
+         the message.
+@@ -248,7 +250,13 @@
+         value_proc = convert_type(type, default)
+ 
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        hide_default=hide_input,
+     )
+ 
+     if confirmation_prompt:

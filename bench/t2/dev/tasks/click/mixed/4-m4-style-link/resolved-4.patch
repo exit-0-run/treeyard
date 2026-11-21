@@ -1,0 +1,41 @@
+diff --git a/src/click/_compat.py b/src/click/_compat.py
+--- a/src/click/_compat.py
++++ b/src/click/_compat.py
+@@ -16,7 +16,7 @@
+ # intermediate bytes (0x20-0x2F), then a final byte (0x40-0x7E). Broader than the
+ # SGR codes Click emits, so foreign sequences (colon-delimited true-color, mouse
+ # reporting) are stripped too.
+-_ansi_re = re.compile(r"\033\[[0-?]*[ -/]*[@-~]")
++_ansi_re = re.compile(r"\033\[[0-?]*[ -/]*[@-~]|\033\][^\a\033]*(?:\a|\033\\)")
+ 
+ 
+ def _make_text_stream(
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -664,6 +664,7 @@
+     reverse: bool | None = None,
+     strikethrough: bool | None = None,
+     reset: bool = True,
++    link: str | None = None,
+ ) -> str:
+     """Styles a text with ANSI styles and returns the new string.  By
+     default the styling is self contained which means that at the end
+@@ -725,6 +726,8 @@
+     :param reset: by default a reset-all code is added at the end of the
+                   string which means that styles do not carry over.  This
+                   can be disabled to compose styles.
++    :param link: if provided, the text becomes a link to this URL in
++                 terminals that support OSC 8 hyperlinks.
+ 
+     .. versionchanged:: 8.5.0
+         All invalid color values raise :exc:`ValueError`. 256-color index
+@@ -772,6 +775,8 @@
+         bits.append(f"\033[{7 if reverse else 27}m")
+     if strikethrough is not None:
+         bits.append(f"\033[{9 if strikethrough else 29}m")
++    if link is not None:
++        text = f"\033]8;;{link}\033\\{text}\033]8;;\033\\"
+     bits.append(text)
+     if reset:
+         bits.append(_ansi_reset_all)

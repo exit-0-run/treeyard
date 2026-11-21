@@ -1,0 +1,86 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -257,6 +257,10 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: Duration
++```
++
++```{eval-rst}
+ .. autoclass:: Tuple
+ ```
+ 
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -56,6 +56,7 @@
+ from .types import BOOL as BOOL
+ from .types import Choice as Choice
+ from .types import DateTime as DateTime
++from .types import Duration as Duration
+ from .types import File as File
+ from .types import FLOAT as FLOAT
+ from .types import FloatRange as FloatRange
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -9,6 +9,7 @@
+ import typing as t
+ import uuid
+ from datetime import datetime
++from datetime import timedelta
+ from gettext import gettext as _
+ from gettext import ngettext
+ 
+@@ -919,6 +920,39 @@
+ 
+     def __repr__(self) -> str:
+         return "UUID"
++
++
++class Duration(ParamType[timedelta]):
++    """Converts a duration to a :class:`datetime.timedelta`: a number of
++    seconds (``90``, ``1.5``) or parts with the units ``d``, ``h``, ``m``
++    and ``s`` in that order (``1h30m``, ``2d``).
++    """
++
++    name = "duration"
++
++    def convert(
++        self, value: t.Any, param: Parameter | None, ctx: Context | None
++    ) -> timedelta:
++        import re
++
++        if isinstance(value, timedelta):
++            return value
++
++        text = str(value).strip().lower()
++        if re.fullmatch(r"\d+(\.\d+)?", text):
++            return timedelta(seconds=float(text))
++
++        match = re.fullmatch(r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", text)
++        if not text or match is None:
++            self.fail(
++                _("{value!r} is not a valid duration.").format(value=value), param, ctx
++            )
++
++        days, hours, minutes, seconds = (int(g or 0) for g in match.groups())
++        return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
++
++    def __repr__(self) -> str:
++        return "Duration"
+ 
+ 
+ class FileInfoDict(ParamTypeInfoDict):
+@@ -1395,6 +1429,9 @@
+     if guessed is bool:
+         return BOOL
+ 
++    if guessed is timedelta:
++        return Duration()
++
+     if is_guessed:
+         return STRING
+ 

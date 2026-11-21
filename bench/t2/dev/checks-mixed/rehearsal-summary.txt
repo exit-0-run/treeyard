@@ -1,0 +1,8 @@
+| run | status | suite all | suite pinned | done | integration | merge/land conflicts | warned | reacted | legacy warned | legacy reacted | interv | lost | tests passed | tool calls | tokens | Claude tokens | Codex tokens | cost (Claude only) | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-click-mixed-r1-noop | done | green | green | 0/10 | 0/6 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.19 |
+| A-click-mixed-r1-oracle | done | green | green | 10/10 | 6/6 | 3 | 0 | 0 | - | - | 0 | 0 | 0 | 33 | 0 | - | - | 0.0 | 3.32 |
+| A2-click-mixed-r1-noop | done | green | green | 0/10 | 0/6 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.29 |
+| A2-click-mixed-r1-oracle | done | green | green | 10/10 | 6/6 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 26 | 0 | - | - | 0.0 | 7.77 |
+| B-click-mixed-r1-noop | done | green | green | 0/10 | 0/6 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 0.91 |
+| B-click-mixed-r1-oracle | done | green | green | 10/10 | 6/6 | 3 | 4 | 0 | 6 | 3 | 0 | 0 | 0 | 41 | 0 | - | - | 0.0 | 2.63 |

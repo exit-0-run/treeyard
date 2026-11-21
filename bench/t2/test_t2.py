@@ -761,5 +761,218 @@ class DevTests(unittest.TestCase):
         self.assertTrue((self.tmp / "results" / "B-mini-colliding-r1-stub-try-1.json").exists())
 
 
+MIXED_SLOTS = ["codex", "claude", "claude", "codex", "claude", "claude", "codex", "claude", "codex", "claude"]
+MIXED_LIMITS = {"max_turns": 150, "max_tokens": 8_000_000, "timeout_s": 2400, "claude_budget_usd": 5.0}
+
+
+def mixed_world(root, n=10, tasks_made=None):
+    """An extra set like dev `mixed`: n agents and tasks (task i sets line i to `task i`, so neighbours
+    conflict in git), a set.json with the slots and limits, and one integration test (lines 1 and 2)."""
+    src = root / "src" / "mini"
+    src.mkdir(parents=True)
+    base = {"a.txt": "".join(f"line {i}\n" for i in range(1, n + 1))}
+    (src / "a.txt").write_text(base["a.txt"])
+    k.git("init", "-q", "-b", "main", cwd=src)
+    k.git("add", "a.txt", cwd=src)
+    k.git("commit", "-q", "-m", "mini", cwd=src)
+    rev = k.git("rev-parse", "HEAD", cwd=src).stdout.strip()
+    tasks = root / "tasks"
+    defs = [{"id": f"t{i}", "edits": [{"op": "replace", "file": "a.txt", "old": f"line {i}\n", "new": f"task {i}\n"}]}
+            for i in range(1, n + 1)]
+    set_dir = tasks / "mini" / "mixed"
+    for i in range(1, (tasks_made or n) + 1):
+        d = set_dir / f"{i}-t{i}"
+        (d / "hidden").mkdir(parents=True)
+        (d / "prompt.md").write_text(f"# task {i}\n\nChange line {i}.\n")
+        (d / "reference.patch").write_text(k.unified(base, k.apply_seq(base, [defs[i - 1]], False)))
+        (d / f"resolved-{i}.patch").write_text(k.unified(k.apply_seq(base, defs[: i - 1]), k.apply_seq(base, defs[:i])))
+        (d / "hidden" / f"test_{i}.txt").write_text(f"{i}\n")
+        (d / "meta.json").write_text(json.dumps({"repo": "mini", "set": "mixed", "k": i, "id": f"t{i}", "title": f"task {i}",
+                                                 "files": ["a.txt"], "test": f"test_{i}.txt"}))
+    it = set_dir / "integration" / "i1-one-and-two" / "hidden"
+    it.mkdir(parents=True)
+    (it / "test_i1.txt").write_text("1 2\n")
+    (set_dir / "set.json").write_text(json.dumps({"set": "mixed", "agents": n, "mix": MIXED_SLOTS[:n], "limits": MIXED_LIMITS,
+                                                  "integration": [{"id": "i1-one-and-two", "pair": [1, 2], "test": "test_i1.txt"}]}))
+    spec = {"rev": rev, "local_src": str(src), "workdir": ".", "suite": [sys.executable, "-c", "pass"],
+            "decide": [sys.executable, "-c", "import sys; lines = open('a.txt').read().splitlines(); "
+                       "sys.exit(any(lines[n - 1] != 'task %d' % n for n in map(int, open(sys.argv[1]).read().split())))", "{test}"]}
+    return spec, tasks
+
+
+class MixedSetTests(StubBase):
+    """Extra sets with a set.json: agent count, harness slots and limits from the set, integration tests."""
+
+    def mixed_run(self, harness, arm="A", agents=None, limits=None, n=10, tasks_made=None, rep=1, modes=""):
+        os.environ["T2_STUB_MODES"] = modes
+        spec, tasks = mixed_world(Path(tempfile.mkdtemp(prefix="w-", dir=self.tmp)), n, tasks_made)
+        r = k.Run(self.tmp, arm, "mini", "mixed", rep, harness, limits=limits, agents=agents, tasks_dir=tasks, repo_spec=spec,
+                  run_dir=self.tmp / "run", results=self.tmp / "results")
+        return r
+
+    def test_old_sets_keep_five_agents_mix_and_frozen_limits(self):
+        spec = k.set_spec(self.tasks, "mini", "colliding")
+        self.assertEqual((spec["agents"], spec["mix"], spec["limits"], spec["integration"], spec["from_file"]),
+                         (5, k.MIX, {}, [], False))
+        r = k.Run(self.tmp, "A", "mini", "colliding", 1, "stub", tasks_dir=self.tasks, repo_spec=self.spec, run_dir=self.tmp / "run")
+        self.assertEqual((r.expected, r.n_agents, r.limits), (5, 5, k.LIMITS))
+        self.assertEqual(k.LIMITS, {"max_turns": 80, "max_tokens": 4_000_000, "timeout_s": 1800, "claude_budget_usd": 3.0})
+        self.assertEqual(k.MIX, ["claude", "claude", "claude", "codex", "codex"])
+
+    def test_set_settings_drive_count_slots_and_limits(self):
+        r = self.mixed_run("stub")
+        self.assertEqual((r.expected, r.n_agents), (10, 10))
+        self.assertEqual(r.limits, MIXED_LIMITS)
+        self.assertEqual([r.harness_of(i) for i in range(1, 11)], ["stub"] * 10)
+        r.harness = "real"
+        self.assertEqual([r.harness_of(i) for i in range(1, 11)], MIXED_SLOTS)
+        self.assertEqual(MIXED_SLOTS.count("claude"), 6)
+        r.rep = 2  # rotated by one slot per repetition, as the 5-agent sets
+        self.assertEqual([r.harness_of(i) for i in range(1, 11)], MIXED_SLOTS[1:] + MIXED_SLOTS[:1])
+        small = self.mixed_run("stub", limits={"max_turns": 7})
+        self.assertEqual(small.limits, dict(MIXED_LIMITS, max_turns=7), "test limits override the set's")
+
+    def test_ten_stub_agents_run_in_every_dialect(self):
+        os.environ["T2_STUB_AS"] = ",".join(MIXED_SLOTS)
+        r = self.mixed_run("stub", modes=",".join(["integrate"] * 10), arm="A2")
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["set_agents"], res["n_tasks"], len(res["agent_stats"])), (10, 10, 10))
+        self.assertEqual(res["interventions"], 0)
+        self.assertEqual(sum(1 for s in res["agent_stats"] if s["tool_calls"] > 0), 10)
+        text = (self.tmp / "run" / "final" / "a.txt").read_text()
+        self.assertFalse(k.has_marker_text(text))
+        self.assertEqual([f"agent {i}" in text for i in range(1, 11)], [True] * 10)
+        self.assertEqual(res["limits"], MIXED_LIMITS)
+
+    def test_wrong_agent_count_stops_a_ten_agent_set(self):
+        res = self.mixed_run("stub", agents=9).execute()
+        self.assertEqual((res["status"], res["stop_reason"], res["tool_calls"]), ("stopped", "agent count 9, want 10", 0))
+        res = self.mixed_run("stub", tasks_made=9).execute()
+        self.assertEqual((res["status"], res["stop_reason"]), ("stopped", "agent count 9 tasks, want 10"))
+
+    def oracle_and_noop(self, arm):
+        res = self.mixed_run("oracle", arm=arm).execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["n_tasks"], res["interventions"]), (10, 10, 0))
+        self.assertEqual((res["integration"], res["integration_passed"], res["integration_total"]), ({"i1-one-and-two": True}, 1, 1))
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text(), "".join(f"task {i}\n" for i in range(1, 11)))
+        res = self.mixed_run("noop", arm=arm).execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["integration_passed"], res["integration_total"]), (0, 0, 1))
+        return res
+
+    def test_oracle_and_noop_arm_a(self):
+        self.oracle_and_noop("A")
+
+    def test_oracle_and_noop_arm_a2(self):
+        self.oracle_and_noop("A2")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_oracle_and_noop_arm_b_ten_workspaces(self):
+        self.oracle_and_noop("B")
+
+    def test_collect_shows_the_task_count_and_integration(self):
+        tmp = self.tmp / "collect"
+        tmp.mkdir()
+        (tmp / "old.json").write_text(json.dumps({"run": "A-x-colliding-r1-real", "kit": 2, "status": "done", "tasks_on_main": 5}))
+        (tmp / "new.json").write_text(json.dumps({"run": "A-x-mixed-r1-oracle", "kit": 2, "status": "done", "tasks_on_main": 9,
+                                                  "n_tasks": 10, "integration_passed": 5, "integration_total": 6}))
+        rows = {r["run"]: r for r in k.collect(tmp, tmp / "m.json", tmp / "s.txt")}
+        self.assertEqual(rows["A-x-mixed-r1-oracle"]["integration_passed"], 5)
+        text = (tmp / "s.txt").read_text()
+        self.assertIn("| A-x-mixed-r1-oracle | done | - | - | 9/10 | 5/6 |", text)
+        self.assertIn("| A-x-colliding-r1-real | done | - | - | 5/5 | - |", text)
+
+
+class SeqEditTests(unittest.TestCase):
+    def test_tasks_apply_in_order_and_alts_fit_a_tree_with_the_other_task(self):
+        files = {"f": "a = 1\n"}
+        t1 = {"id": "1", "edits": [{"op": "replace", "file": "f", "old": "a = 1\n", "new": "a = 2\n"}]}
+        t2 = {"id": "2", "edits": [{"op": "replace", "file": "f", "old": "a = 1\n", "new": "a = 1\nb = 1\n",
+                                    "alts": [{"op": "insert_after", "file": "f", "anchor": "a = 2\n", "text": "b = 1\n"}]}]}
+        self.assertEqual(k.apply_seq(files, [t2], False)["f"], "a = 1\nb = 1\n")
+        self.assertEqual(k.apply_seq(files, [t2])["f"], "a = 1\nb = 1\n", "the alt does not fit the pin: the op itself")
+        self.assertEqual(k.apply_seq(files, [t1, t2])["f"], "a = 2\nb = 1\n")
+        with self.assertRaises(ValueError):
+            k.apply_seq(files, [t1, t2], False)
+        ins = [{"id": str(i), "edits": [{"op": "insert_before", "file": "f", "anchor": "a = 1\n", "text": f"x{i}\n"}]} for i in (1, 2)]
+        self.assertEqual(k.apply_seq(files, ins)["f"], "x1\nx2\na = 1\n", "insertions at one anchor keep the task order")
+
+
+class DevMixedTests(unittest.TestCase):
+    """The `mixed` set of the development set (dev/taskdefs_mixed.py, dev/tasks/click/mixed)."""
+
+    def setUp(self):
+        self.saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        k.select_kit(["click"])
+
+    def tearDown(self):
+        for n, v in self.saved.items():
+            setattr(k, n, v)
+
+    def test_files_match_their_manifest(self):
+        manifest = json.loads((k.DEV / "tasks" / "MANIFEST-mixed.json").read_text())
+        prompts = [p for p in manifest if p.endswith("prompt.md")]
+        self.assertEqual(len(prompts), 10)
+        old = json.loads((k.DEV / "tasks" / "MANIFEST.json").read_text())
+        self.assertFalse(set(manifest) & set(old), "the 5-agent sets keep their own manifest")
+        self.assertEqual(sum(1 for p in old if p.endswith("prompt.md")), 10)
+        old_prompts = {(k.HERE / p).read_text() for p in old if p.endswith("prompt.md")}
+        for rel, digest in manifest.items():
+            self.assertTrue(rel.startswith("dev/tasks/click/mixed/"), rel)
+            f = k.HERE / rel
+            self.assertEqual(k.sha256(f), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", f.read_text().lower(), rel)
+                self.assertNotIn(f.read_text(), old_prompts, rel)
+
+    def test_set_json_and_the_designed_interactions(self):
+        spec = k.set_spec(k.TASKS_DIR, "click", "mixed")
+        self.assertEqual((spec["agents"], len(spec["mix"]), spec["mix"].count("claude"), spec["mix"].count("codex")), (10, 10, 6, 4))
+        self.assertEqual(spec["limits"], MIXED_LIMITS)
+        self.assertEqual(len(k.task_dirs("click", "mixed")), 10)
+        self.assertEqual(k.sets_of("click"), ["mixed"])
+        pairs = {it["id"]: it["pair"] for it in spec["integration"]}
+        self.assertEqual(len(pairs), 6)
+        for it in spec["integration"]:
+            d = k.TASKS_DIR / "click" / "mixed" / "integration" / it["id"]
+            self.assertTrue((d / "hidden" / it["test"]).is_file())
+            for p in it["pair"]:
+                self.assertTrue((d / f"without-{p}.patch").is_file())
+        # the two tasks of each designed pair get different harnesses in the first repetition
+        for a, b in pairs.values():
+            self.assertNotEqual(spec["mix"][a - 1], spec["mix"][b - 1], (a, b))
+        td = [m for m in k.extra_taskdefs() if "mixed" in m.SETS][0]
+        for t in td.TASKS["click"]["mixed"]:
+            hidden_tests = t["test"].count("\ndef test_")
+            self.assertGreaterEqual(hidden_tests, 3, t["id"])
+            self.assertGreaterEqual(len({e["file"] for e in t["edits"]}) + len(t["edits"]), 3, t["id"])
+
+    def test_old_dev_sets_are_unchanged_by_the_extra_module(self):
+        td = k.load_taskdefs()
+        self.assertEqual(sorted(td.TASKS["click"]), ["colliding", "disjoint"])
+        self.assertEqual(td.SETS, ("disjoint", "colliding"))
+        self.assertEqual(k.set_spec(k.TASKS_DIR, "click", "colliding")["from_file"], False)
+        self.assertEqual(k.set_spec(k.TASKS_DIR, "click", "disjoint")["agents"], 5)
+
+    @unittest.skipUnless(os.environ.get("T2_SCRATCH"), "needs T2_SCRATCH (a scratch dir with the click clone)")
+    def test_generate_reproduces_every_dev_task_file(self):
+        """`generate --repo click` in a copy of the kit writes the committed dev task files byte for byte."""
+        tmp = Path(tempfile.mkdtemp(prefix="t2-gen-"))
+        try:
+            kit = tmp / "kit"
+            shutil.copytree(k.HERE, kit, ignore=shutil.ignore_patterns("__pycache__", "results", "tasks"))
+            r = subprocess.run([sys.executable, str(kit / "t2.py"), "generate", "--scratch", os.environ["T2_SCRATCH"], "--repo", "click"],
+                               capture_output=True, text=True, timeout=300)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            for man in ("MANIFEST.json", "MANIFEST-mixed.json"):
+                self.assertEqual((kit / "dev" / "tasks" / man).read_text(), (k.DEV / "tasks" / man).read_text(), man)
+                for rel in json.loads((k.DEV / "tasks" / man).read_text()):
+                    self.assertEqual((kit / rel).read_bytes(), (k.HERE / rel).read_bytes(), rel)
+        finally:
+            shutil.rmtree(tmp)
+
+
 if __name__ == "__main__":
     unittest.main()

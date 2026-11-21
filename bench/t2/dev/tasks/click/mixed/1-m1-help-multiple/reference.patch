@@ -1,0 +1,65 @@
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -2904,6 +2904,8 @@
+     :param show_envvar: Controls if an environment variable should be
+         shown on the help page and error messages.
+         Normally, environment variables are not shown.
++    :param show_multiple: Show ``multiple`` in the help of an option
++        that can be given several times (``multiple=True``).
+     :param prompt: If set to ``True`` or a non empty string then the
+         user will be prompted for input. If set to ``True`` the prompt
+         will be the option name capitalized. A deprecated option cannot be
+@@ -2979,6 +2981,7 @@
+     show_default: bool | str | None
+     show_choices: bool
+     show_envvar: bool
++    show_multiple: bool
+ 
+     def __init__(
+         self,
+@@ -2998,6 +3001,7 @@
+         hidden: bool = False,
+         show_choices: bool = True,
+         show_envvar: bool = False,
++        show_multiple: bool = False,
+         deprecated: bool | str = False,
+         **attrs: t.Any,
+     ) -> None:
+@@ -3053,6 +3057,7 @@
+         self.show_default = show_default
+         self.show_choices = show_choices
+         self.show_envvar = show_envvar
++        self.show_multiple = show_multiple
+ 
+         # Phase 5: validate. Raises on illegal kwarg combinations.
+         self._validate(prompt, deprecated)
+@@ -3411,6 +3416,8 @@
+             extra_items.append(_("default: {default}").format(default=extra["default"]))
+         if "range" in extra:
+             extra_items.append(extra["range"])
++        if "multiple" in extra:
++            extra_items.append(_(extra["multiple"]))
+         if "required" in extra:
+             extra_items.append(_(extra["required"]))
+ 
+@@ -3498,6 +3505,9 @@
+             if range_str:
+                 extra["range"] = range_str
+ 
++        if self.show_multiple and self.multiple:
++            extra["multiple"] = "multiple"
++
+         if self.required:
+             extra["required"] = "required"
+ 
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -1433,5 +1433,6 @@
+ class OptionHelpExtra(t.TypedDict, total=False):
+     envvars: tuple[str, ...]
+     default: str
++    multiple: str
+     range: str
+     required: str

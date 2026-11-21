@@ -1,0 +1,73 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -19,6 +19,7 @@
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
++from .types import _NumberRangeBase
+ from .types import convert_type
+ from .types import ParamType
+ from .utils import _LazyFile
+@@ -112,10 +113,13 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    show_range: bool = True,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+         prompt += f" ({', '.join(map(str, type.choices))})"
++    if type is not None and show_range and isinstance(type, _NumberRangeBase):
++        prompt += f" ({type._describe_range()})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+@@ -147,6 +151,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    show_range: bool = True,
+ ) -> str: ...
+ 
+ 
+@@ -162,6 +167,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    show_range: bool = True,
+ ) -> V: ...
+ 
+ 
+@@ -176,6 +182,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    show_range: bool = True,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -205,6 +212,8 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param show_range: Show the accepted range of an :class:`IntRange` or
++                       :class:`FloatRange` type after the text.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -248,7 +257,13 @@
+         value_proc = convert_type(type, default)
+ 
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        show_range=show_range,
+     )
+ 
+     if confirmation_prompt:

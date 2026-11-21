@@ -1,0 +1,12 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 4,
+  "id": "m4-style-link",
+  "title": "Styles: terminal hyperlinks",
+  "files": [
+    "src/click/_compat.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_m4_style_link.py"
+}

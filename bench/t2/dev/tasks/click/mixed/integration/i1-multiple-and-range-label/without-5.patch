@@ -1,0 +1,417 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -257,6 +257,10 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: Duration
++```
++
++```{eval-rst}
+ .. autoclass:: Tuple
+ ```
+ 
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -56,6 +56,7 @@
+ from .types import BOOL as BOOL
+ from .types import Choice as Choice
+ from .types import DateTime as DateTime
++from .types import Duration as Duration
+ from .types import File as File
+ from .types import FLOAT as FLOAT
+ from .types import FloatRange as FloatRange
+diff --git a/src/click/_compat.py b/src/click/_compat.py
+--- a/src/click/_compat.py
++++ b/src/click/_compat.py
+@@ -16,7 +16,7 @@
+ # intermediate bytes (0x20-0x2F), then a final byte (0x40-0x7E). Broader than the
+ # SGR codes Click emits, so foreign sequences (colon-delimited true-color, mouse
+ # reporting) are stripped too.
+-_ansi_re = re.compile(r"\033\[[0-?]*[ -/]*[@-~]")
++_ansi_re = re.compile(r"\033\[[0-?]*[ -/]*[@-~]|\033\][^\a\033]*(?:\a|\033\\)")
+ 
+ 
+ def _make_text_stream(
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -2904,6 +2904,8 @@
+     :param show_envvar: Controls if an environment variable should be
+         shown on the help page and error messages.
+         Normally, environment variables are not shown.
++    :param show_multiple: Show ``multiple`` in the help of an option
++        that can be given several times (``multiple=True``).
+     :param prompt: If set to ``True`` or a non empty string then the
+         user will be prompted for input. If set to ``True`` the prompt
+         will be the option name capitalized. A deprecated option cannot be
+@@ -2979,6 +2981,7 @@
+     show_default: bool | str | None
+     show_choices: bool
+     show_envvar: bool
++    show_multiple: bool
+ 
+     def __init__(
+         self,
+@@ -2998,6 +3001,7 @@
+         hidden: bool = False,
+         show_choices: bool = True,
+         show_envvar: bool = False,
++        show_multiple: bool = False,
+         deprecated: bool | str = False,
+         **attrs: t.Any,
+     ) -> None:
+@@ -3053,6 +3057,7 @@
+         self.show_default = show_default
+         self.show_choices = show_choices
+         self.show_envvar = show_envvar
++        self.show_multiple = show_multiple
+ 
+         # Phase 5: validate. Raises on illegal kwarg combinations.
+         self._validate(prompt, deprecated)
+@@ -3411,6 +3416,8 @@
+             extra_items.append(_("default: {default}").format(default=extra["default"]))
+         if "range" in extra:
+             extra_items.append(extra["range"])
++        if "multiple" in extra:
++            extra_items.append(_(extra["multiple"]))
+         if "required" in extra:
+             extra_items.append(_(extra["required"]))
+ 
+@@ -3485,6 +3492,9 @@
+             else:
+                 default_string = str(default_value)
+ 
++            if self.hide_input and not show_default_is_str:
++                default_string = _("(hidden)")
++
+             if default_string:
+                 extra["default"] = default_string
+ 
+@@ -3497,6 +3507,9 @@
+ 
+             if range_str:
+                 extra["range"] = range_str
++
++        if self.show_multiple and self.multiple:
++            extra["multiple"] = "multiple"
+ 
+         if self.required:
+             extra["required"] = "required"
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -117,18 +117,22 @@
+     :param indent_increment: the additional increment for each level.
+     :param width: the width for the text.  This defaults to the terminal
+                   width clamped to a maximum of 78.
++    :param heading_underline: a character that underlines each heading on
++                              the line below it, as wide as the heading.
+     """
+ 
+     indent_increment: int
+     width: int
+     current_indent: int
+     buffer: list[str]
++    heading_underline: str | None
+ 
+     def __init__(
+         self,
+         indent_increment: int = 2,
+         width: int | None = None,
+         max_width: int | None = None,
++        heading_underline: str | None = None,
+     ) -> None:
+         self.indent_increment = indent_increment
+         if max_width is None:
+@@ -142,6 +146,7 @@
+         self.width = width
+         self.current_indent = 0
+         self.buffer = []
++        self.heading_underline = heading_underline
+ 
+     def write(self, string: str) -> None:
+         """Writes a unicode string into the internal buffer."""
+@@ -204,6 +209,9 @@
+     def write_heading(self, heading: str) -> None:
+         """Writes a heading into the buffer."""
+         self.write(f"{'':>{self.current_indent}}{heading}:\n")
++        if self.heading_underline:
++            line = self.heading_underline * term_len(f"{heading}:")
++            self.write(f"{'':>{self.current_indent}}{line}\n")
+ 
+     def write_paragraph(self) -> None:
+         """Writes a paragraph into the buffer."""
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
++import enum
+ import inspect
+ import io
+ import itertools
+@@ -19,6 +20,7 @@
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
++from .types import _NumberRangeBase
+ from .types import convert_type
+ from .types import ParamType
+ from .utils import _LazyFile
+@@ -112,20 +114,32 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    hide_default: bool = False,
++    max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
++        names = [c.name if isinstance(c, enum.Enum) else str(c) for c in type.choices]
++        if max_choices is not None and len(names) > max_choices:
++            names = [*names[:max_choices], "..."]
++        prompt += f" ({', '.join(names)})"
++    if type is not None and show_range and isinstance(type, _NumberRangeBase):
++        prompt += f" ({type._describe_range()})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+             default_preview = f" [({show_default})]"
+         elif default is not None:
+-            default_preview = f" [{_format_default(default)}]"
++            shown = _("(hidden)") if hide_default else _format_default(default)
++            default_preview = f" [{shown}]"
+     return f"{prompt}{default_preview}{suffix}"
+ 
+ 
+ def _format_default(default: V) -> V | str:
++    if isinstance(default, enum.Enum):
++        return default.name
++
+     if isinstance(default, (io.IOBase, _LazyFile)):
+         name = getattr(default, "name", None)
+ 
+@@ -147,6 +161,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> str: ...
+ 
+ 
+@@ -162,6 +178,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> V: ...
+ 
+ 
+@@ -176,6 +194,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
++    show_range: bool = True,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -187,7 +207,7 @@
+     :param default: the default value to use if no input happens.  If this
+                     is not given it will prompt until it's aborted.
+     :param hide_input: if this is set to true then the input value will
+-                       be hidden.
++                       be hidden, and the default is shown as ``(hidden)``.
+     :param confirmation_prompt: Prompt a second time to confirm the
+         value. Can be set to a string instead of ``True`` to customize
+         the message.
+@@ -205,6 +225,10 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param max_choices: List at most this many choices in the prompt,
++                        followed by ``...``.
++    :param show_range: Show the accepted range of an :class:`IntRange` or
++                       :class:`FloatRange` type after the text.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -248,7 +272,15 @@
+         value_proc = convert_type(type, default)
+ 
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        hide_default=hide_input,
++        max_choices=max_choices,
++        show_range=show_range,
+     )
+ 
+     if confirmation_prompt:
+@@ -651,6 +683,7 @@
+     reverse: bool | None = None,
+     strikethrough: bool | None = None,
+     reset: bool = True,
++    link: str | None = None,
+ ) -> str:
+     """Styles a text with ANSI styles and returns the new string.  By
+     default the styling is self contained which means that at the end
+@@ -712,6 +745,8 @@
+     :param reset: by default a reset-all code is added at the end of the
+                   string which means that styles do not carry over.  This
+                   can be disabled to compose styles.
++    :param link: if provided, the text becomes a link to this URL in
++                 terminals that support OSC 8 hyperlinks.
+ 
+     .. versionchanged:: 8.5.0
+         All invalid color values raise :exc:`ValueError`. 256-color index
+@@ -759,6 +794,8 @@
+         bits.append(f"\033[{7 if reverse else 27}m")
+     if strikethrough is not None:
+         bits.append(f"\033[{9 if strikethrough else 29}m")
++    if link is not None:
++        text = f"\033]8;;{link}\033\\{text}\033]8;;\033\\"
+     bits.append(text)
+     if reset:
+         bits.append(_ansi_reset_all)
+diff --git a/src/click/testing.py b/src/click/testing.py
+--- a/src/click/testing.py
++++ b/src/click/testing.py
+@@ -308,6 +308,20 @@
+         return self.stderr_bytes.decode(self.runner.charset, "replace").replace(
+             "\r\n", "\n"
+         )
++
++    def check(self, exit_code: int = 0) -> Result:
++        """Return this result when its exit code is ``exit_code``, else raise
++        :exc:`AssertionError` with the exit code, the exception and the end of
++        the output.
++        """
++        if self.exit_code == exit_code:
++            return self
++        lines = [f"exit code {self.exit_code}, expected {exit_code}"]
++        if self.exception is not None and not isinstance(self.exception, SystemExit):
++            lines.append(f"exception: {self.exception!r}")
++        lines.append("output:")
++        lines.extend(self.output.splitlines()[-20:])
++        raise AssertionError("\n".join(lines))
+ 
+     def __repr__(self) -> str:
+         exc_str = repr(self.exception) if self.exception else "okay"
+@@ -600,6 +614,7 @@
+         env: cabc.Mapping[str, str | None] | None = None,
+         catch_exceptions: bool | None = None,
+         color: bool = False,
++        check: bool = False,
+         **extra: t.Any,
+     ) -> Result:
+         """Invokes a command in an isolated environment.  The arguments are
+@@ -619,6 +634,7 @@
+         :param catch_exceptions: Whether to catch any other exceptions than
+                                  ``SystemExit``. If :data:`None`, the value
+                                  from :class:`CliRunner` is used.
++        :param check: call :meth:`Result.check` on the result before returning it.
+         :param extra: the keyword arguments to pass to :meth:`main`.
+         :param color: whether the output should contain color codes. The
+                       application can still override this explicitly.
+@@ -726,7 +742,7 @@
+                 stderr = outstreams[1].getvalue()
+                 output = outstreams[2].getvalue()
+ 
+-        return Result(
++        result = Result(
+             runner=self,
+             stdout_bytes=stdout,
+             stderr_bytes=stderr,
+@@ -736,6 +752,9 @@
+             exception=exception,
+             exc_info=exc_info,  # type: ignore
+         )
++        if check:
++            result.check()
++        return result
+ 
+     @contextlib.contextmanager
+     def isolated_filesystem(
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -9,6 +9,7 @@
+ import typing as t
+ import uuid
+ from datetime import datetime
++from datetime import timedelta
+ from gettext import gettext as _
+ from gettext import ngettext
+ 
+@@ -905,6 +906,39 @@
+ 
+     def __repr__(self) -> str:
+         return "UUID"
++
++
++class Duration(ParamType[timedelta]):
++    """Converts a duration to a :class:`datetime.timedelta`: a number of
++    seconds (``90``, ``1.5``) or parts with the units ``d``, ``h``, ``m``
++    and ``s`` in that order (``1h30m``, ``2d``).
++    """
++
++    name = "duration"
++
++    def convert(
++        self, value: t.Any, param: Parameter | None, ctx: Context | None
++    ) -> timedelta:
++        import re
++
++        if isinstance(value, timedelta):
++            return value
++
++        text = str(value).strip().lower()
++        if re.fullmatch(r"\d+(\.\d+)?", text):
++            return timedelta(seconds=float(text))
++
++        match = re.fullmatch(r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?", text)
++        if not text or match is None:
++            self.fail(
++                _("{value!r} is not a valid duration.").format(value=value), param, ctx
++            )
++
++        days, hours, minutes, seconds = (int(g or 0) for g in match.groups())
++        return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
++
++    def __repr__(self) -> str:
++        return "Duration"
+ 
+ 
+ class FileInfoDict(ParamTypeInfoDict):
+@@ -1381,6 +1415,9 @@
+     if guessed is bool:
+         return BOOL
+ 
++    if guessed is timedelta:
++        return Duration()
++
+     if is_guessed:
+         return STRING
+ 
+@@ -1433,5 +1470,6 @@
+ class OptionHelpExtra(t.TypedDict, total=False):
+     envvars: tuple[str, ...]
+     default: str
++    multiple: str
+     range: str
+     required: str

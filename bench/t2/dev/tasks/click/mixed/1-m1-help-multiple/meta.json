@@ -1,0 +1,12 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 1,
+  "id": "m1-help-multiple",
+  "title": "Option help: say that an option can be repeated",
+  "files": [
+    "src/click/core.py",
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_m1_help_multiple.py"
+}

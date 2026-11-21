@@ -1,0 +1,67 @@
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -112,10 +112,14 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    max_choices: int | None = None,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
++        choices = [str(c) for c in type.choices]
++        if max_choices is not None and len(choices) > max_choices:
++            choices = [*choices[:max_choices], "..."]
++        prompt += f" ({', '.join(choices)})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+@@ -147,6 +151,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> str: ...
+ 
+ 
+@@ -162,6 +167,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> V: ...
+ 
+ 
+@@ -176,6 +182,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_choices: int | None = None,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -205,6 +212,8 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param max_choices: List at most this many choices in the prompt,
++                        followed by ``...``.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -248,7 +257,13 @@
+         value_proc = convert_type(type, default)
+ 
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        max_choices=max_choices,
+     )
+ 
+     if confirmation_prompt:

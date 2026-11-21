@@ -1,0 +1,13 @@
+{
+  "repo": "click",
+  "set": "mixed",
+  "k": 8,
+  "id": "m8-duration-type",
+  "title": "A duration parameter type",
+  "files": [
+    "docs/api.md",
+    "src/click/__init__.py",
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_m8_duration_type.py"
+}
