@@ -72,6 +72,9 @@ enum Cmd {
         agent_pool: Vec<String>,
         #[arg(long)]
         pool_dir: Option<PathBuf>,
+        /// Tools to list: `agent` (the ones a coding agent needs, short descriptions) or `all`.
+        #[arg(long, default_value = "all")]
+        tools: mcp::ToolSet,
     },
     /// Attach TreeYard to the agent tools of the git repository here: import it, serve it on
     /// loopback, register the MCP server for Claude Code, Codex and OpenCode in project config,
@@ -96,6 +99,10 @@ enum Cmd {
         /// Do not start the mirror and do not ask.
         #[arg(long)]
         no_mirror: bool,
+        /// Let the MCP bridge list every operation (`treeyard mcp --tools all`), not only the
+        /// agent tool set.
+        #[arg(long)]
+        all_tools: bool,
     },
     /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
     Disconnect {
@@ -712,16 +719,16 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Mcp { url, agent, agent_pool, pool_dir } => {
+        Cmd::Mcp { url, agent, agent_pool, pool_dir, tools } => {
             let held = match pool_dir {
                 Some(dir) if !agent_pool.is_empty() => Some(connect::claim_name(&agent_pool, &dir)?),
                 _ => None,
             };
             let agent = held.as_ref().map(|h| h.name.clone()).or(agent);
-            mcp::run(&url, agent)?;
+            mcp::run(&url, agent, tools)?;
             drop(held);
         }
-        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror } => {
+        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror, all_tools } => {
             let here = std::env::current_dir()?;
             match cmd {
                 Some(ConnectCmd::Status { json }) => {
@@ -738,6 +745,7 @@ fn main() -> Result<()> {
                         agents,
                         port,
                         mirror: (mirror || no_mirror).then_some(mirror),
+                        all_tools,
                     };
                     connect::connect(&here, &o)?;
                 }

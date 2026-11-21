@@ -116,3 +116,37 @@ fn get_and_delete_are_405() {
         }
     }
 }
+
+#[test]
+fn tools_agent_lists_the_agent_tool_set() {
+    let s = setup();
+    let auth = format!("Bearer {}", s.agent);
+    let list = json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"});
+    let names = |path: &str| -> (Vec<String>, usize) {
+        let resp = ureq::post(&format!("{}{path}", s.url))
+            .set("Content-Type", "application/json")
+            .set("Authorization", &auth)
+            .send_string(&list.to_string())
+            .unwrap();
+        let v: Value = serde_json::from_str(&resp.into_string().unwrap()).unwrap();
+        let tools = v["result"]["tools"].as_array().unwrap();
+        (tools.iter().map(|t| t["name"].as_str().unwrap().to_string()).collect(), v["result"].to_string().len())
+    };
+    let (agent, agent_bytes) = names("/mcp?tools=agent");
+    assert_eq!(agent, treeyard::rpc::AGENT_TOOLS, "the HTTP endpoint has no checkout (it cannot reach the disk)");
+    let (all, all_bytes) = names("/mcp");
+    assert!(all.len() > 40 && all.contains(&"bisect".to_string()), "{all:?}");
+    assert!(agent_bytes * 3 < all_bytes, "{agent_bytes} vs {all_bytes}");
+    // Every operation still answers a call with the agent set.
+    let call =
+        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "whoami", "arguments": {}}});
+    let resp = ureq::post(&format!("{}/mcp?tools=agent", s.url))
+        .set("Content-Type", "application/json")
+        .set("Authorization", &auth)
+        .send_string(&call.to_string())
+        .unwrap();
+    let text = resp.into_string().unwrap();
+    assert!(text.contains("alice") && !text.contains("isError"), "{text}");
+    let r = ureq::post(&format!("{}/mcp?tools=some", s.url)).set("Authorization", &auth).send_string("{}");
+    assert!(matches!(r, Err(ureq::Error::Status(400, _))), "unknown tool set");
+}

@@ -15,14 +15,46 @@ bisect (first bad change) on the server. To change code: open_change (agent + on
 land rebases on the server; on status conflict, read the tasks in change.conflicts, write the final \
 content with apply (or resolve), and land again.";
 
+const AGENT_INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/grep/symbols/outline \
+without a checkout. To change code: open_change (one-line intent), apply edits, then land; checkout (stdio \
+bridge) writes your change to a directory to run the tests. On land status conflict, resolve the regions in \
+change.conflicts with apply (or resolve), and land again. This is the agent tool set; every operation is \
+listed with --tools all.";
+
+/// Which tools `tools/list` offers. `Agent`: the operations a coding agent needs
+/// (`rpc::AGENT_TOOLS`), with short descriptions; `All`: every operation. A `tools/call` of any
+/// operation works with either.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ToolSet {
+    Agent,
+    #[default]
+    All,
+}
+
+impl std::str::FromStr for ToolSet {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "agent" => Ok(ToolSet::Agent),
+            "all" => Ok(ToolSet::All),
+            _ => anyhow::bail!("tools must be agent or all, not {s:?}"),
+        }
+    }
+}
+
 /// The reply to one JSON-RPC message, or `None` for a notification. `call` runs one operation;
 /// its error becomes a tool result with `isError`, so the agent reads it.
-pub fn reply(msg: &Value, call: &mut dyn FnMut(&str, Value) -> Result<Value>) -> Option<Value> {
-    reply_with(msg, &[], call)
+pub fn reply(msg: &Value, set: ToolSet, call: &mut dyn FnMut(&str, Value) -> Result<Value>) -> Option<Value> {
+    reply_with(msg, set, &[], call)
 }
 
 /// `reply` with `extra` tools after the operation table in `tools/list` (the stdio bridge's own).
-pub fn reply_with(msg: &Value, extra: &[Value], call: &mut dyn FnMut(&str, Value) -> Result<Value>) -> Option<Value> {
+pub fn reply_with(
+    msg: &Value,
+    set: ToolSet,
+    extra: &[Value],
+    call: &mut dyn FnMut(&str, Value) -> Result<Value>,
+) -> Option<Value> {
     let method = msg["method"].as_str().unwrap_or_default();
     if method.starts_with("notifications/") {
         return None;
@@ -32,11 +64,14 @@ pub fn reply_with(msg: &Value, extra: &[Value], call: &mut dyn FnMut(&str, Value
             "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "treeyard", "version": env!("CARGO_PKG_VERSION")},
-            "instructions": INSTRUCTIONS,
+            "instructions": if set == ToolSet::Agent { AGENT_INSTRUCTIONS } else { INSTRUCTIONS },
         })),
         "ping" => Ok(json!({})),
         "tools/list" => {
-            let mut tools = rpc::tools();
+            let mut tools = match set {
+                ToolSet::Agent => rpc::agent_tools(),
+                ToolSet::All => rpc::tools(),
+            };
             tools.extend(extra.iter().cloned());
             Ok(json!({"tools": tools}))
         }
@@ -88,7 +123,7 @@ pub fn checkout_tool() -> Value {
 /// Operations after which the bridge rewrites the change's checkout directory.
 const REFRESH: &[&str] = &["apply", "resolve", "rebase", "restore_change", "land"];
 
-pub fn run(url: &str, agent: Option<String>) -> Result<()> {
+pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
     let extra = [checkout_tool()];
@@ -132,7 +167,7 @@ pub fn run(url: &str, agent: Option<String>) -> Result<()> {
             continue;
         }
         let reply = match serde_json::from_str::<Value>(&line) {
-            Ok(msg) => match reply_with(&msg, &extra, &mut call) {
+            Ok(msg) => match reply_with(&msg, set, &extra, &mut call) {
                 Some(r) => r,
                 None => continue,
             },
@@ -142,4 +177,33 @@ pub fn run(url: &str, agent: Option<String>) -> Result<()> {
         out.flush()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_agent_tool_set_is_short_and_every_name_is_an_operation() {
+        let list = |set| {
+            let r = reply_with(
+                &json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+                set,
+                &[checkout_tool()],
+                &mut |_, _| Ok(json!({})),
+            );
+            r.unwrap()["result"].clone()
+        };
+        let agent = list(ToolSet::Agent);
+        let names: Vec<&str> = agent["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+        let mut want = rpc::AGENT_TOOLS.to_vec();
+        want.push("checkout");
+        assert_eq!(names, want);
+        let all: Vec<String> = rpc::tools().iter().map(|t| t["name"].as_str().unwrap().to_string()).collect();
+        for n in rpc::AGENT_TOOLS {
+            assert!(all.iter().any(|a| a == n), "{n} is not an operation");
+        }
+        let bytes = |v: &Value| serde_json::to_string(v).unwrap().len();
+        assert!(bytes(&agent) * 3 < bytes(&list(ToolSet::All)), "{} bytes", bytes(&agent));
+    }
 }

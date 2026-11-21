@@ -153,10 +153,19 @@ async fn run(
 async fn mcp_http(
     State(repo): State<Arc<Repo>>,
     Extension(limits): Extension<Limits>,
+    axum::extract::RawQuery(query): axum::extract::RawQuery,
     headers: HeaderMap,
     body: Bytes,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
+    // `/mcp?tools=agent` lists the agent tool set; the default is every operation.
+    let set = match query.as_deref().unwrap_or_default().split('&').find_map(|kv| kv.strip_prefix("tools=")) {
+        Some(t) => match t.parse::<crate::mcp::ToolSet>() {
+            Ok(s) => s,
+            Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({"error": format!("{e:#}")}))).into_response(),
+        },
+        None => crate::mcp::ToolSet::All,
+    };
     let msg: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -175,10 +184,10 @@ async fn mcp_http(
         let mut call = |op: &str, args: Value| rpc::call_as(&repo, &caller, op, args);
         Ok(match msg {
             Value::Array(batch) => {
-                let replies: Vec<Value> = batch.iter().filter_map(|m| crate::mcp::reply(m, &mut call)).collect();
+                let replies: Vec<Value> = batch.iter().filter_map(|m| crate::mcp::reply(m, set, &mut call)).collect();
                 (!replies.is_empty()).then_some(Value::Array(replies))
             }
-            m => crate::mcp::reply(&m, &mut call),
+            m => crate::mcp::reply(&m, set, &mut call),
         })
     };
     match tokio::task::spawn_blocking(run).await {

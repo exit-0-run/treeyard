@@ -41,13 +41,14 @@ Test: `tests/best_of_n.rs`.
 
 ## Connect
 
-`treeyard connect [--harness claude,codex,opencode|all] [--agents N] [--port P] [--mirror|--no-mirror]`,
+`treeyard connect [--harness claude,codex,opencode|all] [--agents N] [--port P] [--mirror|--no-mirror] [--all-tools]`,
 run in a git repository, imports it into `.git/treeyard/data` (once), starts `serve` on `127.0.0.1`,
 writes project-scoped MCP entries (`.mcp.json`, `.codex/config.toml`, `opencode.json`) and a marked
 block in `AGENTS.md` and `CLAUDE.md`. `treeyard connect status [--json]` prints the server, the
 harnesses, the open changes and the overlap or conflict warnings. `treeyard disconnect [--purge]`
 restores every touched file byte for byte and stops the server. `serve --port-file F` writes the bound
-port to F; `mcp --agent-pool a,b --pool-dir D` takes the first free name. Details:
+port to F; `mcp --agent-pool a,b --pool-dir D` takes the first free name; `mcp --tools agent|all` picks the
+listed tools (connect writes `agent` unless `--all-tools`; HTTP: `/mcp?tools=agent`). Details:
 [docs/connect.md](connect.md). Tests: `tests/connect.rs`.
 
 ## Workspaces

@@ -57,6 +57,11 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- `treeyard mcp --tools agent|all` and `POST /mcp?tools=agent`: the agent tool set lists 12 operations
+  (`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
+  `resolve`, `land`) plus `checkout`, with short descriptions: `tools/list` 5 784 bytes instead of
+  22 075. Every operation still answers `tools/call`. `treeyard connect` writes `--tools agent` by
+  default; `connect --all-tools` writes the full list (state field `all_tools`).
 - `checkout` (a tool of the stdio bridge `treeyard mcp`, and `treeyard checkout CHANGE [--into DIR]`):
   writes the tree of a change into a directory of its own under the temp directory, so an agent runs
   the repository's real tests on exactly what it will land, with no retyping. The bridge rewrites the

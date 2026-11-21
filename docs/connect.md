@@ -32,6 +32,7 @@ Connect adds the files that it creates to `.git/info/exclude`, so `git status` s
 | `--agents N` | Agent names `<harness>-1` to `<harness>-N`. Each MCP bridge takes the first free name. |
 | `--port P` | Port on `127.0.0.1`. Default: a free port, then the same port on the next connect. |
 | `--mirror`, `--no-mirror` | Push landed changes to `origin` every 30 s, or never ask. |
+| `--all-tools` | The MCP entries list every operation. Default: `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout` ([mcp.md](mcp.md#tool-sets)). A `connect` without the flag writes the agent set again. |
 
 A second `connect` with the same flags prints `already connected` and writes nothing. When the
 server stopped, connect starts it again on the recorded port.

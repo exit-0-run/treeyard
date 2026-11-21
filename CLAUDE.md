@@ -9,7 +9,7 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
   with `BENCH_DIR=<scratch>`; optional `BENCH_OSS=<dir with clones>`, `BENCH_REPOS`, `BENCH_N`.
   Results are JSON in `$BENCH_DIR/results`; docs/benchmarks.md quotes them with the commands.
 - Rust: Homebrew `rustup` (`/opt/homebrew/opt/rustup/bin`, not on PATH); the Makefile finds it (`CARGO`).
-- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME` (its own tool `checkout`; CLI `treeyard checkout CH [--into DIR]`),
+- Run: `treeyard init --data D --from REPO [--history N]`, `treeyard serve --data D`, `treeyard call <op> '<json>'`, `treeyard mcp --url URL --agent NAME [--tools agent|all]` (its own tool `checkout`; CLI `treeyard checkout CH [--into DIR]`),
   `git clone http://127.0.0.1:7420/git`, `treeyard mirror --data D --remote URL`, `treeyard connect [--harness all] [--agents N] [--mirror]`, `connect status`, `disconnect [--purge]` (docs/connect.md; state in `.git/treeyard/`).
 - Workspaces (node side, `TREEYARD_HOME`, default `~/.treeyard`; docs/workspaces.md): `treeyard workspace create NAME
   [--setup CMD] [--layer DIR=LOCK] [--copy-from DIR] [--paths a/,b/] [--from-dir PATH]`, `list`, `sync`, `land`, `exec NAME [-- CMD]`, `env`, `path`,

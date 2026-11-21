@@ -179,7 +179,9 @@ fn connect_writes_project_scoped_config_for_three_harnesses() {
         "--agent-pool",
         "claude-1,claude-2,claude-3",
         "--pool-dir",
-        "STATE/agents"
+        "STATE/agents",
+        "--tools",
+        "agent"
       ],
       "command": "TREEYARD",
       "env": {
@@ -195,7 +197,7 @@ fn connect_writes_project_scoped_config_for_three_harnesses() {
         r#"# treeyard:connect:start
 [mcp_servers.treeyard]
 command = "TREEYARD"
-args = ["mcp", "--agent-pool", "codex-1,codex-2,codex-3", "--pool-dir", "STATE/agents"]
+args = ["mcp", "--agent-pool", "codex-1,codex-2,codex-3", "--pool-dir", "STATE/agents", "--tools", "agent"]
 default_tools_approval_mode = "approve"
 
 [mcp_servers.treeyard.env]
@@ -215,7 +217,9 @@ TREEYARD_URL = "http://127.0.0.1:PORT"
         "--agent-pool",
         "opencode-1,opencode-2,opencode-3",
         "--pool-dir",
-        "STATE/agents"
+        "STATE/agents",
+        "--tools",
+        "agent"
       ],
       "enabled": true,
       "environment": {
@@ -237,12 +241,16 @@ TREEYARD_URL = "http://127.0.0.1:PORT"
     assert_eq!(git(&env.repo, &["status", "--porcelain"]), "", "created files are excluded from git");
     assert!(env.user_dirs_empty(), "no user-level config");
 
-    // One agent: a plain --agent name.
+    // One agent: a plain --agent name. --all-tools: the bridge lists every operation.
     let one = Env::new(&[]);
     one.run(&["connect", "--harness", "codex"]);
     let p1 = one.state()["port"].as_u64().unwrap();
     let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
+    assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1", "--tools", "agent"]"#), "{toml}");
+    one.run(&["connect", "--harness", "codex", "--all-tools"]);
+    let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
     assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1"]"#), "{toml}");
+    assert_eq!(one.state()["all_tools"], true);
     assert!(!one.repo.join(".mcp.json").exists() && !one.repo.join("CLAUDE.md").exists(), "only codex files");
     assert!(one.repo.join("AGENTS.md").exists());
     one.run(&["disconnect"]);

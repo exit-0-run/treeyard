@@ -25,6 +25,29 @@ The MCP bridge itself is tested with raw JSON-RPC on stdio (`tests/git_bridge.rs
 [quickstart.md](quickstart.md)). No agent ran in these tests: the harness that built this has no
 budget for model calls.
 
+## Tool sets
+
+`tools/list` costs input tokens on every turn of some clients (Codex sends the list with each turn:
+30.5 k input tokens per turn with TreeYard against 20.9 k with plain git, in the pilots). Agents used
+18 of the 46 tools. `treeyard mcp --tools agent` lists only the agent tool set, with short descriptions
+and only the parameters agents use:
+
+`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
+`resolve`, `land`, and the bridge's own `checkout`.
+
+These are the tools the connect instruction block names (find, read, edit, inspect the other change,
+test, land, settle a conflict), plus `list`, `diff` and `rebase`, which an agent needs to look around,
+review its own change and take main's work. Left out: history and server-side jobs (`log`, `blame`,
+`bisect`, `revert`), coordination plumbing (`events`, `declare`, `reviews`, `queue`, `land_status`),
+best-of-N, checkpoints, attachments, shares, tokens, `audit`, `tree`, `blobs`. A `tools/call` of any of
+them still works: the set changes only what is listed. `--tools all` (the default of `treeyard mcp`)
+lists every operation. `treeyard connect` writes `--tools agent` unless `--all-tools`. The HTTP endpoint
+takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
+
+Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 075 bytes with
+`--tools all` now, 5 784 bytes with `--tools agent` (13 tools). Tests: `src/mcp.rs` (the set and its
+size), `tests/mcp_http.rs` (`tools_agent_lists_the_agent_tool_set`), `tests/connect.rs` (the args).
+
 ## Claude Code
 
 Add the server for one project (local scope) or for all projects (`--scope user`):

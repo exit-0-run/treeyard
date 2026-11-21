@@ -983,6 +983,105 @@ fn tool(name: &str, description: &str, props: Value, required: &[&str]) -> Value
     })
 }
 
+/// The operations of the agent tool set (`treeyard mcp --tools agent`), in list order. The
+/// stdio bridge adds its own `checkout`. Every other operation still answers a `tools/call`.
+pub const AGENT_TOOLS: &[&str] = &[
+    "read",
+    "grep",
+    "symbols",
+    "outline",
+    "list",
+    "open_change",
+    "apply",
+    "change",
+    "diff",
+    "rebase",
+    "resolve",
+    "land",
+];
+
+/// The agent tool set: the operations a coding agent needs, with short descriptions and only the
+/// parameters agents use (the server takes the others too).
+pub fn agent_tools() -> Vec<Value> {
+    let at = json!({"type": "string", "description": "main (default) or your change id ch_..."});
+    let change = json!({"type": "string", "description": "change id ch_..."});
+    let int = json!({"type": "integer", "minimum": 1});
+    vec![
+        tool(
+            "read",
+            "Read a file of main (at = your change id: your version). start/end (1-based, inclusive) read a range; the reply has total_lines.",
+            json!({"path": {"type": "string"}, "at": at, "start": int, "end": int}),
+            &["path"],
+        ),
+        tool(
+            "grep",
+            "Regex search over file contents, per line.",
+            json!({"pattern": {"type": "string"}, "path": {"type": "string", "description": "directory or file"}, "at": at, "max": {"type": "integer", "description": "default 100"}}),
+            &["pattern"],
+        ),
+        tool(
+            "symbols",
+            "Find definitions by exact name or prefix (Rust, Python, Go, JavaScript, TypeScript): path and line range.",
+            json!({"name": {"type": "string"}, "prefix": {"type": "string"}, "path": {"type": "string"}, "at": at}),
+            &[],
+        ),
+        tool(
+            "outline",
+            "Every definition of one file, in line order.",
+            json!({"path": {"type": "string"}, "at": at}),
+            &["path"],
+        ),
+        tool(
+            "list",
+            "List one directory.",
+            json!({"path": {"type": "string", "description": "empty for the root"}, "at": at}),
+            &[],
+        ),
+        tool(
+            "open_change",
+            "Start a change on main. Reply: id, overlaps with other open changes on your paths, advice.",
+            json!({"intent": {"type": "string", "description": "what you will do, one line"}, "paths": {"type": "array", "items": {"type": "string"}, "description": "path globs you will edit"}, "symbols": {"type": "array", "items": {"type": "string"}}, "base": {"type": "string", "description": "another change id to stack on (it lands first)"}}),
+            &["intent"],
+        ),
+        tool(
+            "apply",
+            "Edit files of your change; per edit: content, delete: true, or replace {old, new, all?} (old must occur once). Reply: collisions with other open changes, and undoes: lines of other agents your edit removed (put them back unless your task removes them).",
+            json!({"change": change, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}}, "required": ["path"]}}, "message": {"type": "string", "description": "commit message; default the intent"}}),
+            &["change", "edits"],
+        ),
+        tool(
+            "change",
+            "One change: paths, conflicts (regions with line numbers to resolve), collisions, undoes. full = true adds each conflict's whole texts.",
+            json!({"change": change, "full": {"type": "boolean"}}),
+            &["change"],
+        ),
+        tool(
+            "diff",
+            "Unified diff of a change, or from/to two revisions.",
+            json!({"change": change, "from": at, "to": at}),
+            &[],
+        ),
+        tool(
+            "rebase",
+            "Move your change onto current main (onto = another open change: stack on it).",
+            json!({"change": change, "onto": {"type": "string"}}),
+            &["change"],
+        ),
+        tool(
+            "resolve",
+            "Settle one conflicted path: take = ours (your side), theirs (main), base or delete.",
+            json!({"change": change, "path": {"type": "string"}, "take": {"type": "string", "enum": ["ours", "theirs", "base", "delete"]}}),
+            &["change", "path", "take"],
+        ),
+        tool(
+            "land",
+            "Land your change on main. status: landed, conflict (resolve change.conflicts, land again), waiting (stacked parent not landed), queued, already_on_main.",
+            json!({"change": change}),
+            &["change"],
+        ),
+    ]
+}
+
 /// MCP tool definitions for every operation.
 pub fn tools() -> Vec<Value> {
     let at = json!({"type": "string", "description": "main (default), a change id ch_..., a changeset id or prefix, or a git commit id"});
