@@ -1695,6 +1695,8 @@ impl Inner {
 
     /// `read`, optionally only lines `start..=end` (1-based; either end may be open). The range
     /// is clamped to the file; `lines` is the range returned and `total_lines` counts the file.
+    /// `size` is always the byte size of the whole file. A range from line 1 of an empty file is
+    /// empty content with `lines` [1, 0].
     pub fn read(&mut self, path: &str, at: Option<&str>, range: Option<(Option<u32>, Option<u32>)>) -> Result<Value> {
         let cs = self.resolve_at(at)?;
         let e =
@@ -1734,6 +1736,12 @@ impl Inner {
         }
         let start = start.unwrap_or(1);
         let end = end.unwrap_or(total).min(total);
+        if total == 0 && start == 1 {
+            // An empty file has no lines: the range from line 1 is empty, not an error.
+            v["content"] = Value::String(String::new());
+            v["lines"] = json!([1, 0]);
+            return Ok(v);
+        }
         if start > total {
             bail!("start {start} is past the end of {path} ({total} lines)");
         }

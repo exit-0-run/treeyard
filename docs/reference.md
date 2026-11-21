@@ -23,7 +23,9 @@ plus `advice`. `apply` returns `overlaps` (shared paths) and `collisions` (a tri
 path: `conflict` or `overlap`, with the changed line ranges of both sides) and `undoes` (lines the
 edit removes that another agent landed: `path`, `lines`, `agent`, `intent`, `changeset`, `advice`;
 [docs/coordination.md](coordination.md#b-live-collisions-and-events)). `read` takes optional `start` and
-`end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`.
+`end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`; `size`
+is the byte size of the whole file, also for a range. A range from line 1 of an empty file returns empty
+`content` with `lines` `[1, 0]`; `at` may be a change id, so a range reads the change's own lines.
 
 `land` answers with one of five statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review

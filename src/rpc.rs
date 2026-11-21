@@ -973,7 +973,7 @@ pub fn tools() -> Vec<Value> {
         tool("status", "Main changeset and git commit, file count, open changes.", json!({}), &[]),
         tool(
             "read",
-            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.",
+            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.",
             json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}}),
             &["path"],
         ),

@@ -6,6 +6,9 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- `read`: a range from line 1 of an empty file returns empty `content` with `lines` `[1, 0]` instead of
+  an error. The docs and the tool description say that `size` is the byte size of the whole file, also
+  for a range.
 - `connect` writes `default_tools_approval_mode = "approve"` into its own Codex server entry
   (`.codex/config.toml`; key as codex-cli 0.167.0 reads it): `codex exec` refused every TreeYard tool
   call without it. `disconnect` removes it with the block (byte-identical file), and `connect status`

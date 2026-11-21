@@ -42,7 +42,7 @@ treeyard call status '{}'
 
 ### read
 
-Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.
+Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range; size is the byte size of the whole file, also for a range.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
