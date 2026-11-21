@@ -38,7 +38,8 @@ The run files are unchanged.
 
 - **Tokens of Claude Code are counted about 1.7 times too high.** The runner adds the usage of every
   stream event, and one message has several events. Counted once per message, the B / A token ratios
-  are: pilot v2 disjoint 1.29, colliding 1.38, all 1.34; pilot v3 disjoint 1.31, colliding 0.86, all 1.02.
+  are: pilot v2 disjoint 1.29, colliding 1.38, all 1.34; pilot v3 disjoint 1.31, colliding 1.01, all 1.12 (a second fault: a resumed Codex session reported its
+  thread total, so every Codex hand-back counted twice; `t2.py recount` gives the numbers).
   The token overhead on the disjoint sets did not fall between the two pilots.
 - **Every intervention of arm A comes from the Codex sandbox, not from git.** A git worktree keeps its
   metadata outside the directory Codex may write, so a Codex agent cannot finish the merge of a

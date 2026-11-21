@@ -1,0 +1,447 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.08263,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 12191,
+   "tokens_cached_in": 148876,
+   "tokens_fresh_in": 12205,
+   "tokens_in": 161081,
+   "tokens_out": 1895,
+   "tool_calls": 9,
+   "turns": 10,
+   "wall_s": 21.14
+  },
+  {
+   "cost_usd": 0.101854,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 2,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 12768,
+   "tokens_cached_in": 242684,
+   "tokens_fresh_in": 12790,
+   "tokens_in": 255474,
+   "tokens_out": 2647,
+   "tool_calls": 13,
+   "turns": 15,
+   "wall_s": 33.23
+  },
+  {
+   "cost_usd": 0.127233,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 2,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16207,
+   "tokens_cached_in": 307233,
+   "tokens_fresh_in": 16233,
+   "tokens_in": 323466,
+   "tokens_out": 3163,
+   "tool_calls": 14,
+   "turns": 16,
+   "wall_s": 44.64
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 2,
+   "k": 4,
+   "killed": null,
+   "live_tokens": 70819,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 201600,
+   "tokens_fresh_in": 28587,
+   "tokens_in": 230187,
+   "tokens_out": 880,
+   "tool_calls": 12,
+   "turns": 12,
+   "wall_s": 50.0
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 2,
+   "k": 5,
+   "killed": null,
+   "live_tokens": 106605,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 192000,
+   "tokens_fresh_in": 32422,
+   "tokens_in": 224422,
+   "tokens_out": 1705,
+   "tool_calls": 12,
+   "turns": 12,
+   "wall_s": 66.02
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "c1-strip-spaces",
+   "k": 1,
+   "prompt_sha256": "0ed2f5b7edfd1cd239430fbfd9e69e6e18549c1c2f80ce026641eff99a70b32d"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "c2-unique-prefix",
+   "k": 2,
+   "prompt_sha256": "bfe3283df36fc9522688ed7ac9c0b4625a79608dc2c895459c79d2f590eb25e7"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "c3-did-you-mean",
+   "k": 3,
+   "prompt_sha256": "92a4d4dff20700f3481c6109d51c65414040672b2ec669e260babc3f79db5014"
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "c4-lower-only",
+   "k": 4,
+   "prompt_sha256": "b0e913e39725a71e6c4e2d4b4e566033e0767f59661b2878a320233a2871c65b"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "c5-ambiguous",
+   "k": 5,
+   "prompt_sha256": "9fad216319df9b85474b70d2d4b22fb43286e8e96bc9f06a40552fa0d8421c8c"
+  }
+ ],
+ "arm": "A",
+ "by_harness": {
+  "claude": {
+   "agents": 3,
+   "cost_usd": 0.311717,
+   "tokens_cache_write": 41166,
+   "tokens_cached_in": 698793,
+   "tokens_fresh_in": 41228,
+   "tokens_in": 740021,
+   "tokens_out": 7705,
+   "tool_calls": 36,
+   "turns": 41
+  },
+  "codex": {
+   "agents": 2,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 393600,
+   "tokens_fresh_in": 61009,
+   "tokens_in": 454609,
+   "tokens_out": 2585,
+   "tool_calls": 24,
+   "turns": 24
+  }
+ },
+ "cost_usd": 0.311717,
+ "cost_usd_claude_only": 0.311717,
+ "done": {
+  "c1-strip-spaces": true,
+  "c2-unique-prefix": true,
+  "c3-did-you-mean": true,
+  "c4-lower-only": true,
+  "c5-ambiguous": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 18,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 1,
+   "test_added": 13
+  },
+  "2": {
+   "added": 24,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 0,
+   "test_added": 15
+  },
+  "3": {
+   "added": 30,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 2,
+   "test_added": 16
+  },
+  "4": {
+   "added": 10,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 2,
+   "test_added": 8
+  },
+  "5": {
+   "added": 32,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 10,
+   "test_added": 9
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 1,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 1
+ },
+ "merge_conflicts": 4,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "intervention": false,
+   "k": 2,
+   "left_out": false,
+   "merge_output": "Auto-merging src/click/types.py\nAuto-merging tests/test_types/test_Choice.py\nCONFLICT (content): Merge conflict in tests/test_types/test_Choice.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "intervention": false,
+   "k": 3,
+   "left_out": false,
+   "merge_output": "Auto-merging src/click/types.py\nAuto-merging tests/test_types/test_Choice.py\nCONFLICT (content): Merge conflict in tests/test_types/test_Choice.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "intervention": false,
+   "k": 4,
+   "left_out": false,
+   "merge_output": "Auto-merging src/click/types.py\nAuto-merging tests/test_types/test_Choice.py\nCONFLICT (content): Merge conflict in tests/test_types/test_Choice.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "intervention": false,
+   "k": 5,
+   "left_out": false,
+   "merge_output": "Auto-merging src/click/types.py\nCONFLICT (content): Merge conflict in src/click/types.py\nAuto-merging tests/test_types/test_Choice.py\nCONFLICT (content): Merge conflict in tests/test_types/test_Choice.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 1,
+ "repo": "click",
+ "run": "A-click-colliding-r1-real",
+ "set": "colliding",
+ "setup_s": 0.55,
+ "started": "2026-11-21T22:04:46",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.55,
+ "suite_s": 3.75,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n...................................................s.................... [ 73%]\n...........................s............................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n............................................................             [100%]\n2410 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.19s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.08s\n",
+ "tasks_on_main": 5,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "2": {
+   "passed": true,
+   "runs": 3
+  },
+  "3": {
+   "passed": true,
+   "runs": 4
+  },
+  "4": {
+   "passed": true,
+   "runs": 3
+  },
+  "5": {
+   "passed": true,
+   "runs": 3
+  }
+ },
+ "test_files_restored": [
+  "tests/test_types/test_Choice.py"
+ ],
+ "test_passed_agents": 5,
+ "tokens_cache_write": 41166,
+ "tokens_cached_in": 1092393,
+ "tokens_fresh_in": 102237,
+ "tokens_in": 1194630,
+ "tokens_out": 10290,
+ "tool_calls": 60,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 110.19,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}

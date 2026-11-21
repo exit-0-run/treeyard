@@ -1,0 +1,522 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.124123,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16683,
+   "tokens_cached_in": 320388,
+   "tokens_fresh_in": 16709,
+   "tokens_in": 337097,
+   "tokens_out": 2530,
+   "tool_calls": 15,
+   "turns": 16,
+   "wall_s": 29.13
+  },
+  {
+   "cost_usd": 0.11208,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16453,
+   "tokens_cached_in": 218520,
+   "tokens_fresh_in": 16471,
+   "tokens_in": 234991,
+   "tokens_out": 2438,
+   "tool_calls": 12,
+   "turns": 13,
+   "wall_s": 26.65
+  },
+  {
+   "cost_usd": 0.145847,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 18601,
+   "tokens_cached_in": 366573,
+   "tokens_fresh_in": 18629,
+   "tokens_in": 385202,
+   "tokens_out": 3473,
+   "tool_calls": 17,
+   "turns": 18,
+   "wall_s": 38.95
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "live_tokens": 465432,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 462848,
+   "tokens_fresh_in": 33892,
+   "tokens_in": 496740,
+   "tokens_out": 1861,
+   "tool_calls": 24,
+   "turns": 24,
+   "wall_s": 86.12
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "live_tokens": 400096,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 362368,
+   "tokens_fresh_in": 35845,
+   "tokens_in": 398213,
+   "tokens_out": 1883,
+   "tool_calls": 21,
+   "turns": 21,
+   "wall_s": 68.52
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "c1-strip-spaces",
+   "k": 1,
+   "prompt_sha256": "f036601b224740b91434c092b6824a4e61be9c15162b1649fa1b3bc182af8989"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "c2-unique-prefix",
+   "k": 2,
+   "prompt_sha256": "bdc51518146520d487b00bbdb5ada87bfd609d489cb66c42f5f0520dca3d763d"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "c3-did-you-mean",
+   "k": 3,
+   "prompt_sha256": "837504426a70778dd93fcfe6057ae933e355c382b1a7b639e98fae6f3dec1790"
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "c4-lower-only",
+   "k": 4,
+   "prompt_sha256": "efc4aa1f555fd16b08d5ba797f7388152fee4d8b5dff18429d402e1a91fa8052"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "c5-ambiguous",
+   "k": 5,
+   "prompt_sha256": "348f0b92369d0743f9c9b8dc0107b8cc71393d9ef0f8f0ed5986944fe5804071"
+  }
+ ],
+ "arm": "B",
+ "arm_block_sha256": "a9f7e8a87cf554f3cea4db8ca0ed6fbe93904f74f9714709d38b8057af6a80c9",
+ "block_sha256": "a9f7e8a87cf554f3cea4db8ca0ed6fbe93904f74f9714709d38b8057af6a80c9",
+ "by_harness": {
+  "claude": {
+   "agents": 3,
+   "cost_usd": 0.38205,
+   "tokens_cache_write": 51737,
+   "tokens_cached_in": 905481,
+   "tokens_fresh_in": 51809,
+   "tokens_in": 957290,
+   "tokens_out": 8441,
+   "tool_calls": 44,
+   "turns": 47
+  },
+  "codex": {
+   "agents": 2,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 825216,
+   "tokens_fresh_in": 69737,
+   "tokens_in": 894953,
+   "tokens_out": 3744,
+   "tool_calls": 45,
+   "turns": 45
+  }
+ },
+ "cost_usd": 0.38205,
+ "cost_usd_claude_only": 0.38205,
+ "done": {
+  "c1-strip-spaces": true,
+  "c2-unique-prefix": true,
+  "c3-did-you-mean": true,
+  "c4-lower-only": false,
+  "c5-ambiguous": true
+ },
+ "false_alarms": 4,
+ "guard": {
+  "1": {
+   "added": 12,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_basic.py"
+   ],
+   "removed": 2,
+   "test_added": 9
+  },
+  "2": {
+   "added": 21,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_basic.py"
+   ],
+   "removed": 0,
+   "test_added": 11
+  },
+  "3": {
+   "added": 32,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 2,
+   "test_added": 18
+  },
+  "4": {
+   "added": 13,
+   "files": 1,
+   "paths": [
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 0,
+   "test_added": 13
+  },
+  "5": {
+   "added": 29,
+   "files": 2,
+   "paths": [
+    "src/click/types.py",
+    "tests/test_types/test_Choice.py"
+   ],
+   "removed": 8,
+   "test_added": 9
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_8011298fac00",
+     "error": "Error: change ch_8011298fac00 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_696bf888c02d",
+     "error": "Error: change ch_696bf888c02d is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_3f51dd8c868e",
+     "error": "Error: change ch_3f51dd8c868e is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_373a3c9ab773",
+     "error": "Error: change ch_373a3c9ab773 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_bee37bc61c72",
+     "error": "Error: change ch_bee37bc61c72 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  }
+ ],
+ "legacy_false_alarms": 4,
+ "legacy_reacted": 3,
+ "legacy_true_conflict_pairs": [
+  "2-3"
+ ],
+ "legacy_warned_before_land": 4,
+ "legacy_warned_pair_kinds": {
+  "1-4": [
+   "conflict"
+  ],
+  "3-4": [
+   "overlap"
+  ],
+  "3-5": [
+   "overlap"
+  ],
+  "4-5": [
+   "conflict"
+  ]
+ },
+ "legacy_warned_pairs": [
+  [
+   1,
+   4
+  ],
+  [
+   3,
+   4
+  ],
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   5
+  ]
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "21:16:40 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "needs_human": 0,
+ "preamble_sha256": "8e0fda178d752ac3a87bf11d044e0af2d51b1aa08dc0b03856ff8ea52c790405",
+ "reacted": 3,
+ "rep": 1,
+ "repo": "click",
+ "run": "B-click-colliding-r1-real",
+ "set": "colliding",
+ "setup_s": 2.59,
+ "started": "2026-11-21T21:16:38",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.61,
+ "suite_s": 3.6,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n..........sssssssssssssssssssss..................ss..................... [ 65%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n.....................................................s...........x...... [ 73%]\n...........................s............................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n............................................................             [100%]\n2409 passed, 25 skipped, 31000 deselected, 2 xfailed in 3.02s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.06s\n",
+ "tasks_on_main": 4,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 2
+  },
+  "4": {
+   "passed": true,
+   "runs": 2
+  },
+  "5": {
+   "passed": true,
+   "runs": 1
+  }
+ },
+ "test_files_restored": [
+  "tests/test_basic.py",
+  "tests/test_types/test_Choice.py"
+ ],
+ "test_passed_agents": 5,
+ "tokens_cache_write": 51737,
+ "tokens_cached_in": 1730697,
+ "tokens_fresh_in": 121546,
+ "tokens_in": 1852243,
+ "tokens_out": 12185,
+ "tool_calls": 89,
+ "undoes_held": 0,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 86.6,
+ "warned": 3,
+ "warned_pairs": [
+  "1-4",
+  "3-4",
+  "3-5",
+  "4-5"
+ ],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": 12,
+   "kinds": [
+    "overlap"
+   ],
+   "others": [
+    "ch_685076fb51a2",
+    "ch_e985fe580c33"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": 7,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_0a7c8fa5dbd0",
+    "ch_685076fb51a2",
+    "ch_8ad81793f0f7"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": 6,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_8ad81793f0f7",
+    "ch_e985fe580c33"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  }
+ }
+}

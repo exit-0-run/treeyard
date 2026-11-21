@@ -1,5 +1,8 @@
 # T2 preregistration v3: plain git worktrees against `treeyard connect`, 5 agents at once
 
+**The kit has changed since version 3 (hand-back, prompt preamble, arm A2, metrics, the arm B block). This file
+describes version 3 and its pilot only; no run counts toward it any more. A version 4 is not written yet.**
+
 Status: version 3, frozen before any real-agent run of version 3. This file holds no result.
 Sections 12 and 13 give the changes against versions 1 and 2 and the reason. The kit, the free rehearsals
 and their outputs are in [README.md](README.md). A change to this file after the first real run makes
