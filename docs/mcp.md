@@ -85,7 +85,8 @@ a 60 000-line file; two agents change the same line; measured with a script outs
 | `change` with that conflict | 261 935 | 1 915 | 1 594 |
 
 "before" is the build before this series (pretty JSON, whole conflict texts). Tests: `src/lean.rs`,
-`tests/read.rs` (`max_bytes`, `context`).
+`tests/read.rs` (`max_bytes`, `context`), `tests/mcp_agent.rs` (every shape above through the built
+bridge with `--tools agent`, and `--tools all` unchanged).
 
 ## Claude Code
 

@@ -66,6 +66,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- Tests: `tests/mcp_agent.rs` drives the built bridge with `--tools agent` (tool list, lean change
+  replies, a collision sent once, the read cap, grep context, conflict regions, `undoes` after
+  `resolve`) and `--tools all`; `tests/undoes.rs` covers the 20-entry cut (`undoes_more`) and the
+  read-glob filter of `undoes`.
 - `treeyard mcp --tools agent|all` and `POST /mcp?tools=agent`: the agent tool set lists 12 operations
   (`read`, `grep`, `symbols`, `outline`, `list`, `open_change`, `apply`, `change`, `diff`, `rebase`,
   `resolve`, `land`) plus `checkout`, with short descriptions: `tools/list` 5 948 bytes instead of

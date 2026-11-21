@@ -136,7 +136,7 @@ that already existed elsewhere) does not hide a removal, but a duplicate in an e
 The case comes from a pilot with 5 agents: one agent's task ("parameter names in lower case, values keep
 their case") replaced a block that another agent had landed minutes before
 (`if key.lower() == "rel": value = value.lower()`), and nothing warned it. Tests: `tests/undoes.rs` (one
-per probed case), `g_apply_warns_…` in `tests/coordination.rs`.
+per probed case, the 20-entry cut, the read-glob filter), `g_apply_warns_…` in `tests/coordination.rs`.
 
 Events: `opened`, `intent_overlap`, `collision`, `conflict` (`cause` = `land`, `continuous_rebase`,
 `stale_write` or `queue`), `rebased`, `landed`, `abandoned`, `review`, `queued`, `rejected`,

@@ -184,3 +184,61 @@ fn an_entry_is_sent_once_and_change_lists_all() {
     let v = write(&url, &b, "m.py", &A.replace("    value = value.lower()\n", ""));
     assert_eq!(v["undoes"].as_array().unwrap().len(), 1, "{v}");
 }
+
+#[test]
+fn more_than_twenty_entries_are_counted_in_undoes_more() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 1, 60, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let f = call(&url, "read", json!({"path": "f00.txt"}))["content"].as_str().unwrap().to_string();
+    // a rewrites every second line: 25 runs of its own, each between two imported lines.
+    let mine: String = f
+        .lines()
+        .enumerate()
+        .map(|(i, l)| if i % 2 == 0 && i < 50 { format!("a wrote {i}\n") } else { format!("{l}\n") })
+        .collect();
+    let a = open(&url, "a", json!({}));
+    write(&url, &a, "f00.txt", &mine);
+    assert_eq!(call(&url, "land", json!({"change": a}))["status"], "landed");
+    let b = open(&url, "b", json!({}));
+    let v = call(&url, "apply", json!({"change": b, "edits": [{"path": "f00.txt", "delete": true}]}));
+    assert_eq!(v["undoes"].as_array().unwrap().len(), 20, "{v}");
+    assert_eq!(v["undoes_more"], 5, "the cut says how many are left out: {v}");
+    assert_eq!(serde_json::to_string(&v).unwrap().matches("another agent").count(), 1, "advice once");
+    let ch = call(&url, "change", json!({"change": b}));
+    assert_eq!((ch["undoes"].as_array().unwrap().len(), ch["undoes_more"].clone()), (20, json!(5)));
+}
+
+#[test]
+fn entries_obey_the_callers_read_globs() {
+    use treeyard::client::call_with;
+    let tmp = tempfile::tempdir().unwrap();
+    let src = fixture_repo(tmp.path(), 1, 3, &[]);
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let repo = Arc::new(Repo::open(&data).unwrap());
+    let (_, ta) = repo.auth.create("a", false, &["**".into()], &["**".into()]).unwrap();
+    // b may write everywhere but read only src/.
+    let (_, tb) = repo.auth.create("b", false, &["src/**".into()], &["**".into()]).unwrap();
+    let url = spawn_server(repo);
+    let ok = |t: &str, op: &str, p: Value| call_with(&url, Some(t), op, p).unwrap_or_else(|e| panic!("{op}: {e:#}"));
+    let a = ok(&ta, "open_change", json!({"intent": "add two helpers"}))["id"].as_str().unwrap().to_string();
+    ok(
+        &ta,
+        "apply",
+        json!({"change": a, "edits": [{"path": "src/n.py", "content": A}, {"path": "secret/m.py", "content": A}]}),
+    );
+    assert_eq!(ok(&ta, "land", json!({"change": a}))["status"], "landed");
+    let b = ok(&tb, "open_change", json!({"intent": "drop both"}))["id"].as_str().unwrap().to_string();
+    let v = ok(
+        &tb,
+        "apply",
+        json!({"change": b, "edits": [{"path": "src/n.py", "delete": true}, {"path": "secret/m.py", "delete": true}]}),
+    );
+    let u = v["undoes"].as_array().unwrap();
+    assert_eq!(u.len(), 1, "only the path b may read: {v}");
+    assert_eq!(u[0]["path"], "src/n.py");
+    assert!(!v.to_string().contains("secret/"), "{v}");
+}
