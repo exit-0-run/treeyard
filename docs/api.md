@@ -241,7 +241,7 @@ treeyard call declare '{"change": "ch_..."}'
 
 ### apply
 
-Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.
+Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text; new ones only, change lists all); keep them unless your task says to remove them.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -256,7 +256,7 @@ treeyard call apply '{"change": "ch_...", "edits": [{"path": "README.md", "repla
 
 ### resolve
 
-Settle a conflicted path by taking one side (or write the path with apply).
+Settle a conflicted path by taking one side (or write the path with apply). Returns the change, with undoes when the side you took drops another agent's lines.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

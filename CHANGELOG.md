@@ -6,6 +6,16 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 ## [Unreleased]
 
 ### Changed
+- `undoes` is precise (shape change): a removed line counts only when its text (without whitespace) is
+  gone from all paths the change edits and no added line of the same hunk keeps all its words, so moves,
+  re-indents, renames, CRLF to LF and the no-final-newline case are quiet, and so are rewrites like
+  `value.lower()` to `value.lower().strip()`. Entries carry `text` and `change`; the advice is one
+  `undoes_advice` per reply, `undoes_more` counts entries past 20. `apply` sends only entries not sent
+  before (`undoes_earlier` counts the others); `resolve`, `change` and `land` (`landed`, `queued`) now
+  carry `undoes` too; lines of an open change this one is stacked on count (`landed: false`); the same
+  `session` under another agent name is own work; entries obey the token's read globs. Per-path scans
+  are kept per change: an `apply` to another file after one that removed a line of a 60 000-line file
+  went from about 60 ms to 4 to 5 ms (debug build).
 - Conflicts come as regions (shape change): every conflict in a change reply (`change`, `apply`,
   `resolve`, `rebase`, `declare`, `land`, `restore_change`) lists `regions` (marker blocks of the
   change's text with line numbers and 3 lines of context, ready for `replace`) and the blob, mode and

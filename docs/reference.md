@@ -21,7 +21,8 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes
 plus `advice`. `apply` returns `overlaps` (shared paths) and `collisions` (a trial merge per shared
 path: `conflict` or `overlap`, with the changed line ranges of both sides) and `undoes` (lines the
-edit removes that another agent landed: `path`, `lines`, `agent`, `intent`, `changeset`, `advice`;
+edit removes whose text another agent wrote and the change no longer has: `path`, `lines`, `agent`,
+`intent`, `changeset`, `change`, `text`; `undoes_advice` once; new entries only, `change` and `land` list all;
 [docs/coordination.md](coordination.md#b-live-collisions-and-events)). `read` takes optional `start` and
 `end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`; `size`
 is the byte size of the whole file, also for a range. A range from line 1 of an empty file returns empty

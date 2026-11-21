@@ -75,6 +75,8 @@ pub struct Inner {
     pub(crate) heights: HashMap<String, u64>,
     pub(crate) parents: HashMap<String, Option<String>>,
     pub(crate) seen_collisions: HashMap<String, String>,
+    /// Per open change: what `undoes` scanned and already reported (`src/undoes.rs`).
+    pub(crate) undo_state: HashMap<String, crate::undoes::State>,
     /// Events of the running operation; `Repo::with` publishes them when it succeeds.
     pub(crate) outbox: Vec<Value>,
     /// The trigram posting index of main (derived data, see `search`).
@@ -253,6 +255,7 @@ impl Repo {
             heights: HashMap::new(),
             parents: HashMap::new(),
             seen_collisions: HashMap::new(),
+            undo_state: HashMap::new(),
             outbox: Vec::new(),
             search: Default::default(),
             symbol_done: HashSet::new(),

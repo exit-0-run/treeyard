@@ -11,6 +11,7 @@ use crate::config::IndexMode;
 use crate::coord::Filter;
 use crate::model::{Change, Intent};
 use crate::repo::{Edit, Inner, Repo};
+use crate::undoes::Scope;
 use crate::{bisect, history, landing, search, symbols};
 
 fn params<T: DeserializeOwned>(p: Value) -> Result<T> {
@@ -699,7 +700,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let mut v = r.change_view(&ch)?;
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
-            v["undoes"] = Value::Array(r.undoes(&ch)?);
+            r.undoes(&ch, Scope::New)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -708,7 +709,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             owned(r, c, &a.change)?;
             c.require_write(&a.path)?;
             let ch = r.resolve(&a.change, &a.path, &a.take)?;
-            r.change_view(&ch)
+            let mut v = r.change_view(&ch)?;
+            r.undoes(&ch, Scope::New)?.put(&mut v, &|p| c.can_read(p));
+            filter_change(&mut v, c);
+            Ok(v)
         }
         "rebase" => {
             let a: RebaseArgs = params(p)?;
@@ -722,7 +726,13 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let a: ChangeId = params(p)?;
             let ch = owned(r, c, &a.change)?;
             check_writes(r, c, &ch)?;
-            r.land(&a.change)
+            let mut v = r.land(&a.change)?;
+            // A land that removes another agent's lines says so; it is not blocked.
+            if matches!(v["status"].as_str(), Some("landed" | "queued")) && v.get("repeated").is_none() {
+                let ch = r.change(&a.change)?;
+                r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
+            }
+            Ok(v)
         }
         "abandon" => {
             let a: ChangeId = params(p)?;
@@ -803,6 +813,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
             v["reviews"] = r.reviews_view(Some("open"), Some(&ch.id))?["reviews"].take();
+            r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -1106,13 +1117,13 @@ pub fn tools() -> Vec<Value> {
         tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
-            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.",
+            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit removes whose text another agent wrote for its own task and your change no longer has (path, lines, agent, intent, changeset, text; new ones only, change lists all); keep them unless your task says to remove them.",
             json!({"change": change, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
             &["change", "edits"],
         ),
         tool(
             "resolve",
-            "Settle a conflicted path by taking one side (or write the path with apply).",
+            "Settle a conflicted path by taking one side (or write the path with apply). Returns the change, with undoes when the side you took drops another agent's lines.",
             json!({"change": change, "path": {"type": "string"}, "take": {"type": "string", "enum": ["ours", "theirs", "base", "delete"]}}),
             &["change", "path", "take"],
         ),

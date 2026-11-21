@@ -34,6 +34,7 @@ pub mod server;
 pub mod share;
 pub mod store;
 pub mod symbols;
+pub mod undoes;
 pub mod workspace;
 pub mod xdiff;
 pub mod xmerge;

@@ -36,10 +36,10 @@ Version control server for agent swarms (Rust, single binary). Notes for coding 
 | `src/git.rs` | object ids, loose writes, tree/commit encoding, incremental trees, cat-file readers, lazy object cache |
 | `src/merge.rs`, `src/xmerge.rs` | per-path 3-way merge: entry level, then `xmerge` (git's histogram merge in process; the repo) or `diffy` (dry trial merges) |
 | `src/safety.rs`, `src/failpoint.rs` | path/size limits, hostile trees, no write through a symlink, loopback check; crash points |
-| `src/repo.rs` | changes, rebase, land, revert, export, read queries |
+| `src/repo.rs`, `src/conflict_view.rs` | changes, rebase, land, revert, export, read queries; conflicts in replies as regions (marker blocks + context) |
 | `src/rpc.rs` | the one operation table (HTTP, MCP and CLI share it) + MCP tool schemas |
 | `src/config.rs` | `treeyard.toml`: drivers, landing mode, continuous rebase; gitignore-style globs |
-| `src/coord.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews |
+| `src/coord.rs`, `src/undoes.rs` | event bus (poll + SSE), intents, live collisions (trial merge), semantic guard, reviews; `undoes` (removed text of other agents, cached per change; `tests/undoes.rs`) |
 | `src/drivers.rs` | merge drivers: union, Cargo.lock per package, mergiraf; regenerate is in `repo.rs` |
 | `src/landing.rs` | queue mode (batch test, bisect), optimistic mode (test main, bisect, revert), worker |
 | `src/server.rs`, `src/client.rs`, `src/mcp.rs`, `src/main.rs`, `src/githttp.rs` | axum API, ureq client, stdio MCP (+ `checkout` tool, `workspace::checkout`; `tests/checkout.rs`), CLI; git smart HTTP under `/git` (upload-pack; own receive-pack → `land_push`), `mirror`; `src/connect.rs`: connect/disconnect (project MCP configs, AGENTS.md block, undo records, agent-name pool) |
