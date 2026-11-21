@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "colliding",
+  "k": 4,
+  "id": "c4-drop-duplicates",
+  "title": "parse_header_links: drop duplicate links",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_c4_drop_duplicates.py"
+}

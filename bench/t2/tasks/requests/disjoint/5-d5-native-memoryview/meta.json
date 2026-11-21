@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "disjoint",
+  "k": 5,
+  "id": "d5-native-memoryview",
+  "title": "to_native_string: accept memoryview",
+  "files": [
+    "src/requests/_internal_utils.py"
+  ],
+  "test": "tests/test_t2_d5_native_memoryview.py"
+}

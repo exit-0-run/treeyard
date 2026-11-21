@@ -1,0 +1,47 @@
+requests pinned 611c6162cb suite: pass (0.51 s)
+requests disjoint 1 d1-cid-union: pinned fail (0.3 s), reference pass (0.28 s) -> ok
+requests disjoint 2 d2-status-reason: pinned fail (0.38 s), reference pass (0.29 s) -> ok
+requests disjoint 3 d3-basic-auth-repr: pinned fail (0.25 s), reference pass (0.22 s) -> ok
+requests disjoint 4 d4-netmask-range: pinned fail (0.27 s), reference pass (0.26 s) -> ok
+requests disjoint 5 d5-native-memoryview: pinned fail (0.26 s), reference pass (0.27 s) -> ok
+requests disjoint all 5 (reference 1..5): suite pass (0.43 s), tests 5/5 pass -> ok
+requests disjoint: 0 of 10 pairs of reference patches conflict in git
+requests colliding 1 c1-rel-lower: pinned fail (0.27 s), reference pass (0.29 s) -> ok
+requests colliding 2 c2-skip-empty-url: pinned fail (0.31 s), reference pass (0.3 s) -> ok
+requests colliding 3 c3-lower-keys: pinned fail (0.32 s), reference pass (0.31 s) -> ok
+requests colliding 4 c4-drop-duplicates: pinned fail (0.34 s), reference pass (0.31 s) -> ok
+requests colliding 5 c5-valueless-params: pinned fail (0.35 s), reference pass (0.32 s) -> ok
+requests colliding all 5 (resolved-1..5): suite pass (0.54 s), tests 5/5 pass -> ok
+requests colliding: 6 of 10 pairs of reference patches conflict in git
+ripgrep pinned 3fce3b5bb0 suite: pass (10.64 s)
+ripgrep disjoint 1 d1-type-roc: pinned fail (1.44 s), reference pass (0.97 s) -> ok
+ripgrep disjoint 2 d2-globset-first-match: pinned fail (0.53 s), reference pass (0.85 s) -> ok
+ripgrep disjoint 3 d3-stats-without-match: pinned fail (0.92 s), reference pass (0.84 s) -> ok
+ripgrep disjoint 4 d4-match-overlaps: pinned fail (0.15 s), reference pass (0.94 s) -> ok
+ripgrep disjoint 5 d5-glob-has-wildcards: pinned fail (0.35 s), reference pass (0.74 s) -> ok
+ripgrep disjoint all 5 (reference 1..5): suite pass (9.2 s), tests 5/5 pass -> ok
+ripgrep disjoint: 0 of 10 pairs of reference patches conflict in git
+ripgrep colliding 1 c1-size-lowercase: pinned fail (0.92 s), reference pass (0.72 s) -> ok
+ripgrep colliding 2 c2-size-terabytes: pinned fail (0.78 s), reference pass (0.69 s) -> ok
+ripgrep colliding 3 c3-size-bytes: pinned fail (0.76 s), reference pass (0.73 s) -> ok
+ripgrep colliding 4 c4-size-space: pinned fail (0.71 s), reference pass (0.69 s) -> ok
+ripgrep colliding 5 c5-size-binary: pinned fail (0.78 s), reference pass (0.71 s) -> ok
+ripgrep colliding all 5 (resolved-1..5): suite pass (10.62 s), tests 5/5 pass -> ok
+ripgrep colliding: 6 of 10 pairs of reference patches conflict in git
+astro pinned c75e89711a suite: pass (0.25 s)
+astro disjoint 1 d1-package-name-length: pinned fail (0.14 s), reference pass (0.13 s) -> ok
+astro disjoint 2 d2-forwarded-skip-empty: pinned fail (0.15 s), reference pass (0.13 s) -> ok
+astro disjoint 3 d3-protocol-colon: pinned fail (0.13 s), reference pass (0.13 s) -> ok
+astro disjoint 4 d4-remove-hash: pinned fail (0.13 s), reference pass (0.13 s) -> ok
+astro disjoint 5 d5-get-by-path: pinned fail (0.12 s), reference pass (0.14 s) -> ok
+astro disjoint all 5 (reference 1..5): suite pass (0.18 s), tests 5/5 pass -> ok
+astro disjoint: 0 of 10 pairs of reference patches conflict in git
+astro colliding 1 c1-ext-query: pinned fail (0.13 s), reference pass (0.15 s) -> ok
+astro colliding 2 c2-ext-dotfile: pinned fail (0.13 s), reference pass (0.13 s) -> ok
+astro colliding 3 c3-ext-dir-dot: pinned fail (0.13 s), reference pass (0.14 s) -> ok
+astro colliding 4 c4-ext-trailing-dot: pinned fail (0.13 s), reference pass (0.13 s) -> ok
+astro colliding 5 c5-ext-dts: pinned fail (0.14 s), reference pass (0.15 s) -> ok
+astro colliding all 5 (resolved-1..5): suite pass (0.2 s), tests 5/5 pass -> ok
+astro colliding: 10 of 10 pairs of reference patches conflict in git
+tasks that fail on the pin and pass with the reference: 30/30
+validate: ok

@@ -1,0 +1,16 @@
+diff --git a/crates/globset/src/glob.rs b/crates/globset/src/glob.rs
+--- a/crates/globset/src/glob.rs
++++ b/crates/globset/src/glob.rs
+@@ -307,6 +307,12 @@
+     /// Returns the original glob pattern used to build this pattern.
+     pub fn glob(&self) -> &str {
+         &self.glob
++    }
++
++    /// Returns true if and only if this pattern has a wildcard, a character
++    /// class or an alternation.
++    pub fn has_wildcards(&self) -> bool {
++        self.tokens.iter().any(|t| !matches!(t, Token::Literal(_)))
+     }
+ 
+     /// Returns the regular expression string for this glob.

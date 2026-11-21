@@ -888,3 +888,12 @@ used. Plain git varies from run to run (97 to 132 s across all runs on this page
 depends on timing. TreeYard's land path did not change in what it writes: the same commits, trees and
 SQLite rows (`tests/xmerge_git.rs`, `tests/fuzz_history.rs`). In memory, fewer changes conflict: a change
 that lands within a few milliseconds of its read leaves less room for another change to the shared file.
+
+## T2 kit: 5 real agents, git worktrees vs `treeyard connect` (preregistered, not run)
+
+[bench/t2/PREREGISTRATION.md](../bench/t2/PREREGISTRATION.md) freezes the design before any real run:
+30 tasks on requests, ripgrep and astro (a disjoint and a colliding set of 5 per repository), 2 arms, 3
+repetitions, 36 runs, a 12-run pilot on requests. The kit is in [bench/t2](../bench/t2/README.md). Its
+free rehearsals (scripted oracle and noop agents through the same runner and collector) are in
+`bench/t2/results/`: `validate.txt`, `rehearsal-summary.txt` and one JSON per run. They test the kit,
+not TreeYard against git, so this page quotes no number from them.

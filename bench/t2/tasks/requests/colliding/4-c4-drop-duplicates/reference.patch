@@ -1,0 +1,12 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -994,6 +994,8 @@
+ 
+             link[key.strip(replace_chars)] = value.strip(replace_chars)
+ 
++        if link in links:
++            continue
+         links.append(link)
+ 
+     return links

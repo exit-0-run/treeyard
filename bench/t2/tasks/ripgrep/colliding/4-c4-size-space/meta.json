@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "colliding",
+  "k": 4,
+  "id": "c4-size-space",
+  "title": "parse_human_readable_size: space before the suffix",
+  "files": [
+    "crates/cli/src/human.rs"
+  ],
+  "test": "crates/cli/tests/t2_c4_size_space.rs",
+  "test_crate": "grep-cli"
+}

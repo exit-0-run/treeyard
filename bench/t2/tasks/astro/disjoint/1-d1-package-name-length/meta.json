@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "disjoint",
+  "k": 1,
+  "id": "d1-package-name-length",
+  "title": "validatePackageName: at most 214 characters",
+  "files": [
+    "packages/internal-helpers/src/cli.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_d1_package_name_length.test.ts"
+}

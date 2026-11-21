@@ -1,0 +1,11 @@
+diff --git a/crates/ignore/src/default_types.rs b/crates/ignore/src/default_types.rs
+--- a/crates/ignore/src/default_types.rs
++++ b/crates/ignore/src/default_types.rs
+@@ -235,6 +235,7 @@
+     (&["red"], &["*.r", "*.red", "*.reds"]),
+     (&["rescript"], &["*.res", "*.resi"]),
+     (&["robot"], &["*.robot"]),
++    (&["roc"], &["*.roc"]),
+     (&["rocq"], &["*.v"]),
+     (&["rst"], &["*.rst"]),
+     (&["ruby"], &[

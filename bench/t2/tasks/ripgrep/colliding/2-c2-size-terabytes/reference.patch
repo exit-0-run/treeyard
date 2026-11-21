@@ -1,0 +1,19 @@
+diff --git a/crates/cli/src/human.rs b/crates/cli/src/human.rs
+--- a/crates/cli/src/human.rs
++++ b/crates/cli/src/human.rs
+@@ -94,6 +94,7 @@
+         "K" => value.checked_mul(1 << 10),
+         "M" => value.checked_mul(1 << 20),
+         "G" => value.checked_mul(1 << 30),
++        "T" => value.checked_mul(1 << 40),
+         _ => return Err(ParseSizeError::format(size)),
+     };
+     bytes.ok_or_else(|| ParseSizeError::overflow(size))
+@@ -144,6 +145,6 @@
+ 
+     #[test]
+     fn invalid_suffix() {
+-        assert!(parse_human_readable_size("123T").is_err());
++        assert!(parse_human_readable_size("123X").is_err());
+     }
+ }

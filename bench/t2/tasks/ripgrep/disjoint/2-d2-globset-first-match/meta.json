@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "disjoint",
+  "k": 2,
+  "id": "d2-globset-first-match",
+  "title": "globset: GlobSet::first_match",
+  "files": [
+    "crates/globset/src/lib.rs"
+  ],
+  "test": "crates/globset/tests/t2_d2_globset_first_match.rs",
+  "test_crate": "globset"
+}

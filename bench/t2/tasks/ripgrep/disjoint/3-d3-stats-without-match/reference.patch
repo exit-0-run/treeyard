@@ -1,0 +1,15 @@
+diff --git a/crates/printer/src/stats.rs b/crates/printer/src/stats.rs
+--- a/crates/printer/src/stats.rs
++++ b/crates/printer/src/stats.rs
+@@ -41,6 +41,11 @@
+     /// Return the total number of searches that found at least one match.
+     pub fn searches_with_match(&self) -> u64 {
+         self.searches_with_match
++    }
++
++    /// Return the total number of searches that found no match.
++    pub fn searches_without_match(&self) -> u64 {
++        self.searches.saturating_sub(self.searches_with_match)
+     }
+ 
+     /// Return the total number of bytes searched.

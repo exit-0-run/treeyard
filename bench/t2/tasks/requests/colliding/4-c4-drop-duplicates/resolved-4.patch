@@ -1,0 +1,12 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -999,6 +999,8 @@
+         if not link["url"]:
+             continue
+         link = {key.lower(): val for key, val in link.items()}
++        if link in links:
++            continue
+         links.append(link)
+ 
+     return links

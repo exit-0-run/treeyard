@@ -1,0 +1,14 @@
+diff --git a/src/requests/status_codes.py b/src/requests/status_codes.py
+--- a/src/requests/status_codes.py
++++ b/src/requests/status_codes.py
+@@ -125,4 +125,10 @@
+     )
+ 
+ 
++def reason(code: int) -> str | None:
++    """Return the first name of an HTTP status code, e.g. ``reason(404) == "not_found"``."""
++    titles = _codes.get(code)
++    return titles[0] if titles else None
++
++
+ _init()

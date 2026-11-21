@@ -1,0 +1,182 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.17
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.38
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.56
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.58
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.79
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "oracle",
+   "id": "d1-type-roc",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "oracle",
+   "id": "d2-globset-first-match",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "oracle",
+   "id": "d3-stats-without-match",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "oracle",
+   "id": "d4-match-overlaps",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "oracle",
+   "id": "d5-glob-has-wildcards",
+   "k": 5
+  }
+ ],
+ "arm": "B",
+ "block_sha256": "3fd268440d0b22471c232d768bcf667bcfc7606017fd15de21e5d19a4604f898",
+ "cost_usd": 0.0,
+ "done": {
+  "d1-type-roc": true,
+  "d2-globset-first-match": true,
+  "d3-stats-without-match": true,
+  "d4-match-overlaps": true,
+  "d5-glob-has-wildcards": true
+ },
+ "false_alarms": 0,
+ "harness": "oracle",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "runner_landed": []
+  }
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "14:21:03 connect: imported main as changeset 9da7d303c0f5"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "reacted": 0,
+ "rep": 1,
+ "repo": "ripgrep",
+ "run": "B-ripgrep-disjoint-r1-oracle",
+ "set": "disjoint",
+ "setup_s": 1.3,
+ "started": "2026-11-21T14:21:03",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 11.4,
+ "tasks_on_main": 5,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 15,
+ "true_conflict_pairs": [],
+ "wall_s": 1.05,
+ "warned_before_land": 0,
+ "warned_pair_kinds": {},
+ "warned_pairs": []
+}

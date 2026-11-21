@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "disjoint",
+  "k": 4,
+  "id": "d4-remove-hash",
+  "title": "removeQueryString: remove the hash too",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_d4_remove_hash.test.ts"
+}

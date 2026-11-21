@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "colliding",
+  "k": 2,
+  "id": "c2-ext-dotfile",
+  "title": "fileExtension: a dotfile has no extension",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_c2_ext_dotfile.test.ts"
+}

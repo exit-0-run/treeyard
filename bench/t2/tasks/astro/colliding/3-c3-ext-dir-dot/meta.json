@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "colliding",
+  "k": 3,
+  "id": "c3-ext-dir-dot",
+  "title": "fileExtension: a dot in a directory name",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_c3_ext_dir_dot.test.ts"
+}

@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "disjoint",
+  "k": 1,
+  "id": "d1-cid-union",
+  "title": "CaseInsensitiveDict: | and |= operators",
+  "files": [
+    "src/requests/structures.py"
+  ],
+  "test": "tests/test_t2_d1_cid_union.py"
+}

@@ -1,0 +1,23 @@
+diff --git a/src/requests/structures.py b/src/requests/structures.py
+--- a/src/requests/structures.py
++++ b/src/requests/structures.py
+@@ -89,6 +89,19 @@
+     def copy(self) -> CaseInsensitiveDict[_VT]:
+         return CaseInsensitiveDict(self._store.values())
+ 
++    def __or__(self, other: object) -> CaseInsensitiveDict[_VT]:
++        if not isinstance(other, Mapping):
++            return NotImplemented
++        new = self.copy()
++        new.update(other)
++        return new
++
++    def __ior__(self, other: object) -> CaseInsensitiveDict[_VT]:
++        if not isinstance(other, Mapping):
++            return NotImplemented
++        self.update(other)
++        return self
++
+     def __repr__(self) -> str:
+         return str(dict(self.items()))
+ 

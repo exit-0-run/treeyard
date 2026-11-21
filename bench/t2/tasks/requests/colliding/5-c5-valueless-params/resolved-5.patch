@@ -1,0 +1,19 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -987,10 +987,11 @@
+         link: dict[str, str] = {"url": url.strip("<> '\"")}
+ 
+         for param in params.split(";"):
+-            try:
+-                key, value = param.split("=")
+-            except ValueError:
+-                break
++            if "=" not in param:
++                if param.strip(replace_chars):
++                    link[param.strip(replace_chars)] = ""
++                continue
++            key, value = param.split("=", 1)
+ 
+             link[key.strip(replace_chars)] = value.strip(replace_chars)
+ 

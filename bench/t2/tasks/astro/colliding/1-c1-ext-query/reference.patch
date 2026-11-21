@@ -1,0 +1,11 @@
+diff --git a/packages/internal-helpers/src/path.ts b/packages/internal-helpers/src/path.ts
+--- a/packages/internal-helpers/src/path.ts
++++ b/packages/internal-helpers/src/path.ts
+@@ -251,6 +251,7 @@
+ }
+ 
+ export function fileExtension(path: string) {
++	path = path.replace(/[?#].*$/, '');
+ 	const ext = path.split('.').pop();
+ 	return ext !== path ? `.${ext}` : '';
+ }

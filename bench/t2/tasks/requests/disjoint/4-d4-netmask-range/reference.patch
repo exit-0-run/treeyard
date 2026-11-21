@@ -1,0 +1,12 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -745,6 +745,8 @@
+ 
+     :rtype: str
+     """
++    if not 0 <= mask <= 32:
++        raise ValueError(f"mask must be between 0 and 32, not {mask}")
+     bits = 0xFFFFFFFF ^ (1 << 32 - mask) - 1
+     return socket.inet_ntoa(struct.pack(">I", bits))
+ 

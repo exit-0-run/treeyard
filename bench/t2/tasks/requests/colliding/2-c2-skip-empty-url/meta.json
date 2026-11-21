@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "colliding",
+  "k": 2,
+  "id": "c2-skip-empty-url",
+  "title": "parse_header_links: skip links with an empty URL",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_c2_skip_empty_url.py"
+}

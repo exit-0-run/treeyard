@@ -1,0 +1,12 @@
+diff --git a/src/requests/utils.py b/src/requests/utils.py
+--- a/src/requests/utils.py
++++ b/src/requests/utils.py
+@@ -996,6 +996,8 @@
+ 
+         if "rel" in link:
+             link["rel"] = link["rel"].lower()
++        if not link["url"]:
++            continue
+         links.append(link)
+ 
+     return links

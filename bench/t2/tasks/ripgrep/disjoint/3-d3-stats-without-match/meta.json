@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "disjoint",
+  "k": 3,
+  "id": "d3-stats-without-match",
+  "title": "printer: Stats::searches_without_match",
+  "files": [
+    "crates/printer/src/stats.rs"
+  ],
+  "test": "crates/printer/tests/t2_d3_stats_without_match.rs",
+  "test_crate": "grep-printer"
+}

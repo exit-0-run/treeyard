@@ -1,0 +1,17 @@
+diff --git a/packages/internal-helpers/src/request.ts b/packages/internal-helpers/src/request.ts
+--- a/packages/internal-helpers/src/request.ts
++++ b/packages/internal-helpers/src/request.ts
+@@ -4,10 +4,11 @@
+ 
+ // Parses multiple header and returns first value if available.
+ export function getFirstForwardedValue(multiValueHeader?: string | string[] | null) {
+-	return multiValueHeader
++	const values = multiValueHeader
+ 		?.toString()
+ 		?.split(',')
+-		.map((e) => e.trim())?.[0];
++		.map((e) => e.trim());
++	return values?.find((e) => e !== '') ?? values?.[0];
+ }
+ 
+ // Character-allowlist for IP addresses. Rejects injection payloads (HTML, SQL,

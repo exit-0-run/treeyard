@@ -1,0 +1,35 @@
+{
+  "requests": {
+    "url": "https://github.com/psf/requests",
+    "rev": "611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60",
+    "size": "small",
+    "workdir": ".",
+    "setup": "one shared uv venv outside the tree (venv_packages), tests run with PYTHONPATH=src",
+    "venv_packages": ["urllib3>=1.26,<3", "idna>=2.5,<4", "certifi>=2017.4.17", "charset_normalizer>=2,<4", "PySocks",
+                      "pytest>=2.8.0,<10", "pytest-cov", "pytest-httpbin==2.1.0", "httpbin~=0.10.0", "trustme"],
+    "decide": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "{test}"],
+    "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_utils.py", "tests/test_structures.py",
+              "tests/test_hooks.py", "tests/test_help.py"]
+  },
+  "ripgrep": {
+    "url": "https://github.com/BurntSushi/ripgrep",
+    "rev": "3fce3b5bb0236da2df6d99672afb8a719642eca7",
+    "size": "medium",
+    "workdir": ".",
+    "setup": "one shared CARGO_TARGET_DIR outside the tree, warmed by `t2.py setup`",
+    "suite_crates": ["grep-cli", "globset", "ignore", "grep-printer", "grep-matcher", "grep-searcher"],
+    "decide": ["{cargo}", "test", "-q", "-p", "{test_crate}", "--test", "{test_name}"],
+    "suite": ["{cargo}", "test", "-q", "-p", "grep-cli", "-p", "globset", "-p", "ignore", "-p", "grep-printer",
+              "-p", "grep-matcher", "-p", "grep-searcher"]
+  },
+  "astro": {
+    "url": "https://github.com/withastro/astro",
+    "rev": "c75e89711a4935a0befea6f768842f6d6a9de2bb",
+    "size": "monorepo",
+    "workdir": "packages/internal-helpers",
+    "setup": "none: node strips the TypeScript types; astro_hook.mjs maps ../dist/x.js and ./x.js to the .ts sources",
+    "decide": ["node", "--import", "{hook}", "--test", "{test_rel}"],
+    "suite": ["node", "--import", "{hook}", "--test", "test/cli.test.ts", "test/path.test.ts", "test/request.test.ts",
+              "test/timings.test.ts"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "colliding",
+  "k": 1,
+  "id": "c1-size-lowercase",
+  "title": "parse_human_readable_size: lower-case suffixes",
+  "files": [
+    "crates/cli/src/human.rs"
+  ],
+  "test": "crates/cli/tests/t2_c1_size_lowercase.rs",
+  "test_crate": "grep-cli"
+}

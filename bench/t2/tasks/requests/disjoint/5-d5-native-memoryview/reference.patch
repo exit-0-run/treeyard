@@ -1,0 +1,12 @@
+diff --git a/src/requests/_internal_utils.py b/src/requests/_internal_utils.py
+--- a/src/requests/_internal_utils.py
++++ b/src/requests/_internal_utils.py
+@@ -30,6 +30,8 @@
+     """
+     if isinstance(string, builtin_str):
+         out = string
++    elif isinstance(string, memoryview):
++        out = string.tobytes().decode(encoding)
+     else:
+         out = string.decode(encoding)
+ 

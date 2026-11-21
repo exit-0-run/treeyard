@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "colliding",
+  "k": 5,
+  "id": "c5-valueless-params",
+  "title": "parse_header_links: parameters without a value",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_c5_valueless_params.py"
+}

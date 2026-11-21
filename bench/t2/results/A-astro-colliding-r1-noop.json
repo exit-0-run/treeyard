@@ -1,0 +1,171 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.53
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.7
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.6
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.48
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.69
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "noop",
+   "id": "c1-ext-query",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "noop",
+   "id": "c2-ext-dotfile",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "noop",
+   "id": "c3-ext-dir-dot",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "noop",
+   "id": "c4-ext-trailing-dot",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "noop",
+   "id": "c5-ext-dts",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.0,
+ "done": {
+  "c1-ext-query": false,
+  "c2-ext-dotfile": false,
+  "c3-ext-dir-dot": false,
+  "c4-ext-trailing-dot": false,
+  "c5-ext-dts": false
+ },
+ "false_alarms": 0,
+ "harness": "noop",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 1,
+ "repo": "astro",
+ "run": "A-astro-colliding-r1-noop",
+ "set": "colliding",
+ "setup_s": 8.58,
+ "started": "2026-11-21T14:24:42",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 0.17,
+ "tasks_on_main": 0,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 5,
+ "wall_s": 1.32,
+ "warned_before_land": 0
+}

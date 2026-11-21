@@ -1,0 +1,12 @@
+diff --git a/packages/internal-helpers/src/path.ts b/packages/internal-helpers/src/path.ts
+--- a/packages/internal-helpers/src/path.ts
++++ b/packages/internal-helpers/src/path.ts
+@@ -113,6 +113,8 @@
+ }
+ 
+ export function removeQueryString(path: string) {
++	const hash = path.indexOf('#');
++	if (hash > 0) path = path.substring(0, hash);
+ 	const index = path.lastIndexOf('?');
+ 	return index > 0 ? path.substring(0, index) : path;
+ }

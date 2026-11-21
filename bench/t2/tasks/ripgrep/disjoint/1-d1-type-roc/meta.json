@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "disjoint",
+  "k": 1,
+  "id": "d1-type-roc",
+  "title": "ignore: file type roc",
+  "files": [
+    "crates/ignore/src/default_types.rs"
+  ],
+  "test": "crates/ignore/tests/t2_d1_type_roc.rs",
+  "test_crate": "ignore"
+}

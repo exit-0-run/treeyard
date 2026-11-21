@@ -1,0 +1,265 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 1.51
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 6,
+   "turns": 1,
+   "wall_s": 2.43
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 6,
+   "turns": 1,
+   "wall_s": 3.42
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 6,
+   "turns": 1,
+   "wall_s": 4.33
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 6,
+   "turns": 1,
+   "wall_s": 5.14
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "oracle",
+   "id": "c1-ext-query",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "oracle",
+   "id": "c2-ext-dotfile",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "oracle",
+   "id": "c3-ext-dir-dot",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "oracle",
+   "id": "c4-ext-trailing-dot",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "oracle",
+   "id": "c5-ext-dts",
+   "k": 5
+  }
+ ],
+ "arm": "B",
+ "block_sha256": "3fd268440d0b22471c232d768bcf667bcfc7606017fd15de21e5d19a4604f898",
+ "cost_usd": 0.0,
+ "done": {
+  "c1-ext-query": true,
+  "c2-ext-dotfile": true,
+  "c3-ext-dir-dot": true,
+  "c4-ext-trailing-dot": true,
+  "c5-ext-dts": true
+ },
+ "false_alarms": 0,
+ "harness": "oracle",
+ "interventions": 0,
+ "land_conflicts": 4,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "runner_landed": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "runner_landed": []
+  }
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [
+  "14:24:00 connect: imported main as changeset 06d21cbc1411"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 4,
+ "reacted": 5,
+ "rep": 1,
+ "repo": "astro",
+ "run": "B-astro-colliding-r1-oracle",
+ "set": "colliding",
+ "setup_s": 12.48,
+ "started": "2026-11-21T14:23:54",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 0.22,
+ "tasks_on_main": 5,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 27,
+ "true_conflict_pairs": [
+  "1-2",
+  "1-3",
+  "1-4",
+  "1-5",
+  "2-3",
+  "2-4",
+  "2-5",
+  "3-4",
+  "3-5",
+  "4-5"
+ ],
+ "wall_s": 5.45,
+ "warned_before_land": 5,
+ "warned_pair_kinds": {
+  "1-2": [
+   "conflict"
+  ],
+  "1-3": [
+   "conflict"
+  ],
+  "1-4": [
+   "conflict"
+  ],
+  "1-5": [
+   "conflict"
+  ],
+  "2-3": [
+   "conflict"
+  ],
+  "2-4": [
+   "conflict"
+  ],
+  "2-5": [
+   "conflict"
+  ],
+  "3-4": [
+   "conflict"
+  ],
+  "3-5": [
+   "conflict"
+  ],
+  "4-5": [
+   "conflict"
+  ]
+ },
+ "warned_pairs": [
+  [
+   1,
+   2
+  ],
+  [
+   1,
+   3
+  ],
+  [
+   1,
+   4
+  ],
+  [
+   1,
+   5
+  ],
+  [
+   2,
+   3
+  ],
+  [
+   2,
+   4
+  ],
+  [
+   2,
+   5
+  ],
+  [
+   3,
+   4
+  ],
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   5
+  ]
+ ]
+}

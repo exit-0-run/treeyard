@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "disjoint",
+  "k": 3,
+  "id": "d3-basic-auth-repr",
+  "title": "HTTPBasicAuth: repr without the password",
+  "files": [
+    "src/requests/auth.py"
+  ],
+  "test": "tests/test_t2_d3_basic_auth_repr.py"
+}

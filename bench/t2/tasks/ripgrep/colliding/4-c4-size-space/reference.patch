@@ -1,0 +1,12 @@
+diff --git a/crates/cli/src/human.rs b/crates/cli/src/human.rs
+--- a/crates/cli/src/human.rs
++++ b/crates/cli/src/human.rs
+@@ -86,7 +86,7 @@
+     let value =
+         digits.parse::<u64>().map_err(|e| ParseSizeError::int(size, e))?;
+ 
+-    let suffix = &size[digits_end..];
++    let suffix = size[digits_end..].trim_start();
+     if suffix.is_empty() {
+         return Ok(value);
+     }

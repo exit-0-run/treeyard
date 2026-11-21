@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "colliding",
+  "k": 2,
+  "id": "c2-size-terabytes",
+  "title": "parse_human_readable_size: T suffix",
+  "files": [
+    "crates/cli/src/human.rs"
+  ],
+  "test": "crates/cli/tests/t2_c2_size_terabytes.rs",
+  "test_crate": "grep-cli"
+}

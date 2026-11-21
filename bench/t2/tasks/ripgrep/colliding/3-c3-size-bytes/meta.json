@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "colliding",
+  "k": 3,
+  "id": "c3-size-bytes",
+  "title": "parse_human_readable_size: B suffix",
+  "files": [
+    "crates/cli/src/human.rs"
+  ],
+  "test": "crates/cli/tests/t2_c3_size_bytes.rs",
+  "test_crate": "grep-cli"
+}

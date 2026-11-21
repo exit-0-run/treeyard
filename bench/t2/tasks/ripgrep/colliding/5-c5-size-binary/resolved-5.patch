@@ -1,0 +1,13 @@
+diff --git a/crates/cli/src/human.rs b/crates/cli/src/human.rs
+--- a/crates/cli/src/human.rs
++++ b/crates/cli/src/human.rs
+@@ -99,6 +99,9 @@
+         "g" => value.checked_mul(1 << 30),
+         "T" => value.checked_mul(1 << 40),
+         "B" => Some(value),
++        "KiB" => value.checked_mul(1 << 10),
++        "MiB" => value.checked_mul(1 << 20),
++        "GiB" => value.checked_mul(1 << 30),
+         _ => return Err(ParseSizeError::format(size)),
+     };
+     bytes.ok_or_else(|| ParseSizeError::overflow(size))

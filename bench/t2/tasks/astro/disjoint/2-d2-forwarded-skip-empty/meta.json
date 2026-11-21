@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "disjoint",
+  "k": 2,
+  "id": "d2-forwarded-skip-empty",
+  "title": "getFirstForwardedValue: skip empty entries",
+  "files": [
+    "packages/internal-helpers/src/request.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_d2_forwarded_skip_empty.test.ts"
+}

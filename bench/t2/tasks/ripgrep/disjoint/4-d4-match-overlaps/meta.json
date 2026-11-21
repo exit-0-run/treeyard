@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "disjoint",
+  "k": 4,
+  "id": "d4-match-overlaps",
+  "title": "matcher: Match::overlaps",
+  "files": [
+    "crates/matcher/src/lib.rs"
+  ],
+  "test": "crates/searcher/tests/t2_d4_match_overlaps.rs",
+  "test_crate": "grep-searcher"
+}

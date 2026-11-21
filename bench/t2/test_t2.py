@@ -1,0 +1,223 @@
+"""Stop tests for the T2 runner: scripted stub agents, a tiny repository, no model, no network.
+
+One test per stop: turn limit, token limit, wall-clock timeout (per agent), and the anomalies that
+end the whole run: wrong agent count, server down, zero tool calls. `make bench-test` runs them.
+"""
+
+import http.server
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from pathlib import Path
+
+from . import t2 as k
+
+
+def mini_world(root):
+    """A 5-line repository and 5 tasks (one line each), in the layout of bench/t2/tasks."""
+    src = root / "src" / "mini"
+    src.mkdir(parents=True)
+    (src / "a.txt").write_text("".join(f"line {i}\n" for i in range(1, 6)))
+    k.git("init", "-q", "-b", "main", cwd=src)
+    k.git("add", "a.txt", cwd=src)
+    k.git("commit", "-q", "-m", "mini", cwd=src)
+    rev = k.git("rev-parse", "HEAD", cwd=src).stdout.strip()
+    tasks = root / "tasks"
+    for i in range(1, 6):
+        d = tasks / "mini" / "colliding" / f"{i}-t{i}"
+        (d / "hidden").mkdir(parents=True)
+        (d / "prompt.md").write_text(f"# task {i}\n\nChange line {i}.\n")
+        (d / "hidden" / f"test_{i}.txt").write_text("x\n")
+        (d / "reference.patch").write_text("")
+        (d / "meta.json").write_text(json.dumps({"repo": "mini", "set": "colliding", "k": i, "id": f"t{i}", "title": f"task {i}",
+                                                 "files": ["a.txt"], "test": f"test_{i}.txt"}))
+    spec = {"rev": rev, "local_src": str(src), "workdir": ".", "decide": [sys.executable, "-c", "pass"], "suite": [sys.executable, "-c", "pass"]}
+    return spec, tasks
+
+
+class Health(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"ok")
+
+    def log_message(self, *a):
+        pass
+
+
+class StopTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="t2-stop-"))
+        self.spec, self.tasks = mini_world(self.tmp)
+        self.old_env = os.environ.get("T2_STUB_MODES")
+        self.old_every = k.HEALTH_EVERY_S
+        k.HEALTH_EVERY_S = 0.1
+
+    def tearDown(self):
+        k.HEALTH_EVERY_S = self.old_every
+        if self.old_env is None:
+            os.environ.pop("T2_STUB_MODES", None)
+        else:
+            os.environ["T2_STUB_MODES"] = self.old_env
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def run_stub(self, modes, arm="A", limits=None, agents=None, health_url=None):
+        os.environ["T2_STUB_MODES"] = modes
+        r = k.Run(self.tmp, arm, "mini", "colliding", 1, "stub", limits=limits or {"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                  agents=agents, tasks_dir=self.tasks, repo_spec=self.spec, run_dir=self.tmp / "run", health_url=health_url,
+                  results=self.tmp / "results")
+        t0 = time.time()
+        res = r.execute()
+        res["_elapsed"] = time.time() - t0
+        for p in r.registry.values():
+            self.assertIsNotNone(p.poll(), "an agent process is still alive after the run")
+        return res
+
+    def test_turn_limit_kills_the_agent(self):
+        res = self.run_stub("loop-turns,ok,ok,ok,ok", limits={"max_turns": 5, "max_tokens": 10**9, "timeout_s": 60})
+        self.assertEqual(res["status"], "done")
+        self.assertEqual(res["limit_kills"], ["agent-1: turns > 5"])
+        self.assertEqual(res["agent_stats"][0]["turns"], 6)
+
+    def test_token_limit_kills_the_agent(self):
+        res = self.run_stub("tokens,ok,ok,ok,ok", limits={"max_turns": 10**6, "max_tokens": 5000, "timeout_s": 60})
+        self.assertEqual(res["limit_kills"], ["agent-1: tokens > 5000"])
+        s = res["agent_stats"][0]
+        self.assertGreater(s["tokens_in"] + s["tokens_out"], 5000)
+        self.assertLessEqual(s["tokens_in"] + s["tokens_out"], 5000 + 1100)
+
+    def test_timeout_kills_the_agent(self):
+        res = self.run_stub("sleep,ok,ok,ok,ok", limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 1})
+        self.assertEqual(res["limit_kills"], ["agent-1: timeout 1 s"])
+        self.assertLess(res["_elapsed"], 30)
+
+    def test_wrong_agent_count_stops_the_run(self):
+        res = self.run_stub("ok,ok,ok,ok,ok", agents=4)
+        self.assertEqual(res["status"], "stopped")
+        self.assertEqual(res["stop_reason"], "agent count 4, want 5")
+        self.assertEqual(res["tool_calls"], 0, "no agent may start")
+
+    def test_zero_tool_calls_stops_the_run(self):
+        os.environ["T2_STUB_SLOW_S"] = "20"
+        try:
+            res = self.run_stub("no-tools,slow-ok,slow-ok,slow-ok,slow-ok")
+        finally:
+            os.environ.pop("T2_STUB_SLOW_S", None)
+        self.assertEqual(res["status"], "stopped")
+        self.assertEqual(res["stop_reason"], "zero tool calls: agent-1 (claude-1) made no tool call")
+        self.assertLess(res["_elapsed"], 15, "the other agents must be killed, not waited for")
+
+    def test_server_down_stops_the_run(self):
+        srv = http.server.HTTPServer(("127.0.0.1", 0), Health)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        url = f"http://127.0.0.1:{srv.server_address[1]}/health"
+
+        def down():
+            time.sleep(0.8)
+            srv.shutdown()
+            srv.server_close()
+
+        threading.Thread(target=down, daemon=True).start()
+        os.environ["T2_STUB_SLOW_S"] = "20"
+        try:
+            res = self.run_stub("slow-ok,slow-ok,slow-ok,slow-ok,slow-ok", health_url=url)
+        finally:
+            os.environ.pop("T2_STUB_SLOW_S", None)
+        self.assertEqual(res["status"], "stopped")
+        self.assertEqual(res["stop_reason"], f"server down: {url} does not answer")
+        self.assertLess(res["_elapsed"], 15)
+
+    def test_failed_hand_back_counts_an_intervention(self):
+        res = self.run_stub("edit-conflict,edit-conflict,edit-conflict,edit-conflict,edit-conflict")
+        self.assertEqual(res["status"], "done")
+        self.assertEqual(res["merge_conflicts"], 4)
+        self.assertEqual(res["interventions"], 4)
+        self.assertEqual([m["handback"] for m in res["merges"]], [None, "failed", "failed", "failed", "failed"])
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text().splitlines()[0], "agent 5")
+
+    @unittest.skipUnless(k.treeyard_bin().exists(), "needs target/debug/treeyard")
+    def test_server_down_stops_the_run_arm_b(self):
+        """The same stop with the real `treeyard connect` server of arm B: its serve process dies mid-run."""
+
+        def kill_serve():
+            state = self.tmp / "run" / "repo" / ".git" / "treeyard" / "connect.json"
+            for _ in range(300):
+                if (self.tmp / "run" / "agent-1.jsonl").exists() and state.exists():
+                    break
+                time.sleep(0.05)
+            time.sleep(0.5)
+            os.kill(json.loads(state.read_text())["pid"], signal.SIGKILL)
+
+        threading.Thread(target=kill_serve, daemon=True).start()
+        os.environ["T2_STUB_SLOW_S"] = "20"
+        try:
+            res = self.run_stub("slow-ok,slow-ok,slow-ok,slow-ok,slow-ok", arm="B")
+        finally:
+            os.environ.pop("T2_STUB_SLOW_S", None)
+        self.assertEqual(res["status"], "stopped")
+        self.assertTrue(res["stop_reason"].startswith("server down: http://127.0.0.1:"), res["stop_reason"])
+        self.assertNotIn(":7420/", res["stop_reason"])
+        self.assertLess(res["_elapsed"], 15)
+
+
+class KitTests(unittest.TestCase):
+    def test_prompts_do_not_name_the_tool_and_match_the_manifest(self):
+        manifest = json.loads((k.TASKS_DIR / "MANIFEST.json").read_text())
+        prompts = [p for p in manifest if p.endswith("prompt.md")]
+        self.assertEqual(len(prompts), 30)
+        for rel, digest in manifest.items():
+            f = k.HERE / rel
+            self.assertEqual(k.sha256(f), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", f.read_text().lower(), rel)
+
+    def test_edits_compose(self):
+        files = {"f": "a\nANCHOR\nb\n"}
+        t1 = {"id": "1", "edits": [{"op": "insert_after", "file": "f", "anchor": "ANCHOR\n", "text": "one\n"}]}
+        t2 = {"id": "2", "edits": [{"op": "insert_after", "file": "f", "anchor": "ANCHOR\n", "text": "two\n"}]}
+        self.assertEqual(k.apply_edits(files, [t1, t2])["f"], "a\nANCHOR\none\ntwo\nb\n")
+        self.assertEqual(k.apply_edits(files, [t2])["f"], "a\nANCHOR\ntwo\nb\n")
+
+    def test_lost_lines(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-lost-"))
+        try:
+            (tmp / "f.py").write_text("x = 1\nkept_line = 2\n")
+            own = {1: "+++ b/f.py\n+kept_line = 2\n+lost_line = 3\n+}\n"}
+            self.assertEqual(k.lost_lines(own, tmp), {"per_agent": {"1": 1}, "total": 1})
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_budget_formula(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-budget-"))
+        try:
+            for i, cost in enumerate((1.0, 3.0)):
+                (tmp / f"r{i}.json").write_text(json.dumps({"run": f"r{i}", "harness": "real", "status": "done", "repo": "requests",
+                                                            "cost_usd": cost, "tokens_in": 100, "tokens_out": 10}))
+            (tmp / "stopped.json").write_text(json.dumps({"run": "s", "harness": "real", "status": "stopped", "repo": "requests", "cost_usd": 50}))
+            out = k.budget(tmp)
+            factors = {r: k.ref_size(r) / k.ref_size("requests") for r in k.REPOS}
+            self.assertEqual(out["pilot_runs"], 2)
+            self.assertEqual(out["repo_factors"]["requests"], 1.0)
+            self.assertAlmostEqual(out["full_budget_usd"], round(2.0 * 12 * sum(factors.values()) * 1.25, 2))
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_parse_usage(self):
+        st = {"turns": 0, "tool_calls": 0, "tokens_in": 0, "tokens_out": 0, "cost_usd": 0.0, "session": None}
+        k.parse_line("claude", json.dumps({"type": "assistant", "message": {"content": [{"type": "tool_use"}], "usage": {
+            "input_tokens": 3, "cache_read_input_tokens": 10, "cache_creation_input_tokens": 5, "output_tokens": 7}}}), st)
+        k.parse_line("codex", json.dumps({"type": "turn.completed", "usage": {"input_tokens": 100, "output_tokens": 9}}), st)
+        k.parse_line("opencode", json.dumps({"type": "step_finish", "part": {"tokens": {"input": 1, "output": 2, "reasoning": 3,
+                                                                                    "cache": {"read": 4, "write": 5}}, "cost": 0.5}}), st)
+        self.assertEqual((st["turns"], st["tool_calls"], st["tokens_in"], st["tokens_out"], st["cost_usd"]), (2, 1, 128, 21, 0.5))
+
+
+if __name__ == "__main__":
+    unittest.main()

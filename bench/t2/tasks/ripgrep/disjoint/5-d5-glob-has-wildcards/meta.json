@@ -1,0 +1,12 @@
+{
+  "repo": "ripgrep",
+  "set": "disjoint",
+  "k": 5,
+  "id": "d5-glob-has-wildcards",
+  "title": "globset: Glob::has_wildcards",
+  "files": [
+    "crates/globset/src/glob.rs"
+  ],
+  "test": "crates/globset/tests/t2_d5_glob_has_wildcards.rs",
+  "test_crate": "globset"
+}

@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "disjoint",
+  "k": 4,
+  "id": "d4-netmask-range",
+  "title": "dotted_netmask: refuse masks outside 0..32",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_d4_netmask_range.py"
+}

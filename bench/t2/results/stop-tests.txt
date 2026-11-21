@@ -1,0 +1,32 @@
+test_budget_formula (t2.test_t2.KitTests.test_budget_formula) ... ok
+test_edits_compose (t2.test_t2.KitTests.test_edits_compose) ... ok
+test_lost_lines (t2.test_t2.KitTests.test_lost_lines) ... ok
+test_parse_usage (t2.test_t2.KitTests.test_parse_usage) ... ok
+test_prompts_do_not_name_the_tool_and_match_the_manifest (t2.test_t2.KitTests.test_prompts_do_not_name_the_tool_and_match_the_manifest) ... ok
+test_failed_hand_back_counts_an_intervention (t2.test_t2.StopTests.test_failed_hand_back_counts_an_intervention) ... ok
+test_server_down_stops_the_run (t2.test_t2.StopTests.test_server_down_stops_the_run) ... ok
+test_server_down_stops_the_run_arm_b (t2.test_t2.StopTests.test_server_down_stops_the_run_arm_b)
+The same stop with the real `treeyard connect` server of arm B: its serve process dies mid-run. ... ok
+test_timeout_kills_the_agent (t2.test_t2.StopTests.test_timeout_kills_the_agent) ... ok
+test_token_limit_kills_the_agent (t2.test_t2.StopTests.test_token_limit_kills_the_agent) ... ok
+test_turn_limit_kills_the_agent (t2.test_t2.StopTests.test_turn_limit_kills_the_agent) ... ok
+test_wrong_agent_count_stops_the_run (t2.test_t2.StopTests.test_wrong_agent_count_stops_the_run) ... ok
+test_zero_tool_calls_stops_the_run (t2.test_t2.StopTests.test_zero_tool_calls_stops_the_run) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 8.516s
+
+OK
+{
+ "pilot_runs": 2,
+ "pilot_repo": "requests",
+ "mean_cost_usd_per_run": 2.0,
+ "mean_tokens_per_run": 110,
+ "repo_factors": {
+  "requests": 1.0,
+  "ripgrep": 0.952,
+  "astro": 0.738
+ },
+ "full_budget_usd": 80.71,
+ "formula": "mean cost per run x 12 x sum(repo factors) x 1.25"
+}

@@ -1,0 +1,12 @@
+diff --git a/packages/internal-helpers/src/remote.ts b/packages/internal-helpers/src/remote.ts
+--- a/packages/internal-helpers/src/remote.ts
++++ b/packages/internal-helpers/src/remote.ts
+@@ -40,7 +40,7 @@
+  * @return {boolean} Returns `true` if the protocol matches or if no protocol is specified; otherwise, `false`.
+  */
+ export function matchProtocol(url: URL, protocol?: string): boolean {
+-	return !protocol || protocol === url.protocol.slice(0, -1);
++	return !protocol || protocol.replace(/:$/, '') === url.protocol.slice(0, -1);
+ }
+ 
+ /**

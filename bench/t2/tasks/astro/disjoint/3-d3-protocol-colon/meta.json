@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "disjoint",
+  "k": 3,
+  "id": "d3-protocol-colon",
+  "title": "matchProtocol: accept a trailing colon",
+  "files": [
+    "packages/internal-helpers/src/remote.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_d3_protocol_colon.test.ts"
+}

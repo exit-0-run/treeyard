@@ -1,0 +1,16 @@
+diff --git a/crates/globset/src/lib.rs b/crates/globset/src/lib.rs
+--- a/crates/globset/src/lib.rs
++++ b/crates/globset/src/lib.rs
+@@ -394,6 +394,12 @@
+             }
+         }
+         true
++    }
++
++    /// Returns the sequence number of the first glob pattern (in the order
++    /// they were added) that matches the given path.
++    pub fn first_match<P: AsRef<Path>>(&self, path: P) -> Option<usize> {
++        self.matches(path).into_iter().min()
+     }
+ 
+     /// Returns the sequence number of every glob pattern that matches the

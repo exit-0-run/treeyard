@@ -1,0 +1,22 @@
+diff --git a/packages/internal-helpers/src/object.ts b/packages/internal-helpers/src/object.ts
+--- a/packages/internal-helpers/src/object.ts
++++ b/packages/internal-helpers/src/object.ts
+@@ -3,3 +3,18 @@
+  * property lookups) to prevent prototype-pollution attacks.
+  */
+ export const FORBIDDEN_PATH_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
++
++/**
++ * Reads a dot-separated property path such as `a.b.c`. Returns `undefined` when a step
++ * is missing or is one of FORBIDDEN_PATH_KEYS.
++ */
++export function getByPath(obj: unknown, path: string): unknown {
++	let current: any = obj;
++	for (const key of path.split('.')) {
++		if (FORBIDDEN_PATH_KEYS.has(key) || current == null || !Object.hasOwn(Object(current), key)) {
++			return undefined;
++		}
++		current = current[key];
++	}
++	return current;
++}

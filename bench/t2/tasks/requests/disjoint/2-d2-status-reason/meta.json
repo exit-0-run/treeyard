@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "disjoint",
+  "k": 2,
+  "id": "d2-status-reason",
+  "title": "status_codes: reason(code)",
+  "files": [
+    "src/requests/status_codes.py"
+  ],
+  "test": "tests/test_t2_d2_status_reason.py"
+}

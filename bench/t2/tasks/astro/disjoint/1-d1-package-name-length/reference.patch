@@ -1,0 +1,12 @@
+diff --git a/packages/internal-helpers/src/cli.ts b/packages/internal-helpers/src/cli.ts
+--- a/packages/internal-helpers/src/cli.ts
++++ b/packages/internal-helpers/src/cli.ts
+@@ -23,7 +23,7 @@
+  * ```
+  */
+ export function validatePackageName(packageName: string): boolean {
+-	return NPM_PACKAGE_NAME_REGEX.test(packageName);
++	return packageName.length <= 214 && NPM_PACKAGE_NAME_REGEX.test(packageName);
+ }
+ 
+ /**

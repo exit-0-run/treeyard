@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "disjoint",
+  "k": 5,
+  "id": "d5-get-by-path",
+  "title": "object: getByPath",
+  "files": [
+    "packages/internal-helpers/src/object.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_d5_get_by_path.test.ts"
+}

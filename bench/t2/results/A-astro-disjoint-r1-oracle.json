@@ -1,0 +1,171 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 1.01
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 0.84
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 1.13
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 1.13
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 3,
+   "turns": 1,
+   "wall_s": 1.0
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "oracle",
+   "id": "d1-package-name-length",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "oracle",
+   "id": "d2-forwarded-skip-empty",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "oracle",
+   "id": "d3-protocol-colon",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "oracle",
+   "id": "d4-remove-hash",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "oracle",
+   "id": "d5-get-by-path",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.0,
+ "done": {
+  "d1-package-name-length": true,
+  "d2-forwarded-skip-empty": true,
+  "d3-protocol-colon": true,
+  "d4-remove-hash": true,
+  "d5-get-by-path": true
+ },
+ "false_alarms": 0,
+ "harness": "oracle",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 1,
+ "repo": "astro",
+ "run": "A-astro-disjoint-r1-oracle",
+ "set": "disjoint",
+ "setup_s": 8.97,
+ "started": "2026-11-21T14:23:06",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 0.18,
+ "tasks_on_main": 5,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 15,
+ "wall_s": 2.68,
+ "warned_before_land": 0
+}

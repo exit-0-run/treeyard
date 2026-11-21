@@ -21,6 +21,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- bench/t2: the kit for the T2 experiment (plain git worktrees against `treeyard connect`, 5 agents at
+  once): 30 tasks on pinned requests, ripgrep and astro, each with a hidden deciding test and a reference
+  patch; a runner with per-agent turn, token and time limits and anomaly stops; a metrics collector;
+  oracle and noop rehearsals; bench/t2/PREREGISTRATION.md. No real-agent run yet.
 - `treeyard connect`, `treeyard connect status` and `treeyard disconnect`: one command attaches a git
   repository to Claude Code, Codex and OpenCode (project-scoped MCP entries, an instruction block in
   AGENTS.md and CLAUDE.md, a loopback server), and one command restores every touched file byte for

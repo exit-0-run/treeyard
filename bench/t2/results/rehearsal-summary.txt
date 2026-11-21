@@ -1,0 +1,26 @@
+| run | status | suite | done | merge/land conflicts | warned | reacted | interv | lost | false alarms | tool calls | tokens | cost | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-astro-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 1.32 |
+| A-astro-colliding-r1-oracle | done | green | 5/5 | 4 | 0 | 0 | 0 | 0 | 0 | 31 | 0 | 0.0 | 5.46 |
+| A-astro-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 1.52 |
+| A-astro-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 2.68 |
+| A-requests-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.45 |
+| A-requests-colliding-r1-oracle | done | green | 5/5 | 3 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 0.0 | 1.24 |
+| A-requests-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.44 |
+| A-requests-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 0.69 |
+| A-ripgrep-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.42 |
+| A-ripgrep-colliding-r1-oracle | done | green | 5/5 | 3 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 0.0 | 1.38 |
+| A-ripgrep-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.4 |
+| A-ripgrep-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 0.64 |
+| B-astro-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 1.84 |
+| B-astro-colliding-r1-oracle | done | green | 5/5 | 4 | 5 | 5 | 0 | 0 | 0 | 27 | 0 | 0.0 | 5.45 |
+| B-astro-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 1.7 |
+| B-astro-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 2.78 |
+| B-requests-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.42 |
+| B-requests-colliding-r1-oracle | done | green | 5/5 | 3 | 4 | 2 | 0 | 0 | 4 | 24 | 0 | 0.0 | 1.46 |
+| B-requests-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.4 |
+| B-requests-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 1.17 |
+| B-ripgrep-colliding-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.37 |
+| B-ripgrep-colliding-r1-oracle | done | green | 5/5 | 3 | 4 | 3 | 0 | 0 | 0 | 24 | 0 | 0.0 | 1.35 |
+| B-ripgrep-disjoint-r1-noop | done | green | 0/5 | 0 | 0 | 0 | 0 | 0 | 0 | 5 | 0 | 0.0 | 0.33 |
+| B-ripgrep-disjoint-r1-oracle | done | green | 5/5 | 0 | 0 | 0 | 0 | 0 | 0 | 15 | 0 | 0.0 | 1.05 |

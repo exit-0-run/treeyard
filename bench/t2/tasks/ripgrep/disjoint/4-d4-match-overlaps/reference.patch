@@ -1,0 +1,20 @@
+diff --git a/crates/matcher/src/lib.rs b/crates/matcher/src/lib.rs
+--- a/crates/matcher/src/lib.rs
++++ b/crates/matcher/src/lib.rs
+@@ -152,6 +152,16 @@
+     #[inline]
+     pub fn is_empty(&self) -> bool {
+         self.len() == 0
++    }
++
++    /// Returns true if and only if this match and `other` share at least
++    /// one byte offset. An empty match overlaps nothing.
++    #[inline]
++    pub fn overlaps(&self, other: &Match) -> bool {
++        !self.is_empty()
++            && !other.is_empty()
++            && self.start < other.end
++            && other.start < self.end
+     }
+ }
+ 

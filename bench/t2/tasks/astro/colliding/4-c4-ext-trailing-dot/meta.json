@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "colliding",
+  "k": 4,
+  "id": "c4-ext-trailing-dot",
+  "title": "fileExtension: a trailing dot",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_c4_ext_trailing_dot.test.ts"
+}

@@ -1,0 +1,13 @@
+diff --git a/src/requests/auth.py b/src/requests/auth.py
+--- a/src/requests/auth.py
++++ b/src/requests/auth.py
+@@ -111,6 +111,9 @@
+     def __call__(self, r: PreparedRequest) -> PreparedRequest:
+         r.headers["Authorization"] = _basic_auth_str(self.username, self.password)
+         return r
++
++    def __repr__(self) -> str:
++        return f"{type(self).__name__}(username={self.username!r}, password='***')"
+ 
+ 
+ class HTTPProxyAuth(HTTPBasicAuth):

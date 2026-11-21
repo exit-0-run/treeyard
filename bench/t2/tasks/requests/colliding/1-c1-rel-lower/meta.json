@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "colliding",
+  "k": 1,
+  "id": "c1-rel-lower",
+  "title": "parse_header_links: rel values in lower case",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_c1_rel_lower.py"
+}

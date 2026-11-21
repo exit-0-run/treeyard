@@ -1,0 +1,11 @@
+{
+  "repo": "requests",
+  "set": "colliding",
+  "k": 3,
+  "id": "c3-lower-keys",
+  "title": "parse_header_links: parameter names in lower case",
+  "files": [
+    "src/requests/utils.py"
+  ],
+  "test": "tests/test_t2_c3_lower_keys.py"
+}

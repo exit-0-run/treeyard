@@ -1,0 +1,11 @@
+diff --git a/packages/internal-helpers/src/path.ts b/packages/internal-helpers/src/path.ts
+--- a/packages/internal-helpers/src/path.ts
++++ b/packages/internal-helpers/src/path.ts
+@@ -254,6 +254,7 @@
+ 	path = path.replace(/[?#].*$/, '');
+ 	if (/(^|[\\/])\.[^.\\/]*$/.test(path)) return '';
+ 	if (path.lastIndexOf('.') < Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))) return '';
++	if (path.endsWith('.')) return '';
+ 	const ext = path.split('.').pop();
+ 	return ext !== path ? `.${ext}` : '';
+ }

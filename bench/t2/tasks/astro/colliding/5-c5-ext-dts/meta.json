@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "colliding",
+  "k": 5,
+  "id": "c5-ext-dts",
+  "title": "fileExtension: .d.ts",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_c5_ext_dts.test.ts"
+}

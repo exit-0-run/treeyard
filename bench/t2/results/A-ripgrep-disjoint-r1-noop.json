@@ -1,0 +1,171 @@
+{
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 1,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.12
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 2,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.11
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 3,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.11
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 4,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.12
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "k": 5,
+   "killed": null,
+   "tokens_in": 0,
+   "tokens_out": 0,
+   "tool_calls": 1,
+   "turns": 1,
+   "wall_s": 0.11
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "noop",
+   "id": "d1-type-roc",
+   "k": 1
+  },
+  {
+   "agent": "claude-2",
+   "harness": "noop",
+   "id": "d2-globset-first-match",
+   "k": 2
+  },
+  {
+   "agent": "codex-1",
+   "harness": "noop",
+   "id": "d3-stats-without-match",
+   "k": 3
+  },
+  {
+   "agent": "codex-2",
+   "harness": "noop",
+   "id": "d4-match-overlaps",
+   "k": 4
+  },
+  {
+   "agent": "opencode-1",
+   "harness": "noop",
+   "id": "d5-glob-has-wildcards",
+   "k": 5
+  }
+ ],
+ "arm": "A",
+ "cost_usd": 0.0,
+ "done": {
+  "d1-type-roc": false,
+  "d2-globset-first-match": false,
+  "d3-stats-without-match": false,
+  "d4-match-overlaps": false,
+  "d5-glob-has-wildcards": false
+ },
+ "false_alarms": 0,
+ "harness": "noop",
+ "interventions": 0,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 3.0,
+  "max_tokens": 4000000,
+  "max_turns": 80,
+  "timeout_s": 1800
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5
+  }
+ ],
+ "reacted": 0,
+ "rep": 1,
+ "repo": "ripgrep",
+ "run": "A-ripgrep-disjoint-r1-noop",
+ "set": "disjoint",
+ "setup_s": 0.52,
+ "started": "2026-11-21T14:21:58",
+ "status": "done",
+ "suite_green": true,
+ "suite_s": 11.46,
+ "tasks_on_main": 0,
+ "tokens_in": 0,
+ "tokens_out": 0,
+ "tool_calls": 5,
+ "wall_s": 0.4,
+ "warned_before_land": 0
+}

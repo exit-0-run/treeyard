@@ -1,0 +1,11 @@
+{
+  "repo": "astro",
+  "set": "colliding",
+  "k": 1,
+  "id": "c1-ext-query",
+  "title": "fileExtension: ignore the query and the hash",
+  "files": [
+    "packages/internal-helpers/src/path.ts"
+  ],
+  "test": "packages/internal-helpers/test/t2_c1_ext_query.test.ts"
+}
