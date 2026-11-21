@@ -42,12 +42,14 @@ treeyard call status '{}'
 
 ### read
 
-Read one file without a checkout.
+Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `at` | string | no | main (default), a change id ch_..., a changeset id or prefix, or a git commit id |
+| `end` | integer | no | last line to return (inclusive); default the last line |
 | `path` | string | yes |  |
+| `start` | integer | no | first line to return (1-based); default 1 |
 
 ```sh
 treeyard call read '{"path": "README.md"}'

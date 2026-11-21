@@ -21,6 +21,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- `read` takes optional `start` and `end` (1-based, inclusive line numbers) and then returns only those
+  lines, with `lines` (the range returned, clamped to the file) and `total_lines`; a whole-file read
+  of a text file now has `total_lines` too. A range on a binary file or a submodule is an error. In the
+  T2 pilot, 90 % of the bytes MCP tools returned came from whole-file `read` calls (11 to 19 KB each).
 - bench/t2: the kit for the T2 experiment (plain git worktrees against `treeyard connect`, 5 agents at
   once): 30 tasks on pinned requests, ripgrep and astro, each with a hidden deciding test and a reference
   patch; a runner with per-agent turn, token and time limits and anomaly stops; a metrics collector;

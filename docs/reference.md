@@ -20,7 +20,8 @@ The same table serves `POST /api/<op>` (JSON in, JSON out), MCP tools, and `tree
 
 `open_change` takes optional `paths` (globs) and `symbols` and returns `overlaps` with other open changes
 plus `advice`. `apply` returns `overlaps` (shared paths) and `collisions` (a trial merge per shared
-path: `conflict` or `overlap`, with the changed line ranges of both sides).
+path: `conflict` or `overlap`, with the changed line ranges of both sides). `read` takes optional `start` and
+`end` (1-based, inclusive) and then returns only those lines, with `lines` and `total_lines`.
 
 `land` answers with one of five statuses: `landed` (with the git commit), `queued` (landing mode
 `queue`), `conflict` (with tasks), `already_on_main` (the rebase found every edit already there; a review

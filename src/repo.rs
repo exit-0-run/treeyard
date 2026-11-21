@@ -1641,11 +1641,16 @@ impl Inner {
         }))
     }
 
-    pub fn read(&mut self, path: &str, at: Option<&str>) -> Result<Value> {
+    /// `read`, optionally only lines `start..=end` (1-based; either end may be open). The range
+    /// is clamped to the file; `lines` is the range returned and `total_lines` counts the file.
+    pub fn read(&mut self, path: &str, at: Option<&str>, range: Option<(Option<u32>, Option<u32>)>) -> Result<Value> {
         let cs = self.resolve_at(at)?;
         let e =
             self.manifest(&cs)?.get(path).cloned().with_context(|| format!("no such file {path} at {}", &cs[..12]))?;
         if e.mode == MODE_GITLINK {
+            if range.is_some() {
+                bail!("{path} is a submodule; start and end apply only to text files");
+            }
             return Ok(json!({"path": path, "at": cs, "mode": "160000", "submodule": e.blob}));
         }
         let data = self.blob(&e.blob)?;
@@ -1658,10 +1663,33 @@ impl Inner {
         }
         let mut v =
             json!({"path": path, "at": cs, "blob": e.blob, "mode": format!("{:o}", e.mode), "size": data.len()});
-        match as_text(&data) {
-            Some(t) => v["content"] = Value::String(t),
-            None => v["content_b64"] = Value::String(B64.encode(&data)),
+        let Some(text) = as_text(&data) else {
+            if range.is_some() {
+                bail!("{path} is a binary file; start and end apply only to text files (read it without a range)");
+            }
+            v["content_b64"] = Value::String(B64.encode(&data));
+            return Ok(v);
+        };
+        let lines: Vec<&str> = text.split_inclusive('\n').collect();
+        let total = lines.len() as u32;
+        v["total_lines"] = json!(total);
+        let Some((start, end)) = range else {
+            v["content"] = Value::String(text);
+            return Ok(v);
+        };
+        if start == Some(0) || end == Some(0) {
+            bail!("start and end are 1-based line numbers");
         }
+        let start = start.unwrap_or(1);
+        let end = end.unwrap_or(total).min(total);
+        if start > total {
+            bail!("start {start} is past the end of {path} ({total} lines)");
+        }
+        if start > end {
+            bail!("start {start} is after end {end}");
+        }
+        v["content"] = Value::String(lines[start as usize - 1..end as usize].concat());
+        v["lines"] = json!([start, end]);
         Ok(v)
     }
 

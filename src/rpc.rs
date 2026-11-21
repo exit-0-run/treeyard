@@ -27,6 +27,17 @@ struct At {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct ReadP {
+    path: String,
+    at: Option<String>,
+    /// First line to return (1-based, inclusive).
+    start: Option<u32>,
+    /// Last line to return (1-based, inclusive).
+    end: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Grep {
     pattern: String,
     at: Option<String>,
@@ -499,10 +510,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             "name": c.name, "token": c.token, "admin": c.admin, "read": c.read.patterns, "write": c.write.patterns,
         })),
         "read" => {
-            let a: At = params(p)?;
-            let path = a.path.ok_or_else(|| anyhow!("read needs path"))?;
-            c.require_read(&path)?;
-            r.read(&path, a.at.as_deref())
+            let a: ReadP = params(p)?;
+            c.require_read(&a.path)?;
+            let range = (a.start.is_some() || a.end.is_some()).then_some((a.start, a.end));
+            r.read(&a.path, a.at.as_deref(), range)
         }
         "list" => {
             let a: At = params(p)?;
@@ -959,7 +970,12 @@ pub fn tools() -> Vec<Value> {
     let strings = json!({"type": "array", "items": {"type": "string"}, "description": "path globs you will edit, e.g. src/parser/** or Cargo.toml"});
     vec![
         tool("status", "Main changeset and git commit, file count, open changes.", json!({}), &[]),
-        tool("read", "Read one file without a checkout.", json!({"path": {"type": "string"}, "at": at}), &["path"]),
+        tool(
+            "read",
+            "Read one file without a checkout. Give start and/or end (1-based, inclusive) to read only those lines; symbols, outline or grep give the line numbers. The reply has total_lines, and lines [start, end] for a range.",
+            json!({"path": {"type": "string"}, "at": at, "start": {"type": "integer", "minimum": 1, "description": "first line to return (1-based); default 1"}, "end": {"type": "integer", "minimum": 1, "description": "last line to return (inclusive); default the last line"}}),
+            &["path"],
+        ),
         tool(
             "list",
             "List one directory (files and subdirectories).",
