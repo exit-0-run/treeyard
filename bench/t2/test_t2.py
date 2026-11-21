@@ -42,6 +42,22 @@ def mini_world(root):
     return spec, tasks
 
 
+def oracle_world(root):
+    """Like `mini_world`, with real reference patches: task i sets line i to `task i`. Neighbouring lines
+    conflict in a git merge, so the colliding order needs the hand-back or `t2-integrate`."""
+    spec, tasks = mini_world(root)
+    base = {"a.txt": "".join(f"line {i}\n" for i in range(1, 6))}
+    defs = [{"id": f"t{i}", "edits": [{"op": "replace", "file": "a.txt", "old": f"line {i}\n", "new": f"task {i}\n"}]} for i in range(1, 6)]
+    for i in range(1, 6):
+        d = tasks / "mini" / "colliding" / f"{i}-t{i}"
+        (d / "reference.patch").write_text(k.unified(base, k.apply_edits(base, [defs[i - 1]])))
+        (d / f"resolved-{i}.patch").write_text(k.unified(k.apply_edits(base, defs[: i - 1]), k.apply_edits(base, defs[:i])))
+        (d / "hidden" / f"test_{i}.txt").write_text(f"{i}\n")
+    spec["decide"] = [sys.executable, "-c", "import sys; n = int(open(sys.argv[1]).read()); "
+                      "sys.exit(open('a.txt').read().splitlines()[n - 1] != 'task %d' % n)", "{test}"]
+    return spec, tasks
+
+
 class Health(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -248,6 +264,248 @@ class HandbackTests(StubBase):
             ws = [p for p in (self.tmp / "t2").rglob(f"ws/agent-{a}/a.txt")]
             for p in ws:
                 self.assertFalse(k.has_marker_text(p.read_text()))
+
+
+class ArmA2Tests(StubBase):
+    """Arm A2: `t2-integrate` on PATH, answered by the runner; the runner merges only what is left."""
+
+    def run_world(self, harness, arm="A2", modes="ok,ok,ok,ok,ok", dialects=""):
+        os.environ["T2_STUB_MODES"] = modes
+        os.environ["T2_STUB_AS"] = dialects
+        spec, tasks = oracle_world(self.tmp / "w")
+        r = k.Run(self.tmp, arm, "mini", "colliding", 1, harness, limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                  tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / "run", results=self.tmp / "results")
+        return r, r.execute()
+
+    def test_oracle_integrates_in_order_with_its_conflicts(self):
+        r, res = self.run_world("oracle")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["tasks_on_main"], 5)
+        self.assertEqual(res["integrated_by_agent"], 5)
+        self.assertEqual(res["merge_conflicts"], 0)  # nothing left for the runner
+        self.assertGreaterEqual(res["integrate_conflicts"], 1)
+        self.assertEqual(res["interventions"], 0)
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text(), "".join(f"task {i}\n" for i in range(1, 6)))
+
+    def test_oracle_arm_a_uses_the_hand_back(self):
+        r, res = self.run_world("oracle", arm="A")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+        self.assertEqual(res["merge_conflicts"], 4)
+        self.assertEqual([m["handback"] for m in res["merges"]], [None, "resolved", "resolved", "resolved", "resolved"])
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_oracle_arm_b(self):
+        r, res = self.run_world("oracle", arm="B")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+
+    def test_stub_agents_integrate_and_settle_conflicts(self):
+        r, res = self.run_world("stub", modes=",".join(["integrate"] * 5), dialects="claude,codex,claude,codex,stub")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["interventions"], 0)
+        text = (self.tmp / "run" / "final" / "a.txt").read_text()
+        self.assertFalse(k.has_marker_text(text))
+        for i in range(1, 6):
+            self.assertIn(f"agent {i}\n", text)
+        self.assertTrue(all(x["exit"] in (0, 1) for xs in res["integrations"].values() for x in xs))
+
+    def test_noop_and_a_stopped_merge(self):
+        r, res = self.run_world("noop")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["tasks_on_main"], 0)
+        self.assertEqual([m["status"] for m in res["merges"]], ["no work"] * 5)
+
+    def test_integrate_reply_and_prompt(self):
+        spec, tasks = oracle_world(self.tmp / "w")
+        r = k.Run(self.tmp, "A2", "mini", "colliding", 1, "noop", tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / "run",
+                  results=self.tmp / "results")
+        r.setup()
+        a1, a2 = r.agents[0], r.agents[1]
+        self.assertTrue(r.prompt(a1).startswith(k.A2_BLOCK + "\n\n" + k.PREAMBLE + "\n\n# task 1"))
+        for a, n in ((a1, 1), (a2, 2)):
+            f = Path(a["cwd"]) / "a.txt"
+            f.write_text(f.read_text().replace(f"line {n}\n", f"task {n}\n"))
+        self.assertEqual(r.integrate(a1)[2], "integrated")
+        rc, out, status = r.integrate(a2)
+        self.assertEqual((rc, status), (1, "conflict"))
+        self.assertIn("<<<<<<< main", (Path(a2["cwd"]) / "a.txt").read_text())
+        self.assertEqual(r.integrate(a2)[2], "markers left")
+        (Path(a2["cwd"]) / "a.txt").write_text("".join(f"task {i}\n" if i <= 2 else f"line {i}\n" for i in range(1, 6)))
+        self.assertEqual(r.integrate(a2)[2], "integrated")
+        self.assertEqual(k.git("show", "main:a.txt", cwd=r.repo_dir).stdout.splitlines()[:2], ["task 1", "task 2"])
+        # the script on PATH goes through the spool to the runner
+        stop = r.start_integrator()
+        try:
+            env = dict(a1["env"])
+            p = subprocess.run([k.INTEGRATE_CMD], cwd=a1["cwd"], env=env, capture_output=True, text=True, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+            self.assertIn("nothing to integrate", p.stdout)
+        finally:
+            stop.set()
+            r.archive()
+
+
+class LayoutTests(StubBase):
+    """Agent area, environment, commit rule, scoring with the pin's test files."""
+
+    def test_reach_check(self):
+        kit = self.tmp / "kit"
+        (kit / "tasks").mkdir(parents=True)
+        bad = k.reach_check(self.tmp / "agents" / "run1", [kit / "tasks"])
+        self.assertTrue(any("holds" in b for b in bad), bad)
+        ok_root = Path(tempfile.mkdtemp(prefix="t2-agents-"))
+        elsewhere = Path.home() / ".t2-test-no-such-kit"  # below the home directory, which the check does not walk
+        try:
+            self.assertEqual(k.reach_check(ok_root / "run1", [elsewhere]), [])
+            (ok_root / "old-run").mkdir()
+            self.assertTrue(any("other entries" in b for b in k.reach_check(ok_root / "run1", [elsewhere])))
+        finally:
+            shutil.rmtree(ok_root)
+
+    def test_box_env_test_command_and_archive(self):
+        os.environ["T2_STUB_MODES"] = "ok,ok,ok,ok,ok"
+        r = k.Run(self.tmp, "A", "mini", "colliding", 1, "stub", tasks_dir=self.tasks, repo_spec=self.spec, run_dir=self.tmp / "run",
+                  results=self.tmp / "results")
+        r.setup()
+        a = r.agents[0]
+        env = a["env"]
+        box = Path(a["box"])
+        self.assertEqual((env["HOME"], env["TMPDIR"]), (str(box / "home"), str(box / "tmp")))
+        self.assertNotIn(str(k.HERE), json.dumps(env))
+        self.assertTrue(env["PATH"].startswith(str(box / "bin")))
+        self.assertFalse(str(r.run_dir) in a["cwd"], "the agent's directory must not be inside the runner's")
+        p = subprocess.run([k.TEST_CMD], cwd=a["cwd"], env=env, capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("t2-test: passed", p.stdout)
+        r.archive()
+        self.assertFalse(r.adir.exists())
+        self.assertTrue((r.run_dir / "agents" / "wt" / "agent-1").is_dir())
+        self.assertFalse((r.run_dir / "agents" / "box" / "agent-1" / "home").exists())
+
+    def test_commit_rule_keeps_env_and_lock_files_out(self):
+        src = self.tmp / "r"
+        src.mkdir()
+        k.git("init", "-q", "-b", "main", cwd=src)
+        (src / "Cargo.lock").write_text("pinned\n")
+        (src / "a.py").write_text("x = 1\n")
+        k.git("add", ".", cwd=src)
+        k.git("commit", "-q", "-m", "pin", cwd=src)
+        (src / "Cargo.lock").write_text("changed\n")
+        (src / "a.py").write_text("x = 2\n")
+        (src / "uv.lock").write_text("junk\n")
+        (src / ".venv").mkdir()
+        (src / ".venv" / "x").write_text("junk\n")
+        (src / "tests").mkdir()
+        (src / "tests" / "test_new.py").write_text("def test(): pass\n")
+        k.git("add", "uv.lock", cwd=src)  # staged by the agent: still kept out
+        keep, skip = k.commit_paths(src, {"Cargo.lock", "a.py"})
+        self.assertEqual(sorted(keep), ["Cargo.lock", "a.py", "tests/test_new.py"])
+        self.assertEqual(sorted(skip), [".venv/x", "uv.lock"])
+
+    def test_pinned_suite_restores_the_pins_test_files(self):
+        src = self.tmp / "src" / "mini"
+        (src / "tests").mkdir()
+        (src / "tests" / "t.txt").write_text("pin\n")
+        k.git("add", ".", cwd=src)
+        k.git("commit", "-q", "-m", "tests", cwd=src)
+        spec = dict(self.spec, rev=k.git("rev-parse", "HEAD", cwd=src).stdout.strip(), test_globs=["tests/**"],
+                    suite=[sys.executable, "-c", "import sys; sys.exit(open('tests/t.txt').read() != 'pin\\n')"])
+        r = k.Run(self.tmp, "A", "mini", "colliding", 1, "noop", tasks_dir=self.tasks, repo_spec=spec, run_dir=self.tmp / "run",
+                  results=self.tmp / "results")
+        r.setup()
+        tree = self.tmp / "tree"
+        k.git("clone", "-q", str(r.repo_dir), str(tree), cwd=self.tmp)
+        (tree / "tests" / "t.txt").write_text("agent\n")
+        (tree / "tests" / "new.txt").write_text("agent\n")
+        out = r.score(tree)
+        self.assertFalse(out["suite_green_all"])
+        self.assertTrue(out["suite_green_pinned"])
+        self.assertEqual(out["test_files_restored"], ["tests/new.txt", "tests/t.txt"])
+        r.archive()
+
+
+class MetricTests(unittest.TestCase):
+    """Warnings and test runs from tool replies; guard stats; collect of old and new run files."""
+
+    @staticmethod
+    def reply(agent, colls):
+        return json.dumps({"agent": agent, "id": "ch_me", "collisions": colls})
+
+    def test_warning_from_own_replies_only(self):
+        file_hit = {"change": "ch_b", "agent": "codex-1", "kind": "conflict", "files": [{"path": "f.py", "kind": "conflict"}]}
+        symbol = {"change": "ch_c", "agent": "codex-2", "kind": "overlap", "files": [{"kind": "symbol", "symbol": "f"}]}
+        main = {"change": "main", "agent": None, "kind": "conflict", "files": [{"path": "f.py", "kind": "conflict", "reason": "you_conflict_with_main"}]}
+        ev = lambda op, reply, **args: {"op": op, "args": args, "reply": reply, "ok": True}  # noqa: E731
+        # another agent's change, read with `change`: not this agent's warning
+        w = k.warning_of([ev("open_change", json.dumps({"id": "ch_me", "agent": "claude-1"})),
+                          ev("change", json.dumps({"agent": "codex-1", "id": "ch_b", "collisions": [file_hit]}), change="ch_b"),
+                          ev("apply", self.reply("claude-1", [symbol]), change="ch_me"), ev("land", "{}", change="ch_me")], "claude-1")
+        self.assertFalse(w["warned"])
+        # a conflict with main counts; a rebase after it and before the land is a reaction
+        w = k.warning_of([ev("open_change", json.dumps({"id": "ch_me", "agent": "claude-1"})),
+                          ev("apply", self.reply("claude-1", [main]), change="ch_me"), ev("rebase", "{}", change="ch_me"),
+                          ev("land", "{}", change="ch_me")], "claude-1")
+        self.assertEqual((w["warned"], w["reacted"], w["with_main"]), (True, True, True))
+        # warned, then land first: no reaction
+        w = k.warning_of([ev("apply", self.reply("claude-1", [file_hit]), change="ch_me"), ev("land", "{}", change="ch_me"),
+                          ev("apply", "{}", change="ch_me")], "claude-1")
+        self.assertEqual((w["warned"], w["reacted"], w["others"]), (True, False, ["ch_b"]))
+
+    def test_tool_events_of_both_harnesses(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-events-"))
+        try:
+            saved = tmp / "cfg" / "tool-results" / "land.txt"
+            saved.parent.mkdir(parents=True)
+            saved.write_text(self.reply("claude-1", [{"change": "ch_b", "files": [{"path": "f", "kind": "overlap"}]}]))
+            claude = [
+                json.dumps({"type": "assistant", "message": {"id": "m1", "content": [
+                    {"type": "tool_use", "id": "u1", "name": "mcp__treeyard__apply", "input": {"change": "ch_me"}}]}}),
+                json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "u1", "content": [
+                    {"type": "text", "text": f"Error: result (115,540 characters across 69 lines) exceeds maximum allowed tokens. Output has been saved to {saved}"}]}]}}),
+                json.dumps({"type": "assistant", "message": {"id": "m2", "content": [
+                    {"type": "tool_use", "id": "u2", "name": "Bash", "input": {"command": "t2-test tests/test_x.py"}}]}}),
+                json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "u2", "content": "3 passed\nt2-test: passed", "is_error": False}]}}),
+            ]
+            ev = k.tool_events("claude", claude, tmp)
+            self.assertEqual([e["op"] for e in ev], ["apply", None])
+            self.assertTrue(ev[0].get("reply_from_file"))
+            self.assertTrue(k.warning_of(ev, "claude-1")["warned"])
+            codex = [json.dumps({"type": "item.completed", "item": {"type": "mcp_tool_call", "server": "treeyard", "tool": "apply",
+                                                                     "arguments": {"change": "ch_me"}, "result": {"content": [{"type": "text", "text": "{}"}]}, "status": "completed"}}),
+                     json.dumps({"type": "item.completed", "item": {"type": "command_execution", "command": "/bin/zsh -lc t2-test",
+                                                                     "aggregated_output": "t2-test: failed (exit 1)", "exit_code": 1}})]
+            ev = k.tool_events("codex", codex)
+            self.assertEqual([(e["op"], e["ok"]) for e in ev], [("apply", True), (None, False)])
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_diff_stats(self):
+        d = "+++ b/src/x.py\n+a = 1\n-b = 2\n+++ b/tests/test_x.py\n+def test(): pass\n+    assert 1\n"
+        self.assertEqual(k.diff_stats(d, ["tests/**"]), {"files": 2, "added": 3, "removed": 1, "test_added": 2,
+                                                          "paths": ["src/x.py", "tests/test_x.py"]})
+
+    def test_collect_reads_old_and_new_run_files(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-collect-"))
+        try:
+            old = {"run": "A-x-colliding-r1-real", "harness": "real", "status": "done", "suite_green": True, "tasks_on_main": 5,
+                   "warned_before_land": 3, "reacted": 1, "tokens_in": 100, "tokens_out": 10, "cost_usd": 0.5,
+                   "agents": [{"k": 1, "harness": "claude"}, {"k": 2, "harness": "codex"}],
+                   "agent_stats": [{"k": 1, "tokens_in": 60, "tokens_out": 5}, {"k": 2, "tokens_in": 40, "tokens_out": 5}]}
+            new = {"run": "B-x-colliding-r1-real", "kit": 2, "harness": "real", "status": "done", "suite_green": True,
+                   "suite_green_all": True, "suite_green_pinned": False, "tasks_on_main": 4, "warned": 2, "reacted": 1,
+                   "legacy_warned_before_land": 3, "legacy_reacted": 0, "tokens_in": 10, "tokens_out": 1,
+                   "by_harness": {"claude": {"tokens_in": 6, "tokens_out": 1}}, "agent_stats": []}
+            (tmp / "a.json").write_text(json.dumps(old))
+            (tmp / "b.json").write_text(json.dumps(new))
+            rows = {r["run"]: r for r in k.collect(tmp, tmp / "m.json", tmp / "s.txt")}
+            a, b = rows["A-x-colliding-r1-real"], rows["B-x-colliding-r1-real"]
+            self.assertEqual((a["warned"], a["legacy_warned_before_land"], a["legacy_reacted"], a["suite_green_all"]), (None, 3, 1, True))
+            self.assertEqual(a["by_harness"]["codex"]["tokens_in"], 40)
+            self.assertEqual((b["warned"], b["reacted"], b["legacy_reacted"], b["suite_green_pinned"]), (2, 1, 0, False))
+            self.assertIn("Claude only", (tmp / "s.txt").read_text())
+        finally:
+            shutil.rmtree(tmp)
 
 
 class KitTests(unittest.TestCase):
@@ -467,7 +725,7 @@ class DevTests(unittest.TestCase):
         self.assertEqual(res["run"], "B-mini-colliding-r1-stub-try-1")
         self.assertEqual(res["block_file"], "try-1.md")
         self.assertEqual(res["block_sha256"], k.hashlib.sha256(want.encode()).hexdigest())
-        self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n# task 1"))
+        self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n" + k.PREAMBLE + "\n\n# task 1"))
         self.assertTrue((self.tmp / "results" / "B-mini-colliding-r1-stub-try-1.json").exists())
 
 

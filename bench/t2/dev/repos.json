@@ -9,6 +9,8 @@
     "env": {"PYTHONPATH": "src", "PYTHONDONTWRITEBYTECODE": "1"},
     "test_path": "tests/test_t2_{tid}.py",
     "decide": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "{test}"],
-    "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests", "--ignore=tests/test_deprecations.py"]
+    "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests", "--ignore=tests/test_deprecations.py"],
+    "test_prefix": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
+    "test_globs": ["tests/**"]
   }
 }

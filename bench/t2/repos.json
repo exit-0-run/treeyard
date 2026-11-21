@@ -9,7 +9,9 @@
                       "pytest>=2.8.0,<10", "pytest-cov", "pytest-httpbin==2.1.0", "httpbin~=0.10.0", "trustme"],
     "decide": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "{test}"],
     "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_utils.py", "tests/test_structures.py",
-              "tests/test_hooks.py", "tests/test_help.py"]
+              "tests/test_hooks.py", "tests/test_help.py"],
+    "test_prefix": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
+    "test_globs": ["tests/**"]
   },
   "ripgrep": {
     "url": "https://github.com/BurntSushi/ripgrep",
@@ -20,7 +22,9 @@
     "suite_crates": ["grep-cli", "globset", "ignore", "grep-printer", "grep-matcher", "grep-searcher"],
     "decide": ["{cargo}", "test", "-q", "-p", "{test_crate}", "--test", "{test_name}"],
     "suite": ["{cargo}", "test", "-q", "-p", "grep-cli", "-p", "globset", "-p", "ignore", "-p", "grep-printer",
-              "-p", "grep-matcher", "-p", "grep-searcher"]
+              "-p", "grep-matcher", "-p", "grep-searcher"],
+    "test_prefix": ["{cargo}", "test", "-q"],
+    "test_globs": ["tests/**", "crates/*/tests/**"]
   },
   "astro": {
     "url": "https://github.com/withastro/astro",
@@ -30,6 +34,8 @@
     "setup": "none: node strips the TypeScript types; astro_hook.mjs maps ../dist/x.js and ./x.js to the .ts sources",
     "decide": ["node", "--import", "{hook}", "--test", "{test_rel}"],
     "suite": ["node", "--import", "{hook}", "--test", "test/cli.test.ts", "test/path.test.ts", "test/request.test.ts",
-              "test/timings.test.ts"]
+              "test/timings.test.ts"],
+    "test_prefix": ["node", "--import", "{hook}", "--test"],
+    "test_globs": ["packages/*/test/**"]
   }
 }

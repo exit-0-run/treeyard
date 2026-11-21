@@ -33,6 +33,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -53,7 +54,7 @@ TASKDEFS = HERE
 VENV = "requests-venv"
 TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
-ARMS = ("A", "B")
+ARMS = ("A", "A2", "B")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 AGENTS = 5
 # Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
 # v1 had an OpenCode slot; its free tier ran out of quota during the v1 pilot (results/v1-exploratory).
@@ -692,11 +693,12 @@ def codex_models(codex_home):
     out = []
     for f in sorted(Path(codex_home).glob("sessions/**/rollout-*.jsonl")) if codex_home else []:
         try:
-            for line in open(f, errors="replace"):
-                if '"turn_context"' in line:
-                    m = (json.loads(line).get("payload") or {}).get("model")
-                    if m and m not in out:
-                        out.append(m)
+            with open(f, errors="replace") as fh:
+                for line in fh:
+                    if '"turn_context"' in line:
+                        m = (json.loads(line).get("payload") or {}).get("model")
+                        if m and m not in out:
+                            out.append(m)
         except (OSError, ValueError):
             pass
     return out
@@ -817,7 +819,7 @@ def ctx_bin(c):
 def agent_noop(ctx, k):
     c = json.loads(Path(ctx).read_text())
     emit({"type": "turn"})
-    if c["arm"] == "A":
+    if c["arm"] in ("A", "A2"):
         tool(["git", "status", "--short"], c["agents"][k - 1]["cwd"])
     else:
         tool([ctx_bin(c), "workspace", "status", c["agents"][k - 1]["workspace"], "--url", c["url"], "--home", c["home"]],
@@ -987,7 +989,7 @@ def agent_stub(ctx, k, resume=False):
             for f in sorted(Path(cwd).glob("*.txt")):
                 if has_marker_text(f.read_text()):
                     emit({"type": "note", "handback_file": f.read_text()})
-            if mode in ("conflict-resolve", "mcp-conflict"):
+            if mode in ("conflict-resolve", "mcp-conflict", "integrate"):
                 stub_resolve(cwd)
             elif mode == "conflict-markers":
                 stub_resolve(cwd, keep_markers=True)
@@ -1008,7 +1010,7 @@ def agent_stub(ctx, k, resume=False):
         if c["arm"] == "A":
             talk.call(["git", "commit", "-q", "-am", f"stub {k}"], cwd)
         elif c["arm"] == "A2":
-            for _ in range(3):
+            for _ in range(10):  # main can move again between a resolve and the next integrate
                 if talk.call(["t2-integrate"], cwd).returncode == 0:
                     break
                 stub_resolve(cwd)
@@ -1047,15 +1049,18 @@ def agent_stub(ctx, k, resume=False):
 # ----------------------------------------------------------------------- real harness wiring
 
 
-def real_command(harness, prompt, a, c, run_dir, limits, resume_msg=None, session=None):
-    """The command line of one real agent. Config homes point to scratch copies (lesson of T1):
-    the runner never runs a CLI against the user's real config directory."""
-    env = dict(os.environ)
+def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, prior=None):
+    """The command line of one real agent. Config homes are in the agent's box (lesson of T1): the runner
+    never runs a CLI against the user's real config directory. On a hand-back (`prior` = the counters so
+    far) the CLI's own limits get what is left of the agent's limits."""
+    env = dict(a["env"])
     env.pop("CLAUDECODE", None)
     env.pop("CLAUDE_CODE_ENTRYPOINT", None)
-    home = Path(run_dir) / "home" / a["agent"]
+    box = Path(a["box"])
+    home = box / "cfg"
     home.mkdir(parents=True, exist_ok=True)
     text = resume_msg or prompt
+    prior = prior or {}
     if harness == "claude":
         env["CLAUDE_CONFIG_DIR"] = str(home)
         env["DISABLE_AUTOUPDATER"] = "1"
@@ -1070,8 +1075,10 @@ def real_command(harness, prompt, a, c, run_dir, limits, resume_msg=None, sessio
                                    "env": {"TREEYARD_URL": c["url"]}}
         (home / "mcp.json").write_text(json.dumps({"mcpServers": servers}, indent=2))
         mcp = str(home / "mcp.json")
+        turns_left = max(1, limits["max_turns"] - int(prior.get("turns", 0)))
+        budget_left = max(0.01, round(limits["claude_budget_usd"] - float(prior.get("cost_usd", 0)), 4))
         cmd = ["claude", "-p", text, "--mcp-config", mcp, "--strict-mcp-config",
-               "--max-turns", str(limits["max_turns"]), "--max-budget-usd", str(limits["claude_budget_usd"]),
+               "--max-turns", str(turns_left), "--max-budget-usd", str(budget_left),
                "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
                "--allowedTools", "Bash,Read,Edit,Write,Glob,Grep" + (",mcp__treeyard__*" if c["arm"] == "B" else "")]
         if session:
@@ -1088,8 +1095,10 @@ def real_command(harness, prompt, a, c, run_dir, limits, resume_msg=None, sessio
         cmd = ["codex", "exec"]
         if session:
             cmd += ["resume", session]
-        # `codex exec resume` has no -s flag: the sandbox mode goes in as a config value, which both forms take.
-        cmd += ["--json", "--skip-git-repo-check", "-c", "sandbox_mode=\"workspace-write\"", "-c", "approval_policy=\"never\""]
+        # `codex exec resume` has no -s or --add-dir: the sandbox goes in as config values, which both forms
+        # take. The box (HOME, TMPDIR, the agent's venv and cargo target) is writable besides the cwd.
+        cmd += ["--json", "--skip-git-repo-check", "-c", "sandbox_mode=\"workspace-write\"", "-c", "approval_policy=\"never\"",
+                "-c", f"sandbox_workspace_write.writable_roots={json.dumps([str(box)])}"]
         if c["arm"] == "B":
             margs = c["mcp_args"] + ["--agent", a["agent"]]
             cmd += ["-c", f"mcp_servers.treeyard.command={json.dumps(c['mcp_command'])}", "-c", f"mcp_servers.treeyard.args={json.dumps(margs)}",
@@ -1140,10 +1149,400 @@ def user_config_hashes():
         if not p.is_file():
             out["~/" + rel] = "missing"
         elif rel == ".claude.json":
-            out["~/" + rel] = "run-path entries: %d" % p.read_text(errors="replace").count("/t2/runs/")
+            text = p.read_text(errors="replace")
+            out["~/" + rel] = "run-path entries: %d" % sum(text.count(m) for m in ("/t2/runs/", "/t2/runner/", "/t2-agents-"))
         else:
             out["~/" + rel] = sha256(p)
     return out
+
+
+# ===================================================================================== metrics
+
+KIT_VERSION = 2  # run files with "kit": 2 have the fields of this version; older ones have none
+DEFAULT_TEST_GLOBS = ["tests/**", "test/**"]
+
+
+def sha_text(text):
+    return hashlib.sha256((text or "").encode()).hexdigest()
+
+
+def glob_match(path, pattern):
+    """`**` crosses directories, `*` and `?` stay in one path segment."""
+    rx = ""
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**", i):
+            rx += ".*"
+            i += 2
+        elif pattern[i] == "*":
+            rx += "[^/]*"
+            i += 1
+        elif pattern[i] == "?":
+            rx += "[^/]"
+            i += 1
+        else:
+            rx += re.escape(pattern[i])
+            i += 1
+    return re.fullmatch(rx, path) is not None
+
+
+def diff_stats(diff, test_globs):
+    """Guard metrics of one agent's own diff: files, lines added and removed, lines added in test files."""
+    files, added, removed, test_added, path = set(), 0, 0, 0, None
+    for line in (diff or "").splitlines():
+        if line.startswith("+++ "):
+            path = line[6:] if line.startswith("+++ b/") else None
+            if path:
+                files.add(path)
+            continue
+        if line.startswith("--- ") or line.startswith("diff --git") or not path:
+            continue
+        if line.startswith("+"):
+            added += 1
+            test_added += any(glob_match(path, g) for g in test_globs)
+        elif line.startswith("-"):
+            removed += 1
+    return {"files": len(files), "added": added, "removed": removed, "test_added": test_added, "paths": sorted(files)}
+
+
+def by_harness(agent_stats):
+    """Sums per harness (Claude Code and Codex apart): tokens with the price-free split, cost, turns."""
+    out = {}
+    for s in agent_stats:
+        h = out.setdefault(s.get("harness") or "?", {"agents": 0, **{k: 0 for k in TOKEN_KEYS}, "cost_usd": 0.0, "turns": 0, "tool_calls": 0})
+        h["agents"] += 1
+        for key in (*TOKEN_KEYS, "turns", "tool_calls"):
+            h[key] += s.get(key, 0) or 0
+        h["cost_usd"] = round(h["cost_usd"] + (s.get("cost_usd") or 0), 6)
+    return out
+
+
+def _reply_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(c.get("text", "") for c in content if isinstance(c, dict))
+    if isinstance(content, dict):
+        return _reply_text(content.get("content"))
+    return ""
+
+
+def tool_events(harness, lines, box=None):
+    """The tool calls of one transcript, in order: {name, op (the treeyard operation or None), args,
+    command (shell), reply (text), ok}. Claude: tool_use + tool_result; a reply too large for the
+    transcript is read from the file Claude saved it to, when that file is in the agent's box. Codex:
+    mcp_tool_call and command_execution items. Scripted agents: tool_use + tool_result events."""
+    out, pending = [], {}
+    for line in lines:
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(ev, dict):
+            continue
+        t = ev.get("type")
+        if harness == "claude":
+            msg = ev.get("message") or {}
+            for c in msg.get("content") or [] if isinstance(msg.get("content"), list) else []:
+                if not isinstance(c, dict):
+                    continue
+                if t == "assistant" and c.get("type") == "tool_use" and c.get("id") not in pending:
+                    name = c.get("name") or ""
+                    inp = c.get("input") or {}
+                    rec = {"name": name, "op": name.split("__", 2)[2] if name.startswith("mcp__treeyard__") else None,
+                           "args": inp, "command": inp.get("command") if name == "Bash" else None, "reply": None, "ok": None}
+                    pending[c.get("id")] = rec
+                    out.append(rec)
+                elif t == "user" and c.get("type") == "tool_result" and c.get("tool_use_id") in pending:
+                    rec = pending[c["tool_use_id"]]
+                    text = _reply_text(c.get("content"))
+                    m = re.search(r"saved to (\S+)", text) if text.startswith("Error: result (") else None
+                    saved = Path(m.group(1).rstrip(".,;:)")) if m else None
+                    if saved and box and saved.is_file() and Path(box).resolve() in saved.resolve().parents:
+                        text = saved.read_text(errors="replace")
+                        rec["reply_from_file"] = True
+                    rec["reply"], rec["ok"] = text, not c.get("is_error")
+        elif harness == "codex":
+            item = ev.get("item") or {}
+            if t != "item.completed":
+                continue
+            if item.get("type") == "mcp_tool_call":
+                res = item.get("result") or {}
+                err = item.get("error")
+                out.append({"name": item.get("tool"), "op": item.get("tool") if item.get("server") == "treeyard" else None,
+                            "args": item.get("arguments") or {}, "command": None,
+                            "reply": _reply_text(res) if res else str((err or {}).get("message", err or "")),
+                            "ok": not err and item.get("status") in (None, "completed")})
+            elif item.get("type") == "command_execution":
+                out.append({"name": "shell", "op": None, "args": {}, "command": item.get("command") or "",
+                            "reply": item.get("aggregated_output") or "", "ok": item.get("exit_code") == 0})
+        else:
+            if t == "tool_use":
+                cmd = ev.get("cmd") or []
+                op = None
+                if cmd[:1] and cmd[0].startswith("treeyard") and len(cmd) > 2 and cmd[1] in ("workspace", "call"):
+                    op = cmd[2] if cmd[1] == "workspace" else next((x for x in cmd[2:] if not x.startswith("-") and not x.startswith("http")), None)
+                rec = {"name": ev.get("name"), "op": op, "args": {}, "command": " ".join(cmd), "reply": None, "ok": None}
+                out.append(rec)
+                pending["last"] = rec
+            elif t == "tool_result" and pending.get("last"):
+                rec = pending.pop("last")
+                rec["reply"] = ev.get("reply") if ev.get("reply") is not None else ev.get("out", "")
+                rec["ok"] = ev.get("exit") == 0
+    return out
+
+
+def warning_of(events, agent):
+    """`warned` and `reacted` of one agent from its tool events (see Run.transcript_metrics)."""
+    own, warned_at, reacted, landed_after = set(), None, False, False
+    kinds, others, with_main = set(), set(), False
+    for i, e in enumerate(events):
+        op = e.get("op")
+        if not op:
+            continue
+        try:
+            reply = json.loads(e.get("reply") or "")
+        except ValueError:
+            reply = None
+        reply = reply if isinstance(reply, dict) else {}
+        args = e.get("args") if isinstance(e.get("args"), dict) else {}
+        if op == "open_change" and reply.get("id"):
+            own.add(reply["id"])
+        if op in ("apply", "declare", "rebase", "resolve", "land") and args.get("change"):
+            own.add(args["change"])
+        if warned_at is not None and i > warned_at and not landed_after:
+            if op == "land":
+                landed_after = True
+            elif op in ("change", "rebase", "apply", "resolve") and not reacted:
+                reacted = True
+        mine = reply.get("agent") == agent or reply.get("id") in own or op in ("apply", "open_change", "declare", "rebase", "sync", "status")
+        if op == "change" and args.get("change") not in own:
+            mine = False
+        hits = [(c.get("change"), f) for c in reply.get("collisions") or [] if isinstance(c, dict)
+                for f in c.get("files") or [] if isinstance(f, dict) and f.get("path") and f.get("kind") in ("overlap", "conflict")]
+        if mine and hits:
+            if warned_at is None:
+                warned_at = i
+            for other, f in hits:
+                kinds.add(f["kind"])
+                if other == "main":
+                    with_main = True
+                elif other:
+                    others.add(other)
+    return {"warned": warned_at is not None, "reacted": warned_at is not None and reacted, "first_warning_call": warned_at,
+            "kinds": sorted(kinds), "with_main": with_main, "others": sorted(others)}
+
+
+# ===================================================================================== agent environment
+
+TEST_CMD = "t2-test"
+INTEGRATE_CMD = "t2-integrate"
+
+# The common preamble of every arm (item: same deliverable in both arms). Arm-independent text, outside
+# the frozen task files; a run file records its sha256 (`preamble_sha256`).
+PREAMBLE = (
+    "## What to deliver\n\n"
+    "- The code change that the task below asks for, and one regression test for it, added to the repository's "
+    "existing test file for that module.\n"
+    "- No changelog entry, no release notes, and no change to files that the task does not need.\n"
+    f"- The test command is `{TEST_CMD}`, run from this directory. It runs the repository's tests with no install and "
+    f"no network; `{TEST_CMD} ARGS` passes the arguments to the repository's test runner (for example one test file). "
+    f"The task is finished only when `{TEST_CMD}` passes."
+)
+
+# Arm A2: plain worktrees plus a git-native way to integrate early (`t2-integrate`). Its sha256 goes in
+# the run file (`arm_block_sha256`).
+A2_BLOCK = (
+    "## Other agents work on this repository at the same time\n\n"
+    "Each agent works in its own git worktree and branch of this repository.\n\n"
+    f"1. When your change passes `{TEST_CMD}`, integrate it yourself: run `{INTEGRATE_CMD}` in this directory. It "
+    "merges main into your branch and, when that merges cleanly, moves main to your work. It runs no tests.\n"
+    f"2. When `{INTEGRATE_CMD}` reports a conflict, the files it names hold your work and the work on main with "
+    "conflict markers. Resolve them in your files so that your work and the work on main are both kept, run "
+    f"`{TEST_CMD}`, then run `{INTEGRATE_CMD}` again."
+)
+
+
+def arm_b_test_note():
+    """HOOK (arm B tests): extra preamble text for arm B on how the agent's edits reach the files that
+    `t2-test` runs on. In arm B an agent edits through `apply`, so the files on disk do not hold its
+    edits; a product feature that writes them is being built elsewhere. Until it exists this returns ""
+    and the preamble is the same text in all arms. Do not describe product behaviour here before it ships."""
+    return ""
+
+
+def preamble(arm):
+    note = arm_b_test_note() if arm == "B" else ""
+    return PREAMBLE + ("\n" + note if note else "")
+
+
+def reach_check(adir, forbidden):
+    """Problems with an agent directory `adir`: an ancestor of it (below the user's home and below `/`)
+    that holds kit material (`forbidden`: the kit, the tasks, the runner's scratch, the results), or an
+    agent root that holds other runs. Empty = fine."""
+    out = []
+    adir = Path(adir).resolve()
+    home = Path.home().resolve()
+    stop = {home, Path("/"), Path(adir.anchor)}
+    p = adir
+    while p not in stop and p != p.parent:
+        for f in forbidden:
+            f = Path(f).resolve()
+            if f == p or p in f.parents:
+                out.append(f"{p} holds {f}")
+        p = p.parent
+    root = adir.parent
+    if root.is_dir():
+        others = sorted(x.name for x in root.iterdir() if x.name != adir.name and not x.name.startswith("."))
+        if others:
+            out.append(f"{root} holds other entries: {', '.join(others[:5])}")
+    return out
+
+
+def clone_file(src, dst):
+    """Copy-on-write copy where the file system has it (APFS clonefile, reflink), else a copy."""
+    flag = ["-c"] if sys.platform == "darwin" else ["--reflink=auto"]
+    if subprocess.run(["cp", *flag, str(src), str(dst)], capture_output=True).returncode != 0:
+        shutil.copy2(src, dst)
+
+
+def clone_tree(src, dst):
+    flag = ["-c"] if sys.platform == "darwin" else ["--reflink=auto"]
+    if subprocess.run(["cp", *flag, "-R", str(src), str(dst)], capture_output=True).returncode != 0:
+        shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True)
+
+
+AGENT_ENV_KEEP = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "USER", "LOGNAME", "SHELL", "TZ")
+
+
+def base_agent_env(box, keep_t2=False, hide=()):
+    """A new environment for one agent: only the keys in AGENT_ENV_KEEP from the runner's, PATH without
+    entries inside `hide` (the kit, the scratch), HOME and TMPDIR in its box, a neutral git identity,
+    and offline package tools. No variable names a kit or scratch path."""
+    env = {k: os.environ[k] for k in AGENT_ENV_KEEP if k in os.environ}
+    hidden = [Path(h).resolve() for h in hide]
+
+    def visible(entry):
+        try:
+            e = Path(entry).resolve()
+        except OSError:
+            return True
+        return not any(e == h or h in e.parents for h in hidden)
+
+    env["PATH"] = os.pathsep.join(e for e in os.environ.get("PATH", "").split(os.pathsep) if e and visible(e))
+    if keep_t2:  # the scripted agents read their modes from these
+        env.update({k: v for k, v in os.environ.items() if k.startswith("T2_STUB")})
+    box = Path(box)
+    env.update(HOME=str(box / "home"), TMPDIR=str(box / "tmp"), XDG_CACHE_HOME=str(box / "home" / ".cache"),
+               XDG_CONFIG_HOME=str(box / "home" / ".config"), XDG_DATA_HOME=str(box / "home" / ".local" / "share"),
+               GIT_AUTHOR_NAME="t2 agent", GIT_AUTHOR_EMAIL="agent@example.com", GIT_COMMITTER_NAME="t2 agent",
+               GIT_COMMITTER_EMAIL="agent@example.com", GIT_CONFIG_NOSYSTEM="1", UV_OFFLINE="1", PIP_NO_INDEX="1",
+               npm_config_offline="true")
+    return env
+
+
+def make_venv(src, dst, packages):
+    """A venv of the agent's own (a venv holds absolute paths, so it is made, not copied): the same Python
+    as the kit's venv `src`, the same packages from uv's cache with no network."""
+    home = None
+    cfg = Path(src) / "pyvenv.cfg"
+    if cfg.is_file():
+        for line in cfg.read_text().splitlines():
+            if line.split("=")[0].strip() == "home":
+                home = line.split("=", 1)[1].strip()
+    py = str(Path(home) / "python3") if home else "3.12"
+    r = subprocess.run(["uv", "venv", "-q", str(dst), "--python", py], capture_output=True, text=True)
+    if r.returncode == 0:
+        r = subprocess.run(["uv", "pip", "install", "-q", "--offline", "--python", str(Path(dst) / "bin" / "python"), *packages],
+                           capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Stop(f"agent env: venv from the uv cache failed (run `t2.py setup` again): {tail(r.stderr, 300)}")
+
+
+def cargo_home(d):
+    """A CARGO_HOME of the agent's own (lock and cache files are written there) that reads the operator's
+    downloaded registry and git checkouts through symlinks; builds run offline."""
+    d = Path(d)
+    d.mkdir(parents=True, exist_ok=True)
+    real = Path(os.environ.get("CARGO_HOME") or Path.home() / ".cargo")
+    for sub in ("registry", "git"):
+        if (real / sub).exists() and not (d / sub).exists():
+            (d / sub).symlink_to(real / sub)
+    (d / "config.toml").write_text("[net]\noffline = true\n")
+    return d
+
+
+def neutral_hook():
+    """astro_hook.mjs without its comment header (it names the kit's hidden tests)."""
+    lines = HOOK.read_text().splitlines(True)
+    while lines and lines[0].startswith("//"):
+        lines.pop(0)
+    return "// Resolve hook: imports of ./x.js and ../dist/x.js load the .ts source.\n" + "".join(lines)
+
+
+def write_script(path, text):
+    Path(path).write_text(text)
+    os.chmod(path, 0o755)
+
+
+def test_script(root, workdir, suite, prefix, env):
+    """`t2-test`: the repository's tests (the `suite` command of repos.json) or `test_prefix` + ARGS.
+    It runs in the agent's directory (`root`, plus the repo's `workdir`); called from a directory
+    outside it (a copy of the tree, as block B point 6 describes), it runs there. Absolute paths only,
+    so it works under any shell profile and sandbox."""
+    return f'''#!{sys.executable} -I
+"""t2-test: runs the repository's tests. `t2-test ARGS` passes ARGS to the test runner."""
+import os
+import subprocess
+import sys
+
+ROOT = {str(root)!r}
+WORKDIR = {str(workdir)!r}
+SUITE = {suite!r}
+PREFIX = {prefix!r}
+ENV = {env!r}
+here = os.getcwd()
+base = ROOT if here == ROOT or here.startswith(ROOT + os.sep) else here
+wd = os.path.join(base, WORKDIR) if os.path.isdir(os.path.join(base, WORKDIR)) else base
+args = [os.path.abspath(x) if os.path.exists(x) else x for x in sys.argv[1:]]
+cmd = PREFIX + args if args else SUITE
+rc = subprocess.call(cmd, cwd=wd, env=dict(os.environ, **ENV))
+print("t2-test: passed" if rc == 0 else f"t2-test: failed (exit {{rc}})", flush=True)
+sys.exit(rc)
+'''
+
+
+def integrate_script(spool):
+    """`t2-integrate` of arm A2: a request file in the agent's TMPDIR, answered by the runner (`Run.integrate`),
+    which does the git work outside any sandbox. A Codex sandbox lets a command write its TMPDIR."""
+    return f'''#!{sys.executable} -I
+"""t2-integrate: merges main into this branch and, when that merges cleanly, moves main to it."""
+import json
+import os
+import sys
+import time
+import uuid
+
+SPOOL = {str(spool)!r}
+os.makedirs(SPOOL, exist_ok=True)
+rid = uuid.uuid4().hex
+tmp = os.path.join(SPOOL, ".req-" + rid)
+with open(tmp, "w") as f:
+    json.dump({{"id": rid, "cwd": os.getcwd()}}, f)
+os.rename(tmp, os.path.join(SPOOL, "req-" + rid + ".json"))
+res = os.path.join(SPOOL, "res-" + rid + ".json")
+t0 = time.time()
+while not os.path.exists(res):
+    if time.time() - t0 > 900:
+        print("t2-integrate: no answer within 900 s")
+        sys.exit(2)
+    time.sleep(0.1)
+with open(res) as f:
+    d = json.load(f)
+os.unlink(res)
+print(d["out"], end="")
+sys.exit(d["exit"])
+'''
 
 
 # ===================================================================================== one run
@@ -1162,7 +1561,10 @@ class Run:
         self.block_file = Path(block_file) if block_file else None
         if self.block_file:
             self.name += f"-{self.block_file.stem}"
-        self.run_dir = run_dir or scratch / "t2" / "runs" / self.name
+        # The runner's directory (ctx.json, transcripts, final trees, the archive of the agent area):
+        # never within an agent's reach. The agents' directory is `agent_area()`.
+        self.run_dir = run_dir or scratch / "t2" / "runner" / self.name
+        self.made_root = None
         self.results = Path(results) if results else RESULTS
         self.agent_root_arg = Path(agent_root) if agent_root else None
         self.health_url = health_url
@@ -1180,10 +1582,10 @@ class Run:
         d = self.tasks_dir / self.repo / self.set
         return sorted((p for p in d.iterdir() if p.is_dir()), key=lambda p: int(p.name.split("-")[0]))
 
-    def make_repo(self):
-        repo = self.run_dir / "repo"
+    def make_repo(self, where):
+        repo = where / "repo"
         src = Path(self.spec.get("local_src") or self.scratch / "t2" / "src" / self.repo)
-        git("clone", "-q", "--no-checkout", str(src), str(repo), cwd=self.run_dir)
+        git("clone", "-q", "--no-checkout", str(src), str(repo), cwd=where)
         git("checkout", "-q", "-B", "main", self.spec["rev"], cwd=repo)
         git("remote", "remove", "origin", cwd=repo)
         git("config", "user.name", "t2", cwd=repo)
@@ -1195,11 +1597,47 @@ class Run:
             return self.harness
         return MIX[(k - 1 + self.rep - 1) % len(MIX)]
 
+    def agent_area(self):
+        """The directory that holds everything an agent can reach in this run (README, "Layout").
+        Real runs: a new directory in the system temp dir (or --agent-root), checked by `reach_check`.
+        Scripted harnesses: <scratch>/agents."""
+        if self.agent_root_arg:
+            root = self.agent_root_arg
+        elif self.harness == "real":
+            root = Path(tempfile.mkdtemp(prefix="t2-agents-"))
+            self.made_root = root
+        else:
+            root = self.scratch / "agents"
+        root.mkdir(parents=True, exist_ok=True)
+        adir = root.resolve() / self.name
+        if adir.exists():
+            shutil.rmtree(adir)
+        if self.harness == "real":
+            bad = reach_check(adir, self.reach_forbidden())
+            if bad:
+                raise Stop("agent directories within reach of kit material: " + "; ".join(bad))
+        adir.mkdir(parents=True)
+        return adir
+
+    def reach_forbidden(self):
+        out = [HERE, ROOT, self.tasks_dir, self.scratch / "t2", self.run_dir, self.results]
+        if self.spec.get("local_src"):
+            out.append(Path(self.spec["local_src"]))
+        return [Path(p) for p in out]
+
     def setup(self):
         if self.run_dir.exists():
             shutil.rmtree(self.run_dir)
         self.run_dir.mkdir(parents=True)
-        self.repo_dir = self.make_repo()
+        self.adir = self.agent_area()
+        # The runner's own copy of the binary inside the agent area: `ps` shows this path, not the kit's.
+        if self.arm == "B" and treeyard_bin().exists():
+            (self.adir / "bin").mkdir()
+            self.ty = self.adir / "bin" / "treeyard"
+            clone_file(treeyard_bin(), self.ty)
+        # Arm A, A2: the repository is the worktrees' common git dir, so it lives with them. Arm B: the
+        # server's repository (and its data in .git/treeyard) stays with the runner.
+        self.repo_dir = self.make_repo(self.adir if self.arm in ("A", "A2") else self.run_dir)
         self.base = git("rev-parse", "HEAD", cwd=self.repo_dir).stdout.strip()
         tasks = self.tasks()
         if len(tasks) != AGENTS:
@@ -1217,7 +1655,7 @@ class Run:
             if self.url.endswith(":7420"):
                 raise Stop("connect picked port 7420 (the live server); refused")
             self.health_url = self.url + "/health"
-            self.home = self.run_dir / "node"
+            self.home = self.adir / "node"
             ctx.update(url=self.url, home=str(self.home))
             if self.block_file:
                 put_block(self.repo_dir, block_text(self.block_file))
@@ -1242,8 +1680,8 @@ class Run:
             counts[slot] = counts.get(slot, 0) + 1
             agent = f"{slot}-{counts[slot]}"
             a = {"k": k, "agent": agent, "harness": h, "task_dir": str(td), "title": m["title"], "id": m["id"]}
-            if self.arm == "A":
-                wt = self.run_dir / "wt" / f"agent-{k}"
+            if self.arm in ("A", "A2"):
+                wt = self.adir / "wt" / f"agent-{k}"
                 git("worktree", "add", "-q", "-b", f"agent-{k}", str(wt), "main", cwd=self.repo_dir)
                 a["cwd"] = str(wt)
             else:
@@ -1252,8 +1690,10 @@ class Run:
                         "--intent", m["title"], "--url", self.url, "--home", str(self.home)], cwd=self.repo_dir, env=env)
                 a["cwd"] = r.stdout.strip().splitlines()[-1]
                 a["workspace"] = f"agent-{k}"
+            a["box"] = str(self.adir / "box" / f"agent-{k}")
+            self.make_box(a)
             self.agents.append(a)
-        ctx["agents"] = self.agents
+        ctx["agents"] = [{x: v for x, v in a.items() if x != "env"} for a in self.agents]
         self.ctx = self.run_dir / "ctx.json"
         self.ctx.write_text(json.dumps(ctx, indent=2))
         self.ctx_data = ctx
@@ -1265,11 +1705,73 @@ class Run:
             if n_open != AGENTS:
                 raise Stop(f"agent count: {n_open} open changes after setup, want {AGENTS}")
 
+    # -------------------------------------------------------------- the agent's box: home, tmp, test env
+
+    def make_box(self, a):
+        """box/ of one agent: home/ (HOME), tmp/ (TMPDIR), bin/ (t2-test, t2-integrate in A2), cfg/ (CLI
+        config: CLAUDE_CONFIG_DIR or CODEX_HOME) and, in real runs, its own venv/, cargo target/ and cargo/.
+        home and tmp and the env copies go after the run; cfg goes to the run's archive."""
+        box = Path(a["box"])
+        for d in ("home", "tmp", "bin", "cfg"):
+            (box / d).mkdir(parents=True, exist_ok=True)
+        own = self.harness == "real"  # real agents get their own copies; scripted ones never run the tests
+        env = base_agent_env(box, keep_t2=self.harness != "real", hide=[HERE, ROOT, self.scratch])
+        fill_vals = {"python": str(self.scratch / "t2" / "env" / VENV / "bin" / "python"), "cargo": CARGO, "hook": str(box / "bin" / "ts-hook.mjs")}
+        path = [str(box / "bin")]
+        if self.spec.get("venv_packages"):
+            src = self.scratch / "t2" / "env" / VENV
+            venv = box / "venv" if own else src
+            if own:
+                make_venv(src, venv, self.spec["venv_packages"])
+            fill_vals["python"] = str(venv / "bin" / "python")
+            path.append(str(venv / "bin"))
+            env["VIRTUAL_ENV"] = str(venv)
+        if self.repo == "requests":
+            env.update(PYTHONPATH="src", PYTHONDONTWRITEBYTECODE="1")
+        if self.repo == "ripgrep":
+            target = box / "target"
+            warm = self.scratch / "t2" / "env" / "rg-target"
+            if own and warm.is_dir():
+                clone_tree(warm, target)
+            else:
+                target.mkdir(exist_ok=True)
+            env.update(CARGO_TARGET_DIR=str(target), CARGO_NET_OFFLINE="true", CARGO_HOME=str(cargo_home(box / "cargo")),
+                       RUSTUP_HOME=os.environ.get("RUSTUP_HOME") or str(Path.home() / ".rustup"))
+            path.append(str(Path(CARGO).parent))
+        if self.repo == "astro":
+            (box / "bin" / "ts-hook.mjs").write_text(neutral_hook())
+        env.update(self.spec.get("env", {}))
+        env["PATH"] = os.pathsep.join(path + [env.get("PATH", "")])
+        wd = Path(a["cwd"]) / self.spec.get("workdir", ".")
+        rel = self.spec.get("workdir", ".")
+        suite = self.fill_spec(self.spec.get("suite") or [sys.executable, "-c", "pass"], fill_vals)
+        prefix = self.fill_spec(self.spec.get("test_prefix") or self.spec.get("suite") or [sys.executable, "-c", "pass"], fill_vals)
+        test_env = {x: env[x] for x in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "CARGO_TARGET_DIR", "CARGO_HOME", "CARGO_NET_OFFLINE",
+                                         "RUSTUP_HOME", "VIRTUAL_ENV", *self.spec.get("env", {})) if x in env}
+        write_script(box / "bin" / TEST_CMD, test_script(a["cwd"], rel, suite, prefix, test_env))
+        if self.arm == "A2":
+            write_script(box / "bin" / INTEGRATE_CMD, integrate_script(box / "tmp" / ".t2-integrate"))
+        a["env"] = env
+        a["test_command"] = {"suite": suite, "prefix": prefix, "workdir": str(wd)}
+
+    def fill_spec(self, cmd, vals):
+        out = []
+        for x in cmd:
+            try:
+                out.append(x.format(**vals))
+            except (KeyError, IndexError):
+                out.append(x)
+        return out
+
+    def arm_block(self):
+        """The arm's instruction block: B the connect block, A2 `A2_BLOCK`, A none."""
+        return {"B": getattr(self, "block", None), "A2": A2_BLOCK}.get(self.arm)
+
     def prompt(self, a):
+        """[arm block, empty line,] the common preamble, an empty line, the frozen task prompt."""
         text = Path(a["task_dir"], "prompt.md").read_text()
-        if self.arm == "B":
-            return self.block + "\n\n" + text
-        return text
+        parts = [x for x in (self.arm_block(), preamble(self.arm), text) if x]
+        return "\n\n".join(parts)
 
     def command(self, a, resume_msg=None, session=None):
         h = a["harness"]
@@ -1280,8 +1782,8 @@ class Run:
                 dialects = os.environ.get("T2_STUB_AS", "").split(",")
                 d = dialects[a["k"] - 1] if a["k"] - 1 < len(dialects) else ""
                 parser = d if d in ("claude", "codex") else "stub"
-            return script_cmd(h, self.ctx, a["k"], extra), dict(os.environ), parser
-        cmd, env = real_command(h, self.prompt(a), a, self.ctx_data, self.run_dir, self.limits, resume_msg, session)
+            return script_cmd(h, self.ctx, a["k"], extra), dict(a["env"]), parser
+        cmd, env = real_command(h, self.prompt(a), a, self.ctx_data, self.limits, resume_msg, session, a.get("stats"))
         return cmd, env, h
 
     # -------------------------------------------------------------- monitor
@@ -1318,6 +1820,7 @@ class Run:
         def one(a):
             msg = (resume or {}).get(a["k"])
             cmd, env, parser = self.command(a, resume_msg=msg, session=(a.get("stats") or {}).get("session"))
+            a["parser"] = parser
             out = self.run_dir / f"agent-{a['k']}.jsonl"
             st = supervise(f"agent-{a['k']}", parser, cmd, a["cwd"], env, out, self.limits, self.registry,
                            prior=a.get("stats"), codex_home=env.get("CODEX_HOME"))
@@ -1358,7 +1861,7 @@ class Run:
         for a in self.agents:
             k, wt = a["k"], a["cwd"]
             rec = {"k": k, "conflict": False, "conflict_files": [], "handback": None, "needs_human": False,
-                   "intervention": False, "left_out": False, "errors": []}
+                   "intervention": False, "left_out": False}
             if self.merging(wt):  # an A2 agent stopped inside an integration conflict
                 git("merge", "--abort", cwd=wt, check=False)
                 rec["aborted_open_merge"] = True
@@ -1373,7 +1876,7 @@ class Run:
                 else:
                     rec["conflict"] = True
                     rec["conflict_files"] = conflict_files(self.repo_dir)
-                    rec["errors"].append(tail(r.stdout + r.stderr))
+                    rec["merge_output"] = tail(r.stdout + r.stderr)
                     git("merge", "--abort", cwd=self.repo_dir, check=False)
                     ok, why = self.handback_a(a, rec)
                     if ok:
@@ -1625,22 +2128,158 @@ class Run:
             out[a["k"]] = "\n".join(parts)
         return out
 
+    # -------------------------------------------------------------- arm A2: t2-integrate
+
+    def start_integrator(self):
+        """Answers the agents' `t2-integrate` requests (files in each box's TMPDIR), one at a time."""
+        self.integrate_open = True
+        self.integrate_lock = threading.Lock()
+        stop = threading.Event()
+        t0 = time.time()
+
+        def loop():
+            while not stop.wait(0.1):
+                for a in self.agents:
+                    spool = Path(a["box"]) / "tmp" / ".t2-integrate"
+                    for req in sorted(spool.glob("req-*.json")) if spool.is_dir() else []:
+                        try:
+                            rid = json.loads(req.read_text())["id"]
+                        except (ValueError, KeyError, OSError):
+                            continue
+                        req.unlink(missing_ok=True)
+                        if self.integrate_open:
+                            with self.integrate_lock:
+                                try:
+                                    rc, out, status = self.integrate(a)
+                                except Exception as e:  # noqa: BLE001 - the agent gets the text, the run goes on
+                                    rc, out, status = 2, f"{INTEGRATE_CMD}: runner error: {e}\n", "error"
+                        else:
+                            rc, out, status = 1, f"{INTEGRATE_CMD}: closed, the runner merges now; edit the files only\n", "closed"
+                        a.setdefault("integrations", []).append({"t_s": round(time.time() - t0, 2), "exit": rc, "status": status})
+                        tmp = spool / f".res-{rid}"
+                        tmp.write_text(json.dumps({"exit": rc, "out": out}))
+                        tmp.rename(spool / f"res-{rid}.json")
+
+        threading.Thread(target=loop, daemon=True).start()
+        return stop
+
+    def integrate(self, a):
+        """One `t2-integrate`: commit the agent's work (commit rule), merge main into its branch, and when
+        that is clean fast-forward main to it. On a conflict the files keep the markers (`<<<<<<< main`,
+        `>>>>>>> change`) and the merge stays open; the next call checks the markers and concludes it.
+        Runs no tests. Returns (exit, text, status)."""
+        k, wt = a["k"], a["cwd"]
+        br = f"agent-{k}"
+        if self.merging(wt):
+            files = a.get("integrate_files") or conflict_files(wt)
+            left = [p for p in files if (Path(wt) / p).is_file() and has_marker_text((Path(wt) / p).read_text(errors="replace"))]
+            if left:
+                return 1, (f"{INTEGRATE_CMD}: conflict markers are still in {', '.join(left)}. Resolve them so that your work and "
+                           f"the work on main are both kept, run {TEST_CMD}, then {INTEGRATE_CMD} again.\n"), "markers left"
+            self.commit_work(wt, f"{br}: merge main", extra=files)
+            if self.merging(wt):
+                return 1, f"{INTEGRATE_CMD}: the merge commit failed\n", "error"
+        else:
+            self.commit_work(wt, f"{br}: work")
+        anc = lambda x, y: git("merge-base", "--is-ancestor", x, y, cwd=self.repo_dir, check=False).returncode == 0  # noqa: E731
+        if anc(br, "main"):
+            return 0, f"{INTEGRATE_CMD}: nothing to integrate, main has all of your work\n", "nothing"
+        if not anc("main", br):
+            prepared = self.prepare_conflict_a(wt)
+            if prepared:
+                a["integrate_files"] = sorted(prepared)
+                return 1, (f"{INTEGRATE_CMD}: conflict with the work on main in {', '.join(sorted(prepared))}. These files now hold both "
+                           "versions with conflict markers: the lines between `<<<<<<< main` and `=======` are on main, the lines "
+                           "between `=======` and `>>>>>>> change` are yours. Resolve them so that your work and the work on main are "
+                           f"both kept, run {TEST_CMD}, then {INTEGRATE_CMD} again.\n"), "conflict"
+            self.commit_work(wt, f"{br}: merge main")
+        r = git("merge", "-q", "--ff-only", br, cwd=self.repo_dir, check=False)
+        if r.returncode != 0:
+            return 1, f"{INTEGRATE_CMD}: main did not move: {tail(r.stdout + r.stderr, 300)}\n", "error"
+        a.pop("integrate_files", None)
+        head = git("rev-parse", "--short", "main", cwd=self.repo_dir).stdout.strip()
+        return 0, f"{INTEGRATE_CMD}: integrated, main is now your work ({head})\n", "integrated"
+
+    # -------------------------------------------------------------- metrics from the transcripts
+
+    def transcript_metrics(self, pairs_truth):
+        """Warnings, reactions and test runs per agent, read from each agent's own tool replies (not from
+        the server's event stream). `warned`: a reply of the agent's own tool call held a file-level
+        collision (a `path` with kind overlap or conflict; a conflict with main counts; a symbol or
+        declared hit does not). `reacted`: after that reply and before its next land, the agent called
+        change, rebase, apply or resolve. Descriptive only."""
+        k_of = {}
+        if self.arm == "B":
+            for a in self.agents:
+                for ch in self.changes_of(a["agent"]):
+                    k_of[ch["id"]] = a["k"]
+        per, pairs, tests = {}, set(), {}
+        for a in self.agents:
+            path = self.run_dir / f"agent-{a['k']}.jsonl"
+            lines = path.read_text(errors="replace").splitlines() if path.exists() else []
+            ev = tool_events(a.get("parser") or a["harness"], lines, Path(a["box"]))
+            w = warning_of(ev, a["agent"])
+            per[str(a["k"])] = w
+            for other in w["others"]:
+                if other in k_of and k_of[other] != a["k"]:
+                    pairs.add(tuple(sorted((a["k"], k_of[other]))))
+            runs = [e for e in ev if TEST_CMD in (e.get("command") or "")]
+            tests[str(a["k"])] = {"runs": len(runs), "passed": any(e.get("ok") and f"{TEST_CMD}: passed" in (e.get("reply") or "") for e in runs)}
+        return {"warned": sum(w["warned"] for w in per.values()), "reacted": sum(w["reacted"] for w in per.values()),
+                "warnings": per, "warned_pairs": sorted(f"{i}-{j}" for i, j in pairs),
+                "false_alarms": sum(1 for i, j in pairs if not pairs_truth.get(f"{i}-{j}", False)),
+                "test_command": tests, "test_passed_agents": sum(t["passed"] for t in tests.values())}
+
     # -------------------------------------------------------------- score
 
     def final_tree(self):
         tree = self.run_dir / "final"
-        if self.arm == "A":
+        if self.arm in ("A", "A2"):
             git("clone", "-q", "--branch", "main", str(self.repo_dir), str(tree), cwd=self.run_dir)
         else:
             git("clone", "-q", f"{self.url}/git", str(tree), cwd=self.run_dir)
         return tree
 
+    def pinned_tree(self, tree):
+        """A copy of the final tree whose test files are those of the pin: agent-written test files go,
+        changed ones are restored (`test_globs` of repos.json). Returns (dir, changed paths)."""
+        globs = self.spec.get("test_globs") or DEFAULT_TEST_GLOBS
+        dst = self.run_dir / "final-pinned"
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(tree, dst, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        def snap(f):
+            return ("link", os.readlink(f)) if f.is_symlink() else f.read_bytes() if f.is_file() else None
+
+        def tests_in(d):
+            return {str(f.relative_to(d)): f for f in d.rglob("*") if (f.is_symlink() or f.is_file())
+                    and any(glob_match(str(f.relative_to(d)), g) for g in globs)}
+
+        before = {rel: snap(f) for rel, f in tests_in(dst).items()}
+        for f in tests_in(dst).values():
+            f.unlink()
+        idx = self.run_dir / "tmp" / "pinned.index"
+        idx.parent.mkdir(exist_ok=True)
+        env = dict(os.environ, GIT_INDEX_FILE=str(idx))
+        pin_tests = sorted(p for p in self.tracked_at_pin() if any(glob_match(p, g) for g in globs))
+        for i in range(0, len(pin_tests), 200):
+            sh(["git", f"--git-dir={self.repo_dir / '.git'}", f"--work-tree={dst}", "checkout", self.base, "--",
+                *pin_tests[i:i + 200]], env=env)
+        after = {rel: snap(f) for rel, f in tests_in(dst).items()}
+        changed = sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
+        return dst, changed
+
     def score(self, tree):
+        """`suite_green_all`: the suite on final main as it is (agent-written tests included; `suite_green`
+        is the same value under its old name). `suite_green_pinned`: the suite with the test files of the
+        pin. Then the hidden deciding tests go into the final tree."""
         out = {}
         if self.spec.get("suite"):
             ok, text, secs = run_cmd_spec(self.spec, self.spec["suite"], tree, self.scratch)
-            out["suite_green"] = ok
-            out["suite_s"] = secs
+            out.update(suite_green=ok, suite_green_all=ok, suite_s=secs, suite_tail_all=tail(text, 1500))
+            pinned, changed = self.pinned_tree(tree)
+            ok2, text2, secs2 = run_cmd_spec(self.spec, self.spec["suite"], pinned, self.scratch)
+            out.update(suite_green_pinned=ok2, suite_pinned_s=secs2, suite_tail_pinned=tail(text2, 1500), test_files_restored=changed)
         done = {}
         for td in self.tasks()[: self.n_agents]:
             m = json.loads((td / "meta.json").read_text())
@@ -1653,9 +2292,11 @@ class Run:
         out["tasks_on_main"] = sum(done.values())
         return out
 
-    # -------------------------------------------------------------- warnings (arm B)
+    # -------------------------------------------------------------- legacy warnings (arm B, server events)
 
     def warnings(self, pairs_truth):
+        """The warning metrics of preregistration v3 (section 5), from the server's event stream matched to
+        audit rows by the second. Kept under `legacy_*` keys; `transcript_metrics` has the new ones."""
         ev = self.call("events", {"since": 0, "limit": 100000}).get("events", [])
         audit = sorted(self.call("audit", {"limit": 100000}).get("entries", []), key=lambda r: r["seq"])
         k_of = {}
@@ -1692,56 +2333,114 @@ class Run:
                 "false_alarms": false_alarms, "land_conflicts": land_conflicts}
 
     def dry_run(self):
-        """Arm setup and the 5 real-agent command lines, with no agent started (wiring check, free)."""
+        """Arm setup, the final prompts and the 5 real-agent command lines, with no agent started (wiring
+        check, free). The box environments are made as in a real run (venvs from the uv cache)."""
         os.environ["T2_DRY"] = "1"
         lines = []
         try:
             self.setup()
+            lines.append(json.dumps({"run": self.name, "agent_area": "system temp dir" if self.made_root else "--agent-root or scratch",
+                                     "preamble_sha256": sha_text(preamble(self.arm)),
+                                     "arm_block_sha256": sha_text(self.arm_block()) if self.arm_block() else None,
+                                     "handback_sha256": sha_text(HANDBACK)}))
             for a in self.agents:
                 cmd, env, parser = self.command(a)
-                shown = ["<prompt>" if x == self.prompt(a) else x for x in cmd]
-                homes = {k: v for k, v in env.items() if k in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME")}
+                p = self.prompt(a)
+                shown = ["<prompt>" if x == p else x for x in cmd]
+                homes = {k: v for k, v in env.items() if k in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_CONFIG_HOME", "HOME", "TMPDIR")}
                 lines.append(json.dumps({"k": a["k"], "agent": a["agent"], "harness": a["harness"], "cwd": a["cwd"],
-                                         "command": shown, "config_homes": homes, "prompt_sha256":
-                                         hashlib.sha256(self.prompt(a).encode()).hexdigest()}))
+                                         "command": shown, "config_homes": homes, "path_head": env["PATH"].split(os.pathsep)[:3],
+                                         "test_command": a["test_command"], "prompt_sha256": sha_text(p), "prompt": p}))
         finally:
             os.environ.pop("T2_DRY", None)
-            if self.arm == "B" and (self.repo_dir / ".git" / "treeyard").exists():
+            if self.arm == "B" and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
                 sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
+            self.archive()
         return lines
+
+    def archive(self):
+        """After the run: HOME, TMPDIR and the env copies of every box go, the logins are deleted, and the
+        agent area moves into the runner's directory (`agents/`), so no later agent can reach it."""
+        adir = getattr(self, "adir", None)
+        if not adir or not adir.exists():
+            return
+        for box in (adir / "box").glob("*") if (adir / "box").exists() else []:
+            for sub in ("home", "tmp", "venv", "target", "cargo"):
+                p = box / sub
+                if p.is_symlink() or p.is_file():
+                    p.unlink()
+                elif p.exists():
+                    shutil.rmtree(p, ignore_errors=True)
+            for p in (box / "cfg").glob("auth.json"):
+                p.unlink()
+        dst = self.run_dir / "agents"
+        if dst.exists():
+            shutil.rmtree(dst, ignore_errors=True)
+        shutil.move(str(adir), str(dst))
+        if self.made_root and self.made_root.exists() and not any(self.made_root.iterdir()):
+            self.made_root.rmdir()
+
+    def scrub(self, text):
+        """Run files are published: local paths become placeholders."""
+        pairs = [(getattr(self, "adir", None), "<agents>"), (self.run_dir, "<run>"), (self.scratch, "<scratch>"),
+                 (HERE, "<kit>"), (ROOT, "<root>"), (Path.home(), "~")]
+        for p, name in sorted(((str(p), n) for p, n in pairs if p), key=lambda x: -len(x[0])):
+            text = text.replace(p, name)
+            if p.startswith("/private/"):
+                text = text.replace(p[len("/private"):], name)
+        return text
 
     # -------------------------------------------------------------- the whole run
 
     def execute(self, pairs_truth=None):
         t0 = time.time()
-        result = {"run": self.name, "arm": self.arm, "repo": self.repo, "set": self.set, "rep": self.rep,
-                  "harness": self.harness, "limits": self.limits, "started": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        result = {"run": self.name, "arm": self.arm, "repo": self.repo, "set": self.set, "rep": self.rep, "kit": KIT_VERSION,
+                  "harness": self.harness, "limits": self.limits, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                  "preamble_sha256": sha_text(preamble(self.arm)), "handback_sha256": sha_text(HANDBACK)}
         if self.harness == "real":
             result["user_config_before"] = user_config_hashes()
+        service = None
         try:
             self.setup()
-            result["agents"] = [{k: a[k] for k in ("k", "agent", "harness", "id")} for a in self.agents]
+            result["agent_area"] = "system temp dir" if self.made_root else ("--agent-root" if self.agent_root_arg else "scratch")
+            result["agents"] = [{"k": a["k"], "agent": a["agent"], "harness": a["harness"], "id": a["id"],
+                                 "prompt_sha256": sha_text(self.prompt(a))} for a in self.agents]
+            if self.arm_block():
+                result["arm_block_sha256"] = sha_text(self.arm_block())
             if self.arm == "B":
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
                 if self.block_file:
                     result["block_file"] = self.block_file.name
+            if self.arm == "A2":
+                service = self.start_integrator()
             t_agents = time.time()
             self.run_agents()
-            if self.arm == "A":
+            if service:
+                self.integrate_open = False
+            if self.arm in ("A", "A2"):
                 merges, interventions = self.finalize_a()
                 own = {m["k"]: m.pop("own_diff") for m in merges}
                 result["merges"] = merges
                 result["merge_conflicts"] = sum(m["conflict"] for m in merges)
-                result.update(warned_before_land=0, reacted=0, false_alarms=0, land_conflicts=0)
+                result.update(land_conflicts=0)
+                if self.arm == "A2":
+                    result["integrations"] = {str(a["k"]): a.get("integrations", []) for a in self.agents}
+                    result["integrate_conflicts"] = sum(1 for a in self.agents for x in a.get("integrations", []) if x["status"] == "conflict")
+                    result["integrated_by_agent"] = sum(1 for m in merges if m.get("status") == "on main")
             else:
                 lands, interventions = self.finalize_b()
                 result["lands"] = lands
-                result.update(self.warnings(pairs_truth or {}))
+                legacy = self.warnings(pairs_truth or {})
+                result["land_conflicts"] = legacy.pop("land_conflicts")
+                result.update({"legacy_" + x: v for x, v in legacy.items()})
                 result["merge_conflicts"] = result["land_conflicts"]
                 own = self.own_diffs_b()
             result["interventions"] = interventions
+            result["needs_human"] = interventions
             result["wall_s"] = round(time.time() - t_agents, 2)
             result["setup_s"] = round(t_agents - t0, 2)
+            result.update(self.transcript_metrics(pairs_truth or {}))
+            result["guard"] = {str(k): diff_stats(d, self.spec.get("test_globs") or DEFAULT_TEST_GLOBS) for k, d in own.items()}
             tree = self.final_tree()
             result["lost_lines"] = lost_lines(own, tree)
             result.update(self.score(tree))
@@ -1753,16 +2452,20 @@ class Run:
             result["wall_s"] = round(time.time() - t0, 2)
         finally:
             kill_all(self.registry)
+            if service:
+                service.set()
             if self.arm == "B" and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
                 sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
-            for p in (self.run_dir / "home").glob("*/auth.json") if (self.run_dir / "home").exists() else []:
-                p.unlink()
+            result["models"] = self.models()
+            self.archive()
         result["agent_stats"] = [{"k": a["k"], "harness": a["harness"], "invocations": a.get("invocations", 0),
                                   **{k: v for k, v in (a.get("stats") or {}).items() if k != "session" and not k.startswith("_")}}
                                  for a in getattr(self, "agents", [])]
-        result["tokens_in"] = sum(s.get("tokens_in", 0) for s in result["agent_stats"])
-        result["tokens_out"] = sum(s.get("tokens_out", 0) for s in result["agent_stats"])
-        result["cost_usd"] = round(sum(s.get("cost_usd", 0) for s in result["agent_stats"]), 6)
+        for key in TOKEN_KEYS:
+            result[key] = sum(s.get(key, 0) for s in result["agent_stats"])
+        result["by_harness"] = by_harness(result["agent_stats"])
+        result["cost_usd_claude_only"] = round(sum(s.get("cost_usd", 0) for s in result["agent_stats"]), 6)
+        result["cost_usd"] = result["cost_usd_claude_only"]  # legacy name; Codex reports no cost
         result["tool_calls"] = sum(s.get("tool_calls", 0) for s in result["agent_stats"])
         result["limit_kills"] = [f"agent-{s['k']}: {s['killed']}" for s in result["agent_stats"] if s.get("killed")]
         if self.harness == "real":
@@ -1770,8 +2473,21 @@ class Run:
             result["user_config_unchanged"] = result["user_config_before"] == result["user_config_after"]
         result["log"] = self.log
         self.results.mkdir(parents=True, exist_ok=True)
-        (self.results / f"{self.name}.json").write_text(json.dumps(result, indent=1, sort_keys=True) + "\n")
-        return result
+        text = self.scrub(json.dumps(result, indent=1, sort_keys=True) + "\n")
+        (self.results / f"{self.name}.json").write_text(text)
+        return json.loads(text)
+
+    def models(self):
+        """The model names of each harness, from the transcripts (Claude) and the rollout files (Codex)."""
+        out = {}
+        for a in getattr(self, "agents", []):
+            names = list((a.get("stats") or {}).get("models") or [])
+            if a["harness"] == "codex":
+                names += codex_models(Path(a["box"]) / "cfg")
+            if names:
+                out.setdefault(a["harness"], [])
+                out[a["harness"]] = list(dict.fromkeys(out[a["harness"]] + names))
+        return out
 
 
 def run_cmd_spec(spec, cmd, tree, scratch, m=None):
@@ -1895,8 +2611,29 @@ def lost_lines(own, tree):
 # ===================================================================================== collect, budget
 
 
-METRICS = ["suite_green", "tasks_on_main", "merge_conflicts", "warned_before_land", "reacted", "interventions",
-           "wall_s", "lost_lines", "tokens_in", "tokens_out", "cost_usd", "false_alarms", "tool_calls"]
+METRICS = ["suite_green", "suite_green_all", "suite_green_pinned", "tasks_on_main", "merge_conflicts", "warned", "reacted",
+           "legacy_warned_before_land", "legacy_reacted", "interventions", "wall_s", "lost_lines", "tokens_in", "tokens_out",
+           "tokens_fresh_in", "tokens_cached_in", "cost_usd_claude_only", "false_alarms", "tool_calls", "test_passed_agents",
+           "integrate_conflicts"]
+
+
+def normalize(r):
+    """One run file in the fields of this kit version. Old files (no `kit`): `warned_before_land` and
+    `reacted` are the legacy event-stream metrics, `suite_green` is the suite on final main as is
+    (= suite_green_all), `cost_usd` is Claude's cost; the new transcript metrics are None."""
+    r = dict(r)
+    if (r.get("kit") or 1) < 2:
+        r["legacy_warned_before_land"] = r.pop("warned_before_land", None)
+        r["legacy_reacted"] = r.pop("reacted", None)
+        r["legacy_false_alarms"] = r.get("false_alarms")
+        r["warned"] = r["reacted"] = None
+        r.setdefault("suite_green_all", r.get("suite_green"))
+        r.setdefault("suite_green_pinned", None)
+        r.setdefault("cost_usd_claude_only", r.get("cost_usd"))
+        if "by_harness" not in r:
+            harness_of = {a.get("k"): a.get("harness") for a in r.get("agents") or []}
+            r["by_harness"] = by_harness([dict(s, harness=harness_of.get(s.get("k"))) for s in r.get("agent_stats") or []])
+    return r
 
 
 def collect(results_dir, out_json, out_txt, only=None):
@@ -1904,26 +2641,38 @@ def collect(results_dir, out_json, out_txt, only=None):
     for f in sorted(Path(results_dir).glob("*.json")):
         if f.name in ("metrics.json",):
             continue
-        r = json.loads(f.read_text())
-        if "run" not in r or (only and r["harness"] not in only):
+        try:
+            r = json.loads(f.read_text())
+        except ValueError:
             continue
-        rows.append(r)
+        if not isinstance(r, dict) or "run" not in r or (only and r.get("harness") not in only):
+            continue
+        rows.append(normalize(r))
     table = []
     for r in rows:
-        row = {"run": r["run"], "status": r.get("status"), "stop_reason": r.get("stop_reason")}
+        row = {"run": r["run"], "status": r.get("status"), "stop_reason": r.get("stop_reason"), "kit": r.get("kit") or 1}
         for m in METRICS:
             v = r.get(m)
             row[m] = v["total"] if isinstance(v, dict) and "total" in v else v
+        row["by_harness"] = {h: {k: v.get(k, 0) for k in (*TOKEN_KEYS, "cost_usd")} for h, v in (r.get("by_harness") or {}).items()}
         table.append(row)
     Path(out_json).write_text(json.dumps({"runs": table}, indent=1) + "\n")
-    hdr = ["run", "status", "suite", "done", "merge/land conflicts", "warned", "reacted", "interv", "lost", "false alarms", "tool calls", "tokens", "cost", "wall s"]
+    fmt = lambda v: {True: "green", False: "red", None: "-"}.get(v, v) if isinstance(v, bool) or v is None else v  # noqa: E731
+    hdr = ["run", "status", "suite all", "suite pinned", "done", "merge/land conflicts", "warned", "reacted", "legacy warned",
+           "legacy reacted", "interv", "lost", "tests passed", "tool calls", "tokens", "Claude tokens", "Codex tokens",
+           "cost (Claude only)", "wall s"]
     lines = ["| " + " | ".join(hdr) + " |", "|" + "---|" * len(hdr)]
     for r in table:
+        bh = r["by_harness"]
         lines.append("| " + " | ".join(str(x) for x in [
             r["run"], r["status"] if r["status"] == "done" else f"stopped: {r['stop_reason']}",
-            {True: "green", False: "red", None: "-"}[r["suite_green"]], f"{r['tasks_on_main']}/5" if r["tasks_on_main"] is not None else "-",
-            r["merge_conflicts"], r["warned_before_land"], r["reacted"], r["interventions"], r["lost_lines"], r["false_alarms"],
-            r["tool_calls"], (r["tokens_in"] or 0) + (r["tokens_out"] or 0), r["cost_usd"], r["wall_s"]]) + " |")
+            fmt(r["suite_green_all"]), fmt(r["suite_green_pinned"]),
+            f"{r['tasks_on_main']}/5" if r["tasks_on_main"] is not None else "-",
+            fmt(r["merge_conflicts"]), fmt(r["warned"]), fmt(r["reacted"]), fmt(r["legacy_warned_before_land"]), fmt(r["legacy_reacted"]),
+            fmt(r["interventions"]), fmt(r["lost_lines"]), fmt(r["test_passed_agents"]), fmt(r["tool_calls"]),
+            (r["tokens_in"] or 0) + (r["tokens_out"] or 0),
+            *((bh[h]["tokens_in"] + bh[h]["tokens_out"]) if h in bh else "-" for h in ("claude", "codex")),
+            fmt(r["cost_usd_claude_only"]), fmt(r["wall_s"])]) + " |")
     text = "\n".join(lines) + "\n"
     Path(out_txt).write_text(text)
     print(text, end="")
@@ -2148,8 +2897,8 @@ def main(argv=None):
             raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
         truth = pair_table(scratch, a.repo, a.set) if a.arm == "B" else None
         r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).execute(truth)
-        print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green", "merge_conflicts",
-                                                 "warned_before_land", "interventions", "wall_s")}))
+        print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all", "suite_green_pinned",
+                                                 "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}))
         sys.exit(0 if r["status"] == "done" else 3)
     if a.cmd == "pilot":
         order = pilot_order()
@@ -2173,9 +2922,9 @@ def main(argv=None):
                     for arm in ARMS:
                         r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm == "B" else None)
                         bad += r["status"] != "done"
-                        print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green",
-                                                                 "merge_conflicts", "warned_before_land", "reacted", "interventions",
-                                                                 "false_alarms", "wall_s")}), flush=True)
+                        print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all",
+                                                                 "suite_green_pinned", "merge_conflicts", "warned", "reacted",
+                                                                 "interventions", "false_alarms", "wall_s")}), flush=True)
         sys.exit(1 if bad else 0)
 
 
