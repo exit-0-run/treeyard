@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""T2 experiment kit: plain git worktrees (arm A) against `treeyard connect` (arm B), 5 agents at once.
+"""T2 experiment kit: plain git worktrees (arm A), worktrees plus `t2-integrate` (arm A2) and `treeyard
+connect` (arm B), 5 agents at once.
 
 Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.md):
 
   setup     --scratch S                 pinned clones, the requests venv, a warm cargo build
   generate                              tasks/ from taskdefs.py (prompts, hidden tests, patches)
   validate  --scratch S [--repo R]      each test fails on the pin and passes with its reference
-  run       --scratch S --arm A|B --repo R --set disjoint|colliding --rep N --harness H
+  run       --scratch S --arm A|A2|B --repo R --set disjoint|colliding --rep N --harness H [--results D] [--agent-root D]
   rehearse  --scratch S [--repo R]      oracle and noop runs of every cell (no model, no cost)
   collect   [--results DIR]             metrics.json and a summary table from the run files
   pilot     --scratch S [--yes-real]    the 12 pilot runs in the frozen order (without --yes-real: the order only)

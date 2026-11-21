@@ -67,9 +67,15 @@ exactly as before.
 python3 bench/t2/t2.py setup --scratch S --repo click       # clone at the pin, venv S/t2/env/dev-venv
 python3 bench/t2/t2.py generate --scratch S --repo click    # dev/tasks/ from dev/taskdefs.py
 python3 bench/t2/t2.py validate --scratch S --repo click    # dev/results/validate.txt
-python3 bench/t2/t2.py rehearse --scratch S --repo click    # oracle and noop runs of the 4 cells
+python3 bench/t2/t2.py rehearse --scratch S --repo click    # oracle and noop runs of the 6 cells (arms A, A2, B)
 python3 bench/t2/t2.py collect --results bench/t2/dev/results --summary bench/t2/dev/results/rehearsal-summary.txt
 ```
+
+The run files of the 12 real runs of the block tuning are in `results/` and stay as they are; their
+tokens were counted the old way (every Claude stream event). `recount --runs S/t2/runs --results
+bench/t2/dev/results` restates them. For checks, write new run files elsewhere with `--results DIR`.
+The prompt, the hand-back, the layout and the metrics are those of the T2 kit
+([../README.md](../README.md)): the common preamble comes after the block in arm B, before the task.
 
 `run --block FILE` (arm B only, this set only) gives the agents another block. The file holds the
 block text, with or without the `<!-- treeyard:connect:start/end -->` marker lines. After
@@ -84,10 +90,11 @@ python3 bench/t2/t2.py run --scratch S --arm B --repo click --set colliding --re
 python3 bench/t2/t2.py run --scratch S --arm B --repo click --set colliding --rep 1 --harness real --yes-real --block try1.md
 ```
 
-Arm A has no block; its runs on this set take no `--block`:
+Arms A and A2 take no `--block` (A2 has its own block, `A2_BLOCK` in t2.py):
 
 ```sh
 python3 bench/t2/t2.py run --scratch S --arm A --repo click --set disjoint --rep 1 --harness real --yes-real
+python3 bench/t2/t2.py run --scratch S --arm A2 --repo click --set colliding --rep 1 --harness real --dry-run
 ```
 
 The `real` harness starts paid or quota-using agents (3 Claude Code, 2 Codex) and needs the owner's
