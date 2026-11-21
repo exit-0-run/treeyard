@@ -3,6 +3,9 @@
 Every agent reaches the server in one of three ways. All three use the one operation table
 ([api.md](api.md)).
 
+One command does the MCP setup below for one repository, in project scope, and undoes it again:
+`treeyard connect` and `treeyard disconnect` ([connect.md](connect.md)).
+
 | Way | When | How |
 |---|---|---|
 | MCP tools | the agent edits through the API, no checkout | `treeyard mcp --url URL --agent NAME` (stdio), or `URL/mcp` (HTTP) |

@@ -285,6 +285,8 @@ pub struct ServeOptions {
     /// Allow a non-loopback address while no API token exists (anyone on the network could
     /// read the repo and push to main).
     pub insecure_open: bool,
+    /// Write the bound port to this file once the server listens (for `--addr ...:0`).
+    pub port_file: Option<std::path::PathBuf>,
 }
 
 /// Refuses to serve an open server (no tokens) on an address other machines can reach.
@@ -332,6 +334,11 @@ pub async fn serve_with(repo: Arc<Repo>, addr: &str, opts: ServeOptions) -> Resu
     check_bind(&repo, addr, opts.insecure_open)?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let at = listener.local_addr()?;
+    if let Some(f) = &opts.port_file {
+        let tmp = f.with_extension("tmp");
+        std::fs::write(&tmp, format!("{}\n", at.port()))?;
+        std::fs::rename(&tmp, f)?;
+    }
     eprintln!(
         "treeyard listening on http://{at} (API /api/<op>, events /api/events, MCP /mcp, git clone http://{at}/git)"
     );

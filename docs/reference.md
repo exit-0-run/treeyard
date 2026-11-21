@@ -33,6 +33,17 @@ it is on main, abandons the other open changes of the group (`abandoned` in the 
 `conflict`, `waiting` or `queued` reply the siblings stay open; call it again when the pick lands.
 Test: `tests/best_of_n.rs`.
 
+## Connect
+
+`treeyard connect [--harness claude,codex,opencode|all] [--agents N] [--port P] [--mirror|--no-mirror]`,
+run in a git repository, imports it into `.git/treeyard/data` (once), starts `serve` on `127.0.0.1`,
+writes project-scoped MCP entries (`.mcp.json`, `.codex/config.toml`, `opencode.json`) and a marked
+block in `AGENTS.md` and `CLAUDE.md`. `treeyard connect status [--json]` prints the server, the
+harnesses, the open changes and the overlap or conflict warnings. `treeyard disconnect [--purge]`
+restores every touched file byte for byte and stops the server. `serve --port-file F` writes the bound
+port to F; `mcp --agent-pool a,b --pool-dir D` takes the first free name. Details:
+[docs/connect.md](connect.md). Tests: `tests/connect.rs`.
+
 ## Workspaces
 
 `treeyard workspace create NAME [--setup CMD] [--layer DIR=LOCKFILE] [--git] [--strategy S]` opens a

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use treeyard::audit::Record;
 use treeyard::cow::Strategy;
 use treeyard::workspace::{CreateOptions, GcOptions, LayerSpec, Node};
-use treeyard::{client, daemon, githttp, mcp, replay, repo::Repo, server};
+use treeyard::{client, connect, daemon, githttp, mcp, replay, repo::Repo, server};
 
 const DEFAULT_URL: &str = "http://127.0.0.1:7420";
 
@@ -55,6 +55,9 @@ enum Cmd {
         /// API calls that may run at once; more get `503 busy` (clients retry).
         #[arg(long, default_value_t = server::MAX_INFLIGHT)]
         max_inflight: usize,
+        /// Write the bound port to this file once listening (useful with port 0).
+        #[arg(long)]
+        port_file: Option<PathBuf>,
     },
     /// MCP server on stdio that forwards tool calls to a running treeyard.
     Mcp {
@@ -63,6 +66,42 @@ enum Cmd {
         /// Default agent name for open_change and revert.
         #[arg(long, env = "TREEYARD_AGENT")]
         agent: Option<String>,
+        /// Take the first free name of this list (comma-separated) as the agent name; a name is
+        /// held by a lock file in --pool-dir while this bridge runs.
+        #[arg(long, value_delimiter = ',', conflicts_with = "agent", requires = "pool_dir")]
+        agent_pool: Vec<String>,
+        #[arg(long)]
+        pool_dir: Option<PathBuf>,
+    },
+    /// Attach TreeYard to the agent tools of the git repository here: import it, serve it on
+    /// loopback, register the MCP server for Claude Code, Codex and OpenCode in project config,
+    /// and add an instruction block to AGENTS.md / CLAUDE.md. `treeyard disconnect` undoes it.
+    #[command(args_conflicts_with_subcommands = true)]
+    Connect {
+        #[command(subcommand)]
+        cmd: Option<ConnectCmd>,
+        /// Harnesses to attach: claude, codex, opencode (comma-separated) or all. Default: the
+        /// ones on PATH.
+        #[arg(long)]
+        harness: Option<String>,
+        /// Agent names per harness: <harness>-1 .. <harness>-N (default 1).
+        #[arg(long)]
+        agents: Option<usize>,
+        /// Port on 127.0.0.1 (default: a free port, then the same one again).
+        #[arg(long)]
+        port: Option<u16>,
+        /// Push landed changes to the `origin` remote (`treeyard mirror`).
+        #[arg(long, conflicts_with = "no_mirror")]
+        mirror: bool,
+        /// Do not start the mirror and do not ask.
+        #[arg(long)]
+        no_mirror: bool,
+    },
+    /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
+    Disconnect {
+        /// Also delete the TreeYard data (open changes included).
+        #[arg(long)]
+        purge: bool,
     },
     /// Replay real history: waves of N agents apply consecutive commits from stale bases.
     Replay {
@@ -158,6 +197,15 @@ enum Cmd {
         params: Option<String>,
         #[arg(long, env = "TREEYARD_URL", default_value = DEFAULT_URL)]
         url: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConnectCmd {
+    /// Server address, attached harnesses, open changes and overlap or conflict warnings.
+    Status {
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -523,10 +571,10 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Serve { data, addr, insecure_open, max_inflight } => {
+        Cmd::Serve { data, addr, insecure_open, max_inflight, port_file } => {
             let _lock = server::lock_data(&data)?;
             let repo = Arc::new(Repo::open(&data)?);
-            let opts = server::ServeOptions { limits: server::Limits::new(max_inflight), insecure_open };
+            let opts = server::ServeOptions { limits: server::Limits::new(max_inflight), insecure_open, port_file };
             tokio::runtime::Runtime::new()?.block_on(server::serve_with(repo, &addr, opts))?;
         }
         Cmd::Replay { src, from, to, agents, limit, seed, data, no_git_check, stacked, config, intents, wave_base } => {
@@ -560,7 +608,38 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Cmd::Mcp { url, agent } => mcp::run(&url, agent)?,
+        Cmd::Mcp { url, agent, agent_pool, pool_dir } => {
+            let held = match pool_dir {
+                Some(dir) if !agent_pool.is_empty() => Some(connect::claim_name(&agent_pool, &dir)?),
+                _ => None,
+            };
+            let agent = held.as_ref().map(|h| h.name.clone()).or(agent);
+            mcp::run(&url, agent)?;
+            drop(held);
+        }
+        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror } => {
+            let here = std::env::current_dir()?;
+            match cmd {
+                Some(ConnectCmd::Status { json }) => {
+                    let v = connect::status_json(&here)?;
+                    if json {
+                        print(&v)?;
+                    } else {
+                        print!("{}", connect::status_text(&v));
+                    }
+                }
+                None => {
+                    let o = connect::Options {
+                        harnesses: harness.as_deref().map(connect::Harness::parse_list).transpose()?,
+                        agents,
+                        port,
+                        mirror: (mirror || no_mirror).then_some(mirror),
+                    };
+                    connect::connect(&here, &o)?;
+                }
+            }
+        }
+        Cmd::Disconnect { purge } => connect::disconnect(&std::env::current_dir()?, purge)?,
         Cmd::Workspace { node, cmd } => workspace(node.node(), cmd)?,
         Cmd::Daemon { node, debounce_ms, rescan_s, spares, gc_every, gc_max, gc_max_gb } => {
             let gc = GcOptions { max: Some(gc_max), max_bytes: Some(gb(gc_max_gb)), ..Default::default() };

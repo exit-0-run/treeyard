@@ -16,6 +16,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   instead of 0.29 s (docs/benchmarks.md).
 
 ### Added
+- `treeyard connect`, `treeyard connect status` and `treeyard disconnect`: one command attaches a git
+  repository to Claude Code, Codex and OpenCode (project-scoped MCP entries, an instruction block in
+  AGENTS.md and CLAUDE.md, a loopback server), and one command restores every touched file byte for
+  byte (docs/connect.md). `serve --port-file`, `mcp --agent-pool --pool-dir`.
 - `bench/scion/`: the landing load test against CarterT27/scion (`sh bench/scion/run.sh`), results in
   docs/benchmarks.md.
 
