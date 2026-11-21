@@ -141,7 +141,8 @@ Check with `opencode mcp list`. For a directory, start OpenCode inside a workspa
 - One server serves all agents on all machines. Each agent needs only the URL (and a token when
   the server is not on loopback: [access.md](access.md)).
 - Give each agent its own `--agent` name, or its own token. Blame, log and audit show that name.
-- Agents learn about each other through `apply` replies (`collisions`) and the `events` tool.
+- Agents learn about each other through `apply` replies (`collisions`, and `undoes` when an edit
+  removes lines another agent landed) and the `events` tool.
   Tell your agents to call `events` with `wait_ms` before a long task, or let the orchestrator
   watch `GET /api/events`.
 

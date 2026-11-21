@@ -15,6 +15,10 @@ use crate::merge::{Blobs, Merged, merge3};
 use crate::model::{Change, Entry, MODE_GITLINK, Manifest};
 use crate::repo::{Inner, now};
 
+/// At most this many `undoes` entries per reply.
+const UNDOES_MAX: usize = 20;
+const UNDOES_ADVICE: &str = "These lines were landed by another agent for its own task. Keep them unless your task says to remove them; if both tasks cannot hold, say so in your message instead of removing its work.";
+
 /// Events kept in memory for `events` polls; older ones are dropped (the reply says so).
 const KEEP: usize = 20_000;
 
@@ -403,6 +407,90 @@ impl Inner {
             out.push(v);
         }
         Ok(out)
+    }
+
+    /// Lines that `ch` deletes or rewrites (its base-to-head diff) whose origin, by blame at the
+    /// change's base, is a changeset another agent landed. Lines from the import and the
+    /// caller's own landed work do not count. Adjacent lines with one origin form one entry;
+    /// at most `UNDOES_MAX` entries. Empty in the normal case.
+    pub fn undoes(&mut self, ch: &Change) -> Result<Vec<Value>> {
+        let mut out: Vec<Value> = Vec::new();
+        if ch.head == ch.base {
+            return Ok(out);
+        }
+        let changed = self.changeset(&ch.head)?.changes;
+        let base_m = self.manifest(&ch.base)?;
+        // Per origin changeset: Some((agent, intent)) when another agent landed it.
+        let mut foreign: BTreeMap<String, Option<(String, String)>> = BTreeMap::new();
+        for (path, after) in changed {
+            let Some(before) = base_m.get(&path).filter(|e| e.mode != MODE_GITLINK).cloned() else { continue };
+            // A file last touched by the import holds only imported lines: no blame needed.
+            match self.last_touch(&path, &ch.base)? {
+                Some(t) if !self.changeset(&t)?.parents.is_empty() => {}
+                _ => continue,
+            }
+            let old = self.blob(&before.blob)?;
+            if old.iter().take(8000).any(|b| *b == 0) {
+                continue;
+            }
+            let new = match after.as_ref().filter(|e| e.mode != MODE_GITLINK) {
+                Some(e) => self.blob(&e.blob)?,
+                None => Vec::new(),
+            };
+            let hunks: Vec<_> = crate::xdiff::diff(&old, &new).into_iter().filter(|h| !h.before.is_empty()).collect();
+            if hunks.is_empty() {
+                continue;
+            }
+            let (_, blamed) = self.blame_of(&path, &ch.base)?;
+            let origins = blamed.lines();
+            // (origin, first line, last line), 1-based lines of the base file.
+            let mut runs: Vec<(String, usize, usize)> = Vec::new();
+            for h in hunks {
+                for i in h.before {
+                    let Some(&(o, _)) = origins.get(i) else { continue };
+                    let origin = &blamed.origins[o as usize];
+                    if !foreign.contains_key(origin) {
+                        let who = self.landed_by_other(origin, &ch.agent)?;
+                        foreign.insert(origin.clone(), who);
+                    }
+                    if foreign[origin].is_none() {
+                        continue;
+                    }
+                    match runs.last_mut() {
+                        Some(r) if r.0 == *origin && r.2 == i => r.2 = i + 1,
+                        _ => runs.push((origin.clone(), i + 1, i + 1)),
+                    }
+                }
+            }
+            for (origin, lo, hi) in runs {
+                if out.len() >= UNDOES_MAX {
+                    return Ok(out);
+                }
+                let (agent, intent) = foreign[&origin].clone().unwrap_or_default();
+                out.push(json!({
+                    "path": path, "lines": [lo, hi], "agent": agent, "intent": intent, "changeset": origin,
+                    "advice": UNDOES_ADVICE,
+                }));
+            }
+        }
+        Ok(out)
+    }
+
+    /// (agent, intent) of `origin` when it is a changeset of a landed change by an agent other
+    /// than `me`; `None` for the import, `git:` commits, open changes and `me`'s own work.
+    fn landed_by_other(&mut self, origin: &str, me: &str) -> Result<Option<(String, String)>> {
+        if origin.starts_with("git:") {
+            return Ok(None);
+        }
+        let cs = self.changeset(origin)?;
+        if cs.parents.is_empty() || cs.meta.agent == me {
+            return Ok(None);
+        }
+        let Some(id) = cs.meta.change.as_deref() else { return Ok(None) };
+        match self.store.change(id)? {
+            Some(c) if c.state == crate::model::ChangeState::Landed => Ok(Some((cs.meta.agent, cs.meta.intent))),
+            _ => Ok(None),
+        }
     }
 
     /// Live collisions of `ch` with every other open change: shared edited paths get a trial

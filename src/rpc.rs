@@ -691,6 +691,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             let mut v = r.change_view(&ch)?;
             v["overlaps"] = Value::Array(r.overlaps(&ch)?);
             v["collisions"] = Value::Array(r.collisions(&ch)?);
+            v["undoes"] = Value::Array(r.undoes(&ch)?);
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -1097,7 +1098,7 @@ pub fn tools() -> Vec<Value> {
         tool("config", "The repo settings in effect (treeyard.toml).", json!({}), &[]),
         tool(
             "apply",
-            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, and live collisions (trial merge: conflict or overlap, with hunk ranges).",
+            "Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.",
             json!({"change": change, "seen": {"type": "string", "description": "the revision your whole-file contents are based on (e.g. the head you read); the server merges if the change moved since"}, "message": {"type": "string", "description": "commit message; defaults to the intent"}, "edits": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "content_b64": {"type": "string"}, "delete": {"type": "boolean"}, "replace": {"type": "object", "properties": {"old": {"type": "string"}, "new": {"type": "string"}, "all": {"type": "boolean"}}, "required": ["old", "new"]}, "executable": {"type": "boolean"}, "symlink": {"type": "boolean", "description": "content is a symlink target"}}, "required": ["path"]}}}),
             &["change", "edits"],
         ),

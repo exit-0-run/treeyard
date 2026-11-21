@@ -629,3 +629,55 @@ fn mcp_agent_declares_intent_and_polls_events_over_stdio() {
     let ev = text(3);
     assert_eq!(ev["events"][0]["agents"], json!(["mcp-agent", "http-agent"]), "{ev}");
 }
+
+/// The pilot case: a parser before agent a's task (lower-case `rel` values).
+const LINK_PY: &str = "def parse(header):\n    link = {}\n    for part in header.split(\";\"):\n        key, value = part.split(\"=\")\n        link[key] = value\n    return link\n";
+
+#[test]
+fn g_apply_warns_when_it_undoes_another_agents_landed_lines() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (_repo, url) = setup(tmp.path(), "", &[("link.py", LINK_PY)]);
+    // a adds two lines to parse and lands them.
+    let a = call(&url, "open_change", json!({"agent": "a", "intent": "rel values in lower case"}));
+    let with_a = LINK_PY.replace(
+        "        link[key] = value\n",
+        "        if key.lower() == \"rel\":\n            value = value.lower()\n        link[key] = value\n",
+    );
+    let v = write(&url, &id(&a), "link.py", &with_a);
+    assert_eq!(v["undoes"], json!([]), "a adds lines only: {v}");
+    assert_eq!(call(&url, "land", json!({"change": id(&a)}))["status"], "landed");
+
+    // b opens on the new main and replaces a's block (the pilot's lost task).
+    let b = call(&url, "open_change", json!({"agent": "b", "intent": "parameter names in lower case"}));
+    let mine = with_a.replace(
+        "        if key.lower() == \"rel\":\n            value = value.lower()\n        link[key] = value\n",
+        "        link[key.lower()] = value\n",
+    );
+    let v = write(&url, &id(&b), "link.py", &mine);
+    let undoes = v["undoes"].as_array().unwrap();
+    assert_eq!(undoes.len(), 1, "one entry for a's two adjacent lines: {v}");
+    let u = &undoes[0];
+    assert_eq!(u["path"], "link.py");
+    assert_eq!(u["lines"], json!([5, 6]), "only a's lines, not the imported line 7: {u}");
+    assert_eq!(u["agent"], "a");
+    assert_eq!(u["intent"], "rel values in lower case");
+    let blame = call(&url, "blame", json!({"path": "link.py", "start": 5, "end": 5}));
+    assert_eq!(u["changeset"], blame["hunks"][0]["origin"], "{blame}");
+    assert!(u["advice"].as_str().unwrap().contains("another agent"), "{u}");
+
+    // The same change now edits only imported lines (and keeps a's): nothing to warn about.
+    let imported = with_a.replace("    return link\n", "    return dict(link)\n");
+    let v = write(&url, &id(&b), "link.py", &imported);
+    assert_eq!(v["undoes"], json!([]), "{v}");
+    assert_eq!(call(&url, "land", json!({"change": id(&b)}))["status"], "landed");
+
+    // b rewrites its own landed line: its own work, no warning.
+    let b2 = call(&url, "open_change", json!({"agent": "b", "intent": "return a plain dict"}));
+    let own = imported.replace("    return dict(link)\n", "    return {**link}\n");
+    let v = write(&url, &id(&b2), "link.py", &own);
+    assert_eq!(v["undoes"], json!([]), "{v}");
+    // Deleting the file undoes a's lines too.
+    let v = call(&url, "apply", json!({"change": id(&b2), "edits": [{"path": "link.py", "delete": true}]}));
+    assert_eq!(v["undoes"][0]["lines"], json!([5, 6]), "{v}");
+    assert_eq!(v["undoes"].as_array().unwrap().len(), 1, "{v}");
+}

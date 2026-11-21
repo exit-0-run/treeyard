@@ -77,7 +77,7 @@ A server declares one or more profiles. The core profile is required.
 | `diff` | unified diff of a change, or between two revisions |
 | `log` | mainline changesets, newest first, with their metadata |
 | `open_change` | the new change; `overlaps` with other open changes and `advice` |
-| `apply` | the change after the edits; `overlaps` and `collisions` |
+| `apply` | the change after the edits; `overlaps`, `collisions` and `undoes` |
 | `land` | `status` (see 3.4), `commit` when landed, `change` with `conflicts` on conflict |
 | `change` | one change: paths, conflict tasks, overlaps |
 | `changes` | changes in one state |

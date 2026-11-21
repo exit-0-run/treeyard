@@ -9,7 +9,7 @@ the server runs: an agent's change must never change them.
 | Part | Operations and events | Code | Test |
 |---|---|---|---|
 | (a) Intents | `open_change` / `declare` with `paths` (globs) and `symbols`; reply `overlaps`, `advice`; event `intent_overlap` | `src/coord.rs` | `a_intents_report_overlaps_at_open` |
-| (b) Live collisions | `apply` reply `collisions`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events` |
+| (b) Live collisions | `apply` reply `collisions` and `undoes`; events `collision`; `events` (poll, long poll), `GET /api/events` (server-sent events) | `src/coord.rs`, `src/server.rs` | `b_live_collisions_trial_merge_and_events`, `g_apply_warns_when_it_undoes_another_agents_landed_lines` |
 | (c) Continuous rebase | `land` reply `rebased`; events `rebased`, `conflict`; `apply` `seen` | `src/repo.rs` | `c_continuous_rebase_…` |
 | (d) Merge drivers | `land` reply `drivers` | `src/drivers.rs`, `src/repo.rs` | `d_merge_drivers_…`, unit tests in `src/drivers.rs` |
 | (e) Landing modes | `land` (queued), `queue`, `queue_run`, `test_main`; events `queued`, `rejected`, `test_failed`, `reverted`, `test_passed`, `test_run` (one per test run, with `seconds`) | `src/landing.rs` | `e_queue_mode_…`, `e_optimistic_mode_…` |
@@ -81,6 +81,23 @@ merges either way); the shared path still shows in `overlaps`. It also gives the
 `hunks.theirs`, half-open, 1-based, in base lines). Edits inside another change's declared paths
 (`declared`) or symbols (`symbol`) count too. Each new or changed collision of a pair and path is
 published once as a `collision` event.
+
+A clean change can still remove another agent's work: the other change landed first, this one was
+opened on top of it, so there is nothing to merge and no conflict. The `apply` reply's `undoes` lists
+the lines this change deletes or rewrites (its base to head diff) whose origin, by blame at the change's
+base, is a changeset that a different agent landed. Lines from the git import, from open changes and from
+the caller's own landed work do not count, so the list is empty in the normal case. Each entry:
+
+```json
+{"path": "link.py", "lines": [5, 6], "agent": "a", "intent": "rel values in lower case",
+ "changeset": "<origin changeset>", "advice": "These lines were landed by another agent for its own task. ..."}
+```
+
+`lines` is an inclusive, 1-based range in the base file; adjacent lines with the same origin form one
+entry, and the list holds at most 20 entries. The case comes from a pilot with 5 agents: one agent's task
+("parameter names in lower case, values keep their case") replaced a block that another agent had landed
+minutes before (`if key.lower() == "rel": value = value.lower()`), and nothing warned it.
+`land` does not repeat the list.
 
 Events: `opened`, `intent_overlap`, `collision`, `conflict` (`cause` = `land`, `continuous_rebase`,
 `stale_write` or `queue`), `rebased`, `landed`, `abandoned`, `review`, `queued`, `rejected`,

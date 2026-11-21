@@ -241,7 +241,7 @@ treeyard call declare '{"change": "ch_..."}'
 
 ### apply
 
-Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, and live collisions (trial merge: conflict or overlap, with hunk ranges).
+Edit files in a change: per edit give content, content_b64, delete:true, replace:{old,new,all?}, and optionally executable. Returns the change, other open changes touching the same paths, live collisions (trial merge: conflict or overlap, with hunk ranges), and undoes: lines your edit deletes or rewrites that another agent landed for its own task (path, lines, agent, intent, changeset, advice); keep them unless your task says to remove them.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
