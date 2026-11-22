@@ -1,0 +1,911 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.14484,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 18910,
+   "tokens_cached_in": 197779,
+   "tokens_fresh_in": 18926,
+   "tokens_in": 216705,
+   "tokens_out": 4939,
+   "tool_calls": 11,
+   "turns": 12,
+   "wall_s": 40.01
+  },
+  {
+   "cost_usd": 0.132358,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16293,
+   "tokens_cached_in": 161176,
+   "tokens_fresh_in": 16307,
+   "tokens_in": 177483,
+   "tokens_out": 5104,
+   "tool_calls": 7,
+   "turns": 8,
+   "wall_s": 35.65
+  },
+  {
+   "cost_usd": 0.469757,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 54197,
+   "tokens_cached_in": 1184733,
+   "tokens_fresh_in": 54245,
+   "tokens_in": 1238978,
+   "tokens_out": 13440,
+   "tool_calls": 31,
+   "turns": 32,
+   "wall_s": 119.59
+  },
+  {
+   "cost_usd": 0.222981,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 27496,
+   "tokens_cached_in": 293967,
+   "tokens_fresh_in": 27516,
+   "tokens_in": 321483,
+   "tokens_out": 8356,
+   "tool_calls": 23,
+   "turns": 24,
+   "wall_s": 56.65
+  },
+  {
+   "cost_usd": 0.240445,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 30816,
+   "tokens_cached_in": 427990,
+   "tokens_fresh_in": 30842,
+   "tokens_in": 458832,
+   "tokens_out": 7433,
+   "tool_calls": 14,
+   "turns": 15,
+   "wall_s": 56.05
+  },
+  {
+   "cost_usd": 0.231731,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 26130,
+   "tokens_cached_in": 471114,
+   "tokens_fresh_in": 26160,
+   "tokens_in": 497274,
+   "tokens_out": 8004,
+   "tool_calls": 18,
+   "turns": 19,
+   "wall_s": 69.73
+  },
+  {
+   "cost_usd": 0.309167,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 35812,
+   "tokens_cached_in": 678471,
+   "tokens_fresh_in": 35848,
+   "tokens_in": 714319,
+   "tokens_out": 9800,
+   "tool_calls": 21,
+   "turns": 22,
+   "wall_s": 78.46
+  },
+  {
+   "cost_usd": 0.38166,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 43937,
+   "tokens_cached_in": 825019,
+   "tokens_fresh_in": 43977,
+   "tokens_in": 868996,
+   "tokens_out": 12333,
+   "tool_calls": 27,
+   "turns": 28,
+   "wall_s": 94.39
+  },
+  {
+   "cost_usd": 0.195728,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 22890,
+   "tokens_cached_in": 233622,
+   "tokens_fresh_in": 22908,
+   "tokens_in": 256530,
+   "tokens_out": 8077,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 58.02
+  },
+  {
+   "cost_usd": 0.32047,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 35254,
+   "tokens_cached_in": 753905,
+   "tokens_fresh_in": 35296,
+   "tokens_in": 789201,
+   "tokens_out": 10398,
+   "tool_calls": 26,
+   "turns": 27,
+   "wall_s": 97.09
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "01d825d813b6384ad6be1cad660bedb5dbcba28a3b51fa0bc5bc7019391036cb"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "e944ffd33fbc7b3b49c9dbba74ee474e1edeafd3225ab463cdd47791901832c6"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "dd88c04ec842d0de2a6b3d9999232af87c309ea89483d1027ec759090c3b89db"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "9070df55bac664fd6d83aed3099d509420d5b4ad57b234719f1c91473c2060fd"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "05c2352b267ebe28b2fd665c4490a8a7c7f06bde884ced2bbbcb733e8351cf5a"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "e635e96f4683594a9d4f1768879992bd8cd55cb81d2faf274db641385fde6ecc"
+  },
+  {
+   "agent": "claude-7",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "0e428cf4bbc99090cfeb96053b63f46eeaf4e85fec6a27e690141a1642777f2c"
+  },
+  {
+   "agent": "claude-8",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "73ae6b6e791bf37faa772f4a274fbc08556a983dfa9c7005a97fdae8d0397c14"
+  },
+  {
+   "agent": "claude-9",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "519dc0007f78cb10e57cce9317bdbe0a5eb4dfebb91639c856817f68d482796c"
+  },
+  {
+   "agent": "claude-10",
+   "harness": "claude",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "e06775416907833d19830afabda925353b7453d0bf250191d02a4d4b4c56ba15"
+  }
+ ],
+ "arm": "A2",
+ "arm_block_sha256": "82ecdd76c6640901558d5cf2717d24a8659fe23d36b2d7431ef8f873219b9ad5",
+ "by_harness": {
+  "claude": {
+   "agents": 10,
+   "cost_usd": 2.649137,
+   "tokens_cache_write": 311735,
+   "tokens_cached_in": 5227776,
+   "tokens_fresh_in": 312025,
+   "tokens_in": 5539801,
+   "tokens_out": 87884,
+   "tool_calls": 191,
+   "turns": 201
+  }
+ },
+ "cost_usd": 2.649137,
+ "cost_usd_claude_only": 2.649137,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 142,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 29,
+   "test_added": 21
+  },
+  "10": {
+   "added": 158,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 23
+  },
+  "2": {
+   "added": 180,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 64,
+   "test_added": 25
+  },
+  "3": {
+   "added": 190,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 3,
+   "test_added": 33
+  },
+  "4": {
+   "added": 189,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 2,
+   "test_added": 39
+  },
+  "5": {
+   "added": 168,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 34
+  },
+  "6": {
+   "added": 136,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 14,
+   "test_added": 34
+  },
+  "7": {
+   "added": 262,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 2,
+   "test_added": 46
+  },
+  "8": {
+   "added": 185,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 5,
+   "test_added": 45
+  },
+  "9": {
+   "added": 175,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 4,
+   "test_added": 39
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "integrate_conflicts": 10,
+ "integrated_by_agent": 10,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "integrations": {
+  "1": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 36.31
+   }
+  ],
+  "10": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 55.43
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 74.06
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 93.03
+   }
+  ],
+  "2": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 32.7
+   }
+  ],
+  "3": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 62.61
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 84.91
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 96.35
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 114.5
+   }
+  ],
+  "4": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 51.21
+   }
+  ],
+  "5": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 40.81
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 51.92
+   }
+  ],
+  "6": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 57.4
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 66.52
+   }
+  ],
+  "7": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 58.27
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 73.86
+   }
+  ],
+  "8": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 58.57
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 81.33
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 89.95
+   }
+  ],
+  "9": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 54.51
+   }
+  ]
+ },
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 2,
+   "10": 0,
+   "2": 2,
+   "3": 0,
+   "4": 0,
+   "5": 1,
+   "6": 0,
+   "7": 0,
+   "8": 0,
+   "9": 0
+  },
+  "total": 5
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 13,
+ "repo": "click",
+ "run": "A2-click-heavy-r13-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude"
+ ],
+ "setup_s": 0.86,
+ "started": "2026-11-22T03:31:18",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.19,
+ "suite_s": 3.1,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n................sssssssssssssssssssss..................ss............... [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n.............................................................s.......... [ 73%]\n.................................s...................................... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n..................................................................       [100%]\n2416 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.64s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.77s\n",
+ "tasks_on_main": 10,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 2
+  },
+  "10": {
+   "passed": true,
+   "runs": 6
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 5
+  },
+  "4": {
+   "passed": true,
+   "runs": 1
+  },
+  "5": {
+   "passed": true,
+   "runs": 2
+  },
+  "6": {
+   "passed": true,
+   "runs": 7
+  },
+  "7": {
+   "passed": true,
+   "runs": 3
+  },
+  "8": {
+   "passed": true,
+   "runs": 3
+  },
+  "9": {
+   "passed": true,
+   "runs": 1
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ParamType.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 311735,
+ "tokens_cached_in": 5227776,
+ "tokens_fresh_in": 312025,
+ "tokens_in": 5539801,
+ "tokens_out": 87884,
+ "tool_calls": 191,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 120.34,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "8": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "9": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}

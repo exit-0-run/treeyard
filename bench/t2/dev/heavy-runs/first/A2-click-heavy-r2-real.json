@@ -1,0 +1,926 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.134721,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 17057,
+   "tokens_cached_in": 196510,
+   "tokens_fresh_in": 17073,
+   "tokens_in": 213583,
+   "tokens_out": 4681,
+   "tool_calls": 9,
+   "turns": 10,
+   "wall_s": 35.85
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "live_tokens": 162845,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 135296,
+   "tokens_fresh_in": 24943,
+   "tokens_in": 160239,
+   "tokens_out": 2606,
+   "tool_calls": 7,
+   "turns": 7,
+   "wall_s": 72.73
+  },
+  {
+   "cost_usd": 0.403519,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 50857,
+   "tokens_cached_in": 904152,
+   "tokens_fresh_in": 50895,
+   "tokens_in": 955047,
+   "tokens_out": 10960,
+   "tool_calls": 25,
+   "turns": 26,
+   "wall_s": 86.51
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "live_tokens": 410832,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 375424,
+   "tokens_fresh_in": 32211,
+   "tokens_in": 407635,
+   "tokens_out": 3197,
+   "tool_calls": 14,
+   "turns": 14,
+   "wall_s": 96.3
+  },
+  {
+   "cost_usd": 0.25025,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 29471,
+   "tokens_cached_in": 492156,
+   "tokens_fresh_in": 29501,
+   "tokens_in": 521657,
+   "tokens_out": 8309,
+   "tool_calls": 18,
+   "turns": 19,
+   "wall_s": 75.6
+  },
+  {
+   "cost_usd": 0.235858,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 28508,
+   "tokens_cached_in": 301257,
+   "tokens_fresh_in": 28528,
+   "tokens_in": 329785,
+   "tokens_out": 9166,
+   "tool_calls": 15,
+   "turns": 16,
+   "wall_s": 66.32
+  },
+  {
+   "cost_usd": 0.41761,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 42718,
+   "tokens_cached_in": 1094240,
+   "tokens_fresh_in": 42770,
+   "tokens_in": 1137010,
+   "tokens_out": 13721,
+   "tool_calls": 42,
+   "turns": 43,
+   "wall_s": 116.17
+  },
+  {
+   "cost_usd": 0.383923,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 45843,
+   "tokens_cached_in": 816609,
+   "tokens_fresh_in": 45883,
+   "tokens_in": 862492,
+   "tokens_out": 11881,
+   "tool_calls": 20,
+   "turns": 21,
+   "wall_s": 102.21
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "live_tokens": 627997,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 566528,
+   "tokens_fresh_in": 56233,
+   "tokens_in": 622761,
+   "tokens_out": 5236,
+   "tool_calls": 23,
+   "turns": 23,
+   "wall_s": 150.61
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "live_tokens": 489750,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 424192,
+   "tokens_fresh_in": 62047,
+   "tokens_in": 486239,
+   "tokens_out": 3511,
+   "tool_calls": 17,
+   "turns": 17,
+   "wall_s": 114.67
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "01d825d813b6384ad6be1cad660bedb5dbcba28a3b51fa0bc5bc7019391036cb"
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "e944ffd33fbc7b3b49c9dbba74ee474e1edeafd3225ab463cdd47791901832c6"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "dd88c04ec842d0de2a6b3d9999232af87c309ea89483d1027ec759090c3b89db"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "9070df55bac664fd6d83aed3099d509420d5b4ad57b234719f1c91473c2060fd"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "05c2352b267ebe28b2fd665c4490a8a7c7f06bde884ced2bbbcb733e8351cf5a"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "e635e96f4683594a9d4f1768879992bd8cd55cb81d2faf274db641385fde6ecc"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "0e428cf4bbc99090cfeb96053b63f46eeaf4e85fec6a27e690141a1642777f2c"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "73ae6b6e791bf37faa772f4a274fbc08556a983dfa9c7005a97fdae8d0397c14"
+  },
+  {
+   "agent": "codex-3",
+   "harness": "codex",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "519dc0007f78cb10e57cce9317bdbe0a5eb4dfebb91639c856817f68d482796c"
+  },
+  {
+   "agent": "codex-4",
+   "harness": "codex",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "e06775416907833d19830afabda925353b7453d0bf250191d02a4d4b4c56ba15"
+  }
+ ],
+ "arm": "A2",
+ "arm_block_sha256": "82ecdd76c6640901558d5cf2717d24a8659fe23d36b2d7431ef8f873219b9ad5",
+ "by_harness": {
+  "claude": {
+   "agents": 6,
+   "cost_usd": 1.825881,
+   "tokens_cache_write": 214454,
+   "tokens_cached_in": 3804924,
+   "tokens_fresh_in": 214650,
+   "tokens_in": 4019574,
+   "tokens_out": 58718,
+   "tool_calls": 129,
+   "turns": 135
+  },
+  "codex": {
+   "agents": 4,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 1501440,
+   "tokens_fresh_in": 175434,
+   "tokens_in": 1676874,
+   "tokens_out": 14550,
+   "tool_calls": 61,
+   "turns": 61
+  }
+ },
+ "cost_usd": 1.825881,
+ "cost_usd_claude_only": 1.825881,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 149,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 32,
+   "test_added": 20
+  },
+  "10": {
+   "added": 176,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 68
+  },
+  "2": {
+   "added": 150,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 40,
+   "test_added": 25
+  },
+  "3": {
+   "added": 244,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 6,
+   "test_added": 62
+  },
+  "4": {
+   "added": 173,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 2,
+   "test_added": 43
+  },
+  "5": {
+   "added": 158,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 29
+  },
+  "6": {
+   "added": 152,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 17,
+   "test_added": 38
+  },
+  "7": {
+   "added": 237,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_IntRange.py"
+   ],
+   "removed": 3,
+   "test_added": 33
+  },
+  "8": {
+   "added": 180,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 34
+  },
+  "9": {
+   "added": 165,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 7,
+   "test_added": 42
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "integrate_conflicts": 11,
+ "integrated_by_agent": 10,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "integrations": {
+  "1": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 32.02
+   }
+  ],
+  "10": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 83.77
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 109.61
+   }
+  ],
+  "2": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 69.19
+   }
+  ],
+  "3": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 67.27
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 81.77
+   }
+  ],
+  "4": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 91.4
+   }
+  ],
+  "5": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 48.58
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 63.44
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 71.05
+   }
+  ],
+  "6": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 63.11
+   }
+  ],
+  "7": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 81.14
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 93.42
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 102.06
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 110.87
+   }
+  ],
+  "8": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 54.82
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 71.69
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 85.68
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 97.39
+   }
+  ],
+  "9": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t_s": 113.0
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t_s": 146.11
+   }
+  ]
+ },
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 4,
+   "10": 0,
+   "2": 3,
+   "3": 0,
+   "4": 0,
+   "5": 0,
+   "6": 0,
+   "7": 0,
+   "8": 0,
+   "9": 0
+  },
+  "total": 7
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "on main"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 2,
+ "repo": "click",
+ "run": "A2-click-heavy-r2-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "codex"
+ ],
+ "setup_s": 1.0,
+ "started": "2026-11-22T02:01:10",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.68,
+ "suite_s": 3.76,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n..............sssssssssssssssssssss..................ss................. [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n............................................................s........... [ 73%]\n................................s....................................... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.................................................................        [100%]\n2415 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.16s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.12s\n",
+ "tasks_on_main": 10,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "10": {
+   "passed": true,
+   "runs": 5
+  },
+  "2": {
+   "passed": true,
+   "runs": 2
+  },
+  "3": {
+   "passed": true,
+   "runs": 2
+  },
+  "4": {
+   "passed": true,
+   "runs": 2
+  },
+  "5": {
+   "passed": true,
+   "runs": 5
+  },
+  "6": {
+   "passed": true,
+   "runs": 3
+  },
+  "7": {
+   "passed": true,
+   "runs": 5
+  },
+  "8": {
+   "passed": true,
+   "runs": 5
+  },
+  "9": {
+   "passed": true,
+   "runs": 5
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_IntRange.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 214454,
+ "tokens_cached_in": 5306364,
+ "tokens_fresh_in": 390084,
+ "tokens_in": 5696448,
+ "tokens_out": 73268,
+ "tool_calls": 190,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 151.56,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "8": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "9": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}

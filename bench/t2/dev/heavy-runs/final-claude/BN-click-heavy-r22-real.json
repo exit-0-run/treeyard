@@ -1,0 +1,1106 @@
+{
+ "agent_area": "system temp dir",
+ "agent_land_conflicts": 10,
+ "agent_stats": [
+  {
+   "cost_usd": 0.119639,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16060,
+   "tokens_cached_in": 158412,
+   "tokens_fresh_in": 16074,
+   "tokens_in": 174486,
+   "tokens_out": 3953,
+   "tool_calls": 6,
+   "turns": 7,
+   "wall_s": 30.8
+  },
+  {
+   "cost_usd": 0.151471,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 18318,
+   "tokens_cached_in": 219327,
+   "tokens_fresh_in": 18336,
+   "tokens_in": 237663,
+   "tokens_out": 5623,
+   "tool_calls": 9,
+   "turns": 10,
+   "wall_s": 40.62
+  },
+  {
+   "cost_usd": 0.479524,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 48597,
+   "tokens_cached_in": 1443322,
+   "tokens_fresh_in": 48659,
+   "tokens_in": 1491981,
+   "tokens_out": 14068,
+   "tool_calls": 30,
+   "turns": 31,
+   "wall_s": 132.39
+  },
+  {
+   "cost_usd": 0.163089,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 23388,
+   "tokens_cached_in": 198052,
+   "tokens_fresh_in": 23404,
+   "tokens_in": 221456,
+   "tokens_out": 4970,
+   "tool_calls": 7,
+   "turns": 8,
+   "wall_s": 38.37
+  },
+  {
+   "cost_usd": 0.263468,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 34423,
+   "tokens_cached_in": 496396,
+   "tokens_fresh_in": 34451,
+   "tokens_in": 530847,
+   "tokens_out": 7608,
+   "tool_calls": 14,
+   "turns": 15,
+   "wall_s": 58.31
+  },
+  {
+   "cost_usd": 0.271505,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 28957,
+   "tokens_cached_in": 691127,
+   "tokens_fresh_in": 28999,
+   "tokens_in": 720126,
+   "tokens_out": 8648,
+   "tool_calls": 21,
+   "turns": 22,
+   "wall_s": 89.04
+  },
+  {
+   "cost_usd": 0.311069,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 36546,
+   "tokens_cached_in": 650229,
+   "tokens_fresh_in": 36582,
+   "tokens_in": 686811,
+   "tokens_out": 9979,
+   "tool_calls": 17,
+   "turns": 18,
+   "wall_s": 76.51
+  },
+  {
+   "cost_usd": 0.439627,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 55058,
+   "tokens_cached_in": 918546,
+   "tokens_fresh_in": 55098,
+   "tokens_in": 973644,
+   "tokens_out": 12746,
+   "tool_calls": 22,
+   "turns": 23,
+   "wall_s": 115.32
+  },
+  {
+   "cost_usd": 0.27114,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 34992,
+   "tokens_cached_in": 477462,
+   "tokens_fresh_in": 35020,
+   "tokens_in": 512482,
+   "tokens_out": 8337,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 71.79
+  },
+  {
+   "cost_usd": 0.148485,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 19990,
+   "tokens_cached_in": 171968,
+   "tokens_fresh_in": 20004,
+   "tokens_in": 191972,
+   "tokens_out": 5130,
+   "tool_calls": 6,
+   "turns": 7,
+   "wall_s": 40.61
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "ac7f0e3330cd1da4c4a4a53bfe50125a368225b65681cdf17d4591ed33061b32"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "d6446e3d21eeb78165d36facd2f4f13b2c8a49dcd04be18aaaf73ebe4a1abe6b"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "015ad4df3521271be3187202c6673a6f133b1d020f0b7ad4cafb5e70acd34e37"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "f3353c17c0fef8768a80fb09a0f5b1f382995d60f14e15209701433147b61484"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "33f3fb838325ab9d954484e28bb6d66213df831bb2cf6dff0f1ed5acb9b98e08"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "7e5af17f120846f7cda5692b187fdd31a0596dbdf1869065f6ce0ff9e5a7281f"
+  },
+  {
+   "agent": "claude-7",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "e3e58ac5c8590fc04550250aa32f87f41f3e5e8dc64c4ebf8377af579c72e0c7"
+  },
+  {
+   "agent": "claude-8",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "9795b4ef0e96ac4c846044aae5c041fb7159e6df0344fe32b56bf66f44557eed"
+  },
+  {
+   "agent": "claude-9",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "c50dbd4f8b700403e53e1729878cdbb09dc5bae8d76b6fe7cfa9dee0709f1904"
+  },
+  {
+   "agent": "claude-10",
+   "harness": "claude",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "91efdf04834c6e7405740f0ed5eca1fab27b7d43c4533af1706492df69b35dc1"
+  }
+ ],
+ "arm": "BN",
+ "arm_block_sha256": "d15b8695ae4d28dd35a67cb473cca964923f940967111345b8fa4b2ea3a5824e",
+ "block_sha256": "d15b8695ae4d28dd35a67cb473cca964923f940967111345b8fa4b2ea3a5824e",
+ "by_harness": {
+  "claude": {
+   "agents": 10,
+   "cost_usd": 2.619017,
+   "tokens_cache_write": 316329,
+   "tokens_cached_in": 5424841,
+   "tokens_fresh_in": 316627,
+   "tokens_in": 5741468,
+   "tokens_out": 81062,
+   "tool_calls": 145,
+   "turns": 155
+  }
+ },
+ "cost_usd": 2.619017,
+ "cost_usd_claude_only": 2.619017,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 146,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 29,
+   "test_added": 19
+  },
+  "10": {
+   "added": 161,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 37
+  },
+  "2": {
+   "added": 186,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 62,
+   "test_added": 23
+  },
+  "3": {
+   "added": 189,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 3,
+   "test_added": 43
+  },
+  "4": {
+   "added": 159,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 2,
+   "test_added": 28
+  },
+  "5": {
+   "added": 173,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 35
+  },
+  "6": {
+   "added": 162,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 14,
+   "test_added": 39
+  },
+  "7": {
+   "added": 250,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 3,
+   "test_added": 34
+  },
+  "8": {
+   "added": 180,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 39
+  },
+  "9": {
+   "added": 184,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 8,
+   "test_added": 34
+  }
+ },
+ "handback_sha256": "5c7fc1952fca3733c02b2181238a048f9176b86c56af14307c055ed6cc3014b1",
+ "harness": "real",
+ "hold_reacted": 2,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 10,
+ "land_holds": 4,
+ "land_refused": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_8e22b3d3f384",
+     "error": "Error: change ch_8e22b3d3f384 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_a5b96e67907a",
+     "error": "Error: change ch_a5b96e67907a is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_547da8519a5b",
+     "error": "Error: change ch_547da8519a5b is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_dfeda49afd19"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_07894143274c",
+     "error": "Error: change ch_07894143274c is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_8b0ec3df9f2d",
+     "error": "Error: change ch_8b0ec3df9f2d is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_9d0acecb12c0",
+     "error": "Error: change ch_9d0acecb12c0 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_7043d658a832",
+     "error": "Error: change ch_7043d658a832 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_b61d9a6c8563"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_9decfe19be15",
+     "error": "Error: change ch_9decfe19be15 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_73d468b0fbcb"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_1ffaf927bd3e",
+     "error": "Error: change ch_1ffaf927bd3e is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_e6bd40e08c1c"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_658a1984ea42",
+     "error": "Error: change ch_658a1984ea42 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  }
+ ],
+ "legacy_false_alarms": 8,
+ "legacy_reacted": 6,
+ "legacy_true_conflict_pairs": [
+  "1-3",
+  "1-5",
+  "1-7",
+  "1-8",
+  "2-10",
+  "2-3",
+  "2-7",
+  "2-9",
+  "3-5",
+  "3-8",
+  "5-8",
+  "7-8",
+  "9-10"
+ ],
+ "legacy_warned_before_land": 6,
+ "legacy_warned_pair_kinds": {
+  "3-6": [
+   "conflict",
+   "overlap"
+  ],
+  "3-7": [
+   "conflict"
+  ],
+  "3-8": [
+   "conflict",
+   "overlap"
+  ],
+  "5-6": [
+   "overlap"
+  ],
+  "5-7": [
+   "conflict",
+   "overlap"
+  ],
+  "5-9": [
+   "overlap"
+  ],
+  "6-7": [
+   "overlap"
+  ],
+  "6-8": [
+   "overlap"
+  ],
+  "6-9": [
+   "conflict",
+   "overlap"
+  ],
+  "7-8": [
+   "overlap"
+  ]
+ },
+ "legacy_warned_pairs": [
+  [
+   3,
+   6
+  ],
+  [
+   3,
+   7
+  ],
+  [
+   3,
+   8
+  ],
+  [
+   5,
+   6
+  ],
+  [
+   5,
+   7
+  ],
+  [
+   5,
+   9
+  ],
+  [
+   6,
+   7
+  ],
+  [
+   6,
+   8
+  ],
+  [
+   6,
+   9
+  ],
+  [
+   7,
+   8
+  ]
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [
+  "04:35:05 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 3,
+   "10": 0,
+   "2": 4,
+   "3": 0,
+   "4": 0,
+   "5": 0,
+   "6": 0,
+   "7": 0,
+   "8": 1,
+   "9": 0
+  },
+  "total": 8
+ },
+ "merge_conflicts": 10,
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "20765e6f79db3dc19e6100ddfac9ab13aced52d1dd4e13b002952cc849c8fea3",
+ "reacted": 2,
+ "rep": 22,
+ "repo": "click",
+ "run": "BN-click-heavy-r22-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude"
+ ],
+ "setup_s": 1.69,
+ "started": "2026-11-22T04:35:04",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 2.91,
+ "suite_s": 3.0,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n..............sssssssssssssssssssss..................ss................. [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n...........................................................s............ [ 73%]\n................................s....................................... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.................................................................        [100%]\n2415 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.59s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.52s\n",
+ "tasks_on_main": 10,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "10": {
+   "passed": true,
+   "runs": 1
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 6
+  },
+  "4": {
+   "passed": true,
+   "runs": 1
+  },
+  "5": {
+   "passed": true,
+   "runs": 2
+  },
+  "6": {
+   "passed": true,
+   "runs": 8
+  },
+  "7": {
+   "passed": true,
+   "runs": 2
+  },
+  "8": {
+   "passed": true,
+   "runs": 5
+  },
+  "9": {
+   "passed": true,
+   "runs": 3
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ParamType.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 316329,
+ "tokens_cached_in": 5424841,
+ "tokens_fresh_in": 316627,
+ "tokens_in": 5741468,
+ "tokens_out": 81062,
+ "tool_calls": 145,
+ "treeyard_sha256": "ad032dfc3b86d26056739f79c714a0c407270ec18cbefc06334680ccf96e998c",
+ "treeyard_version": "treeyard 0.1.3",
+ "undoes_held": 4,
+ "undoes_held_runner": 0,
+ "undoes_overridden": 2,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 132.87,
+ "warned": 4,
+ "warned_pairs": [
+  "1-3",
+  "1-7",
+  "1-8",
+  "2-7",
+  "2-9",
+  "5-8"
+ ],
+ "warnings": {
+  "1": {
+   "changes": [
+    "ch_4852a155fd6f"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "changes": [
+    "ch_6c696b275a1e"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "changes": [
+    "ch_4eb997cbab94"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "changes": [
+    "ch_dfeda49afd19"
+   ],
+   "first_warning_call": 22,
+   "held_changes": [
+    "ch_dfeda49afd19"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 3,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_4852a155fd6f"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "4": {
+   "changes": [
+    "ch_34d3208d9b92"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "changes": [
+    "ch_73b8d80c863a"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 1,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "changes": [
+    "ch_08e635791540"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 2,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "changes": [
+    "ch_b61d9a6c8563"
+   ],
+   "first_warning_call": 15,
+   "held_changes": [
+    "ch_b61d9a6c8563"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 1,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_4852a155fd6f",
+    "ch_4eb997cbab94"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "8": {
+   "changes": [
+    "ch_73d468b0fbcb"
+   ],
+   "first_warning_call": 19,
+   "held_changes": [
+    "ch_73d468b0fbcb"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_4852a155fd6f",
+    "ch_73b8d80c863a"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "9": {
+   "changes": [
+    "ch_e6bd40e08c1c"
+   ],
+   "first_warning_call": 10,
+   "held_changes": [
+    "ch_e6bd40e08c1c"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 1,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_4eb997cbab94"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  }
+ }
+}

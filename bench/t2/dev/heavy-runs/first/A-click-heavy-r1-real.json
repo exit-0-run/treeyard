@@ -1,0 +1,848 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "live_tokens": 165038,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 138368,
+   "tokens_fresh_in": 23884,
+   "tokens_in": 162252,
+   "tokens_out": 2786,
+   "tool_calls": 8,
+   "turns": 8,
+   "wall_s": 76.17
+  },
+  {
+   "cost_usd": 0.123964,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16321,
+   "tokens_cached_in": 131360,
+   "tokens_fresh_in": 16333,
+   "tokens_in": 147693,
+   "tokens_out": 4552,
+   "tool_calls": 6,
+   "turns": 7,
+   "wall_s": 35.31
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 2,
+   "k": 3,
+   "killed": null,
+   "live_tokens": 174701,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 701824,
+   "tokens_fresh_in": 59448,
+   "tokens_in": 761272,
+   "tokens_out": 5796,
+   "tool_calls": 20,
+   "turns": 20,
+   "wall_s": 160.98
+  },
+  {
+   "cost_usd": 0.184631,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 24589,
+   "tokens_cached_in": 281450,
+   "tokens_fresh_in": 24609,
+   "tokens_in": 306059,
+   "tokens_out": 5809,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 51.14
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 2,
+   "k": 5,
+   "killed": null,
+   "live_tokens": 113530,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 429440,
+   "tokens_fresh_in": 27941,
+   "tokens_in": 457381,
+   "tokens_out": 3956,
+   "tool_calls": 13,
+   "turns": 13,
+   "wall_s": 116.48
+  },
+  {
+   "cost_usd": 0.306996,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 2,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 32364,
+   "tokens_cached_in": 548860,
+   "tokens_fresh_in": 32396,
+   "tokens_in": 581256,
+   "tokens_out": 12259,
+   "tool_calls": 35,
+   "turns": 37,
+   "wall_s": 83.89
+  },
+  {
+   "cost_usd": 0.319907,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 2,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 36658,
+   "tokens_cached_in": 604610,
+   "tokens_fresh_in": 36690,
+   "tokens_in": 641300,
+   "tokens_out": 11275,
+   "tool_calls": 20,
+   "turns": 22,
+   "wall_s": 90.48
+  },
+  {
+   "cost_usd": 0.418972,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 2,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 50000,
+   "tokens_cached_in": 922124,
+   "tokens_fresh_in": 50040,
+   "tokens_in": 972164,
+   "tokens_out": 12668,
+   "tool_calls": 27,
+   "turns": 29,
+   "wall_s": 107.52
+  },
+  {
+   "cost_usd": 0.240721,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 29926,
+   "tokens_cached_in": 235050,
+   "tokens_fresh_in": 29942,
+   "tokens_in": 264992,
+   "tokens_out": 9748,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 68.08
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 2,
+   "k": 10,
+   "killed": null,
+   "live_tokens": 336149,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 462592,
+   "tokens_fresh_in": 52611,
+   "tokens_in": 515203,
+   "tokens_out": 4076,
+   "tool_calls": 16,
+   "turns": 16,
+   "wall_s": 121.17
+  }
+ ],
+ "agents": [
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "f53689df72788f05e2098e49e1c67e68c8d98ebf7d5f8d4507d1c716f37596b4"
+  },
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "0964eef625a3e23690a184f6dacadb45999df9e2d92b1e5ed6561ab6116c4b66"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "26803efdd7c555661f4bdc4494999297d0fbf2effc95bb17a443fa2d2be3d0d0"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "2a11e77e63b5984d8c949fdedf72096d08ece3cee73fed6445428895acf16bf4"
+  },
+  {
+   "agent": "codex-3",
+   "harness": "codex",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "a1ebfd06a6316ac628cafbc268434cc8f905fddfa7b349ed8033e807779d39d0"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "ac541d63bf9c49dc633af26fd42e23246b2d53c8c0c37af77b3a79fd3297bcb7"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "38a95ad5caa8fc3cc76d7be5e648c2e053d42d16d96724aa1795611d520e1827"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "ec9d7f272ac53ae72d70799901f4db2d58a90103e968bcb602e3b5325f84ef38"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "0a70d3697602c96e3060bcf9a3d5824a90eab75a3bae18d16c36cfc61c01a1a5"
+  },
+  {
+   "agent": "codex-4",
+   "harness": "codex",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "f838b909b4bd77566089996fc6939e43b9d8eb87f79eac6316b31e6976427248"
+  }
+ ],
+ "arm": "A",
+ "by_harness": {
+  "claude": {
+   "agents": 6,
+   "cost_usd": 1.595191,
+   "tokens_cache_write": 189858,
+   "tokens_cached_in": 2723454,
+   "tokens_fresh_in": 190010,
+   "tokens_in": 2913464,
+   "tokens_out": 56311,
+   "tool_calls": 114,
+   "turns": 123
+  },
+  "codex": {
+   "agents": 4,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 1732224,
+   "tokens_fresh_in": 163884,
+   "tokens_in": 1896108,
+   "tokens_out": 16614,
+   "tool_calls": 57,
+   "turns": 57
+  }
+ },
+ "cost_usd": 1.595191,
+ "cost_usd_claude_only": 1.595191,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": false,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 157,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_utils/test_prompt.py"
+   ],
+   "removed": 32,
+   "test_added": 27
+  },
+  "10": {
+   "added": 154,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 46
+  },
+  "2": {
+   "added": 158,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 38,
+   "test_added": 25
+  },
+  "3": {
+   "added": 201,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 11,
+   "test_added": 65
+  },
+  "4": {
+   "added": 192,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 2,
+   "test_added": 33
+  },
+  "5": {
+   "added": 140,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 31
+  },
+  "6": {
+   "added": 168,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 14,
+   "test_added": 37
+  },
+  "7": {
+   "added": 279,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_IntRange.py"
+   ],
+   "removed": 7,
+   "test_added": 55
+  },
+  "8": {
+   "added": 190,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 43
+  },
+  "9": {
+   "added": 255,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 7,
+   "test_added": 50
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 3,
+   "10": 0,
+   "2": 0,
+   "3": 1,
+   "4": 0,
+   "5": 0,
+   "6": 0,
+   "7": 0,
+   "8": 0,
+   "9": 0
+  },
+  "total": 4
+ },
+ "merge_conflicts": 6,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "src/click/termui.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "src/click/termui.py"
+   ],
+   "intervention": false,
+   "k": 3,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/api.md\nAuto-merging src/click/__init__.py\nAuto-merging src/click/core.py\nAuto-merging src/click/termui.py\nCONFLICT (content): Merge conflict in src/click/termui.py\nAuto-merging src/click/types.py\nAuto-merging tests/test_options.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "docs/prompts.md",
+    "src/click/core.py",
+    "src/click/termui.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "docs/prompts.md",
+    "src/click/core.py",
+    "src/click/termui.py"
+   ],
+   "intervention": false,
+   "k": 5,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/api.md\nAuto-merging docs/prompts.md\nCONFLICT (content): Merge conflict in docs/prompts.md\nAuto-merging src/click/__init__.py\nAuto-merging src/click/core.py\nCONFLICT (content): Merge conflict in src/click/core.py\nAuto-merging src/click/termui.py\nCONFLICT (content): Merge conflict in src/click/termui.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "src/click/core.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "src/click/core.py"
+   ],
+   "intervention": false,
+   "k": 6,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/documentation.md\nAuto-merging src/click/core.py\nCONFLICT (content): Merge conflict in src/click/core.py\nAuto-merging src/click/formatting.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "src/click/termui.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "src/click/termui.py"
+   ],
+   "intervention": false,
+   "k": 7,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/api.md\nAuto-merging docs/parameter-types.md\nAuto-merging src/click/__init__.py\nAuto-merging src/click/core.py\nAuto-merging src/click/termui.py\nCONFLICT (content): Merge conflict in src/click/termui.py\nAuto-merging src/click/types.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "docs/prompts.md",
+    "src/click/core.py",
+    "src/click/termui.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "docs/prompts.md",
+    "src/click/core.py",
+    "src/click/termui.py"
+   ],
+   "intervention": false,
+   "k": 8,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/prompts.md\nCONFLICT (content): Merge conflict in docs/prompts.md\nAuto-merging src/click/core.py\nCONFLICT (content): Merge conflict in src/click/core.py\nAuto-merging src/click/termui.py\nCONFLICT (content): Merge conflict in src/click/termui.py\nAuto-merging src/click/types.py\nAuto-merging tests/test_termui.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  },
+  {
+   "conflict": true,
+   "conflict_files": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py"
+   ],
+   "handback": "resolved",
+   "handback_files": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py"
+   ],
+   "intervention": false,
+   "k": 10,
+   "left_out": false,
+   "merge_output": "Auto-merging docs/api.md\nCONFLICT (content): Merge conflict in docs/api.md\nAuto-merging docs/documentation.md\nCONFLICT (content): Merge conflict in docs/documentation.md\nAuto-merging src/click/__init__.py\nCONFLICT (content): Merge conflict in src/click/__init__.py\nAuto-merging src/click/core.py\nCONFLICT (content): Merge conflict in src/click/core.py\nAuto-merging src/click/formatting.py\nCONFLICT (content): Merge conflict in src/click/formatting.py\nAuto-merging tests/test_formatting.py\nAutomatic merge failed; fix conflicts and then commit the result.\n",
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 1,
+ "repo": "click",
+ "run": "A-click-heavy-r1-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "codex"
+ ],
+ "setup_s": 1.12,
+ "started": "2026-11-22T01:39:13",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 4.11,
+ "suite_s": 4.12,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n..............sssssssssssssssssssss..................ss................. [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n...........................................................s............ [ 73%]\n...............................s........................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.................................................................        [100%]\n2415 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.57s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 3.59s\n",
+ "tasks_on_main": 9,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "10": {
+   "passed": true,
+   "runs": 4
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 4
+  },
+  "4": {
+   "passed": true,
+   "runs": 3
+  },
+  "5": {
+   "passed": true,
+   "runs": 3
+  },
+  "6": {
+   "passed": true,
+   "runs": 2
+  },
+  "7": {
+   "passed": true,
+   "runs": 3
+  },
+  "8": {
+   "passed": true,
+   "runs": 5
+  },
+  "9": {
+   "passed": true,
+   "runs": 1
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_IntRange.py",
+  "tests/test_utils/test_prompt.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 189858,
+ "tokens_cached_in": 4455678,
+ "tokens_fresh_in": 353894,
+ "tokens_in": 4809572,
+ "tokens_out": 72925,
+ "tool_calls": 171,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 315.19,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "8": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "9": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}
