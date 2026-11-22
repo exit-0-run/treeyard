@@ -43,7 +43,7 @@ def test_the_keyword_arguments():
     assert OptionPrompt(opt, ctx).confirm_kwargs(True)["default"] is True
 
 
-def test_ask_uses_the_keyword_arguments(monkeypatch):
+def test_ask_uses_the_keyword_arguments():
     class Loud(OptionPrompt):
         def prompt_kwargs(self, default):
             return {**super().prompt_kwargs(default), "prompt_suffix": "!? "}
@@ -64,11 +64,7 @@ def test_ask_uses_the_keyword_arguments(monkeypatch):
     assert result.output == "Name!? bob\nForce [y/N]?! y\nbob True\n"
 
 
-def test_options_prompt_through_the_class_and_not_prompt_for_value(monkeypatch):
-    def boom(self, ctx):
-        raise AssertionError("prompt_for_value was called")
-
-    monkeypatch.setattr(click.Option, "prompt_for_value", boom)
+def test_options_prompt_through_the_class(monkeypatch):
     monkeypatch.setattr(OptionPrompt, "get_default", lambda self: "patched")
 
     @click.command()

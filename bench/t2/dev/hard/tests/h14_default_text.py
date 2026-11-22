@@ -1,4 +1,5 @@
 import io
+import sys
 
 import click
 from click._default_text import default_help_text
@@ -24,15 +25,28 @@ def test_default_help_text_follows_todays_rules():
     assert default_help_text(*make("--shout", is_flag=True, show_default=True)) is None
 
 
+def patch_everywhere(monkeypatch, original, fake):
+    """Replaces `original` wherever click holds it: as an attribute of any click module or of a class
+    defined in one, under any name. So the test does not depend on how a solution imports it."""
+    found = 0
+    for name, mod in list(sys.modules.items()):
+        if mod is None or not (name == "click" or name.startswith("click.")):
+            continue
+        for holder in [mod, *(v for v in vars(mod).values() if isinstance(v, type) and v.__module__ == name)]:
+            for attr, value in list(vars(holder).items()):
+                if value is original:
+                    monkeypatch.setattr(holder, attr, fake)
+                    found += 1
+                elif isinstance(value, staticmethod) and value.__func__ is original:
+                    monkeypatch.setattr(holder, attr, staticmethod(fake))
+                    found += 1
+    assert found
+
+
 def test_the_help_bracket_gets_the_default_from_it(monkeypatch):
     opt, ctx = make("--n", default=2, show_default=True)
     assert opt.get_help_extra(ctx)["default"] == "2"
-    import click._default_text as module
-    import click.core
-
-    fake = lambda option, ctx: "<two>"  # noqa: E731
-    monkeypatch.setattr(module, "default_help_text", fake)
-    monkeypatch.setattr(click.core, "default_help_text", fake, raising=False)
+    patch_everywhere(monkeypatch, default_help_text, lambda option, ctx: "<two>")
     assert opt.get_help_extra(ctx)["default"] == "<two>"
     assert "[default: <two>]" in opt.get_help_record(ctx)[1]
 
@@ -46,20 +60,13 @@ def test_default_prompt_text():
 
 
 def test_prompts_show_the_default_through_it(monkeypatch):
-    import click._default_text as module
-
     seen = []
 
-    def fake(value, type=None):
-        seen.append((value, type))
-        return f"<{value}>"
+    def fake(default, type=None):
+        seen.append((default, type))
+        return f"<{default}>"
 
-    monkeypatch.setattr(module, "default_prompt_text", fake)
-    for mod in ("click.termui", "click._prompt"):
-        try:
-            monkeypatch.setattr(mod + ".default_prompt_text", fake)
-        except (AttributeError, ImportError):
-            pass
+    patch_everywhere(monkeypatch, default_prompt_text, fake)
 
     @click.command()
     def cli():
@@ -67,7 +74,7 @@ def test_prompts_show_the_default_through_it(monkeypatch):
 
     result = CliRunner().invoke(cli, input="\n")
     assert result.output == "Count [<4>]: \n4\n"
-    assert seen == [(4, click.INT)] or seen == [(4, int)]
+    assert seen in ([(4, click.INT)], [(4, int)])
 
 
 def test_the_old_helper_is_kept():

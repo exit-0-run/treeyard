@@ -1,0 +1,14 @@
+# Hidden tests of h12 and h14 on other correct solutions (variants/*.patch applied to the pin)
+
+h12-module-attribute: hidden test: 7 passed; suite: 2405 passed, 25 skipped, 31000 deselected, 1 xfailed
+h12-imported-functions: hidden test: 7 passed; suite: 2405 passed, 25 skipped, 31000 deselected, 1 xfailed
+h14-module-attribute: hidden test: 6 passed; suite: 2405 passed, 25 skipped, 31000 deselected, 1 xfailed
+h14-local-import: hidden test: 6 passed; suite: 2405 passed, 25 skipped, 31000 deselected, 1 xfailed
+h14-alias: hidden test: 6 passed; suite: 2405 passed, 25 skipped, 31000 deselected, 1 xfailed
+
+The h14 test before this change (it patched only click._default_text and click.core):
+h14-module-attribute: 6 passed
+h14-local-import: 6 passed
+h14-alias: 2 failed, 4 passed
+
+Command: `T2_SCRATCH=S python3 -m unittest bench.t2.test_t2.DevHardVariantTests` applies each variant to the pin and runs its hidden test.

@@ -1,10 +1,10 @@
 | run | status | suite all | suite pinned | done | integration | merge/land conflicts | warned | reacted | legacy warned | legacy reacted | interv | lost | tests passed | tool calls | tokens | Claude tokens | Codex tokens | cost (Claude only) | wall s |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| A-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 2.18 |
-| A-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 0 | 0 | - | - | 0 | 181 | 0 | 49 | 0 | - | - | 0.0 | 8.28 |
-| A2-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 2.12 |
-| A2-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 0 | 0 | 0 | - | - | 0 | 181 | 0 | 46 | 0 | - | - | 0.0 | 18.43 |
-| B-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 0.91 |
-| B-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 12 | 0 | 13 | 10 | 0 | 181 | 0 | 114 | 0 | - | - | 0.0 | 3.69 |
-| BN-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 1.7 |
-| BN-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 11 | 0 | 13 | 11 | 0 | 181 | 0 | 127 | 0 | - | - | 0.0 | 6.45 |
+| A-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 13.93 |
+| A-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 0 | 0 | - | - | 0 | 181 | 0 | 49 | 0 | - | - | 0.0 | 6.98 |
+| A2-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 3.98 |
+| A2-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 0 | 0 | 0 | - | - | 0 | 181 | 0 | 46 | 0 | - | - | 0.0 | 14.62 |
+| B-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 0.95 |
+| B-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 10 | 0 | 13 | 10 | 0 | 181 | 0 | 114 | 0 | - | - | 0.0 | 3.79 |
+| BN-click-hard-r1-noop | done | green | green | 0/13 | 0/21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 13 | 0 | - | - | 0.0 | 2.01 |
+| BN-click-hard-r1-oracle | done | green | green | 13/13 | 21/21 | 10 | 12 | 0 | 13 | 11 | 0 | 181 | 0 | 127 | 0 | - | - | 0.0 | 6.87 |
