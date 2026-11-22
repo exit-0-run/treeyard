@@ -9,6 +9,7 @@ Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.m
   validate  --scratch S [--repo R]      each test fails on the pin and passes with its reference
   run       --scratch S --arm A|A2|B --repo R --set disjoint|colliding|mixed --rep N --harness H [--results D] [--agent-root D]
   rehearse  --scratch S [--repo R]      oracle and noop runs of every cell (no model, no cost)
+  solo      --scratch S --repo R --set S --rep N --harness H   each task by one agent alone on the pin
   collect   [--results DIR]             metrics.json and a summary table from the run files
   pilot     --scratch S [--yes-real]    the 12 pilot runs in the frozen order (without --yes-real: the order only)
   budget    --pilot DIR                 full budget from the pilot run files (formula only)
@@ -3770,6 +3771,135 @@ def setup(scratch):
     print("ripgrep warm build:", "ok" if r.returncode == 0 else r.stderr[-500:])
 
 
+# ===================================================================================== solo
+
+
+class SoloRun(Run):
+    """One agent does one task alone on a clean clone of the pin; then the task's hidden test and the suite run
+    on its result. It is an arm A run with one agent (same preamble, prompt, box, limits, model and token and
+    cost accounting as an arm A agent before any merge); with one agent the runner's merge of its branch is
+    its own work. The harness slot is the one the task has in the set (`mix`, rotated by `rep`)."""
+
+    def __init__(self, scratch, repo, s, rep, harness, task_dir, results=None, agent_root=None, limits=None, tasks_dir=None,
+                 repo_spec=None):
+        super().__init__(scratch, "A", repo, s, rep, harness, limits=limits, results=results, agent_root=agent_root,
+                         tasks_dir=tasks_dir, repo_spec=repo_spec)
+        self.task_dir = Path(task_dir)
+        m = json.loads((self.task_dir / "meta.json").read_text())
+        self.task_id, self.task_k = m["id"], m["k"]
+        self.mix = [self.set_spec["mix"][(self.task_k - 1 + rep - 1) % len(self.set_spec["mix"])]]
+        self.set_spec = {**self.set_spec, "integration": []}
+        self.expected = self.n_agents = 1
+        self.name = f"solo-{repo}-{s}-{self.task_id}-r{rep}-{harness}"
+        self.run_dir = scratch / "t2" / "runner" / self.name
+
+    def tasks(self):
+        return [self.task_dir]
+
+    def harness_of(self, k):
+        return self.mix[0] if self.harness == "real" else self.harness
+
+    def score(self, tree):
+        out = super().score(tree)
+        m = json.loads((self.task_dir / "meta.json").read_text())
+        ok, text, _ = run_cmd_spec(self.spec, self.spec["decide"], tree, self.scratch, m)
+        out["hidden_passed"] = ok
+        out["hidden_failed"] = [] if ok else failed_functions(text)
+        return out
+
+    def execute(self, pairs_truth=None):
+        r = super().execute(pairs_truth)
+        r.update(solo=True, task=self.task_id, task_k=self.task_k)
+        r.setdefault("hidden_passed", False)
+        r.setdefault("hidden_failed", [])
+        text = self.scrub(json.dumps(r, indent=1, sort_keys=True) + "\n")
+        (self.results / f"{self.name}.json").write_text(text)
+        return json.loads(text)
+
+
+def failed_functions(text):
+    """The test functions that pytest's short summary lists as failed (`FAILED path::name - why`), or one
+    entry for an error outside them (an import that fails at collection)."""
+    names = re.findall(r"^(?:FAILED|ERROR) [^:\s]+::(.+?)(?: - .*)?$", text or "", re.M)
+    return sorted(set(names)) or ["(collection or other error)"]
+
+
+def solo_tasks(repo, s, only=None):
+    """The task directories of a set, in order; `only` keeps those whose id or number is listed."""
+    dirs = task_dirs(repo, s)
+    if not only:
+        return dirs
+    want = {x for item in only for x in item.split(",") if x}
+    picked = [d for d in dirs if meta(d)["id"] in want or str(meta(d)["k"]) in want]
+    missing = want - {meta(d)["id"] for d in picked} - {str(meta(d)["k"]) for d in picked}
+    if missing:
+        raise SystemExit(f"solo: no such task in {repo}/{s}: {', '.join(sorted(missing))}")
+    return picked
+
+
+def solo_cost(r):
+    return float(r.get("cost_usd_claude_only") or 0.0)
+
+
+def solo(scratch, repo, s, rep, harness, only=None, parallel=4, max_usd=None, results=None, agent_root=None, limits=None,
+         make=None, dirs=None):
+    """Runs the solo cells of a set (one task per run), at most `parallel` at once. With `max_usd` no new agent
+    starts once the Claude cost so far plus the dearest agent so far, for each agent still running and the next
+    one, would pass it. Returns (run files, task ids not started)."""
+    make = make or (lambda td: SoloRun(scratch, repo, s, rep, harness, td, results=results, agent_root=agent_root, limits=limits))
+    queue = list(dirs if dirs is not None else solo_tasks(repo, s, only))
+    done, skipped, running = [], [], {}
+    lock = threading.Lock()
+
+    def start(td):
+        def go():
+            r = make(td).execute()
+            with lock:
+                done.append(r)
+                running.pop(meta(td)["id"], None)
+        t = threading.Thread(target=go)
+        running[meta(td)["id"]] = t
+        t.start()
+
+    while queue or running:
+        with lock:
+            spent = sum(solo_cost(r) for r in done)
+            dearest = max((solo_cost(r) for r in done), default=0.0)
+            free = len(running) < max(1, parallel)
+            n_run = len(running)
+        if queue and free:
+            if max_usd is not None and spent + dearest * (n_run + 1) > max_usd:
+                skipped.extend(meta(td)["id"] for td in queue)
+                queue.clear()
+                continue
+            start(queue.pop(0))
+            continue
+        time.sleep(0.2)
+    done.sort(key=lambda r: (r.get("task_k") or 0))
+    return done, skipped
+
+
+def solo_table(runs, skipped=()):
+    """The summary of solo run files: one row per (task, rep)."""
+    lines = ["| task | rep | harness | hidden test | failed functions | suite all / pinned | turns | tokens | Claude USD | wall s |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
+    for r in sorted(runs, key=lambda r: (r.get("task_k") or 0, r.get("rep") or 0)):
+        st = r.get("agent_stats") or [{}]
+        turns = sum(int(a.get("turns") or 0) for a in st)
+        tokens = int(r.get("tokens_in") or 0) + int(r.get("tokens_out") or 0)
+        suite = "/".join("green" if r.get(x) else "-" if r.get(x) is None else "RED" for x in ("suite_green_all", "suite_green_pinned"))
+        status = ("pass" if r.get("hidden_passed") else "fail") if r.get("status") == "done" else r.get("status", "?")
+        lines.append(f"| {r.get('task')} | {r.get('rep')} | {r.get('harness')} | {status} | {', '.join(r.get('hidden_failed') or []) or '-'} "
+                     f"| {suite} | {turns} | {tokens} | {round(solo_cost(r), 4)} | {r.get('wall_s')} |")
+    for tid in skipped:
+        lines.append(f"| {tid} | - | - | not started (spend guard) | - | - | - | - | - | - |")
+    passed = sum(1 for r in runs if r.get("hidden_passed"))
+    lines.append("")
+    lines.append(f"hidden tests passed: {passed}/{len(runs)}; Claude USD {round(sum(solo_cost(r) for r in runs), 4)}"
+                 + (f"; not started: {len(skipped)}" if skipped else ""))
+    return "\n".join(lines) + "\n"
+
+
 # ===================================================================================== main
 
 
@@ -3804,6 +3934,20 @@ def main(argv=None):
             p.add_argument("--block", type=Path, help="arm B, development set only: this instruction block instead of block-b.md")
             p.add_argument("--land-test", action="store_true", help="arm BN: land only what passed the suite on the rebased "
                            "change (connect --land-test t2-test); the run name ends in -gate")
+    p = sub.add_parser("solo", help="one agent, one task, alone on the pin; its hidden test and the suite after")
+    p.add_argument("--scratch", required=True, type=Path)
+    p.add_argument("--repo", required=True, choices=list(REPOS) + list(DEV_REPOS))
+    p.add_argument("--set", required=True, choices=list(SETS) + list(EXTRA_SETS))
+    p.add_argument("--rep", required=True, type=int)
+    p.add_argument("--tasks", action="append", help="task ids or numbers (comma-separated, repeatable); default: all")
+    p.add_argument("--harness", required=True, choices=["oracle", "noop", "real"])
+    p.add_argument("--parallel", type=int, default=4, help="solo runs at once, each in its own clone (default 4)")
+    p.add_argument("--max-usd", type=float, help="start no new agent once the Claude cost so far plus the dearest agent "
+                   "so far (for each running agent and the next) would pass this")
+    p.add_argument("--dry-run", action="store_true", help="set up each run and print the agent command; start no agent")
+    p.add_argument("--yes-real", action="store_true", help="needed for --harness real (owner's yes and a budget)")
+    p.add_argument("--results", type=Path, help="where run files and solo-summary.txt go (default: results/solo)")
+    p.add_argument("--agent-root", type=Path)
     p = sub.add_parser("collect")
     p.add_argument("--results", type=Path, default=RESULTS)
     p.add_argument("--out", type=Path)
@@ -3851,6 +3995,23 @@ def main(argv=None):
             return
         recount(a.runs, a.results or ())
         return
+    if a.cmd == "solo":
+        select_kit([a.repo])
+        scratch = a.scratch.resolve()
+        results = a.results or RESULTS / "solo"
+        if a.dry_run:
+            for td in solo_tasks(a.repo, a.set, a.tasks):
+                for line in SoloRun(scratch, a.repo, a.set, a.rep, a.harness, td, results=results, agent_root=a.agent_root).dry_run():
+                    print(line)
+            return
+        if a.harness == "real" and not a.yes_real:
+            raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
+        runs, skipped = solo(scratch, a.repo, a.set, a.rep, a.harness, a.tasks, a.parallel, a.max_usd, results, a.agent_root)
+        table = solo_table(runs, skipped)
+        Path(results).mkdir(parents=True, exist_ok=True)
+        (Path(results) / f"solo-summary-{a.set}-r{a.rep}-{a.harness}.txt").write_text(table)
+        print(table, end="")
+        sys.exit(0 if all(r["status"] == "done" for r in runs) else 3)
     scratch = a.scratch.resolve()
     dev = select_kit([a.repo] if isinstance(getattr(a, "repo", None), str) else getattr(a, "repo", None))
     if getattr(a, "block", None):

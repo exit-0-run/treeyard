@@ -1,0 +1,17 @@
+| task | rep | harness | hidden test | failed functions | suite all / pinned | turns | tokens | Claude USD | wall s |
+|---|---|---|---|---|---|---|---|---|---|
+| h1-prompt-text | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 2.42 |
+| h2-help-items | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.29 |
+| h3-secrets | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.35 |
+| h5-prompt-attempts | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.25 |
+| h6-option-groups | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 4.32 |
+| h7-byte-size | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.66 |
+| h8-choice-menu | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 4.64 |
+| h9-help-theme | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 5.12 |
+| h10-help-markdown | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.24 |
+| h11-prompter | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 4.63 |
+| h12-option-prompt | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.35 |
+| h13-help-formatter | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 3.86 |
+| h14-default-text | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.51 |
+
+hidden tests passed: 13/13; Claude USD 0.0

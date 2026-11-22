@@ -1416,5 +1416,98 @@ class DevHardTests(unittest.TestCase):
         self.assertEqual(sorted(self.td().WITHOUT["click"]["hard"]), list(range(1, 14)))
 
 
+class SoloTests(StubBase):
+    """`solo`: one agent, one task, alone on a clean clone of the pin (an arm A run of one agent)."""
+
+    def world(self, n=4):
+        spec, tasks = mixed_world(Path(tempfile.mkdtemp(prefix="w-", dir=self.tmp)), n)
+        dirs = sorted((p for p in (tasks / "mini" / "mixed").iterdir() if p.name[0].isdigit()), key=lambda p: int(p.name.split("-")[0]))
+        make = lambda harness: (lambda td: k.SoloRun(self.tmp, "mini", "mixed", 1, harness, td, results=self.tmp / "results",
+                                                      tasks_dir=tasks, repo_spec=spec))  # noqa: E731
+        return spec, tasks, dirs, make
+
+    def test_oracle_passes_every_task_alone_and_noop_none(self):
+        spec, tasks, dirs, make = self.world(4)
+        runs, skipped = k.solo(self.tmp, "mini", "mixed", 1, "oracle", parallel=2, make=make("oracle"), dirs=dirs)
+        self.assertEqual(skipped, [])
+        self.assertEqual([r["task"] for r in runs], ["t1", "t2", "t3", "t4"])
+        for r in runs:
+            self.assertEqual((r["status"], r["solo"], r["hidden_passed"], r["hidden_failed"]), ("done", True, True, []), r["run"])
+            self.assertEqual((r["n_tasks"], r["tasks_on_main"], r["merge_conflicts"], len(r["agent_stats"])), (1, 1, 0, 1))
+            self.assertNotIn("integration_total", r)
+            self.assertTrue((self.tmp / "results" / f"{r['run']}.json").is_file())
+        self.assertEqual(len({r["run"] for r in runs}), 4)
+        runs, _ = k.solo(self.tmp, "mini", "mixed", 1, "noop", parallel=4, make=make("noop"), dirs=dirs)
+        self.assertEqual([r["hidden_passed"] for r in runs], [False] * 4)
+        table = k.solo_table(runs)
+        self.assertIn("| t1 | 1 | noop | fail |", table)
+        self.assertIn("hidden tests passed: 0/4", table)
+
+    def test_the_harness_slot_is_the_tasks_slot_in_the_set(self):
+        spec, tasks, dirs, make = self.world(4)
+        r = make("real")(dirs[2])
+        self.assertEqual((r.expected, r.n_agents, r.harness_of(1)), (1, 1, MIXED_SLOTS[2]))
+        self.assertEqual(r.limits, {**k.LIMITS, **MIXED_LIMITS})
+        self.assertEqual(r.tasks(), [dirs[2]])
+        self.assertEqual(r.name, "solo-mini-mixed-t3-r1-real")
+
+    def test_the_spend_guard_stops_new_agents(self):
+        spec, tasks, dirs, make = self.world(4)
+        started = []
+
+        class Fake:
+            def __init__(self, td):
+                self.td = td
+
+            def execute(self):
+                started.append(self.td.name)
+                return {"run": self.td.name, "task": self.td.name, "task_k": int(self.td.name[0]), "rep": 1, "status": "done",
+                        "cost_usd_claude_only": 1.0, "hidden_passed": True}
+
+        runs, skipped = k.solo(self.tmp, "mini", "mixed", 1, "real", parallel=1, max_usd=2.5, make=Fake, dirs=dirs)
+        # 0 + 0 <= 2.5 starts t1; 1 + 1 <= 2.5 starts t2; 2 + 1 > 2.5 stops.
+        self.assertEqual(started, ["1-t1", "2-t2"])
+        self.assertEqual(skipped, ["t3", "t4"])
+        self.assertIn("not started (spend guard)", k.solo_table(runs, skipped))
+
+    def test_failed_functions(self):
+        self.assertEqual(k.failed_functions("FAILED tests/x.py::test_a[1 2] - assert 1\nFAILED tests/x.py::test_b\n"),
+                         ["test_a[1 2]", "test_b"])
+        self.assertEqual(k.failed_functions("ERROR tests/x.py - ImportError"), ["(collection or other error)"])
+
+    def test_real_needs_yes(self):
+        saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        self.addCleanup(lambda: [setattr(k, n, v) for n, v in saved.items()])
+        with self.assertRaises(SystemExit) as e:
+            k.main(["solo", "--scratch", str(self.tmp), "--repo", "click", "--set", "hard", "--rep", "1", "--harness", "real"])
+        self.assertIn("--yes-real", str(e.exception))
+
+
+class DevHardVariantTests(unittest.TestCase):
+    """The hidden tests of h12 and h14 pass for other correct solutions with other import styles
+    (dev/checks-hard/variants/*.patch on the pin)."""
+
+    @unittest.skipUnless(os.environ.get("T2_SCRATCH"), "needs T2_SCRATCH (a scratch dir with the click clone and dev venv)")
+    def test_variants_pass_their_hidden_test(self):
+        scratch = Path(os.environ["T2_SCRATCH"])
+        rev = json.loads((k.DEV / "repos.json").read_text())["click"]["rev"]
+        python = scratch / "t2" / "env" / "dev-venv" / "bin" / "python"
+        variants = sorted((k.DEV / "checks-hard" / "variants").glob("*.patch"))
+        self.assertGreaterEqual(sum(1 for v in variants if v.name.startswith("h12-")), 2)
+        self.assertGreaterEqual(sum(1 for v in variants if v.name.startswith("h14-")), 2)
+        tests = {"h12": "h12_option_prompt.py", "h14": "h14_default_text.py"}
+        for v in variants:
+            with self.subTest(v.name), tempfile.TemporaryDirectory(prefix="t2-var-") as d:
+                tree = Path(d) / "click"
+                k.git("clone", "-q", "--no-checkout", str(scratch / "t2" / "src" / "click"), str(tree), cwd=d)
+                k.git("checkout", "-q", "--detach", rev, cwd=tree)
+                k.git("apply", str(v), cwd=tree)
+                shutil.copyfile(k.DEV / "hard" / "tests" / tests[v.name[:3]], tree / "tests" / "test_t2_variant.py")
+                env = dict(os.environ, PYTHONPATH="src", PYTHONDONTWRITEBYTECODE="1")
+                r = subprocess.run([str(python), "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_t2_variant.py"],
+                                   cwd=tree, env=env, capture_output=True, text=True, timeout=300)
+                self.assertEqual(r.returncode, 0, r.stdout[-1500:])
+
+
 if __name__ == "__main__":
     unittest.main()

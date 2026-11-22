@@ -1,0 +1,17 @@
+| task | rep | harness | hidden test | failed functions | suite all / pinned | turns | tokens | Claude USD | wall s |
+|---|---|---|---|---|---|---|---|---|---|
+| h1-prompt-text | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.71 |
+| h2-help-items | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.37 |
+| h3-secrets | 1 | noop | fail | test_a_prompt_with_a_secret_type_hides_the_input, test_a_secret_option_on_the_command_line, test_errors_do_not_show_a_hidden_value, test_help_hides_the_default_of_a_hidden_input, test_info_dict_hides_the_default, test_prompts_hide_the_default, test_secret_str, test_the_secret_type | green/green | 1 | 0 | 0.0 | 0.72 |
+| h5-prompt-attempts | 1 | noop | fail | test_a_mismatched_confirmation_counts, test_a_valid_answer_in_time, test_bad_limits, test_confirm, test_empty_answers_without_a_default_do_not_count, test_gives_up_after_the_last_attempt, test_options_that_prompt, test_the_exception | green/green | 1 | 0 | 0.0 | 0.71 |
+| h6-option-groups | 1 | noop | fail | test_columns_line_up_across_sections, test_command_groups_of_a_group, test_groups_become_sections_after_options, test_hidden_options_and_empty_groups, test_the_option_attribute_and_get_help_groups, test_the_order_of_the_command_comes_first, test_write_dl_with_a_first_column_width | green/green | 1 | 0 | 0.0 | 0.31 |
+| h7-byte-size | 1 | noop | fail | test_bounds_and_their_description, test_converts[ 4 MB -4000000], test_converts[0-0], test_converts[1.5 kib-1536], test_converts[1.5MiB-1572864], test_converts[1.9B-1], test_converts[10 kb-10000], test_converts[10KB-10000], test_converts[1TiB-1099511627776], test_converts[2048-2048], test_converts[2k-2000], test_converts[3G-3000000000], test_converts[512-512], test_converts[7b-7], test_custom_types_show_their_values, test_format_value, test_help_shows_sizes, test_on_the_command_line, test_prompts_show_sizes, test_rejects[-5], test_rejects[1.2.3], test_rejects[10XB], test_rejects[5 M B], test_rejects[MB], test_rejects[], test_rejects[abc] | green/green | 1 | 0 | 0.0 | 0.27 |
+| h8-choice-menu | 1 | noop | fail | test_enum_choices_and_defaults_by_name, test_format_choice, test_options_that_prompt_with_a_menu, test_the_menu, test_the_menu_with_a_default_and_enums, test_without_the_menu_nothing_changes, test_wrong_numbers_and_numeric_choices | green/green | 1 | 0 | 0.0 | 0.48 |
+| h9-help-theme | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.31 |
+| h10-help-markdown | 1 | noop | fail | test_a_command_page, test_a_group_page, test_custom_sections_come_along, test_no_style_codes_and_no_wrapping, test_the_formatter | green/green | 1 | 0 | 0.0 | 0.3 |
+| h11-prompter | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.34 |
+| h12-option-prompt | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.4 |
+| h13-help-formatter | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.4 |
+| h14-default-text | 1 | noop | fail | (collection or other error) | green/green | 1 | 0 | 0.0 | 0.34 |
+
+hidden tests passed: 0/13; Claude USD 0.0

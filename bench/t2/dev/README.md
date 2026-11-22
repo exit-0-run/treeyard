@@ -495,6 +495,32 @@ a feature, the final tree with the feature's step reverted and its lines taken o
 code. On each of these trees exactly the hidden test of the missing task and the integration tests that
 need it fail; every other hidden and integration test passes.
 
+### Hidden tests and import style
+
+A hidden test may rest only on names, modules and classes that the prompt states. Two tests depended on
+how a solution imports a function and were changed (2026-11-22):
+
+- h14 checked that the help bracket and prompts take their text from `default_help_text` and
+  `default_prompt_text` by patching the names in `click._default_text` and `click.core` only; a solution
+  that imports `default_help_text as _help_text` failed. It now replaces the function wherever click holds
+  it: any attribute of a click module or of a class defined there, under any name, that is the function.
+- h12 checked that `consume_value` no longer calls `prompt_for_value`. The prompt still says so, but the
+  test now checks only what an option shows: options prompt through `OptionPrompt` (a patched
+  `OptionPrompt.get_default` reaches the prompt) and through a subclass set as `prompt_class`.
+
+The other hidden tests and the 12 new integration tests import only the modules and names their prompts
+state (`click._prompter`, `click._option_prompt`, `click._help_formatter`, `click._default_text`,
+`termui._readline_prompt`, `termui._format_default`) and patch only attributes of classes the prompts name
+(`Prompter.read`, `Prompter.readline`, `OptionPrompt.get_default`, `HelpFormatter.write_heading`) or the
+variables the prompts name (`click.formatting.FORCED_WIDTH`, `click.termui.visible_prompt_func`). The
+identity checks (`click.formatting.HelpFormatter is click._help_formatter.HelpFormatter`,
+`click.Prompter is click._prompter.Prompter`) are stated in the prompts.
+
+[`checks-hard/variants/`](checks-hard/variants/) holds other correct solutions of h12 and h14 with other
+import styles (module attribute, local import, alias, functions imported by name); every one passes its
+hidden test and the suite ([`checks-hard/variants.txt`](checks-hard/variants.txt), kit test
+`DevHardVariantTests`). The old h14 test failed on the alias variant.
+
 ### Set-level settings (`tasks/click/hard/set.json`)
 
 - Agents 13, every slot `claude` (Claude Code): the model the next real step uses. With one harness the
@@ -523,3 +549,32 @@ T2_TREEYARD=BIN python3 bench/t2/t2.py rehearse --scratch S --repo click --set h
 python3 bench/t2/t2.py run --scratch S --arm A --repo click --set hard --rep 1 --harness real --dry-run
 python3 bench/t2/t2.py run --scratch S --arm A --repo click --set hard --rep 1 --harness real --yes-real
 ```
+
+## Solo mode
+
+`solo` runs each task of a set by one agent alone on a clean clone of the pin, with nothing else on that
+repository, then the task's hidden test and the suite on its result: how well an agent does a task when
+no other agent meets it. A solo run is an arm A run of one agent (`SoloRun` in t2.py): the same preamble,
+prompt, box, limits, model and token and cost accounting as an arm A agent before any merge; with one
+agent the runner's merge of its branch is its own work, so there is no hand-back. The harness slot is the
+task's slot in the set (`mix`, rotated by `rep`); on `hard` every slot is Claude Code.
+
+```sh
+python3 bench/t2/t2.py solo --scratch S --repo click --set hard --rep 1 --harness oracle --results D
+python3 bench/t2/t2.py solo --scratch S --repo click --set hard --rep 1 --harness real --dry-run --results D
+python3 bench/t2/t2.py solo --scratch S --repo click --set hard --rep 1 --harness real --yes-real --max-usd 30 --results D
+```
+
+- `--tasks` picks tasks by id or number (comma-separated, repeatable); by default all.
+- `--parallel N` (default 4): solo runs at once, each with its own clone, runner directory and agent area.
+- `--max-usd X`: no new agent starts once the Claude cost so far plus the cost of the dearest agent so
+  far, for each agent still running and for the next one, would pass X. Before the first agent ends the
+  dearest is 0, so the first `--parallel` agents always start. The tasks not started are listed.
+- One run file per (task, rep) (`solo-<repo>-<set>-<id>-r<rep>-<harness>.json`, with `hidden_passed`,
+  `hidden_failed`: the failed test functions) and `solo-summary-<set>-r<rep>-<harness>.txt`: task, rep,
+  harness, hidden test, failed functions, suite (agent tests included / pin's tests), turns, tokens,
+  Claude USD, wall seconds. Default results directory: `results/solo` of the kit (or of `dev/`).
+- The `real` harness needs `--yes-real`, the owner's yes and a budget.
+
+Free checks on `hard` ([`checks-hard/`](checks-hard/)): oracle 13/13 (`solo-oracle.txt`), noop 0/13
+(`solo-noop.txt`), and the 13 commands of `--harness real --dry-run` (`solo-dry-run.txt`, prompts left out).
