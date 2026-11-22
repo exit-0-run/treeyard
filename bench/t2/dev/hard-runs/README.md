@@ -58,7 +58,7 @@ directories and could not be checked.
 
 ### Result of the git runs (2026-11-22)
 
-| Run | Tasks | Integration tests | Integration defects | Conflicts handed back | Wall s | Claude USD | Cost of the hand-backs | End phase (merges and hand-backs) |
+| Run | Tasks | Integration tests | Integration defects | Conflicts handed back | Wall s | Claude USD | Cost of the hand-backs | Merge phase, hand-backs one after the other |
 |---|---|---|---|---|---|---|---|---|
 | r51 | 13/13 | 21/21 | 0 | 10 (all resolved, 0 interventions) | 379 | 3.79 | 1.08 (28 %) | 269 s (71 %) |
 
@@ -71,5 +71,7 @@ directories and could not be checked.
 `losses.py` finds no loss and no break at any state of main. By the stop rule runs 2 and 3 were not
 started. **Conclusion: the set is not a cheap field for comparisons; the quality line is closed.**
 One run does not show that git cannot lose here. What it does show: with 10 of 13 agents handed a
-conflict, plain git with one model delivered everything, and paid for it with 28 % of the cost and
-71 % of the wall time in the merge phase. Run file and classifier output: [`git/`](git/).
+conflict, plain git with one model delivered everything. The merge phase took 269 of 379 s because
+this arm hands conflicts back one after the other; that is a property of the arm, not of git. The
+hand-backs cost 1.08 of 3.79 USD.
+Run file and classifier output: [`git/`](git/).
