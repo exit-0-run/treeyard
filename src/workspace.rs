@@ -337,7 +337,7 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
     serde_json::from_slice(&data).with_context(|| format!("parse {}", path.display()))
 }
 
-fn mtime_ns(m: &fs::Metadata) -> i64 {
+pub(crate) fn mtime_ns(m: &fs::Metadata) -> i64 {
     m.mtime() * 1_000_000_000 + m.mtime_nsec()
 }
 
@@ -353,7 +353,7 @@ fn disk_mode(m: &fs::Metadata) -> u32 {
 }
 
 /// Reads a file (or a symlink's target) and returns its git mode, blob id and bytes.
-fn hash_file(path: &Path, m: &fs::Metadata) -> Result<(u32, String, Vec<u8>)> {
+pub(crate) fn hash_file(path: &Path, m: &fs::Metadata) -> Result<(u32, String, Vec<u8>)> {
     let mode = disk_mode(m);
     let data = if mode == MODE_LINK {
         use std::os::unix::ffi::OsStrExt;
@@ -1682,6 +1682,12 @@ pub(crate) struct CheckoutMark {
     /// The change's head whose tree the directory was written from.
     pub head: String,
     pub files: State,
+    /// Native set: the directory, when it is not the change's own (a follow-up change).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<PathBuf>,
+    /// Native set: the change that took over this directory after this one landed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub followed_by: Option<String>,
 }
 
 /// Where `checkout` puts a change when no directory is given: one directory per change under
@@ -1693,7 +1699,36 @@ pub fn checkout_dir(change: &str) -> Result<PathBuf> {
     }
     // SAFETY: getuid has no preconditions.
     let uid = unsafe { libc::getuid() };
-    Ok(std::env::temp_dir().join(format!("treeyard-checkouts-{uid}")).join(change))
+    let root = private_dir(&std::env::temp_dir().join(format!("treeyard-checkouts-{uid}")))?;
+    Ok(root.join(change))
+}
+
+/// Makes `dir` a directory only this user can enter (0700), or checks that it is one: it must not
+/// be a symlink and must belong to this user (a shared temp directory lets anyone create the name
+/// first). A directory of ours with wider modes is narrowed to 0700.
+pub fn private_dir(dir: &Path) -> Result<PathBuf> {
+    use std::os::unix::fs::DirBuilderExt;
+    match fs::DirBuilder::new().mode(0o700).create(dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e).with_context(|| format!("create {}", dir.display())),
+    }
+    let md = fs::symlink_metadata(dir).with_context(|| format!("stat {}", dir.display()))?;
+    if md.file_type().is_symlink() || !md.is_dir() {
+        bail!(
+            "refusing {}: it is a symlink or not a directory (checkouts go only into a directory of our own)",
+            dir.display()
+        );
+    }
+    // SAFETY: getuid has no preconditions.
+    let uid = unsafe { libc::getuid() };
+    if md.uid() != uid {
+        bail!("refusing {}: it belongs to uid {}, not to this user ({uid})", dir.display(), md.uid());
+    }
+    if md.permissions().mode() & 0o077 != 0 {
+        fs::set_permissions(dir, fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(dir.to_path_buf())
 }
 
 pub(crate) fn capped(mut v: Vec<String>) -> Value {
@@ -1789,11 +1824,14 @@ pub fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTreeSet<S
         }
     }
     crate::safety::check_tree(want.keys().map(String::as_str))?;
-    fs::create_dir_all(&dir)?;
+    if !dir.exists() {
+        use std::os::unix::fs::DirBuilderExt;
+        fs::DirBuilder::new().recursive(true).mode(0o700).create(&dir)?;
+    }
     let mut mark: CheckoutMark = if mark_path.exists() { read_json(&mark_path)? } else { CheckoutMark::default() };
 
     // What changed here since the last checkout: edits to its files, and new files.
-    let found = scan(&dir, &mark.files, &BTreeSet::new())?;
+    let found = scan_racy(&dir, &mark.files, &BTreeSet::new(), &[], racy_from(&mark_path))?;
     let mut dirty: BTreeSet<String> = BTreeSet::new();
     let mut extra = Vec::new();
     let mut kept: BTreeSet<String> = keep.clone();
@@ -2252,6 +2290,28 @@ pub fn scan(root: &Path, state: &State, layer_dirs: &BTreeSet<String>) -> Result
 /// `scan` of a sparse workspace: new files count only inside the cone of `paths` (empty = all).
 /// Paths outside it are not in the workspace, so they are neither edits nor deletions.
 pub fn scan_cone(root: &Path, state: &State, layer_dirs: &BTreeSet<String>, paths: &[String]) -> Result<Scan> {
+    scan_racy(root, state, layer_dirs, paths, i64::MAX)
+}
+
+/// Window before a manifest write in which a file's stat is not trusted (the timestamp granularity
+/// of some file systems, and an edit in the same instant as the write).
+pub const RACY_NS: i64 = 2_000_000_000;
+
+/// When the manifest at `mark` was written, minus `RACY_NS`: files recorded with an mtime at or
+/// after it are hashed even when size, mtime and mode match (`scan_racy`).
+pub(crate) fn racy_from(mark: &Path) -> i64 {
+    fs::metadata(mark).map(|m| mtime_ns(&m) - RACY_NS).unwrap_or(i64::MIN)
+}
+
+/// `scan_cone` that trusts size + mtime + mode only for files recorded with an mtime before
+/// `racy_from_ns`; newer ones are hashed (a same-size edit within the timestamp granularity).
+pub fn scan_racy(
+    root: &Path,
+    state: &State,
+    layer_dirs: &BTreeSet<String>,
+    paths: &[String],
+    racy_from_ns: i64,
+) -> Result<Scan> {
     let mut out = Scan::default();
     for (path, st) in state {
         let p = root.join(path);
@@ -2263,7 +2323,11 @@ pub fn scan_cone(root: &Path, state: &State, layer_dirs: &BTreeSet<String>, path
             out.diffs.push((path.clone(), None));
             continue;
         }
-        if md.len() == st.size && mtime_ns(&md) == st.mtime_ns && disk_mode(&md) == st.mode {
+        if md.len() == st.size
+            && mtime_ns(&md) == st.mtime_ns
+            && disk_mode(&md) == st.mode
+            && st.mtime_ns < racy_from_ns
+        {
             continue;
         }
         let (mode, blob, data) = hash_file(&p, &md)?;
@@ -2323,6 +2387,41 @@ pub fn scan_cone(root: &Path, state: &State, layer_dirs: &BTreeSet<String>, path
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn private_dirs_are_ours_and_closed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path().join("co");
+        private_dir(&d).unwrap();
+        assert_eq!(fs::metadata(&d).unwrap().permissions().mode() & 0o777, 0o700);
+        fs::set_permissions(&d, fs::Permissions::from_mode(0o755)).unwrap();
+        private_dir(&d).unwrap();
+        assert_eq!(fs::metadata(&d).unwrap().permissions().mode() & 0o777, 0o700, "narrowed");
+        let link = tmp.path().join("link");
+        std::os::unix::fs::symlink(&d, &link).unwrap();
+        assert!(private_dir(&link).unwrap_err().to_string().contains("symlink"));
+        // A directory of another user (root owns /usr) is refused.
+        if unsafe { libc::getuid() } != 0 {
+            assert!(private_dir(Path::new("/usr")).unwrap_err().to_string().contains("belongs to uid"));
+        }
+    }
+
+    #[test]
+    fn a_same_size_edit_in_the_same_instant_is_seen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("a.txt");
+        fs::write(&f, "aaaa\n").unwrap();
+        let md = fs::symlink_metadata(&f).unwrap();
+        let (mode, blob, _) = hash_file(&f, &md).unwrap();
+        let state: State =
+            [("a.txt".to_string(), FileState { mode, blob, size: md.len(), mtime_ns: mtime_ns(&md) })].into();
+        // Same size, same mtime: the stat cannot tell.
+        fs::write(&f, "bbbb\n").unwrap();
+        fs::File::options().write(true).open(&f).unwrap().set_modified(md.modified().unwrap()).unwrap();
+        assert!(scan_cone(tmp.path(), &state, &BTreeSet::new(), &[]).unwrap().diffs.is_empty(), "trusted stat");
+        let found = scan_racy(tmp.path(), &state, &BTreeSet::new(), &[], mtime_ns(&md) - RACY_NS).unwrap();
+        assert_eq!(found.diffs.len(), 1, "recorded within the racy window: hashed");
+    }
 
     #[test]
     fn layer_specs_parse_and_auto_detect() {

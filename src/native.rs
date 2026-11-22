@@ -15,7 +15,8 @@
 
 use anyhow::{Context, Result, bail};
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use crate::lean::{Lean, prune};
 use crate::workspace::{self, Place};
@@ -38,19 +39,36 @@ pub const SKIP_DIRS: &[&str] = &[
 /// Untracked file names (`*` = any prefix) that `sync` never sends.
 const SKIP_FILES: &[&str] = &["*.pyc", "*.pyo", ".DS_Store", ".coverage"];
 
+/// New files that look like editor or tool backups (`sed -i -e` leaves `name-e`): never sent.
+const BACKUP_SUFFIXES: &[&str] = &[".orig", ".rej", "~", ".bak", ".swp"];
+
 const MARKERS_ADVICE: &str = "These files in dir still hold conflict markers, so they were not sent: keep the work \
 on main (between <<<<<<< main and =======) and yours (between ======= and >>>>>>> change), remove the markers, \
 then sync or land again.";
 const CONFLICT_ADVICE: &str = "Not landed: main moved and the files in `conflicted` now hold conflict markers in \
 dir: <<<<<<< main .. ======= is the work on main, ======= .. >>>>>>> change is yours. Keep both, remove the \
 markers, run the tests in dir, then land again.";
+const DECIDE_ADVICE: &str = "These conflicts have no markers to edit (a file deleted on one side, a mode or binary \
+change): nothing was sent for them. Decide each one: land (or sync) with resolve = {\"path\": \"mine\"} to keep \
+the file as it is in dir (absent = deleted), or {\"path\": \"main\"} to take main's side.";
+const STALE_ADVICE: &str = "dir was behind your change for these conflicted files: your copies were written before \
+the conflict, so they were not sent. dir now holds the conflict with markers; your copies are in `stale_copies`. \
+Redo your edits on the marked files, then land again.";
 const MOVED_ADVICE: &str = "Work landed on main in files you edit (main_moved_in); land merges it. To test with it \
 first, call sync with rebase: true (dir then holds main plus your change).";
 const LANDED_NOTE: &str = "dir now holds main with your change.";
+/// The one rule for a held land, in the block, the `land` schema and this reply alike.
+pub const HOLD_ADVICE: &str = "Not landed: your change removes what another agent landed in these lines for its own \
+task. Put its part back in dir (the words in `contributed`, else the whole line) while keeping your own edit of the \
+same lines, and land again. Only when your own task names those lines for removal, land with undo = true and a \
+reason that quotes your task. Otherwise, when both cannot hold, keep its part, land the rest of your work, and say \
+in your last message what could not hold.";
 
 /// The tools of the native set: `start`, `sync`, `land`, then `change` and `diff` of the agent set.
 pub fn tools() -> Vec<Value> {
     let change = json!({"type": "string", "description": "your change id (ch_..., from start)"});
+    let resolve = json!({"type": "object", "additionalProperties": {"type": "string", "enum": ["mine", "main"]},
+        "description": "your decision for each path listed in `decide`: mine = the file as it is in dir (absent = deleted), main = main's side"});
     let mut out = vec![
         json!({
             "name": "start",
@@ -64,22 +82,25 @@ pub fn tools() -> Vec<Value> {
         json!({
             "name": "sync",
             "description": "Sends what you changed in dir (edited, new, deleted files) into your change. Reply: \
-            collisions with other open changes, undoes (another agent's landed lines you removed: put its part back), \
-            main_moved_in. Optional; land syncs too.",
+            added and skipped new files, collisions with other open changes, undoes (another agent's landed lines you \
+            removed: put its part back), main_moved_in. Optional; land syncs too.",
             "inputSchema": {"type": "object", "properties": {
                 "change": change,
                 "rebase": {"type": "boolean", "description": "also rebase onto main and rewrite dir (main plus your change)"},
+                "resolve": resolve,
             }, "required": ["change"], "additionalProperties": false},
         }),
         json!({
             "name": "land",
             "description": "Syncs dir, then lands your change on main. status: landed; conflict (fix the files in \
-            `conflicted` in dir, land again); undoes (not landed: you remove another agent's landed work, put its part \
-            back); refused (conflict markers left). undo = true with reason only when your task names those lines for removal.",
+            `conflicted` in dir, land again); undoes (not landed: you remove another agent's landed work; put its part \
+            back and land again); refused (markers left, or conflicts to decide). undo = true with a reason only when \
+            your own task names those lines for removal.",
             "inputSchema": {"type": "object", "properties": {
                 "change": change,
-                "undo": {"type": "boolean", "description": "land although the change removes lines other agents landed; needs reason"},
-                "reason": {"type": "string", "description": "why the task removes those lines; required with undo = true"},
+                "undo": {"type": "boolean", "description": "only when your own task names those lines for removal; needs reason"},
+                "reason": {"type": "string", "description": "the words of your task that name those lines for removal; required with undo = true"},
+                "resolve": resolve,
             }, "required": ["change"], "additionalProperties": false},
         }),
     ];
@@ -90,30 +111,39 @@ pub fn tools() -> Vec<Value> {
 /// The native tool names the bridge answers itself.
 pub const OWN: &[&str] = &["start", "sync", "land"];
 
-/// The checkout of `change` for this set: the directory `checkout` would use, the manifest and
-/// lock beside it.
+/// The checkout of `change` for this set: the directory `checkout` would use (or, for a follow-up
+/// change, the directory its manifest names), the manifest and the directory's lock beside it.
 pub fn place(change: &str) -> Result<Place> {
-    let dir = workspace::checkout_dir(change)?;
-    let side = |ext: &str| dir.with_file_name(format!("{change}.{ext}"));
-    Ok(Place { mark: side("native.json"), lock: side("native.lock"), dir, keep_edits: true })
+    let own = workspace::checkout_dir(change)?;
+    let mark = own.with_file_name(format!("{change}.native.json"));
+    let dir = workspace::Place { dir: own.clone(), mark: mark.clone(), lock: own.clone(), keep_edits: true }
+        .load()
+        .ok()
+        .and_then(|m| m.dir)
+        .unwrap_or(own);
+    let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    Ok(Place { lock: dir.with_file_name(format!("{name}.native.lock")), mark, dir, keep_edits: true })
 }
 
-/// One native call. `agent` names the agent for `start` (unless a token names it).
+/// One native call. `agent` names the agent for `start` and for a follow-up change.
 pub fn call(url: &str, agent: Option<&str>, lean: &mut Lean, name: &str, args: Value) -> Result<Value> {
     match name {
         "start" => start(url, agent, args),
-        "sync" => {
-            let change = change_arg(&args)?;
-            let rebase = flag(&args, "rebase")?;
-            let p = place(&change)?;
-            let _l = p.lock()?;
-            sync(url, &p, &change, rebase, lean)
-        }
-        "land" => {
+        "sync" | "land" => {
             let change = change_arg(&args)?;
             let p = place(&change)?;
             let _l = p.lock()?;
-            land(url, &p, &change, &args, lean)
+            let (change, p, follow) = follow_up(url, agent, change, p)?;
+            let resolve = resolve_arg(&args)?;
+            let mut v = if name == "sync" {
+                sync(url, &p, &change, flag(&args, "rebase")?, &resolve, lean)?
+            } else {
+                land(url, &p, &change, &args, &resolve, lean)?
+            };
+            if let Some(f) = follow {
+                v["follow_up"] = f;
+            }
+            Ok(v)
         }
         _ => bail!("{name} is not a native tool"),
     }
@@ -135,6 +165,25 @@ fn flag(args: &Value, key: &str) -> Result<bool> {
     }
 }
 
+fn resolve_arg(args: &Value) -> Result<BTreeMap<String, String>> {
+    let mut out = BTreeMap::new();
+    match &args["resolve"] {
+        Value::Null => {}
+        Value::Object(m) => {
+            for (k, v) in m {
+                match v.as_str() {
+                    Some(x @ ("mine" | "main")) => {
+                        out.insert(k.clone(), x.to_string());
+                    }
+                    _ => bail!("resolve.{k} must be \"mine\" or \"main\", not {v}"),
+                }
+            }
+        }
+        other => bail!("resolve must be an object {{path: \"mine\" | \"main\"}}, not {other}"),
+    }
+    Ok(out)
+}
+
 fn start(url: &str, agent: Option<&str>, args: Value) -> Result<Value> {
     let intent =
         args["intent"].as_str().map(str::trim).filter(|s| !s.is_empty()).context("start needs intent: one line")?;
@@ -142,11 +191,7 @@ fn start(url: &str, agent: Option<&str>, args: Value) -> Result<Value> {
     if let Some(p) = args.get("paths").filter(|p| !p.is_null()) {
         open["paths"] = p.clone();
     }
-    if std::env::var_os("TREEYARD_TOKEN").is_none()
-        && let Some(a) = agent
-    {
-        open["agent"] = json!(a);
-    }
+    name_agent(&mut open, agent);
     let ch = client::call(url, "open_change", open)?;
     let id = ch["id"].as_str().context("open_change reply has no id")?.to_string();
     let p = place(&id)?;
@@ -168,6 +213,14 @@ fn start(url: &str, agent: Option<&str>, args: Value) -> Result<Value> {
     Ok(out)
 }
 
+fn name_agent(open: &mut Value, agent: Option<&str>) {
+    if std::env::var_os("TREEYARD_TOKEN").is_none()
+        && let Some(a) = agent
+    {
+        open["agent"] = json!(a);
+    }
+}
+
 fn skipped(rel: &str) -> bool {
     let parts: Vec<&str> = rel.split('/').collect();
     let (dirs, name) = parts.split_at(parts.len() - 1);
@@ -179,104 +232,295 @@ fn skipped(rel: &str) -> bool {
         || SKIP_FILES.iter().any(|pat| glob(name[0], pat))
 }
 
+/// A new file that looks like a backup: `*.orig`, `*.rej`, `*~`, `*.bak`, `*.swp`, or `name-e`
+/// next to a file `name` (what BSD `sed -i -e` leaves).
+fn backup(rel: &str, dir: &Path, known: &workspace::State) -> bool {
+    if BACKUP_SUFFIXES.iter().any(|s| rel.ends_with(s)) {
+        return true;
+    }
+    rel.strip_suffix("-e")
+        .is_some_and(|stem| !stem.is_empty() && (known.contains_key(stem) || dir.join(stem).is_file()))
+}
+
 fn has_markers(text: &[u8]) -> bool {
     let text = String::from_utf8_lossy(text);
     let lines: Vec<&str> = text.split_inclusive('\n').collect();
     !conflict_view::blocks(&lines).is_empty()
 }
 
+/// Conflicts with marker text to edit; the other kinds need a decision (`resolve`).
+fn has_marker_kind(kind: &str) -> bool {
+    matches!(kind, "content" | "add_add")
+}
+
+fn side(v: &Value) -> String {
+    if v.is_null() {
+        "deleted".into()
+    } else {
+        format!("has it (mode {}, {} bytes)", v["mode"].as_str().unwrap_or("?"), v["size"])
+    }
+}
+
+/// The state of a file in dir as the manifest records it (so a rewrite replaces it), or none.
+fn disk_state(dir: &Path, path: &str) -> Result<Option<workspace::FileState>> {
+    let full = dir.join(path);
+    let Ok(md) = std::fs::symlink_metadata(&full) else { return Ok(None) };
+    if md.is_dir() {
+        return Ok(None);
+    }
+    let (mode, blob, _) = workspace::hash_file(&full, &md)?;
+    Ok(Some(workspace::FileState { mode, blob, size: md.len(), mtime_ns: workspace::mtime_ns(&md) }))
+}
+
+/// Marks `path` in the manifest as written as it is on disk, so the next rewrite of dir puts the
+/// change's content there (instead of keeping it as an unsent edit).
+fn let_rewrite(mark: &mut workspace::CheckoutMark, dir: &Path, path: &str) -> Result<()> {
+    match disk_state(dir, path)? {
+        Some(st) => mark.files.insert(path.to_string(), st),
+        None => mark.files.remove(path),
+    };
+    Ok(())
+}
+
+/// The new and changed files of dir against the manifest (skipped and backup files left out).
+fn unsent(p: &Place, mark: &workspace::CheckoutMark) -> Result<Vec<String>> {
+    let skip: BTreeSet<String> = SKIP_DIRS.iter().map(|s| s.to_string()).collect();
+    let found = workspace::scan_racy(&p.dir, &mark.files, &skip, &[], workspace::racy_from(&p.mark))?;
+    Ok(found
+        .diffs
+        .into_iter()
+        .filter(|(path, f)| {
+            f.is_none() || mark.files.contains_key(path) || !(skipped(path) || backup(path, &p.dir, &mark.files))
+        })
+        .map(|(path, _)| path)
+        .collect())
+}
+
+/// When `change` has landed (or was abandoned) and dir holds edits it never sent, a follow-up
+/// change on main as it is now takes over the same directory; a later call with the old id goes
+/// to it. Returns the change to work on, its place, and the note for the reply.
+fn follow_up(url: &str, agent: Option<&str>, change: String, p: Place) -> Result<(String, Place, Option<Value>)> {
+    let mut mark = p
+        .load()
+        .map_err(|_| anyhow::anyhow!("no native checkout of {change} here ({}): call start first", p.dir.display()))?;
+    if let Some(next) = mark.followed_by.clone() {
+        let (c, q, f) = follow_up(url, agent, next.clone(), place(&next)?)?;
+        let note = f.unwrap_or_else(|| json!({"from": change, "id": next, "note": format!("change {change} has landed; dir belongs to change {next} now: use change: {next}")}));
+        return Ok((c, q, Some(note)));
+    }
+    let ch = client::call(url, "change", json!({"change": change}))?;
+    if ch["state"] == "open" {
+        return Ok((change, p, None));
+    }
+    let state = ch["state"].as_str().unwrap_or("closed").to_string();
+    let files = unsent(&p, &mark)?;
+    if files.is_empty() {
+        bail!("change {change} is {state} and dir holds no unsent edits: nothing to sync; call start for new work");
+    }
+    let intent = format!("follow-up of {change}: {}", ch["intent"].as_str().unwrap_or_default());
+    let mut open = json!({"intent": intent, "paths": files});
+    name_agent(&mut open, agent);
+    let next = client::call(url, "open_change", open)?;
+    let id = next["id"].as_str().context("open_change reply has no id")?.to_string();
+    let q = place(&id)?;
+    let follow = workspace::CheckoutMark {
+        change: id.clone(),
+        head: mark.head.clone(),
+        files: mark.files.clone(),
+        dir: Some(p.dir.clone()),
+        followed_by: None,
+    };
+    let q = Place { dir: p.dir.clone(), lock: p.lock.clone(), ..q };
+    q.save(&follow)?;
+    mark.followed_by = Some(id.clone());
+    p.save(&mark)?;
+    let note = json!({
+        "from": change, "id": id, "files": workspace::capped(files),
+        "note": format!("change {change} had already {state}: the unsent edits in dir go into a new change {id} \
+        (same dir), merged with main as it is now. Use change: {id} from now on."),
+    });
+    Ok((id, q, Some(note)))
+}
+
 /// What one sync did.
+#[derive(Default)]
 struct Synced {
     /// `apply`'s reply (or `change`'s when nothing was sent), as the server sent it.
     reply: Value,
     /// `apply` ran (`reply` is an apply reply).
     applied: bool,
     sent: Vec<String>,
+    added: Vec<String>,
     deleted: Vec<String>,
+    /// New files not sent: caches, backups.
+    skipped: Vec<String>,
     /// Conflicted files that still hold markers: not sent, left as they are in dir.
     markers: Vec<String>,
+    /// Conflicts without markers that wait for the agent's `resolve`.
+    decide: Vec<Value>,
+    /// Conflicted files edited in a dir older than the conflict: not sent, copies kept here.
+    stale: Vec<String>,
+    stale_dir: Option<std::path::PathBuf>,
+}
+
+impl Synced {
+    /// Why a land cannot go on now, for the reply (empty: it can).
+    fn blocked(&self) -> bool {
+        !self.markers.is_empty() || !self.decide.is_empty() || !self.stale.is_empty()
+    }
+
+    fn report(&self, v: &mut Value) {
+        v["sent"] = workspace::capped(self.sent.clone());
+        v["added"] = workspace::capped(self.added.clone());
+        v["deleted"] = workspace::capped(self.deleted.clone());
+        v["skipped"] = workspace::capped(self.skipped.clone());
+        if !self.markers.is_empty() {
+            v["markers_left"] = json!(self.markers);
+            v["markers_advice"] = json!(MARKERS_ADVICE);
+        }
+        if !self.decide.is_empty() {
+            v["decide"] = json!(self.decide);
+            v["decide_advice"] = json!(DECIDE_ADVICE);
+        }
+        if !self.stale.is_empty() {
+            v["stale_conflicts"] = json!(self.stale);
+            v["stale_copies"] = json!(self.stale_dir);
+            v["stale_advice"] = json!(STALE_ADVICE);
+        }
+    }
 }
 
 /// Sends the edits made in `p.dir` since the last write or sync, for a caller that holds the lock.
 /// Leaves the manifest at what was sent; the caller refreshes the directory.
-fn send(url: &str, p: &Place, change: &str) -> Result<Synced> {
+fn send(url: &str, p: &Place, change: &str, resolve: &BTreeMap<String, String>) -> Result<Synced> {
     let mut mark = p
         .load()
         .map_err(|_| anyhow::anyhow!("no native checkout of {change} here ({}): call start first", p.dir.display()))?;
     if mark.change != change {
         bail!("{} holds change {}, not {change}", p.dir.display(), mark.change);
     }
-    let ch = client::call(url, "change", json!({"change": change}))?;
+    let mut ch = client::call(url, "change", json!({"change": change}))?;
     if ch["state"] != "open" {
         bail!(
             "change {change} is {}: nothing to sync; call start for new work",
             ch["state"].as_str().unwrap_or("closed")
         );
     }
-    let conflicted: BTreeSet<String> = ch["conflicts"]
-        .as_array()
-        .map(|a| a.iter().filter_map(|c| c["path"].as_str().map(str::to_string)).collect())
-        .unwrap_or_default();
+    let kinds = |ch: &Value| -> BTreeMap<String, Value> {
+        ch["conflicts"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|c| Some((c["path"].as_str()?.to_string(), c.clone()))).collect())
+            .unwrap_or_default()
+    };
+    let mut out = Synced::default();
+    // Decisions first: `main` takes main's side on the server, and dir gets it on the rewrite.
+    for (path, choice) in resolve {
+        let Some(c) = kinds(&ch).get(path).cloned() else {
+            bail!("resolve names {path}, which has no conflict in change {change}");
+        };
+        if has_marker_kind(c["kind"].as_str().unwrap_or_default()) {
+            bail!("{path} has conflict markers to edit in dir: fix the file instead of resolve");
+        }
+        if choice == "main" {
+            client::call(url, "resolve", json!({"change": change, "path": path, "take": "theirs"}))?;
+            let_rewrite(&mut mark, &p.dir, path)?;
+        }
+    }
+    if resolve.values().any(|c| c == "main") {
+        ch = client::call(url, "change", json!({"change": change}))?;
+    }
+    let conflicts = kinds(&ch);
+    // dir holds the change's head (else it was written before the change moved, a refresh failed).
+    let current = ch["head"].as_str() == Some(mark.head.as_str());
     let skip: BTreeSet<String> = SKIP_DIRS.iter().map(|s| s.to_string()).collect();
-    let found = workspace::scan(&p.dir, &mark.files, &skip)?;
+    let found = workspace::scan_racy(&p.dir, &mark.files, &skip, &[], workspace::racy_from(&p.mark))?;
     let mut edits = Vec::new();
     let mut next = Vec::new();
-    let mut markers = Vec::new();
     let mut seen_paths = BTreeSet::new();
     for (path, f) in found.diffs {
-        if f.is_some() && !mark.files.contains_key(&path) && skipped(&path) {
+        let new = f.is_some() && !mark.files.contains_key(&path);
+        if new && (skipped(&path) || backup(&path, &p.dir, &mark.files)) {
+            out.skipped.push(path);
             continue;
         }
         seen_paths.insert(path.clone());
-        if conflicted.contains(&path) && f.as_ref().is_some_and(|(_, d)| has_markers(d)) {
-            markers.push(path);
-            continue;
+        if let Some(c) = conflicts.get(&path) {
+            let kind = c["kind"].as_str().unwrap_or_default();
+            if !current {
+                // Edited before the conflict existed: never a resolution. Keep a copy, let the rewrite
+                // put the conflict in its place.
+                let to = p.dir.with_file_name(format!(
+                    "{}.native-stale",
+                    p.dir.file_name().unwrap_or_default().to_string_lossy()
+                ));
+                if let Some((_, data)) = &f {
+                    let dst = to.join(&path);
+                    std::fs::create_dir_all(dst.parent().unwrap_or(&to))?;
+                    std::fs::write(&dst, data)?;
+                }
+                let_rewrite(&mut mark, &p.dir, &path)?;
+                out.stale.push(path);
+                out.stale_dir = Some(to);
+                continue;
+            }
+            if !has_marker_kind(kind) {
+                if resolve.get(&path).map(String::as_str) != Some("mine") {
+                    out.decide.push(decision(&path, c));
+                    continue;
+                }
+            } else if f.as_ref().is_some_and(|(_, d)| has_markers(d)) {
+                out.markers.push(path);
+                continue;
+            }
+        }
+        if new {
+            out.added.push(path.clone());
         }
         edits.push(workspace::edit_of(&path, f.as_ref()));
         next.push((path, f.map(|(f, _)| f)));
     }
-    // A conflicted file left as written: with markers it is not settled; without (a delete or
-    // mode conflict), its content as it stands is the resolution. Only when dir holds the
-    // change's head: else the refresh writes the conflict first.
-    let current = ch["head"].as_str() == Some(mark.head.as_str());
-    for path in conflicted.iter().filter(|c| current && !seen_paths.contains(*c)) {
-        let full = p.dir.join(path);
-        match std::fs::symlink_metadata(&full) {
-            Ok(md) if md.is_file() => {
-                let data = std::fs::read(&full)?;
-                if has_markers(&data) {
-                    markers.push(path.clone());
-                } else if let Some(st) = mark.files.get(path) {
-                    let f = workspace::FileState {
-                        mode: st.mode,
-                        blob: st.blob.clone(),
-                        size: st.size,
-                        mtime_ns: st.mtime_ns,
-                    };
-                    edits.push(workspace::edit_of(path, Some(&(f, data))));
+    // Conflicted files left as written.
+    for (path, c) in conflicts.iter().filter(|(c, _)| !seen_paths.contains(*c)) {
+        let kind = c["kind"].as_str().unwrap_or_default();
+        if !current {
+            continue; // the rewrite writes the conflict
+        }
+        if !has_marker_kind(kind) {
+            if resolve.get(path).map(String::as_str) == Some("mine") {
+                match disk_state(&p.dir, path)? {
+                    Some(st) => {
+                        let data = std::fs::read(p.dir.join(path))?;
+                        edits.push(workspace::edit_of(path, Some(&(st, data))));
+                    }
+                    None => edits.push(workspace::edit_of(path, None)),
+                }
+            } else {
+                out.decide.push(decision(path, c));
+            }
+            continue;
+        }
+        match std::fs::read(p.dir.join(path)) {
+            Ok(data) if has_markers(&data) => out.markers.push(path.clone()),
+            Ok(data) => {
+                if let Some(st) = disk_state(&p.dir, path)? {
+                    edits.push(workspace::edit_of(path, Some(&(st, data))));
                 }
             }
-            Ok(_) => {}
             Err(_) => edits.push(workspace::edit_of(path, None)),
         }
     }
     for (path, f) in found.touched {
         mark.files.insert(path, f);
     }
-    let sent: Vec<String> = edits
-        .iter()
-        .filter(|(e, _)| e["delete"] != true)
-        .map(|(e, _)| e["path"].as_str().unwrap_or_default().to_string())
-        .collect();
-    let deleted: Vec<String> = edits
-        .iter()
-        .filter(|(e, _)| e["delete"] == true)
-        .map(|(e, _)| e["path"].as_str().unwrap_or_default().to_string())
-        .collect();
-    let mut reply = ch;
-    let applied = !edits.is_empty();
+    for (e, _) in &edits {
+        let path = e["path"].as_str().unwrap_or_default().to_string();
+        if e["delete"] == true { out.deleted.push(path) } else { out.sent.push(path) }
+    }
+    out.reply = ch;
+    out.applied = !edits.is_empty();
     let mut batch = Vec::new();
     let mut size = 0;
+    let mut reply = Value::Null;
     let mut flush = |batch: &mut Vec<Value>| -> Result<()> {
         if !batch.is_empty() {
             // `seen`: the head dir was written from, so a change that moved since merges 3-way.
@@ -297,6 +541,9 @@ fn send(url: &str, p: &Place, change: &str) -> Result<Synced> {
         batch.push(e);
     }
     flush(&mut batch)?;
+    if !reply.is_null() {
+        out.reply = reply;
+    }
     for (path, f) in next {
         match f {
             Some(f) => mark.files.insert(path, f),
@@ -304,7 +551,12 @@ fn send(url: &str, p: &Place, change: &str) -> Result<Synced> {
         };
     }
     p.save(&mark)?;
-    Ok(Synced { reply, applied, sent, deleted, markers })
+    Ok(out)
+}
+
+fn decision(path: &str, c: &Value) -> Value {
+    json!({"path": path, "kind": c["kind"], "mine": side(&c["ours"]), "main": side(&c["theirs"]),
+        "main_by": c["theirs_by"].as_array().map(|a| a.iter().filter_map(|t| t.get("agent").cloned()).collect::<Vec<_>>())})
 }
 
 /// A change reply in the native view: conflicts as the list of files that hold markers in dir.
@@ -313,7 +565,12 @@ fn native_change(v: &mut Value) {
     let paths: Vec<Value> = m
         .get("conflicts")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|c| c.get("path").cloned()).collect())
+        .map(|a| {
+            a.iter()
+                .filter(|c| has_marker_kind(c["kind"].as_str().unwrap_or_default()))
+                .filter_map(|c| c.get("path").cloned())
+                .collect()
+        })
         .unwrap_or_default();
     for k in ["conflicts", "resolve", "conflicts_cut", "conflicted"] {
         m.remove(k);
@@ -330,16 +587,38 @@ fn refresh(url: &str, p: &Place, change: &str, keep: &[String]) -> Value {
         .unwrap_or_else(|e| json!({"error": format!("dir not rewritten: {e:#}")}))
 }
 
-fn sync(url: &str, p: &Place, change: &str, rebase: bool, lean: &mut Lean) -> Result<Value> {
-    let s = send(url, p, change)?;
-    let mut v = s.reply;
+/// Conflicts of the change that need a decision, from a fresh `change` reply.
+fn decisions(url: &str, change: &str) -> Vec<Value> {
+    let ch = client::call(url, "change", json!({"change": change})).unwrap_or_default();
+    ch["conflicts"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter(|c| !has_marker_kind(c["kind"].as_str().unwrap_or_default()))
+                .filter_map(|c| Some(decision(c["path"].as_str()?, c)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn sync(
+    url: &str,
+    p: &Place,
+    change: &str,
+    rebase: bool,
+    resolve: &BTreeMap<String, String>,
+    lean: &mut Lean,
+) -> Result<Value> {
+    let mut s = send(url, p, change, resolve)?;
+    let mut v = std::mem::take(&mut s.reply);
     let mut op = if s.applied { "apply" } else { "change" };
     if rebase {
-        if !s.markers.is_empty() {
-            bail!("rebase needs the conflicts settled first; still marked in dir: {}", s.markers.join(", "));
+        if s.blocked() {
+            bail!("rebase needs the conflicts settled first (markers, decisions or stale files in dir)");
         }
         v = client::call(url, "rebase", json!({"change": change}))?;
         op = "rebase";
+        s.decide = decisions(url, change);
     }
     let co = refresh(url, p, change, &s.markers);
     lean.shape(op, &mut v);
@@ -350,12 +629,7 @@ fn sync(url: &str, p: &Place, change: &str, rebase: bool, lean: &mut Lean) -> Re
             m.remove(k);
         }
     }
-    v["sent"] = workspace::capped(s.sent);
-    v["deleted"] = workspace::capped(s.deleted);
-    if !s.markers.is_empty() {
-        v["markers_left"] = json!(s.markers);
-        v["markers_advice"] = json!(MARKERS_ADVICE);
-    }
+    s.report(&mut v);
     if v.get("conflicted").is_some() {
         v["conflict_advice"] = json!(CONFLICT_ADVICE.replacen("Not landed: main moved and the", "The", 1));
     }
@@ -370,14 +644,22 @@ fn sync(url: &str, p: &Place, change: &str, rebase: bool, lean: &mut Lean) -> Re
     Ok(v)
 }
 
-fn land(url: &str, p: &Place, change: &str, args: &Value, lean: &mut Lean) -> Result<Value> {
-    let s = send(url, p, change)?;
-    if !s.markers.is_empty() {
+fn land(
+    url: &str,
+    p: &Place,
+    change: &str,
+    args: &Value,
+    resolve: &BTreeMap<String, String>,
+    lean: &mut Lean,
+) -> Result<Value> {
+    let s = send(url, p, change, resolve)?;
+    if s.blocked() {
         let co = refresh(url, p, change, &s.markers);
-        let mut v = json!({
-            "status": "refused", "change": change, "markers_left": s.markers, "advice": MARKERS_ADVICE,
-            "sent": workspace::capped(s.sent), "deleted": workspace::capped(s.deleted), "dir_error": co.get("error"),
-        });
+        let mut v = json!({"status": "refused", "change": change, "dir_error": co.get("error")});
+        s.report(&mut v);
+        if !s.markers.is_empty() {
+            v["advice"] = json!(MARKERS_ADVICE);
+        }
         prune(&mut v);
         return Ok(v);
     }
@@ -403,13 +685,19 @@ fn land(url: &str, p: &Place, change: &str, args: &Value, lean: &mut Lean) -> Re
         m.remove("merged_from");
         m.remove("changeset");
     }
+    let mut s = s;
     match status.as_str() {
-        "conflict" => v["advice"] = json!(CONFLICT_ADVICE),
+        "conflict" => {
+            s.decide = decisions(url, change);
+            if v.get("conflicted").is_some() {
+                v["advice"] = json!(CONFLICT_ADVICE);
+            }
+        }
+        "undoes" => v["advice"] = json!(HOLD_ADVICE),
         "landed" | "already_on_main" => v["note"] = json!(LANDED_NOTE),
         _ => {}
     }
-    v["sent"] = workspace::capped(s.sent);
-    v["deleted"] = workspace::capped(s.deleted);
+    s.report(&mut v);
     if let Some(e) = co.get("error") {
         v["dir_error"] = e.clone();
     }

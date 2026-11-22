@@ -16,6 +16,16 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   `treeyard connect --native` writes these entries and a short native instruction block (the normal
   block is unchanged). Only the stdio bridge has the set (`POST /mcp?tools=native` is refused).
   Tests: `tests/native.rs`, `tests/connect.rs`.
+- Native mode, after an audit of the first real runs: checkout directories are 0700 and must be the
+  user's own (no symlink); delete, mode and binary conflicts wait for `resolve: {path: mine | main}`
+  instead of being taken as they stand; a directory older than its change never sends a conflicted
+  file, and the server checks markers after the merge of a stale write; backup files (`*-e` next to
+  a file, `*.orig`, `*.rej`, `*~`, `*.bak`, `*.swp`) are not sent, and replies list `added` and
+  `skipped`; edits after a land go into a follow-up change on the same directory; one override rule
+  in the native block, schema and hold advice; a same-size edit within 2 s of the manifest write is
+  hashed.
+- bench/t2: run files record the binary's sha256 and version; arm BN archives start directories;
+  `health` checks every state of main of a finished run.
 - bench/t2: arm `BN`, arm B connected in native mode (`block-bn.md`), with the scripted harnesses
   driving the native flow through the bridge and the runner landing through it. Its metrics read the
   agents' own `land` replies (holds as warnings, reactions, overrides, conflicts, refusals), and

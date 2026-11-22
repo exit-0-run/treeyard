@@ -738,9 +738,6 @@ impl Inner {
                 }
                 Err(err) => return Err(self.edit_hint(&ch, e, cur.as_ref(), err, NEAR_CAP)),
             };
-            if conflicted.contains(&e.path) {
-                resolutions.insert(e.path.clone(), new.clone());
-            }
             if let Some(v) = &view
                 && e.replace.is_none()
                 && !kept.contains(&e.path)
@@ -761,6 +758,11 @@ impl Inner {
                         new = materialized;
                     }
                 }
+            }
+            // The resolution is what this write puts on the path, after any merge with a stale view:
+            // marker text from that merge must never pass as a resolution.
+            if conflicted.contains(&e.path) {
+                resolutions.insert(e.path.clone(), new.clone());
             }
             match &new {
                 Some(n) => {

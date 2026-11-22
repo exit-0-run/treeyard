@@ -25,8 +25,8 @@ Later applies give the change id. On land status conflict, resolve the regions i
 const NATIVE_INSTRUCTIONS: &str = "TreeYard lets several agents work on this repository at once. Call start \
 first: it opens your change and writes a full copy of the repository to dir. Read, edit and test only in dir, \
 with your own tools. sync sends your edits and reports collisions and undoes (another agent's landed lines that \
-you removed: put its part back). land syncs and lands; on status conflict, fix the marked files in dir and land \
-again.";
+you removed: put its part back; land with undo only when your own task names those lines for removal). land syncs \
+and lands; on status conflict, fix the marked files in dir and land again.";
 
 /// Which tools `tools/list` offers. `Agent`: the operations a coding agent needs
 /// (`rpc::AGENT_TOOLS`), with short descriptions; `All`: every operation; `Native` (stdio bridge

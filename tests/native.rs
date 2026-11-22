@@ -342,3 +342,187 @@ fn a_refresh_never_overwrites_an_edit_made_after_the_scan() {
     assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour late\nfive\n");
     b.close();
 }
+
+#[test]
+fn checkout_directories_are_private() {
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let (_, dir) = start(&mut b, "private");
+    for d in [&dir, &dir.parent().unwrap().to_path_buf()] {
+        assert_eq!(std::fs::metadata(d).unwrap().permissions().mode() & 0o777, 0o700, "{}", d.display());
+    }
+    b.close();
+    // A checkout root that is a symlink is refused.
+    let t2 = w.tmpdir.join("t2");
+    std::fs::create_dir_all(&t2).unwrap();
+    let uid = unsafe { libc::getuid() };
+    std::os::unix::fs::symlink(dir.parent().unwrap(), t2.join(format!("treeyard-checkouts-{uid}"))).unwrap();
+    let mut b = Bridge::start(&w.url, "agent-b", &w.src, &t2);
+    let (err, text) = b.raw("start", json!({"intent": "through a link"}));
+    assert!(err && text.contains("symlink"), "{text}");
+    b.close();
+}
+
+#[test]
+fn a_delete_against_an_edit_waits_for_a_decision() {
+    for choice in ["main", "mine"] {
+        let w = world();
+        let mut a = w.bridge("agent-a");
+        let mut b = w.bridge("agent-b");
+        let (ca, da) = start(&mut a, "delete old");
+        let (cb, db) = start(&mut b, "edit old");
+        std::fs::remove_file(da.join("old.txt")).unwrap();
+        std::fs::write(db.join("old.txt"), "to delete\nedited by b\n").unwrap();
+        assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+        let l = b.tool("land", json!({"change": cb}));
+        assert_eq!(l["status"], "conflict", "{l}");
+        assert_eq!(l["decide"][0]["path"], "old.txt", "{l}");
+        assert_eq!(l["decide"][0]["main"], "deleted", "{l}");
+        assert!(l.get("conflicted").is_none(), "no markers to edit: {l}");
+        // Not settled silently: land again without a decision is refused.
+        let l = b.tool("land", json!({"change": cb}));
+        assert_eq!(l["status"], "refused", "{l}");
+        assert_eq!(l["decide"][0]["kind"], "modify_delete", "{l}");
+        let l = b.tool("land", json!({"change": cb, "resolve": {"old.txt": choice}}));
+        // Taking main's side leaves B's change with nothing of its own.
+        let want = if choice == "main" { "already_on_main" } else { "landed" };
+        assert_eq!(l["status"], want, "{l}");
+        if choice == "main" {
+            assert!(w.main_file("old.txt").is_none(), "main's delete kept");
+            assert!(!db.join("old.txt").exists(), "dir shows main's side");
+        } else {
+            assert_eq!(w.main_file("old.txt").unwrap(), "to delete\nedited by b\n", "B's file kept");
+        }
+        a.close();
+        b.close();
+    }
+}
+
+#[test]
+fn a_stale_directory_never_sends_a_conflicted_file() {
+    // The rewrite after a conflict did not happen (here: a rebase through another client): dir still
+    // holds the pre-conflict file. Its later edit must not become the resolution, and marker text
+    // must never land.
+    let w = world();
+    let mut a = w.bridge("agent-a");
+    let mut b = w.bridge("agent-b");
+    let (ca, da) = start(&mut a, "two by a");
+    let (cb, db) = start(&mut b, "two by b");
+    edit(&da, "lib.txt", "two\n", "two by a\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+    edit(&db, "lib.txt", "two\n", "two by b\n");
+    b.tool("sync", json!({"change": cb}));
+    let r = treeyard::client::call(&w.url, "rebase", json!({"change": cb})).unwrap();
+    assert_eq!(r["conflicted"], true, "{r}");
+    edit(&db, "lib.txt", "five\n", "five by b\n");
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "refused", "{l}");
+    assert_eq!(strs(&l["stale_conflicts"]), ["lib.txt"], "{l}");
+    let copy = PathBuf::from(l["stale_copies"].as_str().unwrap()).join("lib.txt");
+    assert!(std::fs::read_to_string(&copy).unwrap().contains("five by b"), "the agent's copy is kept");
+    let now = std::fs::read_to_string(db.join("lib.txt")).unwrap();
+    assert!(now.contains("<<<<<<< main\ntwo by a\n=======\ntwo by b\n>>>>>>> change\n"), "{now}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\ntwo by a\nthree\nfour\nfive\n");
+    std::fs::write(db.join("lib.txt"), "one\ntwo by a and b\nthree\nfour\nfive by b\n").unwrap();
+    assert_eq!(b.tool("land", json!({"change": cb}))["status"], "landed");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\ntwo by a and b\nthree\nfour\nfive by b\n");
+    a.close();
+    b.close();
+}
+
+#[test]
+fn the_server_checks_markers_after_the_merge_of_a_stale_write() {
+    // A whole-file write with an old `seen` on a conflicted path: the merge with the view brings the
+    // markers back, so it is refused, not recorded as the resolution.
+    let w = world();
+    let c = |op: &str, p: Value| treeyard::client::call(&w.url, op, p);
+    let a = c("open_change", json!({"agent": "a", "intent": "a"})).unwrap();
+    let b = c("open_change", json!({"agent": "b", "intent": "b"})).unwrap();
+    let (ia, ib) = (a["id"].as_str().unwrap(), b["id"].as_str().unwrap());
+    c("apply", json!({"change": ia, "edits": [{"path": "lib.txt", "replace": {"old": "two\n", "new": "two a\n"}}]}))
+        .unwrap();
+    assert_eq!(c("land", json!({"change": ia})).unwrap()["status"], "landed");
+    let applied = c(
+        "apply",
+        json!({"change": ib, "edits": [{"path": "lib.txt", "replace": {"old": "two\n", "new": "two b\n"}}]}),
+    )
+    .unwrap();
+    let seen = applied["head"].as_str().unwrap().to_string();
+    assert_eq!(c("rebase", json!({"change": ib})).unwrap()["conflicted"], true);
+    let err = c(
+        "apply",
+        json!({"change": ib, "seen": seen, "edits": [{"path": "lib.txt", "content": "one\ntwo b\nthree\nfour\nfive b\n"}]}),
+    )
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("marker"), "{err:#}");
+}
+
+#[test]
+fn backups_are_skipped_and_new_files_listed() {
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "backups");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    for f in ["lib.txt-e", "x.orig", "x.rej", "notes.txt~", "a.bak", ".lib.txt.swp"] {
+        std::fs::write(dir.join(f), "junk\n").unwrap();
+    }
+    std::fs::write(dir.join("new.txt"), "new\n").unwrap();
+    std::fs::write(dir.join("solo-e"), "a real file named like this\n").unwrap();
+    let s = b.tool("sync", json!({"change": id}));
+    assert_eq!(strs(&s["added"]), ["new.txt", "solo-e"], "{s}");
+    assert_eq!(strs(&s["skipped"]), [".lib.txt.swp", "a.bak", "lib.txt-e", "notes.txt~", "x.orig", "x.rej"], "{s}");
+    assert_eq!(b.tool("land", json!({"change": id}))["status"], "landed");
+    assert!(w.main_file("lib.txt-e").is_none());
+    b.close();
+}
+
+#[test]
+fn edits_after_a_landed_change_go_into_a_follow_up() {
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "first");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    assert_eq!(b.tool("land", json!({"change": id}))["status"], "landed");
+    // Meanwhile another agent lands elsewhere in the file.
+    let mut o = w.bridge("agent-o");
+    let (co, d_o) = start(&mut o, "other");
+    edit(&d_o, "lib.txt", "five\n", "five by o\n");
+    assert_eq!(o.tool("land", json!({"change": co}))["status"], "landed");
+    edit(&dir, "lib.txt", "one\n", "one, later\n");
+    let s = b.tool("sync", json!({"change": id}));
+    let next = s["follow_up"]["id"].as_str().unwrap_or_else(|| panic!("{s}")).to_string();
+    assert_ne!(next, id);
+    assert!(s["follow_up"]["note"].as_str().unwrap().contains(&next));
+    assert_eq!(strs(&s["sent"]), ["lib.txt"], "{s}");
+    assert!(s.get("undoes").is_none(), "the 3-way merge keeps o's line: {s}");
+    // The old id still works and goes to the follow-up.
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!((l["status"].as_str(), l["follow_up"]["id"].as_str()), (Some("landed"), Some(next.as_str())), "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one, later\nTWO\nthree\nfour\nfive by o\n");
+    // Nothing left to send: the plain answer.
+    let (err, text) = b.raw("sync", json!({"change": next}));
+    assert!(err && text.contains("no unsent edits"), "{text}");
+    b.close();
+    o.close();
+}
+
+#[test]
+fn the_override_rule_is_one_rule() {
+    let rule = "names those lines for removal";
+    assert!(treeyard::connect::NATIVE_INSTRUCTIONS.contains(rule));
+    assert!(treeyard::native::HOLD_ADVICE.contains(rule));
+    let land = treeyard::native::tools().into_iter().find(|t| t["name"] == "land").unwrap();
+    assert!(land["description"].as_str().unwrap().contains(rule));
+    assert!(!treeyard::connect::NATIVE_INSTRUCTIONS.contains("a person decides"));
+}
+
+#[test]
+fn an_idle_change_is_not_in_start_advice() {
+    // The kit's pre-created workspace change per agent: open, nothing declared, nothing edited.
+    let w = world();
+    treeyard::client::call(&w.url, "open_change", json!({"agent": "idle", "intent": "workspace agent-1"})).unwrap();
+    let mut b = w.bridge("agent-a");
+    let v = b.tool("start", json!({"intent": "x", "paths": ["lib.txt"]}));
+    assert!(v.get("overlaps").is_none() && v.get("advice").is_none(), "{v}");
+    b.close();
+}

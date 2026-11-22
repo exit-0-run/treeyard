@@ -326,8 +326,27 @@ How it works:
   marker block is never sent: `sync` reports it in `markers_left`, `land` answers status `refused`
   with `markers_left`, and the file stays as the agent left it (a half-done fix is not overwritten).
   Other files are still sent.
+- Conflicts with no markers to edit (a file deleted on one side and changed on the other, a mode or
+  binary change) are never settled silently: nothing is sent for them, the reply lists them in
+  `decide` (path, kind, what each side did), and `land` answers `refused` until the agent passes
+  `resolve: {"path": "mine" | "main"}` on `land` or `sync` (`mine` = the file as it is in `dir`,
+  absent = deleted; `main` = main's side).
+- When `dir` is older than the change's head (a rewrite after a conflict failed, or the change was
+  rebased elsewhere), its copy of a conflicted file is never sent as the resolution: the copy goes to
+  `<dir>.native-stale/`, `dir` gets the conflict with markers, and the reply lists
+  `stale_conflicts`. The server also checks a resolution for markers after the 3-way merge with a
+  stale view, so marker text cannot land through `apply` either.
+- New files that look like backups (`*.orig`, `*.rej`, `*~`, `*.bak`, `*.swp`, and `name-e` next to a
+  file `name`, what BSD `sed -i -e` leaves) are not sent. Every reply lists the new files it sent in
+  `added` and the ones it skipped in `skipped`.
 - After `landed`, `dir` holds main as of the land, with the change. The files in the agent's working
-  directory never change.
+  directory never change. When the agent edits `dir` again and calls `sync` or `land` with the landed
+  change, a follow-up change on main as it is now takes over the same directory and gets those edits
+  (merged 3-way with what main has now); the reply names it in `follow_up` (`from`, `id`, `files`),
+  and later calls with the old id go to it. With nothing unsent, the reply says to call `start`.
+- The checkout root `$TMPDIR/treeyard-checkouts-<uid>` and each checkout are created 0700; a root
+  that is a symlink or belongs to another user is refused. A file recorded in the manifest within 2 s
+  of the manifest write is hashed on the next scan even when its size, mtime and mode match.
 
 Test: `tests/native.rs` drives the built bridge over stdio against a real server: a complete tree in
 `dir` with the manifest beside it; edits, a new file and a deletion sent, build output, `*.pyc` and
@@ -338,9 +357,12 @@ directory merging 3-way.
 
 What an agent can lose: `land` syncs first, and a rewrite of `dir` never overwrites a file that
 changed since it was last written or sent (it waits for the next sync), so edits are not lost while
-the change is open. Edits made in `dir` after the change landed belong to no change (`sync` says the
-change has landed; call `start` again and redo them there). New files that a `.gitignore` or the
-cache list excludes never land.
+the change is open; edits after a land go into a follow-up change. New files that a `.gitignore`,
+the cache list or the backup list excludes never land (they are listed in `skipped`).
+
+A held land (`undoes`) has one rule everywhere (block, `land` schema, reply advice): put the other
+agent's part back; `undo: true` with a `reason` only when the agent's own task names those lines for
+removal; otherwise keep its part, land the rest, and say what could not hold.
 
 ## Many agents, one machine or many
 
