@@ -1855,8 +1855,13 @@ def tool_events(harness, lines, box=None):
 
 def warning_of(events, agent, native=False):
     """`warned` and `reacted` of one agent from its tool events (see Run.transcript_metrics). `native` (arm
-    BN): `start` opens the agent's change, and a `sync` after the warning (edits sent again) is a reaction."""
+    BN): `start` opens the agent's change, and a `sync` after the warning (edits sent again) is a reaction.
+    Arm BN also reads the agent's own `land` replies: a hold (status `undoes`) is a warning of kind `undoes`
+    (`land_holds`, `held_changes`; the other changes in its entries count in `others`); a later land that
+    lands without `undid` is a reaction (`hold_reacted`), one with `undid` (or `undo: true`) an override
+    (`undoes_overridden`). `land_conflicts` and `land_refused` (markers left) count those replies."""
     own, warned_at, reacted, landed_after = set(), None, False, False
+    holds, held, overridden, hold_reacted, conflicts, refused = 0, set(), 0, False, 0, 0
     react_ops = ("change", "rebase", "apply", "resolve") + (("sync",) if native else ())
     kinds, others, with_main = set(), set(), False
     for i, e in enumerate(events):
@@ -1892,8 +1897,73 @@ def warning_of(events, agent, native=False):
                     with_main = True
                 elif other:
                     others.add(other)
-    return {"warned": warned_at is not None, "reacted": warned_at is not None and reacted, "first_warning_call": warned_at,
-            "kinds": sorted(kinds), "with_main": with_main, "others": sorted(others)}
+        if native and op == "land":
+            status = reply.get("status")
+            cid = reply.get("change") if isinstance(reply.get("change"), str) else args.get("change")
+            if status == "undoes":
+                holds += 1
+                held.add(cid)
+                kinds.add("undoes")
+                if warned_at is None:
+                    warned_at = i
+                for u in reply.get("undoes") or []:
+                    if isinstance(u, dict) and u.get("change") and u["change"] not in own:
+                        others.add(u["change"])
+            elif status == "conflict":
+                conflicts += 1
+            elif status == "refused":
+                refused += 1
+            elif status in ("landed", "already_on_main"):
+                if reply.get("undid") or args.get("undo") is True:
+                    overridden += 1
+                elif held:
+                    hold_reacted = True
+    out = {"warned": warned_at is not None, "reacted": warned_at is not None and (reacted or hold_reacted),
+           "first_warning_call": warned_at, "kinds": sorted(kinds), "with_main": with_main, "others": sorted(others)}
+    if native:
+        out.update(land_holds=holds, held_changes=sorted(c for c in held if c), undoes_overridden=overridden,
+                   hold_reacted=hold_reacted, land_conflicts=conflicts, land_refused=refused, changes=sorted(own))
+    return out
+
+
+def metrics_of(arm, agents, k_of, pairs_truth=None):
+    """The transcript metrics of a run (Run.transcript_metrics, `recount --metrics`): `agents` = [(k, agent
+    name, tool events)], `k_of` = change id -> k. Without `pairs_truth` there is no `false_alarms`."""
+    native = arm == "BN"
+    per, pairs, tests = {}, set(), {}
+    for k, agent, ev in agents:
+        w = warning_of(ev, agent, native=native)
+        per[str(k)] = w
+        for other in w["others"]:
+            if other in k_of and k_of[other] != k:
+                pairs.add(tuple(sorted((k, k_of[other]))))
+        runs = [e for e in ev if TEST_CMD in (e.get("command") or "")]
+        tests[str(k)] = {"runs": len(runs), "passed": any(e.get("ok") and f"{TEST_CMD}: passed" in (e.get("reply") or "") for e in runs)}
+    out = {"warned": sum(w["warned"] for w in per.values()), "reacted": sum(w["reacted"] for w in per.values()),
+           "warnings": per, "warned_pairs": sorted(f"{i}-{j}" for i, j in pairs),
+           "test_command": tests, "test_passed_agents": sum(t["passed"] for t in tests.values())}
+    if pairs_truth is not None:
+        out["false_alarms"] = sum(1 for i, j in pairs if not pairs_truth.get(f"{i}-{j}", False))
+    if native:
+        # `land_conflicts` of a run counts the server's land conflict events; this is the agents' own replies.
+        out["agent_land_conflicts"] = sum(w["land_conflicts"] for w in per.values())
+        for key in ("land_holds", "undoes_overridden", "land_refused", "hold_reacted"):
+            out[key] = sum(w[key] for w in per.values())
+    return out
+
+
+def bn_undoes_held(result):
+    """Arm BN: `undoes_held` per agent and per run = the distinct changes of the agent held with status
+    `undoes`, by its own `land` (transcript) or by the runner's (`lands[].undoes_held`); the runner's alone
+    stay in `undoes_held_runner` (what arm B's `undoes_held` counts). Changes `result` in place."""
+    total = 0
+    for rec in result.get("lands") or []:
+        runner = {x.get("change") for x in rec.get("undoes_held") or []}
+        own = set((result.get("warnings") or {}).get(str(rec.get("k")), {}).get("held_changes") or [])
+        rec["undoes_held_changes"] = sorted(c for c in runner | own if c)
+        total += len(rec["undoes_held_changes"])
+    result["undoes_held_runner"] = sum(len(x.get("undoes_held") or []) for x in result.get("lands") or [])
+    result["undoes_held"] = total
 
 
 # ===================================================================================== agent environment
@@ -2884,22 +2954,12 @@ class Run:
             for a in self.agents:
                 for ch in self.changes_of(a["agent"]):
                     k_of[ch["id"]] = a["k"]
-        per, pairs, tests = {}, set(), {}
+        agents = []
         for a in self.agents:
             path = self.run_dir / f"agent-{a['k']}.jsonl"
             lines = path.read_text(errors="replace").splitlines() if path.exists() else []
-            ev = tool_events(a.get("parser") or a["harness"], lines, Path(a["box"]))
-            w = warning_of(ev, a["agent"], native=self.arm == "BN")
-            per[str(a["k"])] = w
-            for other in w["others"]:
-                if other in k_of and k_of[other] != a["k"]:
-                    pairs.add(tuple(sorted((a["k"], k_of[other]))))
-            runs = [e for e in ev if TEST_CMD in (e.get("command") or "")]
-            tests[str(a["k"])] = {"runs": len(runs), "passed": any(e.get("ok") and f"{TEST_CMD}: passed" in (e.get("reply") or "") for e in runs)}
-        return {"warned": sum(w["warned"] for w in per.values()), "reacted": sum(w["reacted"] for w in per.values()),
-                "warnings": per, "warned_pairs": sorted(f"{i}-{j}" for i, j in pairs),
-                "false_alarms": sum(1 for i, j in pairs if not pairs_truth.get(f"{i}-{j}", False)),
-                "test_command": tests, "test_passed_agents": sum(t["passed"] for t in tests.values())}
+            agents.append((a["k"], a["agent"], tool_events(a.get("parser") or a["harness"], lines, Path(a["box"]))))
+        return metrics_of(self.arm, agents, k_of, pairs_truth or {})
 
     # -------------------------------------------------------------- score
 
@@ -3130,6 +3190,8 @@ class Run:
             result["wall_s"] = round(time.time() - t_agents, 2)
             result["setup_s"] = round(t_agents - t0, 2)
             result.update(self.transcript_metrics(pairs_truth or {}))
+            if self.arm == "BN":
+                bn_undoes_held(result)
             result["guard"] = {str(k): diff_stats(d, self.spec.get("test_globs") or DEFAULT_TEST_GLOBS) for k, d in own.items()}
             tree = self.final_tree()
             result["lost_lines"] = lost_lines(own, tree)
@@ -3405,6 +3467,77 @@ def budget(pilot_dir):
     return out
 
 
+def own_changes(events):
+    """The change ids an agent opened or named in its own treeyard calls."""
+    out = set()
+    for e in events:
+        op = e.get("op")
+        args = e.get("args") if isinstance(e.get("args"), dict) else {}
+        try:
+            reply = json.loads(e.get("reply") or "")
+        except ValueError:
+            reply = {}
+        if op in ("open_change", "start") and isinstance(reply, dict) and reply.get("id"):
+            out.add(reply["id"])
+        if op and isinstance(args.get("change"), str):
+            out.add(args["change"])
+    return out
+
+
+def recount_metrics(runs_dir, results_dirs, out_dir=None):
+    """The transcript metrics (`metrics_of`, and `bn_undoes_held` for arm BN) of finished arm B and BN runs,
+    again from their run files and transcripts (`<runs_dir>/<run>/agent-<k>.jsonl`, `ctx.json`). Prints one
+    row per run; with `out_dir` writes each recounted run file there (the run files stay as they are).
+    `false_alarms` keeps its recorded value (it needs the pair table)."""
+    rows = []
+    for d in results_dirs or ():
+        for f in sorted(Path(d).glob("*.json")):
+            try:
+                r = json.loads(f.read_text())
+            except ValueError:
+                continue
+            if not isinstance(r, dict) or r.get("arm") not in B_ARMS or not r.get("run"):
+                continue
+            run = Path(runs_dir) / r["run"]
+            if not list(run.glob("agent-*.jsonl")):
+                continue
+            harness_of = {}
+            if (run / "ctx.json").is_file():
+                try:
+                    harness_of = {a["k"]: a.get("harness") for a in json.loads((run / "ctx.json").read_text()).get("agents", [])}
+                except (ValueError, KeyError):
+                    pass
+            names = {a["k"]: a.get("agent") for a in r.get("agents") or []}
+            agents, k_of = [], {}
+            for t in sorted(run.glob("agent-*.jsonl"), key=lambda p: int(p.stem.split("-")[1])):
+                k = int(t.stem.split("-")[1])
+                h = harness_of.get(k)
+                h = h if h in ("claude", "codex") else transcript_harness(t) or "script"
+                ev = tool_events(h, t.read_text(errors="replace").splitlines())
+                agents.append((k, names.get(k), ev))
+                for c in own_changes(ev):
+                    k_of.setdefault(c, k)
+            m = metrics_of(r["arm"], agents, k_of)
+            new = dict(r, **m)
+            if r["arm"] == "BN":
+                bn_undoes_held(new)
+            new["recounted"] = {"by": "recount --metrics", "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                "was": {x: r.get(x) for x in ("warned", "reacted", "undoes_held")}}
+            rows.append(new)
+            if out_dir:
+                Path(out_dir).mkdir(parents=True, exist_ok=True)
+                (Path(out_dir) / f.name).write_text(json.dumps(new, indent=1, sort_keys=True) + "\n")
+    cols = ("warned", "reacted", "land_holds", "hold_reacted", "undoes_overridden", "agent_land_conflicts", "land_refused",
+            "undoes_held_runner", "undoes_held")
+    lines = ["| run | " + " | ".join(cols) + " | was warned / reacted / undoes_held |", "|---" * (len(cols) + 2) + "|"]
+    for r in rows:
+        was = r["recounted"]["was"]
+        lines.append("| " + " | ".join([r["run"], *(str(r.get(c, "-")) for c in cols),
+                                        f"{was['warned']} / {was['reacted']} / {was['undoes_held']}"]) + " |")
+    print("\n".join(lines))
+    return rows
+
+
 def recount(runs_dir, results_dirs=()):
     """Tokens of old runs from their transcripts, counted the old way and the new way (`parse_line`).
     Prints one row per run directory and the B / A ratio per set; changes no file."""
@@ -3553,6 +3686,9 @@ def main(argv=None):
     p = sub.add_parser("recount", help="tokens of old runs from their transcripts: old count against new")
     p.add_argument("--runs", required=True, type=Path, help="a directory of run directories (agent-N.jsonl)")
     p.add_argument("--results", action="append", type=Path, help="run files to show the recorded total from")
+    p.add_argument("--metrics", action="store_true", help="recount the warning and land metrics of arm B and BN run files "
+                   "(in --results) from the transcripts in --runs, instead of the tokens")
+    p.add_argument("--out", type=Path, help="with --metrics: write the recounted run files here")
     for n in ("agent-oracle", "agent-noop", "agent-stub"):
         p = sub.add_parser(n)
         p.add_argument("--ctx", required=True)
@@ -3572,6 +3708,11 @@ def main(argv=None):
         budget(a.pilot)
         return
     if a.cmd == "recount":
+        if a.metrics:
+            if not a.results:
+                raise SystemExit("recount --metrics needs --results DIR (the run files)")
+            recount_metrics(a.runs, a.results, a.out)
+            return
         recount(a.runs, a.results or ())
         return
     scratch = a.scratch.resolve()

@@ -4,7 +4,9 @@ One test per stop: turn limit, token limit, wall-clock timeout (per agent), and 
 end the whole run: wrong agent count, server down, zero tool calls. `make bench-test` runs them.
 """
 
+import contextlib
 import http.server
+import io
 import json
 import os
 import shutil
@@ -607,6 +609,85 @@ class MetricTests(unittest.TestCase):
         w = k.warning_of(native, "claude-1", native=True)
         self.assertEqual((w["warned"], w["reacted"], w["others"]), (True, True, ["ch_b"]))
         self.assertFalse(k.warning_of(native, "claude-1")["reacted"], "a sync is no reaction in arm B")
+
+    @staticmethod
+    def bn_transcripts():
+        """Arm BN agents in both dialects: codex-1 is held, then lands with `undo` (an override); claude-1 gets a
+        conflict, a refusal (markers left), a hold, then lands with the line back (a reaction)."""
+        hold = {"status": "undoes", "change": "{me}", "advice": "Not landed: your change removes what another agent landed",
+                "undoes": [{"path": "f.py", "lines": [3, 3], "agent": "x", "change": "ch_other", "text": "a\n"}]}
+        conflict = {"status": "conflict", "change": "{me}", "conflicted": ["f.py"], "advice": "Not landed: main moved"}
+        refused = {"status": "refused", "change": "{me}", "markers_left": ["f.py"]}
+
+        def codex(calls):
+            out = [json.dumps({"type": "thread.started", "thread_id": "t"})]
+            for name, args, reply in calls:
+                out.append(json.dumps({"type": "item.completed", "item": {
+                    "type": "mcp_tool_call", "server": "treeyard", "tool": name, "arguments": args, "status": "completed",
+                    "result": {"content": [{"type": "text", "text": json.dumps(reply)}]}}}))
+            return out
+
+        def claude(calls):
+            out = [json.dumps({"type": "system", "subtype": "init", "session_id": "s"})]
+            for i, (name, args, reply) in enumerate(calls):
+                out.append(json.dumps({"type": "assistant", "message": {"id": f"m{i}", "content": [
+                    {"type": "tool_use", "id": f"u{i}", "name": f"mcp__treeyard__{name}", "input": args}]}}))
+                out.append(json.dumps({"type": "user", "message": {"content": [
+                    {"type": "tool_result", "tool_use_id": f"u{i}", "content": [{"type": "text", "text": json.dumps(reply)}]}]}}))
+            return out
+
+        def fill(v, me):
+            return json.loads(json.dumps(v).replace("{me}", me))
+
+        c1 = codex([("start", {"intent": "x"}, {"id": "ch_c1", "dir": "/d"}),
+                    ("land", {"change": "ch_c1"}, fill(hold, "ch_c1")),
+                    ("land", {"change": "ch_c1", "undo": True, "reason": "the task says so"},
+                     {"status": "landed", "change": "ch_c1", "undid": {"by": "codex-1", "reason": "the task says so"}})])
+        c2 = claude([("start", {"intent": "y"}, {"id": "ch_c2", "dir": "/e"}),
+                     ("land", {"change": "ch_c2"}, fill(conflict, "ch_c2")),
+                     ("land", {"change": "ch_c2"}, fill(refused, "ch_c2")),
+                     ("land", {"change": "ch_c2"}, fill(hold, "ch_c2")),
+                     ("land", {"change": "ch_c2"}, {"status": "landed", "change": "ch_c2"})])
+        return c1, c2
+
+    def test_bn_land_replies_count(self):
+        c1, c2 = self.bn_transcripts()
+        w1 = k.warning_of(k.tool_events("codex", c1), "codex-1", native=True)
+        self.assertEqual((w1["warned"], w1["reacted"], w1["land_holds"], w1["undoes_overridden"], w1["kinds"], w1["others"]),
+                         (True, False, 1, 1, ["undoes"], ["ch_other"]))
+        w2 = k.warning_of(k.tool_events("claude", c2), "claude-1", native=True)
+        self.assertEqual((w2["warned"], w2["reacted"], w2["hold_reacted"], w2["land_conflicts"], w2["land_refused"], w2["held_changes"]),
+                         (True, True, True, 1, 1, ["ch_c2"]))
+        self.assertNotIn("land_holds", k.warning_of(k.tool_events("claude", c2), "claude-1"), "arm B unchanged")
+        self.assertFalse(k.warning_of(k.tool_events("claude", c2), "claude-1")["warned"])
+
+    def test_recount_metrics_of_a_bn_run(self):
+        tmp = Path(tempfile.mkdtemp(prefix="t2-recount-"))
+        try:
+            c1, c2 = self.bn_transcripts()
+            run = tmp / "runs" / "BN-x-heavy-r1-real"
+            run.mkdir(parents=True)
+            (run / "agent-1.jsonl").write_text("\n".join(c1) + "\n")
+            (run / "agent-2.jsonl").write_text("\n".join(c2) + "\n")
+            (run / "ctx.json").write_text(json.dumps({"arm": "BN", "agents": [{"k": 1, "harness": "codex"}, {"k": 2, "harness": "claude"}]}))
+            res = tmp / "results"
+            res.mkdir()
+            old = {"run": "BN-x-heavy-r1-real", "arm": "BN", "kit": 2, "warned": 0, "reacted": 0, "undoes_held": 0, "false_alarms": 0,
+                   "agents": [{"k": 1, "agent": "codex-1"}, {"k": 2, "agent": "claude-1"}],
+                   "lands": [{"k": 1, "undoes_held": []}, {"k": 2, "undoes_held": [{"change": "ch_c2", "undoes": []}]}]}
+            (res / "BN-x-heavy-r1-real.json").write_text(json.dumps(old))
+            out = tmp / "out"
+            with contextlib.redirect_stdout(io.StringIO()) as buf:
+                k.main(["recount", "--metrics", "--runs", str(tmp / "runs"), "--results", str(res), "--out", str(out)])
+            self.assertIn("| BN-x-heavy-r1-real | 2 | 1 | 2 | 1 | 1 | 1 | 1 | 1 | 2 | 0 / 0 / 0 |", buf.getvalue())
+            r = json.loads((out / "BN-x-heavy-r1-real.json").read_text())
+            self.assertEqual((r["warned"], r["reacted"], r["land_holds"], r["undoes_overridden"], r["undoes_held"], r["undoes_held_runner"]),
+                             (2, 1, 2, 1, 2, 1))
+            self.assertEqual([x["undoes_held_changes"] for x in r["lands"]], [["ch_c1"], ["ch_c2"]], "one change counted once")
+            self.assertEqual(r["false_alarms"], 0)
+            self.assertEqual(json.loads((res / "BN-x-heavy-r1-real.json").read_text()), old, "the run file stays")
+        finally:
+            shutil.rmtree(tmp)
 
     def test_tool_events_of_both_harnesses(self):
         tmp = Path(tempfile.mkdtemp(prefix="t2-events-"))

@@ -88,8 +88,15 @@ cwd, server, metrics, hand-back and stops. What differs:
   resumes the agent there, and the runner's next bridge `land` sends the files, or answers `refused`
   while markers are left (the hand-back failed). `lands[].runner_landed[]` marks these with `native`.
 - `warned` counts collisions in the agent's own `sync` replies too (op `sync`); a `start` reply names the
-  agent's change; a `sync` after the warning is a reaction. `undoes_held` counts the runner's held lands
-  as in arm B.
+  agent's change; a `sync` after the warning is a reaction. The agent's own `land` replies count as well:
+  a hold (status `undoes`) is a warning of kind `undoes` (`land_holds`); a later land that lands without
+  `undid` is a reaction (`hold_reacted`), one with `undid` an override (`undoes_overridden`).
+  `agent_land_conflicts` and `land_refused` count conflict and markers-left replies (per agent in
+  `warnings`). `undoes_held` (per agent `lands[].undoes_held_changes`) counts the distinct changes held by
+  the agent's land or the runner's; `undoes_held_runner` is the runner's alone, what arm B counts.
+- `recount --metrics --runs S/t2/runner --results DIR [--out DIR2]` counts these again for finished arm B
+  and BN runs from their run files and transcripts, without a run: one row per run (with the recorded
+  values), and with `--out` the recounted run files (the originals stay; `false_alarms` keeps its value).
 - The scripted harnesses drive the native flow for real through a bridge on stdio (`NativeBridge`):
   the oracle starts, `git apply`s `reference.patch` in `dir`, syncs, lands in the fixed order and on a
   conflict writes main plus `resolved-<k>.patch` over the markers in `dir`; `noop` calls `start` only;

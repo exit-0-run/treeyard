@@ -17,7 +17,9 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
   block is unchanged). Only the stdio bridge has the set (`POST /mcp?tools=native` is refused).
   Tests: `tests/native.rs`, `tests/connect.rs`.
 - bench/t2: arm `BN`, arm B connected in native mode (`block-bn.md`), with the scripted harnesses
-  driving the native flow through the bridge and the runner landing through it.
+  driving the native flow through the bridge and the runner landing through it. Its metrics read the
+  agents' own `land` replies (holds as warnings, reactions, overrides, conflicts, refusals), and
+  `recount --metrics` counts them again for finished runs.
 
 ### Fixed
 - `grep` with `path` naming a file returned no matches: `path` was taken as a directory prefix only
