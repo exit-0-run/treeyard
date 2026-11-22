@@ -76,7 +76,7 @@ def strip_markers(path):
 class Bridge:
     def __init__(self, ty, url, agent, env):
         self.p = subprocess.Popen([str(ty), "mcp", "--url", url, "--agent", agent, "--tools", "native"], stdin=subprocess.PIPE,
-                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=env)
+                                  stdout=subprocess.PIPE, stderr=(open(os.path.join(os.environ["TRAFFIC_BRIDGE_ERR"], agent + ".err"), "a") if os.environ.get("TRAFFIC_BRIDGE_ERR") else subprocess.DEVNULL), text=True, env=env)
         self.n = 0
         self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "traffic", "version": "1"}})
 
