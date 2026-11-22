@@ -21,6 +21,32 @@ sys.path.insert(0, str(HERE.parents[2]))
 import t2  # noqa: E402
 
 
+def classify(rows, agent_at, task_k, pairs, own_passes):
+    """rows: states of main in order, each {"passed": {test id: bool}}; agent_at: the agent number whose
+    work entered at each state (None for the pin); task_k: task id -> agent number; pairs: integration
+    id -> the two agent numbers; own_passes(task id) -> True/False for the agent's own work before any
+    merge, None when it never reached main. Returns one entry per test that fails at the last state."""
+    k_to_id = {k: t for t, k in task_k.items()}
+    last = rows[-1]["passed"]
+    out = []
+    for tid in list(task_k) + list(pairs):
+        if last[tid]:
+            continue
+        seq = [r["passed"][tid] for r in rows]
+        if any(seq):
+            i = max(j for j in range(1, len(seq)) if seq[j - 1] and not seq[j])
+            cause, by = "broken by", k_to_id.get(agent_at[i], agent_at[i])
+        elif tid in task_k:
+            own = own_passes(tid)
+            cause = "not merged" if own is None else "own merge" if own else "own miss"
+            by = tid if own is not None else None
+        else:
+            lost = [k_to_id[k] for k in pairs[tid] if not last[k_to_id[k]]]
+            cause, by = ("follows", lost) if lost else ("do not fit", None)
+        out.append({"test": tid, "kind": "task" if tid in task_k else "integration", "cause": cause, "by": by})
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--scratch", required=True, type=Path)
@@ -78,29 +104,10 @@ def main():
 
     if not rows:
         sys.exit("no commit on main after the pin")
+    out = classify(rows, agent_at, {tid: k for tid, (k, _, _) in metas.items()},
+                   {i: it["pair"] for i, it in integ.items()},
+                   lambda tid: (lambda oc: None if oc is None else passes_at(oc, tid))(own_commit(metas[tid][0])))
     last = rows[-1]["passed"]
-    out = []
-    for tid in list(metas) + list(integ):
-        if last[tid]:
-            continue
-        seq = [r["passed"][tid] for r in rows]
-        if any(seq):
-            i = max(j for j in range(1, len(seq)) if seq[j - 1] and not seq[j])
-            cause, by = "broken by", agent_at[i]
-        elif tid in metas:
-            k = metas[tid][0]
-            oc = own_commit(k)
-            if oc is None:
-                cause, by = "not merged", None
-            elif passes_at(oc, tid):
-                cause, by = "own merge", k
-            else:
-                cause, by = "own miss", k
-        else:
-            lost = [k_to_id[k] for k in integ[tid]["pair"] if not last[k_to_id[k]]]
-            cause, by = ("follows", lost) if lost else ("do not fit", None)
-        out.append({"test": tid, "kind": "task" if tid in metas else "integration", "cause": cause,
-                    "by": k_to_id.get(by, by) if isinstance(by, int) else by})
     res = {"run": a.run.name, "tasks_on_main": sum(last[t] for t in metas), "tasks": len(metas),
            "integration_passed": sum(last[t] for t in integ), "integration": len(integ), "losses": out,
            "breaks": h["breaks"]}

@@ -28,6 +28,12 @@ agents, repetitions 51 to 53, limit 11 USD of Claude list price for the three ru
 the cost so far plus the dearest run so far would pass it). Not run at the same time as anything else
 on the machine.
 
+- The runs go one after the other, with a stop (added before the first run): when run 1 has 13 of
+  13 tasks, 21 of 21 integration tests and no integration defect, runs 2 and 3 are not started and
+  the conclusion is "the set is not a cheap field for comparisons". Reason: on another dense set
+  (10 agents, 33 of 45 pairs conflicting, 3 refactors) git with the same model gave a clean run the
+  same day, so a clean first run here makes two more unlikely to change the reading. With a loss or
+  a defect in run 1, runs 2 and 3 follow and the rule below is read over the three.
 - The set is a field for comparisons when git delivers under 85 % of the tasks over the 3 runs (33 or
   fewer of 39 hidden tests pass on the final main) or 2 or 3 runs have an integration defect (a task
   or an integration test lost for a reason that involves another agent).
@@ -39,3 +45,13 @@ on the machine.
   task lost that way. Results are given apart for the 4 strong refactors (h1, h2, h11, h14) and the 2
   weak ones (h12, h13), with wall time, cost and the number of conflicts handed back.
 - A run cut by a usage limit or a kit crash is invalid, listed, and run again within the limit.
+
+### Check of the loss classifier before the runs
+
+`losses.py` was run on the stored histories of main of five `heavy` runs whose losses were traced by
+hand ([`losses_check.py`](losses_check.py), data in `losses-check.json`): 7 of 8 losses get the same
+cause. The one difference: in A r3 the hand reading of i1 is "the two tasks do not fit", the script
+says "follows h1", because h1 itself is lost in that run and the script cannot look past a lost
+partner. So "follows" can hide a second cause; such entries are read by hand. The histories of the
+other five traced runs (A2 r22, A2 r33, BN r21, B r23, B r33) were deleted with their run
+directories and could not be checked.
