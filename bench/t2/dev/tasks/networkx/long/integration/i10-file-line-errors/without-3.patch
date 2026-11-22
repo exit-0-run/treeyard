@@ -1,0 +1,3609 @@
+diff --git a/doc/reference/readwrite/edgelist.rst b/doc/reference/readwrite/edgelist.rst
+--- a/doc/reference/readwrite/edgelist.rst
++++ b/doc/reference/readwrite/edgelist.rst
+@@ -11,3 +11,5 @@
+    write_weighted_edgelist
+    generate_edgelist
+    parse_edgelist
++   read_graph_header
++   parse_graph_header
+diff --git a/networkx/readwrite/_compression.py b/networkx/readwrite/_compression.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_compression.py
+@@ -0,0 +1,57 @@
++"""Compressed files for the line formats (edge list, adjacency lists, Pajek,
++LEDA).
++
++The readers recognise a gzip, bz2 or xz file by its first bytes, whatever its
++name; the writers compress with ``compression="gzip"``, ``"bz2"`` or ``"xz"``.
++"""
++
++import bz2
++import gzip
++import io
++import lzma
++
++__all__ = []
++
++# The first bytes of each kind of compressed file.
++MAGIC = ((b"\x1f\x8b", gzip), (b"BZh", bz2), (b"\xfd7zXZ\x00", lzma))
++COMPRESSIONS = {"gzip": gzip.GzipFile, "bz2": bz2.BZ2File, "xz": lzma.LZMAFile}
++ENDINGS = (".gz", ".gzip", ".bz2", ".xz")
++
++
++def uncompressed(f):
++    """The open binary file `f`, uncompressed when its content is gzip, bz2 or
++    xz data (several compressions in a row are all undone). A file of text
++    lines (``str``) is returned as it is."""
++    data = f.read()
++    if isinstance(data, str):
++        return io.StringIO(data)
++    while True:
++        for magic, module in MAGIC:
++            if data.startswith(magic):
++                data = module.decompress(data)
++                break
++        else:
++            return io.BytesIO(data)
++
++
++def compressing(f, compression):
++    """``(writer, finish)``: the file to write to and the function to call when
++    all is written. With `compression` None they are `f` and a no-op; else a
++    writer that compresses into `f` (which stays open)."""
++    if compression is None:
++        return f, lambda: None
++    if compression not in COMPRESSIONS:
++        raise ValueError(
++            f"compression must be None, 'gzip', 'bz2' or 'xz', not {compression!r}"
++        )
++    name = getattr(f, "name", None)
++    if isinstance(name, str) and name.endswith(ENDINGS):
++        raise ValueError(
++            f"compression={compression!r} with the file name {name!r}: its ending already compresses"
++        )
++    writer = (
++        COMPRESSIONS[compression](f, mode="wb")
++        if compression != "gzip"
++        else gzip.GzipFile(fileobj=f, mode="wb")
++    )
++    return writer, writer.close
+diff --git a/networkx/readwrite/_encoding.py b/networkx/readwrite/_encoding.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_encoding.py
+@@ -0,0 +1,63 @@
++"""Byte order marks and encoding detection for the line formats."""
++
++import codecs
++import re
++
++__all__ = []
++
++_BOMS = (
++    (codecs.BOM_UTF8, "utf-8"),
++    (codecs.BOM_UTF16_LE, "utf-16-le"),
++    (codecs.BOM_UTF16_BE, "utf-16-be"),
++)
++
++
++def _canonical(encoding):
++    return codecs.lookup(encoding).name
++
++
++def decoded_lines(f, encoding="utf-8"):
++    """The lines of the open file `f` as text, line ends kept.
++
++    A UTF-8 byte order mark at the start is skipped when the encoding is
++    UTF-8. With ``encoding=None`` the encoding comes from the byte order mark
++    (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when there is none.
++    """
++    if encoding is None:
++        data = f.read()
++        if isinstance(data, str):
++            return iter(_lines(data.removeprefix("﻿")))
++        encoding = "utf-8"
++        for bom, name in _BOMS:
++            if data.startswith(bom):
++                data, encoding = data[len(bom) :], name
++                break
++        return iter(_lines(data.decode(encoding)))
++    utf8 = _canonical(encoding) == "utf-8"
++
++    def gen():
++        first = True
++        for line in f:
++            if not isinstance(line, str):
++                line = line.decode(encoding)
++            if first and utf8:
++                line = line.removeprefix("﻿")
++            first = False
++            yield line
++
++    return gen()
++
++
++def _lines(text):
++    return re.findall(r"[^\n]*\n|[^\n]+\Z", text)
++
++
++def bom_bytes(encoding):
++    """The byte order mark of `encoding` for ``bom=True``."""
++    name = _canonical(encoding)
++    for bom, bom_name in _BOMS:
++        if name == bom_name:
++            return bom
++    raise ValueError(
++        f"bom=True needs the encoding utf-8, utf-16-le or utf-16-be, not {encoding!r}"
++    )
+diff --git a/networkx/readwrite/_floats.py b/networkx/readwrite/_floats.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_floats.py
+@@ -0,0 +1,25 @@
++"""The text of edge data for the line formats, with ``float_format``."""
++
++__all__ = []
++
++
++def value_text(value, float_format=None):
++    """``str(value)``, or ``format(value, float_format)`` for a float when
++    `float_format` is given."""
++    if float_format is not None and isinstance(value, float):
++        return format(value, float_format)
++    return str(value)
++
++
++def data_text(data, float_format=None):
++    """The text of an edge data dict: ``str(dict(data))``; with
++    `float_format`, float values are written with it and keys and other values
++    with ``repr`` as ``str`` of a dict does."""
++    data = dict(data)
++    if float_format is None:
++        return str(data)
++    items = []
++    for key, value in data.items():
++        text = format(value, float_format) if isinstance(value, float) else repr(value)
++        items.append(f"{key!r}: {text}")
++    return "{" + ", ".join(items) + "}"
+diff --git a/networkx/readwrite/_header.py b/networkx/readwrite/_header.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_header.py
+@@ -0,0 +1,78 @@
++"""The graph header line of the line formats (edge list, adjacency lists).
++
++``write_*(..., header=True)`` writes as the first line::
++
++    # networkx-graph: directed=True multigraph=False name="roads"
++
++(``name=`` only for a graph with a name, as a JSON string),
++
++and the ``parse_*``/``read_*`` functions build a graph of that type when
++such a line comes before the first data line and ``create_using`` is None.
++"""
++
++import json
++
++import networkx as nx
++
++__all__ = []
++
++_CLASSES = {
++    (False, False): nx.Graph,
++    (True, False): nx.DiGraph,
++    (False, True): nx.MultiGraph,
++    (True, True): nx.MultiDiGraph,
++}
++
++
++def header_line(G, comments="#"):
++    """The header line of `G`, without its line end."""
++    line = f"{comments} networkx-graph: directed={G.is_directed()} multigraph={G.is_multigraph()}"
++    if G.name:
++        line += f" name={json.dumps(str(G.name))}"
++    return line
++
++
++def parse_header(line, comments="#"):
++    """``{"directed": bool, "multigraph": bool, "name": str or None}`` of the
++    header `line`, or None when `line` is not a header line."""
++    if comments is None:
++        return None
++    text = line.rstrip("\r\n").strip()
++    if not text.startswith(comments):
++        return None
++    words = text[len(comments) :].split(None, 3)
++    if len(words) < 3 or words[0] != "networkx-graph:":
++        return None
++    flags = {"True": True, "False": False}
++    if not (words[1].startswith("directed=") and words[2].startswith("multigraph=")):
++        return None
++    directed = flags.get(words[1][len("directed=") :])
++    multigraph = flags.get(words[2][len("multigraph=") :])
++    if directed is None or multigraph is None:
++        return None
++    name = None
++    if len(words) == 4:
++        if not words[3].startswith("name="):
++            return None
++        try:
++            name = json.loads(words[3][len("name=") :])
++        except ValueError:
++            return None
++        if not isinstance(name, str):
++            return None
++    return {"directed": directed, "multigraph": multigraph, "name": name}
++
++
++def header_name(line, comments="#"):
++    """The graph name of the header `line` (None without one)."""
++    info = parse_header(line, comments)
++    return info["name"] if info else None
++
++
++def graph_class(line, comments="#"):
++    """The graph class that the header `line` names, or None when `line` is
++    not a header line."""
++    info = parse_header(line, comments)
++    if info is None:
++        return None
++    return _CLASSES[info["directed"], info["multigraph"]]
+diff --git a/networkx/readwrite/_lineparser.py b/networkx/readwrite/_lineparser.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_lineparser.py
+@@ -0,0 +1,275 @@
++"""The parser of the line formats: edge list, adjacency list and multiline
++adjacency list.
++
++:func:`~networkx.readwrite.edgelist.parse_edgelist`,
++:func:`~networkx.readwrite.adjlist.parse_adjlist` and
++:func:`~networkx.readwrite.multiline_adjlist.parse_multiline_adjlist` are
++``LineParser(comments, delimiter, nodetype).parse_*(lines, ...)``. The steps
++that the three formats share (removing a comment, splitting a line,
++converting a node name) are methods, so a subclass can change one of them
++for all three formats.
++"""
++
++import networkx as nx
++from networkx.readwrite._header import graph_class, header_name
++from networkx.readwrite._quote import split_names, strip_comment
++
++
++class _Through:
++    """The ``nodetype`` seen by the parse methods: a call goes through
++    :meth:`LineParser.node`, and a message shows the ``nodetype`` given."""
++
++    def __init__(self, call, shown):
++        self.call = call
++        self.shown = shown
++
++    def __call__(self, text):
++        return self.call(text)
++
++    def __str__(self):
++        return str(self.shown)
++
++    def __repr__(self):
++        return repr(self.shown)
++
++
++__all__ = ["LineParser"]
++
++
++class LineParser:
++    """Reads graphs from lines in the edge list, adjacency list and multiline
++    adjacency list formats.
++
++    Parameters
++    ----------
++    comments : str or None, optional (default="#")
++        The text that starts a comment; None for no comments.
++    delimiter : str or None, optional (default=None)
++        The text between the tokens of a line; None for runs of whitespace.
++    nodetype : callable or None, optional (default=None)
++        Converts the text of a node name to the node.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, comments="#", delimiter=None, nodetype=None):
++        self.comments = comments
++        self.delimiter = delimiter
++        self.nodetype = nodetype
++
++    def strip(self, line):
++        """`line` without its comment: the text from the first `comments`
++        string that is not inside a quoted name."""
++        return strip_comment(line, self.comments, self.delimiter)
++
++    def split(self, line, names=None):
++        """The tokens of a line whose comment is removed: the line end goes
++        and the rest is split at the delimiter. The first `names` tokens (all
++        when None) are node names and may be quoted."""
++        return split_names(line.rstrip("\r\n"), self.delimiter, names=names)
++
++    def _strip_comment(self, line, comments, delimiter):
++        return self.strip(line)
++
++    def _split_names(self, text, delimiter, names=None):
++        return self.split(text, names=names)
++
++    def node(self, text):
++        """The node of the name `text`: ``nodetype(text)``, or `text` when there
++        is no `nodetype`. An error of `nodetype` propagates; the ``parse_*``
++        methods turn it into the error they raise."""
++        if self.nodetype is None:
++            return text
++        return self.nodetype(text)
++
++    def parse_edgelist(self, lines, create_using=None, data=True):
++        """The graph of the edge list `lines`: what
++        :func:`~networkx.readwrite.edgelist.parse_edgelist` returns."""
++        comments, delimiter = self.comments, self.delimiter
++        nodetype = None if self.nodetype is None else _Through(self.node, self.nodetype)
++        strip_comment, split_names = self._strip_comment, self._split_names
++        from ast import literal_eval
++
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        for line in lines:
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    if header_name(line, comments):
++                        G.graph["name"] = header_name(line, comments)
++                    continue
++            if comments is not None:
++                line = strip_comment(line, comments, delimiter)
++                if not line:
++                    continue
++            # split line, should have 2 or more; the two node names may be quoted
++            # with data keys every value may be quoted too; else the data is text
++            names = None if data not in (True, False) else 2
++            s = split_names(line.rstrip("\r\n"), delimiter, names=names)
++            if len(s) < 2:
++                continue
++            seen_data = True
++            u = s.pop(0)
++            v = s.pop(0)
++            d = s
++            if nodetype is not None:
++                try:
++                    u = nodetype(u)
++                    v = nodetype(v)
++                except Exception as err:
++                    raise TypeError(
++                        f"Failed to convert nodes {u},{v} to type {nodetype}."
++                    ) from err
++
++            if len(d) == 0 or data is False:
++                # no data or data type specified
++                edgedata = {}
++            elif data is True:
++                # no edge types specified
++                try:  # try to evaluate as dictionary
++                    if delimiter == ",":
++                        edgedata_str = ",".join(d)
++                    else:
++                        edgedata_str = " ".join(d)
++                    edgedata = dict(literal_eval(edgedata_str.strip()))
++                except Exception as err:
++                    raise TypeError(
++                        f"Failed to convert edge data ({d}) to dictionary."
++                    ) from err
++            else:
++                # convert edge data to dictionary with specified keys and type
++                if len(d) != len(data):
++                    raise IndexError(
++                        f"Edge data {d} and data_keys {data} are not the same length"
++                    )
++                edgedata = {}
++                for (edge_key, edge_type), edge_value in zip(data, d):
++                    try:
++                        edge_value = edge_type(edge_value)
++                    except Exception as err:
++                        raise TypeError(
++                            f"Failed to convert {edge_key} data {edge_value} "
++                            f"to type {edge_type}."
++                        ) from err
++                    edgedata.update({edge_key: edge_value})
++            G.add_edge(u, v, **edgedata)
++        return G
++
++    def parse_adjlist(self, lines, create_using=None):
++        """The graph of the adjacency list `lines`: what
++        :func:`~networkx.readwrite.adjlist.parse_adjlist` returns."""
++        comments, delimiter = self.comments, self.delimiter
++        nodetype = None if self.nodetype is None else _Through(self.node, self.nodetype)
++        strip_comment, split_names = self._strip_comment, self._split_names
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        for line in lines:
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    if header_name(line, comments):
++                        G.graph["name"] = header_name(line, comments)
++                    continue
++            line = strip_comment(line, comments, delimiter)
++            if not len(line):
++                continue
++            seen_data = True
++            vlist = split_names(line.rstrip("\r\n"), delimiter)
++            u = vlist.pop(0)
++            # convert types
++            if nodetype is not None:
++                try:
++                    u = nodetype(u)
++                except BaseException as err:
++                    raise TypeError(
++                        f"Failed to convert node ({u}) to type {nodetype}"
++                    ) from err
++            G.add_node(u)
++            if nodetype is not None:
++                try:
++                    vlist = list(map(nodetype, vlist))
++                except BaseException as err:
++                    raise TypeError(
++                        f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}"
++                    ) from err
++            G.add_edges_from([(u, v) for v in vlist])
++        return G
++
++    def parse_multiline_adjlist(self, lines, create_using=None, edgetype=None):
++        """The graph of the multiline adjacency list `lines`:
++        what
++        :func:`~networkx.readwrite.multiline_adjlist.parse_multiline_adjlist`
++        returns."""
++        comments, delimiter = self.comments, self.delimiter
++        nodetype = None if self.nodetype is None else _Through(self.node, self.nodetype)
++        strip_comment, split_names = self._strip_comment, self._split_names
++        from ast import literal_eval
++
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        for line in lines:
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    if header_name(line, comments):
++                        G.graph["name"] = header_name(line, comments)
++                    continue
++            line = strip_comment(line, comments, delimiter)
++            if not line:
++                continue
++            seen_data = True
++            try:
++                (u, deg) = split_names(line.rstrip("\r\n"), delimiter, names=1)
++                deg = int(deg)
++            except BaseException as err:
++                raise TypeError(f"Failed to read node and degree on line ({line})") from err
++            if nodetype is not None:
++                try:
++                    u = nodetype(u)
++                except BaseException as err:
++                    raise TypeError(
++                        f"Failed to convert node ({u}) to type {nodetype}"
++                    ) from err
++            G.add_node(u)
++            for i in range(deg):
++                while True:
++                    try:
++                        line = next(lines)
++                    except StopIteration as err:
++                        msg = f"Failed to find neighbor for node ({u})"
++                        raise TypeError(msg) from err
++                    line = strip_comment(line, comments, delimiter)
++                    if line:
++                        break
++                vlist = split_names(line.rstrip("\r\n"), delimiter, names=1)
++                numb = len(vlist)
++                if numb < 1:
++                    continue  # isolated node
++                v = vlist.pop(0)
++                data = "".join(vlist)
++                if nodetype is not None:
++                    try:
++                        v = nodetype(v)
++                    except BaseException as err:
++                        raise TypeError(
++                            f"Failed to convert node ({v}) to type {nodetype}"
++                        ) from err
++                if edgetype is not None:
++                    try:
++                        edgedata = {"weight": edgetype(data)}
++                    except BaseException as err:
++                        raise TypeError(
++                            f"Failed to convert edge data ({data}) to type {edgetype}"
++                        ) from err
++                else:
++                    try:  # try to evaluate
++                        edgedata = literal_eval(data)
++                    except:
++                        edgedata = {}
++                G.add_edge(u, v, **edgedata)
++
++        return G
+diff --git a/networkx/readwrite/_linewriter.py b/networkx/readwrite/_linewriter.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_linewriter.py
+@@ -0,0 +1,275 @@
++"""The writer of the line formats: edge list, adjacency list, multiline
++adjacency list and Pajek.
++
++:func:`~networkx.readwrite.edgelist.generate_edgelist`,
++:func:`~networkx.readwrite.adjlist.generate_adjlist`,
++:func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist` and
++:func:`~networkx.readwrite.pajek.generate_pajek` are
++``LineWriter(delimiter, ...).<format>(G, ...)``. The text of a node name is
++one method, so a subclass can change it for the three line formats.
++"""
++
++import warnings
++
++from networkx.readwrite._floats import data_text, value_text
++from networkx.readwrite._header import header_line
++from networkx.readwrite._quote import quote_name
++from networkx.readwrite._sorting import sorted_graph
++
++
++__all__ = ["LineWriter"]
++
++
++class LineWriter:
++    """Writes graphs as lines in the edge list, adjacency list, multiline
++    adjacency list and Pajek formats.
++
++    Parameters
++    ----------
++    delimiter : str, optional (default=" ")
++        The text written between the tokens of a line.
++    header : bool, optional (default=False)
++        Yield the graph header line first (see ``header`` of the
++        ``generate_*`` functions).
++    comments : str, optional (default="#")
++        The comment string of the header line.
++    sort : bool or function, optional (default=False)
++        Write nodes, neighbours and parallel edges in a fixed order (see
++        ``sort`` of the ``generate_*`` functions).
++    float_format : str or None, optional (default=None)
++        The format spec of float edge data values (see ``float_format`` of
++        the ``generate_*`` functions).
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, delimiter=" ", header=False, comments="#", sort=False, float_format=None):
++        self.delimiter = delimiter
++        self.header = header
++        self.comments = comments
++        self.sort = sort
++        self.float_format = float_format
++
++    def name(self, node):
++        """The text of a node in a line: ``str(node)``, in double quotes when
++        it needs them (see the ``generate_*`` functions)."""
++        return quote_name(node, self.delimiter)
++
++    def _quote_name(self, node, delimiter):
++        return self.name(node)
++
++    def edgelist(self, G, data=True):
++        """The lines of `G` in edge list format: what
++        :func:`~networkx.readwrite.edgelist.generate_edgelist` yields."""
++        delimiter = self.delimiter
++        header, comments, sort, float_format = self.header, self.comments, self.sort, self.float_format
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        if data is True:
++            for u, v, d in G.edges(data=True):
++                e = (
++                    quote_name(u, delimiter),
++                    quote_name(v, delimiter),
++                    data_text(d, float_format),
++                )
++                yield delimiter.join(map(str, e))
++        elif data is False:
++            for u, v in G.edges(data=False):
++                e = quote_name(u, delimiter), quote_name(v, delimiter)
++                yield delimiter.join(map(str, e))
++        else:
++            for u, v, d in G.edges(data=True):
++                e = [quote_name(u, delimiter), quote_name(v, delimiter)]
++                try:
++                    e.extend(
++                        quote_name(d[k], delimiter) if isinstance(d[k], str) else d[k]
++                        for k in data
++                    )
++                except KeyError:
++                    pass  # missing data for this edge, should warn?
++                yield delimiter.join(value_text(x, float_format) for x in e)
++
++    def adjlist(self, G):
++        """The lines of `G` in adjacency list format: what
++        :func:`~networkx.readwrite.adjlist.generate_adjlist` yields."""
++        delimiter = self.delimiter
++        header, comments, sort = self.header, self.comments, self.sort
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        seen = set()
++        directed = G.is_directed()
++        multigraph = G.is_multigraph()
++        for s, nbrs in G.adjacency():
++            nodes = [quote_name(s, delimiter)]
++            for t, data in nbrs.items():
++                if t in seen:
++                    continue
++                if multigraph and len(data) > 1:
++                    nodes.extend((quote_name(t, delimiter),) * len(data))
++                else:
++                    nodes.append(quote_name(t, delimiter))
++            if not directed:
++                seen.add(s)
++            yield delimiter.join(nodes)
++
++    def multiline_adjlist(self, G):
++        """The lines of `G` in multiline adjacency list format: what
++        :func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist`
++        yields."""
++        delimiter = self.delimiter
++        header, comments, sort, float_format = self.header, self.comments, self.sort, self.float_format
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        if G.is_directed():
++            if G.is_multigraph():
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++            else:  # directed single edges
++                for s, nbrs in G.adjacency():
++                    deg = len(nbrs)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbrs.items():
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++        else:  # undirected
++            if G.is_multigraph():
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        if u not in seen
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++                    seen.add(s)
++            else:  # undirected single edges
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++                    seen.add(s)
++
++    def pajek(self, G):
++        """The lines of `G` in Pajek format: what
++        :func:`~networkx.readwrite.pajek.generate_pajek` yields.
++        (The Pajek format quotes its own names, so :meth:`name` is not used
++        here.)"""
++        from networkx.readwrite.pajek import make_qstr
++
++        sort, float_format = self.sort, self.float_format
++        if sort:
++            G = sorted_graph(G, sort)
++        if G.name == "":
++            name = "NetworkX"
++        else:
++            name = G.name
++        # Apparently many Pajek format readers can't process this line
++        # So we'll leave it out for now.
++        # yield '*network %s'%name
++
++        # write nodes with attributes
++        yield f"*vertices {G.order()}"
++        nodes = list(G)
++        # make dictionary mapping nodes to integers
++        nodenumber = dict(zip(nodes, range(1, len(nodes) + 1)))
++        for n in nodes:
++            # copy node attributes and pop mandatory attributes
++            # to avoid duplication.
++            na = G.nodes.get(n, {}).copy()
++            x = na.pop("x", 0.0)
++            y = na.pop("y", 0.0)
++            try:
++                id = int(na.pop("id", nodenumber[n]))
++            except ValueError as err:
++                err.args += (
++                    (
++                        "Pajek format requires 'id' to be an int()."
++                        " Refer to the 'Relabeling nodes' section."
++                    ),
++                )
++                raise
++            nodenumber[n] = id
++            shape = na.pop("shape", "ellipse")
++            if float_format is not None:
++                x, y = value_text(x, float_format), value_text(y, float_format)
++            s = " ".join(map(make_qstr, (id, n, x, y, shape)))
++            # only optional attributes are left in na.
++            for k, v in na.items():
++                if isinstance(v, str) and v.strip() != "":
++                    s += f" {make_qstr(k)} {make_qstr(v)}"
++                else:
++                    warnings.warn(
++                        f"Node attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
++                    )
++            yield s
++
++        # write edges with attributes
++        if G.is_directed():
++            yield "*arcs"
++        else:
++            yield "*edges"
++        for u, v, edgedata in G.edges(data=True):
++            d = edgedata.copy()
++            value = d.pop("weight", 1.0)  # use 1 as default edge value
++            if float_format is not None:
++                value = value_text(value, float_format)
++            s = " ".join(map(make_qstr, (nodenumber[u], nodenumber[v], value)))
++            for k, v in d.items():
++                if isinstance(v, str) and v.strip() != "":
++                    s += f" {make_qstr(k)} {make_qstr(v)}"
++                else:
++                    warnings.warn(
++                        f"Edge attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
++                    )
++            yield s
+diff --git a/networkx/readwrite/_newlines.py b/networkx/readwrite/_newlines.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_newlines.py
+@@ -0,0 +1,31 @@
++"""Line ends for the line formats: ``\\n``, ``\\r\\n`` or ``\\r``."""
++
++import re
++
++__all__ = []
++
++NEWLINES = ("\n", "\r\n", "\r")
++
++_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\Z")
++
++
++def split_line_ends(lines):
++    """The lines of `lines` (text pieces as a file yields them), split again at
++    every ``\\r\\n``, ``\\r`` or ``\\n``, each with its line end."""
++    rest = ""
++    for piece in lines:
++        text = rest + piece
++        rest = ""
++        parts = _END.findall(text)
++        if parts and parts[-1].endswith("\r") and text.endswith("\r"):
++            # a "\r" at the end of a piece may be the first half of "\r\n"
++            rest = parts.pop()
++        yield from parts
++    if rest:
++        yield rest
++
++
++def check_newline(newline):
++    """Raises ValueError unless `newline` is ``"\\n"``, ``"\\r\\n"`` or ``"\\r"``."""
++    if newline not in NEWLINES:
++        raise ValueError(f'newline must be "\\n", "\\r\\n" or "\\r", not {newline!r}')
+diff --git a/networkx/readwrite/_quote.py b/networkx/readwrite/_quote.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_quote.py
+@@ -0,0 +1,139 @@
++"""Quoted node names for the line formats (edge list, adjacency lists).
++
++A node name that cannot be written as a bare token is written in double
++quotes. Inside the quotes a backslash is written as ``\\\\``, a double quote
++as ``\\"``, a line feed as ``\\n`` and a carriage return as ``\\r``.
++"""
++
++__all__ = []
++
++# The escapes inside a quoted name: a line break would end the line.
++_ESCAPES = {"n": "\n", "r": "\r"}
++
++
++def needs_quotes(name, delimiter=" "):
++    """True when the text `name` cannot be written as a bare token: it is
++    empty, or holds whitespace, the delimiter, ``#``, ``"`` or ``\\``."""
++    if name == "":
++        return True
++    if any(c.isspace() for c in name):
++        return True
++    if delimiter and delimiter in name:
++        return True
++    return any(c in name for c in '#"\\')
++
++
++def quote_name(node, delimiter=" "):
++    """The text of a node for a line format: ``str(node)``, in double quotes
++    when it needs them (see :func:`needs_quotes`)."""
++    name = str(node)
++    if not needs_quotes(name, delimiter):
++        return name
++    text = name.replace("\\", "\\\\").replace('"', '\\"')
++    text = text.replace("\n", "\\n").replace("\r", "\\r")
++    return '"' + text + '"'
++
++
++def split_names(line, delimiter=None, names=None):
++    """Split `line` into tokens at `delimiter` (runs of whitespace when it is
++    None). The first `names` tokens (all when `names` is None) are node names
++    and may be quoted; they are returned unquoted. The remaining tokens are
++    split as ``str.split`` does.
++
++    Raises ``TypeError`` for a quote that is not closed, or for text right
++    after a closing quote.
++    """
++    tokens = []
++    i = 0
++    n = len(line)
++
++    def skip_delimiter(i):
++        if delimiter is None:
++            while i < n and line[i].isspace():
++                i += 1
++            return i
++        if line.startswith(delimiter, i):
++            return i + len(delimiter)
++        return i
++
++    if delimiter is None:
++        i = skip_delimiter(0)
++    while i < n and (names is None or len(tokens) < names):
++        if line[i] == '"':
++            j = i + 1
++            chars = []
++            while j < n and line[j] != '"':
++                if line[j] == "\\" and j + 1 < n:
++                    j += 1
++                    chars.append(_ESCAPES.get(line[j], line[j]))
++                    j += 1
++                    continue
++                chars.append(line[j])
++                j += 1
++            if j >= n:
++                raise TypeError(f"Unclosed quote in line ({line})")
++            j += 1
++            if j < n:
++                rest = line[j:]
++                at_delim = (
++                    rest[0].isspace()
++                    if delimiter is None
++                    else rest.startswith(delimiter)
++                )
++                if not at_delim:
++                    raise TypeError(f"Text after a closing quote in line ({line})")
++            tokens.append("".join(chars))
++            i = skip_delimiter(j)
++            if delimiter is not None and j == n:
++                break
++        else:
++            if delimiter is None:
++                j = i
++                while j < n and not line[j].isspace():
++                    j += 1
++            else:
++                j = line.find(delimiter, i)
++                if j < 0:
++                    j = n
++            tokens.append(line[i:j])
++            if j >= n:
++                i = n
++                break
++            i = skip_delimiter(j)
++            if delimiter is not None and i == n:
++                tokens.append("")
++                break
++    if i < n:
++        tokens.extend(line[i:].split(delimiter))
++    return tokens
++
++
++def strip_comment(line, comments="#", delimiter=None):
++    """`line` without its comment: the text from the first `comments` string
++    that is not inside a quoted name. A quoted name starts with ``"`` at the
++    start of a token."""
++    if comments is None:
++        return line
++    i = 0
++    n = len(line)
++    at_token_start = True
++    while i < n:
++        if line.startswith(comments, i):
++            return line[:i]
++        c = line[i]
++        if c == '"' and at_token_start:
++            j = i + 1
++            while j < n and line[j] != '"':
++                j += 2 if line[j] == "\\" else 1
++            i = j + 1
++            at_token_start = False
++            continue
++        if delimiter is None:
++            at_token_start = c.isspace()
++        else:
++            at_token_start = line.startswith(delimiter, i)
++            if at_token_start:
++                i += len(delimiter)
++                continue
++        i += 1
++    return line
+diff --git a/networkx/readwrite/_sorting.py b/networkx/readwrite/_sorting.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_sorting.py
+@@ -0,0 +1,41 @@
++"""Sorted output for the line formats (``sort=True`` or a key function)."""
++
++__all__ = []
++
++
++def sorted_graph(G, sort=True):
++    """A copy of `G` whose nodes, neighbours and edge keys are in sorted order,
++    so that writing it does not depend on the order in which nodes and edges
++    were added.
++
++    Nodes are sorted by ``str(node)``, or by ``sort(node)`` when `sort` is a
++    function; ties keep the order of `G`. In an undirected graph each edge is
++    stored from the end that comes first, so the line formats write it there.
++    Edges are in the order of their ends, parallel edges in the order of
++    ``str(key)``.
++    """
++    key = sort if callable(sort) else str
++    H = G.__class__()
++    H.graph.update(G.graph)
++    nodes = sorted(G, key=key)
++    rank = {n: i for i, n in enumerate(nodes)}
++    for n in nodes:
++        H.add_node(n, **G.nodes[n])
++    directed = G.is_directed()
++
++    def ends(u, v):
++        if directed or rank[u] <= rank[v]:
++            return u, v
++        return v, u
++
++    if G.is_multigraph():
++        edges = [(*ends(u, v), k, d) for u, v, k, d in G.edges(keys=True, data=True)]
++        edges.sort(key=lambda e: (rank[e[0]], rank[e[1]], str(e[2])))
++        for u, v, k, d in edges:
++            H.add_edge(u, v, key=k, **d)
++    else:
++        edges = [(*ends(u, v), d) for u, v, d in G.edges(data=True)]
++        edges.sort(key=lambda e: (rank[e[0]], rank[e[1]]))
++        for u, v, d in edges:
++            H.add_edge(u, v, **d)
++    return H
+diff --git a/networkx/readwrite/_textfile.py b/networkx/readwrite/_textfile.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_textfile.py
+@@ -0,0 +1,96 @@
++"""The files of the text formats: opening them, decoding the lines read and
++encoding the lines written.
++
++The ``read_*`` and ``write_*`` functions of the edge list, adjacency list,
++multiline adjacency list, Pajek and LEDA formats open, read and write their
++file only through :class:`TextFile`: ``read_edgelist(path, ...)`` is
++``TextFile(encoding).read(path, parse_edgelist, ...)`` and
++``write_edgelist(G, path, ...)`` is ``TextFile(encoding, ...).write(path,
++lines)``. GML, graph6, sparse6, GraphML and GEXF open their file with
++:meth:`TextFile.open` too.
++"""
++
++from contextlib import contextmanager
++from os.path import splitext
++from pathlib import Path
++
++from networkx.readwrite._compression import uncompressed, compressing
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
++
++__all__ = ["TextFile"]
++
++
++class TextFile:
++    """How the text formats open, read and write their files.
++
++    Parameters
++    ----------
++    encoding : str or None, optional (default="utf-8")
++        The text encoding of the file.
++    bom : bool, optional (default=False)
++        Write the byte order mark of `encoding` first.
++    newline : str, optional (default="\\n")
++        The line end written after each line.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, encoding="utf-8", bom=False, newline="\n", compression=None):
++        self.encoding = encoding
++        self.bom = bom
++        self.newline = newline
++        self.compression = compression
++
++    @contextmanager
++    def open(self, path, mode):
++        """The binary file `path` opened in `mode` (``"rb"`` or ``"wb"``), as
++        :func:`networkx.utils.open_file` opens it: a file name or
++        :class:`~pathlib.Path` is opened (through the compression its ending
++        names) and closed afterwards; an open file is used as it is and stays
++        open."""
++        from networkx.utils.decorators import _dispatch_dict
++
++        if isinstance(path, (str, Path)):
++            name = str(path)
++            f = _dispatch_dict[splitext(name)[1]](name, mode=mode)
++            try:
++                yield f
++            finally:
++                f.close()
++        else:
++            yield path
++
++    def read_lines(self, f):
++        """The lines of the open binary file `f` as text, each with its line
++        end (lines that are already text pass as they are)."""
++        encoding = self.encoding
++        return split_line_ends(decoded_lines(uncompressed(f), encoding))
++
++    def write_lines(self, f, lines):
++        """Writes each of `lines` (text without line ends) to the open binary
++        file `f`, each followed by the line end."""
++        encoding = self.encoding
++        newline = self.newline
++        check_newline(newline)
++        f, finish = compressing(f, self.compression)
++        if self.bom:
++            f.write(bom_bytes(encoding))
++        for line in lines:
++            line += newline
++            f.write(line.encode(encoding))
++        finish()
++
++    def read(self, path, parse, *args, **kwargs):
++        """``parse(lines, *args, **kwargs)`` of the lines of the file `path`:
++        it is opened with :meth:`open` and read with :meth:`read_lines`."""
++        with self.open(path, "rb") as f:
++            return parse(self.read_lines(f), *args, **kwargs)
++
++    def write(self, path, lines):
++        """Writes `lines` to the file `path`: it is opened with :meth:`open`
++        and written with :meth:`write_lines`."""
++        with self.open(path, "wb") as f:
++            self.write_lines(f, lines)
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,15 +20,104 @@
+ 
+      a b c # source target target
+      d e
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before.
++
++Graph header
++------------
++With ``header=True`` the writers put a first line that names the type of
++the graph::
++
++ # networkx-graph: directed=True multigraph=False
++
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
+-from networkx.utils import open_file
+-
+-
+-def generate_adjlist(G, delimiter=" "):
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._linewriter import LineWriter
++from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._compression import compressing, uncompressed
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._header import graph_class, header_line, header_name
++from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
++from networkx.readwrite._sorting import sorted_graph
++
++
++def generate_adjlist(G, delimiter=" ", header=False, comments="#", sort=False):
+     """Generate lines representing a graph in adjacency list format.
+ 
+     Parameters
+@@ -37,12 +126,27 @@
+ 
+     delimiter : str, default=" "
+         Separator for node labels.
++
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
+ 
+     Yields
+     ------
+     str
+         Adjacency list for a node in `G`. The first item is the node label,
+         followed by the labels of its neighbors.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -89,25 +193,21 @@
+     NB: This option is not available for data that isn't user-generated.
+ 
+     """
+-    seen = set()
+-    directed = G.is_directed()
+-    multigraph = G.is_multigraph()
+-    for s, nbrs in G.adjacency():
+-        nodes = [str(s)]
+-        for t, data in nbrs.items():
+-            if t in seen:
+-                continue
+-            if multigraph and len(data) > 1:
+-                nodes.extend((str(t),) * len(data))
+-            else:
+-                nodes.append(str(t))
+-        if not directed:
+-            seen.add(s)
+-        yield delimiter.join(nodes)
+-
+-
+-@open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort).adjlist(G)
++
++
++def write_adjlist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    encoding="utf-8",
++    header=False,
++    sort=False,
++    bom=False,
++    newline="\n",
++    compression=None,
++):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+@@ -127,6 +227,39 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    header : bool, optional (default=False)
++       If True, the first line is the graph header
++       ``# networkx-graph: directed=<bool> multigraph=<bool>`` (with the
++       `comments` string), from which the readers build a graph of the
++       same type.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -181,18 +314,16 @@
+     import time
+ 
+     pargs = comments + " ".join(sys.argv) + "\n"
++    if header:
++        pargs = header_line(G, comments) + "\n" + pargs
+     header = (
+         pargs
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for line in generate_adjlist(G, delimiter):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, [*header.split("\n")[:-1], *generate_adjlist(G, delimiter, sort=sort)])
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -208,6 +339,10 @@
+ 
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+ 
+     nodetype : Python type, optional
+        Convert nodes to this type.
+@@ -222,6 +357,10 @@
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
+ 
+     Examples
+     --------
+@@ -239,36 +378,11 @@
+     read_adjlist
+ 
+     """
+-    G = nx.empty_graph(0, create_using)
+-    for line in lines:
+-        p = line.find(comments)
+-        if p >= 0:
+-            line = line[:p]
+-        if not len(line):
+-            continue
+-        vlist = line.rstrip("\n").split(delimiter)
+-        u = vlist.pop(0)
+-        # convert types
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-            except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert node ({u}) to type {nodetype}"
+-                ) from err
+-        G.add_node(u)
+-        if nodetype is not None:
+-            try:
+-                vlist = list(map(nodetype, vlist))
+-            except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}"
+-                ) from err
+-        G.add_edges_from([(u, v) for v in vlist])
+-    return G
+-
+-
+-@open_file(0, mode="rb")
++    return LineParser(comments, delimiter, nodetype).parse_adjlist(
++        lines, create_using=create_using
++    )
++
++
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_adjlist(
+     path,
+@@ -288,6 +402,10 @@
+ 
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+ 
+     nodetype : Python type, optional
+        Convert nodes to this type.
+@@ -302,6 +420,17 @@
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -363,11 +492,9 @@
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
+-    return parse_adjlist(
+-        lines,
+-        comments=comments,
++    return TextFile(encoding).read(path, parse_adjlist, comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+-        nodetype=nodetype,
+-    )
++        nodetype=nodetype)
++
++
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,94 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before, except with a
++list of data keys (``data=["label"]`` when writing, ``data=(("label",
++str),)`` when reading): then a ``str`` value is quoted by the same rule
++(``1 2 "dark red"``) and read back as one value.
++
++Graph header
++------------
++With ``header=True`` the writers put a first line that names the type of
++the graph::
++
++ # networkx-graph: directed=True multigraph=False
++
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = [
+@@ -34,13 +122,39 @@
+     "read_edgelist",
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
++    "parse_graph_header",
++    "read_graph_header",
+ ]
+ 
++import itertools
++
+ import networkx as nx
+-from networkx.utils import open_file
+-
+-
+-def generate_edgelist(G, delimiter=" ", data=True):
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._linewriter import LineWriter
++from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._compression import compressing, uncompressed
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._floats import data_text, value_text
++from networkx.readwrite._header import (
++    graph_class,
++    header_line,
++    header_name,
++    parse_header,
++)
++from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._sorting import sorted_graph
++
++
++def generate_edgelist(
++    G,
++    delimiter=" ",
++    data=True,
++    header=False,
++    comments="#",
++    sort=False,
++    float_format=None,
++):
+     """Generate lines representing edges of `G` in edge list format.
+ 
+     Parameters
+@@ -55,10 +169,30 @@
+        representation of edge data.  If a list of keys use a list of data
+        values corresponding to the keys.
+ 
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++
+     Yields
+     ------
+     str
+         A line of data in edge list format for an edge in `G`.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -105,26 +239,23 @@
+     --------
+     write_edgelist, read_edgelist
+     """
+-    if data is True:
+-        for u, v, d in G.edges(data=True):
+-            e = u, v, dict(d)
+-            yield delimiter.join(map(str, e))
+-    elif data is False:
+-        for u, v in G.edges(data=False):
+-            e = u, v
+-            yield delimiter.join(map(str, e))
+-    else:
+-        for u, v, d in G.edges(data=True):
+-            e = [u, v]
+-            try:
+-                e.extend(d[k] for k in data)
+-            except KeyError:
+-                pass  # missing data for this edge, should warn?
+-            yield delimiter.join(map(str, e))
+-
+-
+-@open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).edgelist(G, data)
++
++
++def write_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    data=True,
++    encoding="utf-8",
++    header=False,
++    sort=False,
++    float_format=None,
++    bom=False,
++    newline="\n",
++    compression=None,
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+@@ -145,6 +276,39 @@
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    header : bool, optional (default=False)
++       If True, the first line is the graph header
++       ``# networkx-graph: directed=<bool> multigraph=<bool>`` (with the
++       `comments` string), from which the readers build a graph of the
++       same type.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -208,10 +372,10 @@
+     read_edgelist
+     write_weighted_edgelist
+     """
+-
+-    for line in generate_edgelist(G, delimiter, data):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    lines = generate_edgelist(G, delimiter, data, sort=sort, float_format=float_format)
++    if header:
++        lines = itertools.chain([header_line(G, comments)], lines)
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, lines)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -231,6 +395,10 @@
+        Separator for node labels. Default is `None`, meaning any whitespace.
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+     nodetype : Python type, optional
+        Convert nodes to this type. Default is `None`, meaning no conversion is
+        performed.
+@@ -244,6 +412,10 @@
+     G: NetworkX Graph
+         The graph corresponding to lines
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     Edgelist with no data:
+@@ -277,68 +449,11 @@
+     --------
+     read_weighted_edgelist
+     """
+-    from ast import literal_eval
+-
+-    G = nx.empty_graph(0, create_using)
+-    for line in lines:
+-        if comments is not None:
+-            p = line.find(comments)
+-            if p >= 0:
+-                line = line[:p]
+-            if not line:
+-                continue
+-        # split line, should have 2 or more
+-        s = line.rstrip("\n").split(delimiter)
+-        if len(s) < 2:
+-            continue
+-        u = s.pop(0)
+-        v = s.pop(0)
+-        d = s
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-                v = nodetype(v)
+-            except Exception as err:
+-                raise TypeError(
+-                    f"Failed to convert nodes {u},{v} to type {nodetype}."
+-                ) from err
+-
+-        if len(d) == 0 or data is False:
+-            # no data or data type specified
+-            edgedata = {}
+-        elif data is True:
+-            # no edge types specified
+-            try:  # try to evaluate as dictionary
+-                if delimiter == ",":
+-                    edgedata_str = ",".join(d)
+-                else:
+-                    edgedata_str = " ".join(d)
+-                edgedata = dict(literal_eval(edgedata_str.strip()))
+-            except Exception as err:
+-                raise TypeError(
+-                    f"Failed to convert edge data ({d}) to dictionary."
+-                ) from err
+-        else:
+-            # convert edge data to dictionary with specified keys and type
+-            if len(d) != len(data):
+-                raise IndexError(
+-                    f"Edge data {d} and data_keys {data} are not the same length"
+-                )
+-            edgedata = {}
+-            for (edge_key, edge_type), edge_value in zip(data, d):
+-                try:
+-                    edge_value = edge_type(edge_value)
+-                except Exception as err:
+-                    raise TypeError(
+-                        f"Failed to convert {edge_key} data {edge_value} "
+-                        f"to type {edge_type}."
+-                    ) from err
+-                edgedata.update({edge_key: edge_value})
+-        G.add_edge(u, v, **edgedata)
+-    return G
+-
+-
+-@open_file(0, mode="rb")
++    return LineParser(comments, delimiter, nodetype).parse_edgelist(
++        lines, create_using=create_using, data=data
++    )
++
++
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_edgelist(
+     path,
+@@ -365,6 +480,10 @@
+        The string used to separate values.  The default is whitespace.
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+     nodetype : int, float, str, Python type, optional
+        Convert node data from strings to specified type
+     data : bool or list of (label,type) tuples
+@@ -373,11 +492,25 @@
+        Convert edge data from strings to specified type and use as 'weight'
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -443,18 +576,26 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
+-    return parse_edgelist(
+-        lines,
+-        comments=comments,
++    return TextFile(encoding).read(path, parse_edgelist, comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+         nodetype=nodetype,
+-        data=data,
+-    )
+-
+-
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++        data=data)
++
++
++def write_weighted_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    encoding="utf-8",
++    header=False,
++    sort=False,
++    float_format=None,
++    bom=False,
++    newline="\n",
++    compression=None,
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+@@ -471,6 +612,34 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -500,6 +669,12 @@
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        header=header,
++        sort=sort,
++        float_format=float_format,
++        bom=bom,
++        newline=newline,
++        compression=compression,
+     )
+ 
+ 
+@@ -526,10 +701,17 @@
+        The string used to separate values.  The default is whitespace.
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+     nodetype : int, float, str, Python type, optional
+        Convert node data from strings to specified type
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+@@ -540,6 +722,17 @@
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -578,3 +771,72 @@
+         data=(("weight", float),),
+         encoding=encoding,
+     )
++
++
++def parse_graph_header(lines, comments="#"):
++    """The graph header of the lines of a file in the edge list, adjacency
++    list or multiline adjacency list format.
++
++    Parameters
++    ----------
++    lines : iterable of str
++       The lines of the file.
++    comments : str, optional (default="#")
++       The comment string of the file.
++
++    Returns
++    -------
++    dict or None
++       ``{"directed": bool, "multigraph": bool, "name": str or None}`` when a
++       header line (as written with ``header=True``) comes before the first
++       data line, else None. Reading stops at the first data line.
++
++    Examples
++    --------
++    >>> nx.parse_graph_header(
++    ...     ["# networkx-graph: directed=True multigraph=False", "1 2"]
++    ... )
++    {'directed': True, 'multigraph': False, 'name': None}
++
++    See Also
++    --------
++    read_graph_header
++    """
++    for line in lines:
++        info = parse_header(line, comments)
++        if info is not None:
++            return info
++        text = line.strip()
++        if text and not (comments is not None and text.startswith(comments)):
++            return None
++    return None
++
++
++def read_graph_header(path, comments="#", encoding="utf-8"):
++    """The graph header of a file in the edge list, adjacency list or
++    multiline adjacency list format, without reading the rest of it.
++
++    Parameters
++    ----------
++    path : file or string
++       File or filename to read. Filenames ending in .gz or .bz2 are
++       uncompressed.
++    comments : str, optional (default="#")
++       The comment string of the file.
++    encoding : str, optional (default="utf-8")
++       The text encoding of the file.
++
++    Returns
++    -------
++    dict or None
++       What :func:`parse_graph_header` returns for the lines of the file.
++
++    See Also
++    --------
++    parse_graph_header
++    """
++    with TextFile().open(path, "rb") as path:
++        lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++        return parse_graph_header(lines, comments)
++
++
+diff --git a/networkx/readwrite/gexf.py b/networkx/readwrite/gexf.py
+--- a/networkx/readwrite/gexf.py
++++ b/networkx/readwrite/gexf.py
+@@ -15,6 +15,19 @@
+ ------
+ GEXF is an XML format.  See http://gexf.net/schema.html for the
+ specification and http://gexf.net/basic.html for examples.
++
++Compressed files
++----------------
++``read_gexf`` reads a file compressed with gzip, bz2 or xz whatever its
++name, and ``write_gexf`` takes ``compression="gzip"``, ``"bz2"`` or
++``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
++and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import itertools
+@@ -28,13 +41,15 @@
+ )
+ 
+ import networkx as nx
+-from networkx.utils import open_file
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import compressing, uncompressed
+ 
+ __all__ = ["write_gexf", "read_gexf", "relabel_gexf_graph", "generate_gexf"]
+ 
+ 
+-@open_file(1, mode="wb")
+-def write_gexf(G, path, encoding="utf-8", prettyprint=True, version="1.2draft"):
++def write_gexf(
++    G, path, encoding="utf-8", prettyprint=True, version="1.2draft", compression=None
++):
+     """Write G in GEXF format to path.
+ 
+     "GEXF (Graph Exchange XML Format) is a language for describing
+@@ -70,6 +85,13 @@
+     ------
+     ValueError
+         If an attribute has mixed typed values across nodes or edges.
++
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -148,9 +170,12 @@
+     .. [1] GEXF File Format, http://gexf.net/
+     .. [2] GEXF schema, http://gexf.net/schema.html
+     """
+-    writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
+-    writer.add_graph(G)
+-    writer.write(path)
++    with TextFile().open(path, "wb") as path:
++        writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
++        writer.add_graph(G)
++        path, finish = compressing(path, compression)
++        writer.write(path)
++        finish()
+ 
+ 
+ def generate_gexf(G, encoding="utf-8", prettyprint=True, version="1.2draft"):
+@@ -229,7 +254,6 @@
+     yield from str(writer).splitlines()
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_gexf(path, node_type=None, relabel=False, version="1.2draft"):
+     """Read graph in GEXF format from path.
+@@ -268,13 +292,19 @@
+     References
+     ----------
+     .. [1] GEXF File Format, http://gexf.net/
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     """
+-    reader = GEXFReader(node_type=node_type, version=version)
+-    if relabel:
+-        G = relabel_gexf_graph(reader(path))
+-    else:
+-        G = reader(path)
+-    return G
++    with TextFile().open(path, "rb") as path:
++        reader = GEXFReader(node_type=node_type, version=version)
++        path = uncompressed(path)
++        if relabel:
++            G = relabel_gexf_graph(reader(path))
++        else:
++            G = reader(path)
++        return G
+ 
+ 
+ class GEXF:
+diff --git a/networkx/readwrite/gml.py b/networkx/readwrite/gml.py
+--- a/networkx/readwrite/gml.py
++++ b/networkx/readwrite/gml.py
+@@ -26,6 +26,25 @@
+ 
+ Several example graphs in GML format may be found on Mark Newman's
+ `Network data page <http://www-personal.umich.edu/~mejn/netdata/>`_.
++
++Sorted output
++-------------
++``generate_gml`` and ``write_gml`` take ``sort`` (True, or a key function
++for the nodes) to write nodes and edges in a fixed order, whatever the order
++in which the graph was built.
++
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import html.entities as htmlentitydefs
+@@ -37,7 +56,9 @@
+ from typing import Any, NamedTuple
+ 
+ import networkx as nx
+-from networkx.utils import open_file
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import compressing, uncompressed
++from networkx.readwrite._sorting import sorted_graph
+ 
+ __all__ = ["read_gml", "parse_gml", "generate_gml", "write_gml"]
+ 
+@@ -110,7 +131,6 @@
+         raise ValueError(f"{rep!r} is not a string")
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_gml(path, label="label", destringizer=None):
+     """Read graph in GML format from `path`.
+@@ -159,6 +179,9 @@
+ 
+     See the module docstring :mod:`networkx.readwrite.gml` for more details.
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -183,21 +206,21 @@
+     NodeView((0, 1, 2, 3))
+ 
+     """
+-
+-    def filter_lines(lines):
+-        for line in lines:
+-            try:
+-                line = line.decode("ascii")
+-            except UnicodeDecodeError as err:
+-                raise nx.NetworkXError("input is not ASCII-encoded") from err
+-            if not isinstance(line, str):
+-                lines = str(lines)
+-            if line and line[-1] == "\n":
+-                line = line[:-1]
+-            yield line
+-
+-    G = parse_gml_lines(filter_lines(path), label, destringizer)
+-    return G
++    with TextFile().open(path, "rb") as path:
++        def filter_lines(lines):
++            for line in lines:
++                try:
++                    line = line.decode("ascii")
++                except UnicodeDecodeError as err:
++                    raise nx.NetworkXError("input is not ASCII-encoded") from err
++                if not isinstance(line, str):
++                    lines = str(lines)
++                if line and line[-1] == "\n":
++                    line = line[:-1]
++                yield line
++
++        G = parse_gml_lines(filter_lines(uncompressed(path)), label, destringizer)
++        return G
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -631,7 +654,7 @@
+     return buf.getvalue()
+ 
+ 
+-def generate_gml(G, stringizer=None):
++def generate_gml(G, stringizer=None, sort=False):
+     r"""Generate a single entry of the graph `G` in GML format.
+ 
+     Parameters
+@@ -643,6 +666,12 @@
+         A `stringizer` which converts non-int/non-float/non-dict values into
+         strings. If it cannot convert a value into a string, it should raise a
+         `ValueError` to indicate that. Default value: None.
++
++    sort : bool or function, optional (default=False)
++        If True, write the nodes in the order of their ``str`` and the edges
++        in the order of their ends (an undirected edge from the end that
++        comes first, parallel edges by ``str(key)``); a function is a key
++        for the nodes. Node ids follow that order.
+ 
+     Yields
+     ------
+@@ -782,6 +811,8 @@
+                     raise nx.NetworkXError(f"{value!r} is not a string")
+                 yield indent + key + ' "' + escape(value) + '"'
+ 
++    if sort:
++        G = sorted_graph(G, sort)
+     multigraph = G.is_multigraph()
+     yield "graph ["
+ 
+@@ -823,8 +854,7 @@
+     yield "]"
+ 
+ 
+-@open_file(1, mode="wb")
+-def write_gml(G, path, stringizer=None):
++def write_gml(G, path, stringizer=None, sort=False, compression=None):
+     """Write a graph `G` in GML format to the file or file handle `path`.
+ 
+     Parameters
+@@ -840,6 +870,17 @@
+         A `stringizer` which converts non-int/non-float/non-dict values into
+         strings. If it cannot convert a value into a string, it should raise a
+         `ValueError` to indicate that. Default value: None.
++
++    sort : bool or function, optional (default=False)
++        If True, write the nodes in the order of their ``str`` and the edges
++        in the order of their ends (an undirected edge from the end that
++        comes first, parallel edges by ``str(key)``); a function is a key
++        for the nodes. Node ids follow that order.
++
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+ 
+     Raises
+     ------
+@@ -874,6 +915,9 @@
+     `GML url <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
+ 
+     See the module docstring :mod:`networkx.readwrite.gml` for more details.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -916,5 +960,10 @@
+     >>> fpath = tmp_path / "test_path5.gml.gz"
+     >>> nx.write_gml(G, fpath)
+     """
+-    for line in generate_gml(G, stringizer):
+-        path.write((line + "\n").encode("ascii"))
++    with TextFile().open(path, "wb") as path:
++        path, finish = compressing(path, compression)
++        for line in generate_gml(G, stringizer, sort=sort):
++            path.write((line + "\n").encode("ascii"))
++        finish()
++
++
+diff --git a/networkx/readwrite/graph6.py b/networkx/readwrite/graph6.py
+--- a/networkx/readwrite/graph6.py
++++ b/networkx/readwrite/graph6.py
+@@ -9,11 +9,25 @@
+ 
+ .. _graph6: http://users.cecs.anu.edu.au/~bdm/data/formats.html
+ 
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ from itertools import islice
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import not_implemented_for, open_file
+ 
+ __all__ = ["from_graph6_bytes", "read_graph6", "to_graph6_bytes", "write_graph6"]
+@@ -191,7 +205,6 @@
+     return b"".join(_generate_graph6_bytes(H, nodes, header))
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_graph6(path):
+     """Read simple undirected graphs in graph6 format from path.
+@@ -211,6 +224,9 @@
+     ------
+     NetworkXError
+         If the string is unable to be parsed in graph6 format
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -244,22 +260,22 @@
+            <http://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    glist = []
+-    for line in path:
+-        line = line.strip()
+-        if not len(line):
+-            continue
+-        glist.append(from_graph6_bytes(line))
+-    if len(glist) == 1:
+-        return glist[0]
+-    else:
+-        return glist
++    with TextFile().open(path, "rb") as path:
++        glist = []
++        for line in uncompressed(path):
++            line = line.strip()
++            if not len(line):
++                continue
++            glist.append(from_graph6_bytes(line))
++        if len(glist) == 1:
++            return glist[0]
++        else:
++            return glist
+ 
+ 
+ @not_implemented_for("directed")
+ @not_implemented_for("multigraph")
+-@open_file(1, mode="wb")
+-def write_graph6(G, path, nodes=None, header=True):
++def write_graph6(G, path, nodes=None, header=True, compression=None):
+     """Write a simple undirected graph to a path in graph6 format.
+ 
+     Parameters
+@@ -277,6 +293,10 @@
+     header: bool
+        If True add '>>graph6<<' string to head of data
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+     Raises
+     ------
+     NetworkXNotImplemented
+@@ -285,6 +305,9 @@
+     ValueError
+         If the graph has at least ``2 ** 36`` nodes; the graph6 format
+         is only defined for graphs of order less than ``2 ** 36``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -315,7 +338,10 @@
+            <http://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    return write_graph6_file(G, path, nodes=nodes, header=header)
++    with TextFile().open(path, "wb") as path:
++        path, finish = compressing(path, compression)
++        write_graph6_file(G, path, nodes=nodes, header=header)
++        finish()
+ 
+ 
+ @not_implemented_for("directed")
+diff --git a/networkx/readwrite/graphml.py b/networkx/readwrite/graphml.py
+--- a/networkx/readwrite/graphml.py
++++ b/networkx/readwrite/graphml.py
+@@ -39,13 +39,27 @@
+ http://graphml.graphdrawing.org/specification.html for the specification and
+ http://graphml.graphdrawing.org/primer/graphml-primer.html
+ for examples.
++
++Compressed files
++----------------
++``read_graphml`` reads a file compressed with gzip, bz2 or xz whatever its
++name, and ``write_graphml`` takes ``compression="gzip"``, ``"bz2"`` or
++``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
++and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import warnings
+ from collections import defaultdict
+ 
+ import networkx as nx
+-from networkx.utils import open_file
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import compressing, uncompressed
+ 
+ __all__ = [
+     "write_graphml",
+@@ -59,7 +73,6 @@
+ ]
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_graphml_xml(
+     G,
+     path,
+@@ -68,6 +81,7 @@
+     infer_numeric_types=False,
+     named_key_ids=False,
+     edge_id_from_attribute=None,
++    compression=None,
+ ):
+     """Write G in GraphML XML format to path
+ 
+@@ -93,6 +107,10 @@
+         edge data attribute keyed by this parameter. If `None` or the key does not exist in edge data,
+         the edge id is set by the edge key if `G` is a MultiGraph, else the edge id is left unset.
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -123,18 +141,20 @@
+     This implementation does not support mixed graphs (directed
+     and unidirected edges together) hyperedges, nested graphs, or ports.
+     """
+-    writer = GraphMLWriter(
+-        encoding=encoding,
+-        prettyprint=prettyprint,
+-        infer_numeric_types=infer_numeric_types,
+-        named_key_ids=named_key_ids,
+-        edge_id_from_attribute=edge_id_from_attribute,
+-    )
+-    writer.add_graph_element(G)
+-    writer.dump(path)
+-
+-
+-@open_file(1, mode="wb")
++    with TextFile().open(path, "wb") as path:
++        writer = GraphMLWriter(
++            encoding=encoding,
++            prettyprint=prettyprint,
++            infer_numeric_types=infer_numeric_types,
++            named_key_ids=named_key_ids,
++            edge_id_from_attribute=edge_id_from_attribute,
++        )
++        writer.add_graph_element(G)
++        path, finish = compressing(path, compression)
++        writer.dump(path)
++        finish()
++
++
+ def write_graphml_lxml(
+     G,
+     path,
+@@ -143,6 +163,7 @@
+     infer_numeric_types=False,
+     named_key_ids=False,
+     edge_id_from_attribute=None,
++    compression=None,
+ ):
+     """Write G in GraphML XML format to path
+ 
+@@ -171,6 +192,10 @@
+         edge data attribute keyed by this parameter. If `None` or the key does not exist in edge data,
+         the edge id is set by the edge key if `G` is a MultiGraph, else the edge id is left unset.
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -201,29 +226,33 @@
+     This implementation does not support mixed graphs (directed
+     and unidirected edges together) hyperedges, nested graphs, or ports.
+     """
+-    try:
+-        import lxml.etree as lxmletree
+-    except ImportError:
+-        return write_graphml_xml(
+-            G,
++    with TextFile().open(path, "wb") as path:
++        try:
++            import lxml.etree as lxmletree
++        except ImportError:
++            return write_graphml_xml(
++                G,
++                path,
++                encoding,
++                prettyprint,
++                infer_numeric_types,
++                named_key_ids,
++                edge_id_from_attribute,
++                compression,
++            )
++
++        path, finish = compressing(path, compression)
++        writer = GraphMLWriterLxml(
+             path,
+-            encoding,
+-            prettyprint,
+-            infer_numeric_types,
+-            named_key_ids,
+-            edge_id_from_attribute,
++            graph=G,
++            encoding=encoding,
++            prettyprint=prettyprint,
++            infer_numeric_types=infer_numeric_types,
++            named_key_ids=named_key_ids,
++            edge_id_from_attribute=edge_id_from_attribute,
+         )
+-
+-    writer = GraphMLWriterLxml(
+-        path,
+-        graph=G,
+-        encoding=encoding,
+-        prettyprint=prettyprint,
+-        infer_numeric_types=infer_numeric_types,
+-        named_key_ids=named_key_ids,
+-        edge_id_from_attribute=edge_id_from_attribute,
+-    )
+-    writer.dump()
++        writer.dump()
++        finish()
+ 
+ 
+ def generate_graphml(
+@@ -273,7 +302,6 @@
+     yield from str(writer).splitlines()
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_graphml(path, node_type=str, edge_key_type=int, force_multigraph=False):
+     """Read graph in GraphML format from path.
+@@ -331,20 +359,24 @@
+     yEd compressed files ("file.graphmlz" extension) can be read by renaming
+     the file to "file.graphml.gz".
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     """
+-    reader = GraphMLReader(node_type, edge_key_type, force_multigraph)
+-    # need to check for multiple graphs
+-    glist = list(reader(path=path))
+-    if len(glist) == 0:
+-        # If no graph comes back, try looking for an incomplete header
+-        header = b'<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'
+-        path.seek(0)
+-        old_bytes = path.read()
+-        new_bytes = old_bytes.replace(b"<graphml>", header)
+-        glist = list(reader(string=new_bytes))
++    with TextFile().open(path, "rb") as path:
++        reader = GraphMLReader(node_type, edge_key_type, force_multigraph)
++        # need to check for multiple graphs
++        glist = list(reader(path=uncompressed(path)))
+         if len(glist) == 0:
+-            raise nx.NetworkXError("file not successfully read as graphml")
+-    return glist[0]
++            # If no graph comes back, try looking for an incomplete header
++            header = b'<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'
++            path.seek(0)
++            old_bytes = path.read()
++            new_bytes = old_bytes.replace(b"<graphml>", header)
++            glist = list(reader(string=new_bytes))
++            if len(glist) == 0:
++                raise nx.NetworkXError("file not successfully read as graphml")
++        return glist[0]
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+diff --git a/networkx/readwrite/leda.py b/networkx/readwrite/leda.py
+--- a/networkx/readwrite/leda.py
++++ b/networkx/readwrite/leda.py
+@@ -7,6 +7,22 @@
+ ------
+ See http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+ 
++Encodings and line ends
++-----------------------
++The ``read_*`` functions skip a UTF-8 byte order mark, take the encoding
++from the byte order mark with ``encoding=None`` and read lines that end with
++``\\n``, ``\\r\\n`` or ``\\r``.
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ # Original author: D. Eppstein, UC Irvine, August 12, 2003.
+ # The original code at http://www.ics.uci.edu/~eppstein/PADS/ is public domain.
+@@ -14,10 +30,12 @@
+ __all__ = ["read_leda", "parse_leda"]
+ 
+ import networkx as nx
+-from networkx.utils import open_file
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import uncompressed
++from networkx.readwrite._encoding import decoded_lines
++from networkx.readwrite._newlines import split_line_ends
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_leda(path, encoding="UTF-8"):
+     """Read graph in LEDA format from path.
+@@ -28,9 +46,17 @@
+        Filename or file handle to read.
+        Filenames ending in .gz or .bz2 will be decompressed.
+ 
++    encoding : str or None, optional (default="UTF-8")
++       The text encoding of the file. A UTF-8 byte order mark at its start
++       is skipped; with None the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 without one. Lines may end
++       with ``\\n``, ``\\r\\n`` or ``\\r``.
+     Returns
+     -------
+     G : NetworkX graph
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -40,9 +66,7 @@
+     ----------
+     .. [1] http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+     """
+-    lines = (line.decode(encoding) for line in path)
+-    G = parse_leda(lines)
+-    return G
++    return TextFile(encoding).read(path, parse_leda)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -70,9 +94,9 @@
+         lines = iter(lines.split("\n"))
+     lines = iter(
+         [
+-            line.rstrip("\n")
++            line.rstrip("\r\n")
+             for line in lines
+-            if not (line.startswith(("#", "\n")) or line == "")
++            if not (line.startswith(("#", "\n", "\r")) or line == "")
+         ]
+     )
+     for i in range(3):
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,91 @@
+      c
+      d 1
+      e
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before.
++
++Graph header
++------------
++With ``header=True`` the writers put a first line that names the type of
++the graph::
++
++ # networkx-graph: directed=True multigraph=False
++
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = [
+@@ -33,10 +118,25 @@
+ ]
+ 
+ import networkx as nx
+-from networkx.utils import open_file
+-
+-
+-def generate_multiline_adjlist(G, delimiter=" "):
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._linewriter import LineWriter
++from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._compression import compressing, uncompressed
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._floats import data_text
++from networkx.readwrite._header import graph_class, header_line, header_name
++from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
++from networkx.readwrite._sorting import sorted_graph
++
++
++def generate_multiline_adjlist(
++    G, delimiter=" ", header=False, comments="#", sort=False, float_format=None
++):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+ 
+     Parameters
+@@ -45,12 +145,32 @@
+ 
+     delimiter : str, optional (default=" ")
+        Separator for node labels.
++
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Yields
+     ------
+     str
+         A line of data in multiline adjacency list format for a node or one of
+         its neighbors in `G`.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -78,64 +198,22 @@
+     --------
+     write_multiline_adjlist, read_multiline_adjlist
+     """
+-    if G.is_directed():
+-        if G.is_multigraph():
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield str(u)
+-                    else:
+-                        yield str(u) + delimiter + str(d)
+-        else:  # directed single edges
+-            for s, nbrs in G.adjacency():
+-                deg = len(nbrs)
+-                yield str(s) + delimiter + str(deg)
+-                for u, d in nbrs.items():
+-                    if d is None:
+-                        yield str(u)
+-                    else:
+-                        yield str(u) + delimiter + str(d)
+-    else:  # undirected
+-        if G.is_multigraph():
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    if u not in seen
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield str(u)
+-                    else:
+-                        yield str(u) + delimiter + str(d)
+-                seen.add(s)
+-        else:  # undirected single edges
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
+-                deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield str(u)
+-                    else:
+-                        yield str(u) + delimiter + str(d)
+-                seen.add(s)
+-
+-
+-@open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).multiline_adjlist(G)
++
++
++def write_multiline_adjlist(
++    G,
++    path,
++    delimiter=" ",
++    comments="#",
++    encoding="utf-8",
++    header=False,
++    sort=False,
++    float_format=None,
++    bom=False,
++    newline="\n",
++    compression=None,
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+@@ -154,6 +232,43 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    header : bool, optional (default=False)
++       If True, the first line is the graph header
++       ``# networkx-graph: directed=<bool> multigraph=<bool>`` (with the
++       `comments` string), from which the readers build a graph of the
++       same type.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -206,18 +321,16 @@
+     import time
+ 
+     pargs = comments + " ".join(sys.argv)
++    if header:
++        pargs = header_line(G, comments) + "\n" + pargs
+     header = (
+         f"{pargs}\n"
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for multiline in generate_multiline_adjlist(G, delimiter):
+-        multiline += "\n"
+-        path.write(multiline.encode(encoding))
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, [*header.split("\n")[:-1], *generate_multiline_adjlist(G, delimiter, sort=sort, float_format=float_format)])
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -233,6 +346,10 @@
+ 
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+ 
+     nodetype : Python type, optional
+        Convert nodes to this type.
+@@ -250,6 +367,10 @@
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in multiline adjacency list format.
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
+ 
+     Examples
+     --------
+@@ -265,71 +386,11 @@
+     [1, 2, 3, 5]
+ 
+     """
+-    from ast import literal_eval
+-
+-    G = nx.empty_graph(0, create_using)
+-    for line in lines:
+-        p = line.find(comments)
+-        if p >= 0:
+-            line = line[:p]
+-        if not line:
+-            continue
+-        try:
+-            (u, deg) = line.rstrip("\n").split(delimiter)
+-            deg = int(deg)
+-        except BaseException as err:
+-            raise TypeError(f"Failed to read node and degree on line ({line})") from err
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-            except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert node ({u}) to type {nodetype}"
+-                ) from err
+-        G.add_node(u)
+-        for i in range(deg):
+-            while True:
+-                try:
+-                    line = next(lines)
+-                except StopIteration as err:
+-                    msg = f"Failed to find neighbor for node ({u})"
+-                    raise TypeError(msg) from err
+-                p = line.find(comments)
+-                if p >= 0:
+-                    line = line[:p]
+-                if line:
+-                    break
+-            vlist = line.rstrip("\n").split(delimiter)
+-            numb = len(vlist)
+-            if numb < 1:
+-                continue  # isolated node
+-            v = vlist.pop(0)
+-            data = "".join(vlist)
+-            if nodetype is not None:
+-                try:
+-                    v = nodetype(v)
+-                except BaseException as err:
+-                    raise TypeError(
+-                        f"Failed to convert node ({v}) to type {nodetype}"
+-                    ) from err
+-            if edgetype is not None:
+-                try:
+-                    edgedata = {"weight": edgetype(data)}
+-                except BaseException as err:
+-                    raise TypeError(
+-                        f"Failed to convert edge data ({data}) to type {edgetype}"
+-                    ) from err
+-            else:
+-                try:  # try to evaluate
+-                    edgedata = literal_eval(data)
+-                except:
+-                    edgedata = {}
+-            G.add_edge(u, v, **edgedata)
+-
+-    return G
+-
+-
+-@open_file(0, mode="rb")
++    return LineParser(comments, delimiter, nodetype).parse_multiline_adjlist(
++        lines, create_using=create_using, edgetype=edgetype
++    )
++
++
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_multiline_adjlist(
+     path,
+@@ -350,6 +411,10 @@
+ 
+     create_using : NetworkX graph constructor, optional (default=nx.Graph)
+        Graph type to create. If graph instance, then cleared before populated.
++       When it is None and a graph header line
++       (``# networkx-graph: directed=<bool> multigraph=<bool>``, as written
++       with ``header=True``) comes before the first data line, the graph is
++       of the type the header names.
+ 
+     nodetype : Python type, optional
+        Convert nodes to this type.
+@@ -366,6 +431,17 @@
+     Returns
+     -------
+     G : NetworkX graph
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -422,12 +498,10 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
+-    return parse_multiline_adjlist(
+-        lines,
+-        comments=comments,
++    return TextFile(encoding).read(path, parse_multiline_adjlist, comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+         nodetype=nodetype,
+-        edgetype=edgetype,
+-    )
++        edgetype=edgetype)
++
++
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -12,92 +12,90 @@
+ See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+ for format information.
+ 
++Sorted output and number format
++-------------------------------
++``generate_pajek`` and ``write_pajek`` take ``sort`` (True, or a key
++function for the vertices) to write vertices and edges in a fixed order, and
++``float_format`` (a format spec such as ``".3g"``) for the coordinates and
++weights they write.
++Encodings and line ends
++-----------------------
++The ``read_*`` functions skip a UTF-8 byte order mark, take the encoding
++from the byte order mark with ``encoding=None`` and read lines that end with
++``\\n``, ``\\r\\n`` or ``\\r``. ``write_pajek`` takes ``bom`` and ``newline`` as the
++other writers do.
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
+-from networkx.utils import open_file
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._linewriter import LineWriter
++from networkx.readwrite._compression import compressing, uncompressed
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._floats import value_text
++from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._sorting import sorted_graph
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
+ 
+ 
+-def generate_pajek(G):
++def generate_pajek(G, sort=False, float_format=None):
+     """Generate lines in Pajek graph format.
+ 
+     Parameters
+     ----------
+     G : graph
+        A Networkx graph
++    sort : bool or function, optional (default=False)
++       If True, write the vertices in the order of their ``str`` and the
++       edges in the order of their ends (an undirected edge from the end
++       that comes first); a function is a key for the vertices. Vertex
++       numbers follow that order.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"`` for the float values written: the
++       vertex coordinates ``x`` and ``y`` and the edge weights.
+ 
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    if G.name == "":
+-        name = "NetworkX"
+-    else:
+-        name = G.name
+-    # Apparently many Pajek format readers can't process this line
+-    # So we'll leave it out for now.
+-    # yield '*network %s'%name
+-
+-    # write nodes with attributes
+-    yield f"*vertices {G.order()}"
+-    nodes = list(G)
+-    # make dictionary mapping nodes to integers
+-    nodenumber = dict(zip(nodes, range(1, len(nodes) + 1)))
+-    for n in nodes:
+-        # copy node attributes and pop mandatory attributes
+-        # to avoid duplication.
+-        na = G.nodes.get(n, {}).copy()
+-        x = na.pop("x", 0.0)
+-        y = na.pop("y", 0.0)
+-        try:
+-            id = int(na.pop("id", nodenumber[n]))
+-        except ValueError as err:
+-            err.args += (
+-                (
+-                    "Pajek format requires 'id' to be an int()."
+-                    " Refer to the 'Relabeling nodes' section."
+-                ),
+-            )
+-            raise
+-        nodenumber[n] = id
+-        shape = na.pop("shape", "ellipse")
+-        s = " ".join(map(make_qstr, (id, n, x, y, shape)))
+-        # only optional attributes are left in na.
+-        for k, v in na.items():
+-            if isinstance(v, str) and v.strip() != "":
+-                s += f" {make_qstr(k)} {make_qstr(v)}"
+-            else:
+-                warnings.warn(
+-                    f"Node attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
+-                )
+-        yield s
+-
+-    # write edges with attributes
+-    if G.is_directed():
+-        yield "*arcs"
+-    else:
+-        yield "*edges"
+-    for u, v, edgedata in G.edges(data=True):
+-        d = edgedata.copy()
+-        value = d.pop("weight", 1.0)  # use 1 as default edge value
+-        s = " ".join(map(make_qstr, (nodenumber[u], nodenumber[v], value)))
+-        for k, v in d.items():
+-            if isinstance(v, str) and v.strip() != "":
+-                s += f" {make_qstr(k)} {make_qstr(v)}"
+-            else:
+-                warnings.warn(
+-                    f"Edge attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
+-                )
+-        yield s
+-
+-
+-@open_file(1, mode="wb")
+-def write_pajek(G, path, encoding="UTF-8"):
++    return LineWriter(sort=sort, float_format=float_format).pajek(G)
++
++
++def write_pajek(
++    G,
++    path,
++    encoding="UTF-8",
++    sort=False,
++    float_format=None,
++    bom=False,
++    newline="\n",
++    compression=None,
++):
+     """Write graph in Pajek format to path.
+ 
+     Parameters
+@@ -107,6 +105,29 @@
+     path : file or string
+        File or filename to write.
+        Filenames ending in .gz or .bz2 will be compressed.
++    sort : bool or function, optional (default=False)
++       If True, write the vertices in the order of their ``str`` and the
++       edges in the order of their ends (an undirected edge from the end
++       that comes first); a function is a key for the vertices. Vertex
++       numbers follow that order.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"`` for the float values written: the
++       vertex coordinates ``x`` and ``y`` and the edge weights.
++    encoding : str, optional (default="UTF-8")
++       The text encoding of the file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -142,12 +163,9 @@
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    for line in generate_pajek(G):
+-        line += "\n"
+-        path.write(line.encode(encoding))
+-
+-
+-@open_file(0, mode="rb")
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, generate_pajek(G, sort=sort, float_format=float_format))
++
++
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_pajek(path, encoding="UTF-8"):
+     """Read graph in Pajek format from path.
+@@ -158,9 +176,17 @@
+        Filename or file handle to read.
+        Filenames ending in .gz or .bz2 will be decompressed.
+ 
++    encoding : str or None, optional (default="UTF-8")
++       The text encoding of the file. A UTF-8 byte order mark at its start
++       is skipped; with None the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 without one. Lines may end
++       with ``\\n``, ``\\r\\n`` or ``\\r``.
+     Returns
+     -------
+     G : NetworkX MultiGraph or MultiDiGraph.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -185,8 +211,7 @@
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    lines = (line.decode(encoding) for line in path)
+-    return parse_pajek(lines)
++    return TextFile(encoding).read(path, parse_pajek)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -212,7 +237,7 @@
+     # multigraph=False
+     if isinstance(lines, str):
+         lines = iter(lines.split("\n"))
+-    lines = iter([line.rstrip("\n") for line in lines])
++    lines = iter([line.rstrip("\r\n") for line in lines])
+     G = nx.MultiDiGraph()  # are multiedges allowed in Pajek? assume yes
+     labels = []  # in the order of the file, needed for matrix
+     while lines:
+diff --git a/networkx/readwrite/sparse6.py b/networkx/readwrite/sparse6.py
+--- a/networkx/readwrite/sparse6.py
++++ b/networkx/readwrite/sparse6.py
+@@ -10,9 +10,23 @@
+ 
+ .. _sparse6: https://users.cecs.anu.edu.au/~bdm/data/formats.html
+ 
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite.graph6 import data_to_n, n_to_data
+ from networkx.utils import not_implemented_for, open_file
+ 
+@@ -251,7 +265,6 @@
+     return b"".join(_generate_sparse6_bytes(G, nodes, header))
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_sparse6(path):
+     """Read an undirected graph in sparse6 format from path.
+@@ -271,6 +284,9 @@
+     ------
+     NetworkXError
+         If the string is unable to be parsed in sparse6 format
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -304,21 +320,21 @@
+            <https://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    glist = []
+-    for line in path:
+-        line = line.strip()
+-        if not len(line):
+-            continue
+-        glist.append(from_sparse6_bytes(line))
+-    if len(glist) == 1:
+-        return glist[0]
+-    else:
+-        return glist
++    with TextFile().open(path, "rb") as path:
++        glist = []
++        for line in uncompressed(path):
++            line = line.strip()
++            if not len(line):
++                continue
++            glist.append(from_sparse6_bytes(line))
++        if len(glist) == 1:
++            return glist[0]
++        else:
++            return glist
+ 
+ 
+ @not_implemented_for("directed")
+-@open_file(1, mode="wb")
+-def write_sparse6(G, path, nodes=None, header=True):
++def write_sparse6(G, path, nodes=None, header=True, compression=None):
+     """Write graph G to given path in sparse6 format.
+ 
+     Parameters
+@@ -336,10 +352,17 @@
+     header: bool
+        If True add '>>sparse6<<' string to head of data
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+     Raises
+     ------
+     NetworkXError
+         If the graph is directed
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -373,8 +396,13 @@
+            <https://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    if nodes is not None:
+-        G = G.subgraph(nodes)
+-    G = nx.convert_node_labels_to_integers(G, ordering="sorted")
+-    for b in _generate_sparse6_bytes(G, nodes, header):
+-        path.write(b)
++    with TextFile().open(path, "wb") as path:
++        if nodes is not None:
++            G = G.subgraph(nodes)
++        G = nx.convert_node_labels_to_integers(G, ordering="sorted")
++        path, finish = compressing(path, compression)
++        for b in _generate_sparse6_bytes(G, nodes, header):
++            path.write(b)
++        finish()
++
++
+diff --git a/networkx/utils/decorators.py b/networkx/utils/decorators.py
+--- a/networkx/utils/decorators.py
++++ b/networkx/utils/decorators.py
+@@ -2,6 +2,7 @@
+ import collections
+ import gzip
+ import inspect
++import lzma
+ import re
+ import threading
+ from collections import defaultdict
+@@ -97,6 +98,7 @@
+     ".gz": gzip.open,
+     ".gzip": gzip.open,
+     ".bz2": bz2.BZ2File,
++    ".xz": lzma.open,
+ }
+ _dispatch_dict = defaultdict(lambda: open, **fopeners)
+ 

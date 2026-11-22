@@ -1,0 +1,1225 @@
+diff --git a/networkx/readwrite/_textfile.py b/networkx/readwrite/_textfile.py
+new file mode 100644
+index 0000000..276ea43
+--- /dev/null
++++ b/networkx/readwrite/_textfile.py
+@@ -0,0 +1,101 @@
++"""The files of the text formats: opening them, decoding the lines read and
++encoding the lines written.
++
++The ``read_*`` and ``write_*`` functions of the edge list, adjacency list,
++multiline adjacency list, Pajek and LEDA formats open, read and write their
++file only through :class:`TextFile`: ``read_edgelist(path, ...)`` is
++``TextFile(encoding).read(path, parse_edgelist, ...)`` and
++``write_edgelist(G, path, ...)`` is ``TextFile(encoding, ...).write(path,
++lines)``. GML, graph6, sparse6, GraphML and GEXF open their file with
++:meth:`TextFile.open` too.
++"""
++
++from contextlib import contextmanager
++from os.path import splitext
++from pathlib import Path
++
++from networkx.exception import LineParseError
++from networkx.readwrite._compression import uncompressed, compressing
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
++
++__all__ = ["TextFile"]
++
++
++class TextFile:
++    """How the text formats open, read and write their files.
++
++    Parameters
++    ----------
++    encoding : str or None, optional (default="utf-8")
++        The text encoding of the file.
++    bom : bool, optional (default=False)
++        Write the byte order mark of `encoding` first.
++    newline : str, optional (default="\\n")
++        The line end written after each line.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, encoding="utf-8", bom=False, newline="\n", compression=None):
++        self.encoding = encoding
++        self.bom = bom
++        self.newline = newline
++        self.compression = compression
++
++    @contextmanager
++    def open(self, path, mode):
++        """The binary file `path` opened in `mode` (``"rb"`` or ``"wb"``), as
++        :func:`networkx.utils.open_file` opens it: a file name or
++        :class:`~pathlib.Path` is opened (through the compression its ending
++        names) and closed afterwards; an open file is used as it is and stays
++        open."""
++        from networkx.utils.decorators import _dispatch_dict
++
++        if isinstance(path, (str, Path)):
++            name = str(path)
++            f = _dispatch_dict[splitext(name)[1]](name, mode=mode)
++            try:
++                yield f
++            finally:
++                f.close()
++        else:
++            yield path
++
++    def read_lines(self, f):
++        """The lines of the open binary file `f` as text, each with its line
++        end (lines that are already text pass as they are)."""
++        encoding = self.encoding
++        return split_line_ends(decoded_lines(uncompressed(f), encoding))
++
++    def write_lines(self, f, lines):
++        """Writes each of `lines` (text without line ends) to the open binary
++        file `f`, each followed by the line end."""
++        encoding = self.encoding
++        newline = self.newline
++        check_newline(newline)
++        f, finish = compressing(f, self.compression)
++        if self.bom:
++            f.write(bom_bytes(encoding))
++        for line in lines:
++            line += newline
++            f.write(line.encode(encoding))
++        finish()
++
++    def read(self, path, parse, *args, **kwargs):
++        """``parse(lines, *args, **kwargs)`` of the lines of the file `path`:
++        it is opened with :meth:`open` and read with :meth:`read_lines`."""
++        with self.open(path, "rb") as f:
++            try:
++                return parse(self.read_lines(f), *args, **kwargs)
++            except LineParseError as err:
++                err.filename = getattr(f, "name", None)
++                raise
++
++    def write(self, path, lines):
++        """Writes `lines` to the file `path`: it is opened with :meth:`open`
++        and written with :meth:`write_lines`."""
++        with self.open(path, "wb") as f:
++            self.write_lines(f, lines)
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 5d7665f..83421dd 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -97,15 +97,23 @@ Writing
+ ``generate_*`` of this module is a
+ :class:`~networkx.readwrite._linewriter.LineWriter` method:
+ ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
+ is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+@@ -115,11 +123,10 @@ from networkx.readwrite._quote import (
+     quote_name,
+     split_names,
+     strip_comment,
+ )
+ from networkx.readwrite._sorting import sorted_graph
+-from networkx.utils import open_file
+ 
+ 
+ def generate_adjlist(G, delimiter=" ", header=False, comments="#", sort=False):
+     """Generate lines representing a graph in adjacency list format.
+ 
+@@ -197,11 +204,10 @@ def generate_adjlist(G, delimiter=" ", header=False, comments="#", sort=False):
+ 
+     """
+     return LineWriter(delimiter, header=header, comments=comments, sort=sort).adjlist(G)
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_adjlist(
+     G,
+     path,
+     comments="#",
+     delimiter=" ",
+@@ -325,20 +331,11 @@ def write_adjlist(
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+-    check_newline(newline)
+-    path, finish = compressing(path, compression)
+-    if bom:
+-        path.write(bom_bytes(encoding))
+-    path.write(header.replace("\n", newline).encode(encoding))
+-
+-    for line in generate_adjlist(G, delimiter, sort=sort):
+-        line += newline
+-        path.write(line.encode(encoding))
+-    finish()
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, [*header.split("\n")[:-1], *generate_adjlist(G, delimiter, sort=sort)])
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_adjlist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None
+@@ -394,11 +391,10 @@ def parse_adjlist(
+     return LineParser(comments, delimiter, nodetype).parse_adjlist(
+         lines, create_using=create_using
+     )
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_adjlist(
+     path,
+     comments="#",
+     delimiter=None,
+@@ -504,17 +500,11 @@ def read_adjlist(
+ 
+     See Also
+     --------
+     write_adjlist
+     """
+-    lines = split_line_ends(decoded_lines(uncompressed(path), encoding))
+-    try:
+-        return parse_adjlist(
+-            lines,
+-            comments=comments,
++    return TextFile(encoding).read(path, parse_adjlist, comments=comments,
+             delimiter=delimiter,
+             create_using=create_using,
+-            nodetype=nodetype,
+-        )
+-    except LineParseError as err:
+-        err.filename = getattr(path, "name", None)
+-        raise
++            nodetype=nodetype)
++
++
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index 0b7f1f1..e6b05f4 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -113,10 +113,17 @@ Writing
+ ``generate_*`` of this module is a
+ :class:`~networkx.readwrite._linewriter.LineWriter` method:
+ ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
+ is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -126,11 +133,14 @@ __all__ = [
+     "write_weighted_edgelist",
+     "parse_graph_header",
+     "read_graph_header",
+ ]
+ 
++import itertools
++
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+@@ -142,11 +152,10 @@ from networkx.readwrite._header import (
+     parse_header,
+ )
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.readwrite._sorting import sorted_graph
+-from networkx.utils import open_file
+ 
+ 
+ def generate_edgelist(
+     G,
+     delimiter=" ",
+@@ -241,11 +250,10 @@ def generate_edgelist(
+     write_edgelist, read_edgelist
+     """
+     return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).edgelist(G, data)
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_edgelist(
+     G,
+     path,
+     comments="#",
+     delimiter=" ",
+@@ -372,23 +380,14 @@ def write_edgelist(
+     See Also
+     --------
+     read_edgelist
+     write_weighted_edgelist
+     """
+-
+-    check_newline(newline)
+-    path, finish = compressing(path, compression)
+-    if bom:
+-        path.write(bom_bytes(encoding))
++    lines = generate_edgelist(G, delimiter, data, sort=sort, float_format=float_format)
+     if header:
+-        path.write((header_line(G, comments) + newline).encode(encoding))
+-    for line in generate_edgelist(
+-        G, delimiter, data, sort=sort, float_format=float_format
+-    ):
+-        line += newline
+-        path.write(line.encode(encoding))
+-    finish()
++        lines = itertools.chain([header_line(G, comments)], lines)
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, lines)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_edgelist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None, data=True
+@@ -463,11 +462,10 @@ def parse_edgelist(
+     return LineParser(comments, delimiter, nodetype).parse_edgelist(
+         lines, create_using=create_using, data=data
+     )
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_edgelist(
+     path,
+     comments="#",
+     delimiter=None,
+@@ -586,23 +584,15 @@ def read_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = split_line_ends(decoded_lines(uncompressed(path), encoding))
+-    try:
+-        return parse_edgelist(
+-            lines,
+-            comments=comments,
++    return TextFile(encoding).read(path, parse_edgelist, comments=comments,
+             delimiter=delimiter,
+             create_using=create_using,
+             nodetype=nodetype,
+-            data=data,
+-        )
+-    except LineParseError as err:
+-        err.filename = getattr(path, "name", None)
+-        raise
++            data=data)
+ 
+ 
+ def write_weighted_edgelist(
+     G,
+     path,
+@@ -830,11 +820,10 @@ def parse_graph_header(lines, comments="#"):
+         if text and not (comments is not None and text.startswith(comments)):
+             return None
+     return None
+ 
+ 
+-@open_file(0, mode="rb")
+ def read_graph_header(path, comments="#", encoding="utf-8"):
+     """The graph header of a file in the edge list, adjacency list or
+     multiline adjacency list format, without reading the rest of it.
+ 
+     Parameters
+@@ -854,7 +843,10 @@ def read_graph_header(path, comments="#", encoding="utf-8"):
+ 
+     See Also
+     --------
+     parse_graph_header
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
+-    return parse_graph_header(lines, comments)
++    with TextFile().open(path, "rb") as path:
++        lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++        return parse_graph_header(lines, comments)
++
++
+diff --git a/networkx/readwrite/gexf.py b/networkx/readwrite/gexf.py
+index 12bfab8..cf548ba 100644
+--- a/networkx/readwrite/gexf.py
++++ b/networkx/readwrite/gexf.py
+@@ -20,10 +20,16 @@ Compressed files
+ ----------------
+ ``read_gexf`` reads a file compressed with gzip, bz2 or xz whatever its
+ name, and ``write_gexf`` takes ``compression="gzip"``, ``"bz2"`` or
+ ``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
+ and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import itertools
+ import time
+ from xml.etree.ElementTree import (
+@@ -33,17 +39,16 @@ from xml.etree.ElementTree import (
+     register_namespace,
+     tostring,
+ )
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._compression import compressing, uncompressed
+-from networkx.utils import open_file
+ 
+ __all__ = ["write_gexf", "read_gexf", "relabel_gexf_graph", "generate_gexf"]
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_gexf(
+     G, path, encoding="utf-8", prettyprint=True, version="1.2draft", compression=None
+ ):
+     """Write G in GEXF format to path.
+ 
+@@ -163,15 +168,16 @@ def write_gexf(
+     References
+     ----------
+     .. [1] GEXF File Format, http://gexf.net/
+     .. [2] GEXF schema, http://gexf.net/schema.html
+     """
+-    writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
+-    writer.add_graph(G)
+-    path, finish = compressing(path, compression)
+-    writer.write(path)
+-    finish()
++    with TextFile().open(path, "wb") as path:
++        writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
++        writer.add_graph(G)
++        path, finish = compressing(path, compression)
++        writer.write(path)
++        finish()
+ 
+ 
+ def generate_gexf(G, encoding="utf-8", prettyprint=True, version="1.2draft"):
+     r"""Generate lines of GEXF format representation of G.
+ 
+@@ -246,11 +252,10 @@ def generate_gexf(G, encoding="utf-8", prettyprint=True, version="1.2draft"):
+     writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
+     writer.add_graph(G)
+     yield from str(writer).splitlines()
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_gexf(path, node_type=None, relabel=False, version="1.2draft"):
+     """Read graph in GEXF format from path.
+ 
+     "GEXF (Graph Exchange XML Format) is a language for describing
+@@ -290,17 +295,18 @@ def read_gexf(path, node_type=None, relabel=False, version="1.2draft"):
+ 
+     A file compressed with gzip, bz2 or xz is read whatever its name: the
+     compression is recognised by the first bytes of the file.
+ 
+     """
+-    reader = GEXFReader(node_type=node_type, version=version)
+-    path = uncompressed(path)
+-    if relabel:
+-        G = relabel_gexf_graph(reader(path))
+-    else:
+-        G = reader(path)
+-    return G
++    with TextFile().open(path, "rb") as path:
++        reader = GEXFReader(node_type=node_type, version=version)
++        path = uncompressed(path)
++        if relabel:
++            G = relabel_gexf_graph(reader(path))
++        else:
++            G = reader(path)
++        return G
+ 
+ 
+ class GEXF:
+     versions = {
+         "1.1draft": {
+diff --git a/networkx/readwrite/gml.py b/networkx/readwrite/gml.py
+index 8fbcb0d..3e8fdf2 100644
+--- a/networkx/readwrite/gml.py
++++ b/networkx/readwrite/gml.py
+@@ -37,10 +37,16 @@ Compressed files
+ ----------------
+ The ``read_*`` function reads a file compressed with gzip, bz2 or xz
+ whatever its name, and the ``write_*`` function takes
+ ``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
+ ``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import html.entities as htmlentitydefs
+ import re
+ from ast import literal_eval
+@@ -48,13 +54,13 @@ from collections import defaultdict
+ from enum import Enum
+ from io import StringIO
+ from typing import Any, NamedTuple
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.readwrite._compression import compressing, uncompressed
+-from networkx.utils import open_file
+ 
+ __all__ = ["read_gml", "parse_gml", "generate_gml", "write_gml"]
+ 
+ 
+ def escape(text):
+@@ -123,11 +129,10 @@ def literal_destringizer(rep):
+             raise ValueError(f"{orig_rep!r} is not a valid Python literal") from err
+     else:
+         raise ValueError(f"{rep!r} is not a string")
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_gml(path, label="label", destringizer=None):
+     """Read graph in GML format from `path`.
+ 
+     Parameters
+@@ -199,25 +204,25 @@ def read_gml(path, label="label", destringizer=None):
+     >>> J = nx.read_gml(fpath, destringizer=int)
+     >>> J.nodes
+     NodeView((0, 1, 2, 3))
+ 
+     """
++    with TextFile().open(path, "rb") as path:
++        def filter_lines(lines):
++            for line in lines:
++                try:
++                    line = line.decode("ascii")
++                except UnicodeDecodeError as err:
++                    raise nx.NetworkXError("input is not ASCII-encoded") from err
++                if not isinstance(line, str):
++                    lines = str(lines)
++                if line and line[-1] == "\n":
++                    line = line[:-1]
++                yield line
+ 
+-    def filter_lines(lines):
+-        for line in lines:
+-            try:
+-                line = line.decode("ascii")
+-            except UnicodeDecodeError as err:
+-                raise nx.NetworkXError("input is not ASCII-encoded") from err
+-            if not isinstance(line, str):
+-                lines = str(lines)
+-            if line and line[-1] == "\n":
+-                line = line[:-1]
+-            yield line
+-
+-    G = parse_gml_lines(filter_lines(uncompressed(path)), label, destringizer)
+-    return G
++        G = parse_gml_lines(filter_lines(uncompressed(path)), label, destringizer)
++        return G
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_gml(lines, label="label", destringizer=None):
+     """Parse GML graph from a string or iterable.
+@@ -847,11 +852,10 @@ def generate_gml(G, stringizer=None, sort=False):
+             yield from stringize(attr, value, ignored_keys, "    ")
+         yield "  ]"
+     yield "]"
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_gml(G, path, stringizer=None, sort=False, compression=None):
+     """Write a graph `G` in GML format to the file or file handle `path`.
+ 
+     Parameters
+     ----------
+@@ -954,9 +958,12 @@ def write_gml(G, path, stringizer=None, sort=False, compression=None):
+     Filenames ending in .gz or .bz2 will be compressed.
+ 
+     >>> fpath = tmp_path / "test_path5.gml.gz"
+     >>> nx.write_gml(G, fpath)
+     """
+-    path, finish = compressing(path, compression)
+-    for line in generate_gml(G, stringizer, sort=sort):
+-        path.write((line + "\n").encode("ascii"))
+-    finish()
++    with TextFile().open(path, "wb") as path:
++        path, finish = compressing(path, compression)
++        for line in generate_gml(G, stringizer, sort=sort):
++            path.write((line + "\n").encode("ascii"))
++        finish()
++
++
+diff --git a/networkx/readwrite/graph6.py b/networkx/readwrite/graph6.py
+index 149308a..8c5e2e3 100644
+--- a/networkx/readwrite/graph6.py
++++ b/networkx/readwrite/graph6.py
+@@ -13,15 +13,22 @@ Compressed files
+ ----------------
+ The ``read_*`` function reads a file compressed with gzip, bz2 or xz
+ whatever its name, and the ``write_*`` function takes
+ ``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
+ ``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ from itertools import islice
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import not_implemented_for, open_file
+ 
+ __all__ = ["from_graph6_bytes", "read_graph6", "to_graph6_bytes", "write_graph6"]
+ 
+@@ -196,11 +203,10 @@ def to_graph6_bytes(G, nodes=None, header=True):
+     H = nx.convert_node_labels_to_integers(G)
+     nodes = sorted(H.nodes())
+     return b"".join(_generate_graph6_bytes(H, nodes, header))
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_graph6(path):
+     """Read simple undirected graphs in graph6 format from path.
+ 
+     Parameters
+@@ -252,25 +258,25 @@ def read_graph6(path):
+     ----------
+     .. [1] Graph6 specification
+            <http://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    glist = []
+-    for line in uncompressed(path):
+-        line = line.strip()
+-        if not len(line):
+-            continue
+-        glist.append(from_graph6_bytes(line))
+-    if len(glist) == 1:
+-        return glist[0]
+-    else:
+-        return glist
++    with TextFile().open(path, "rb") as path:
++        glist = []
++        for line in uncompressed(path):
++            line = line.strip()
++            if not len(line):
++                continue
++            glist.append(from_graph6_bytes(line))
++        if len(glist) == 1:
++            return glist[0]
++        else:
++            return glist
+ 
+ 
+ @not_implemented_for("directed")
+ @not_implemented_for("multigraph")
+-@open_file(1, mode="wb")
+ def write_graph6(G, path, nodes=None, header=True, compression=None):
+     """Write a simple undirected graph to a path in graph6 format.
+ 
+     Parameters
+     ----------
+@@ -330,13 +336,14 @@ def write_graph6(G, path, nodes=None, header=True, compression=None):
+     ----------
+     .. [1] Graph6 specification
+            <http://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    path, finish = compressing(path, compression)
+-    write_graph6_file(G, path, nodes=nodes, header=header)
+-    finish()
++    with TextFile().open(path, "wb") as path:
++        path, finish = compressing(path, compression)
++        write_graph6_file(G, path, nodes=nodes, header=header)
++        finish()
+ 
+ 
+ @not_implemented_for("directed")
+ @not_implemented_for("multigraph")
+ def write_graph6_file(G, f, nodes=None, header=True):
+diff --git a/networkx/readwrite/graphml.py b/networkx/readwrite/graphml.py
+index 87a5763..04b506c 100644
+--- a/networkx/readwrite/graphml.py
++++ b/networkx/readwrite/graphml.py
+@@ -44,18 +44,24 @@ Compressed files
+ ----------------
+ ``read_graphml`` reads a file compressed with gzip, bz2 or xz whatever its
+ name, and ``write_graphml`` takes ``compression="gzip"``, ``"bz2"`` or
+ ``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
+ and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import warnings
+ from collections import defaultdict
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._compression import compressing, uncompressed
+-from networkx.utils import open_file
+ 
+ __all__ = [
+     "write_graphml",
+     "read_graphml",
+     "generate_graphml",
+@@ -65,11 +71,10 @@ __all__ = [
+     "GraphMLWriter",
+     "GraphMLReader",
+ ]
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_graphml_xml(
+     G,
+     path,
+     encoding="utf-8",
+     prettyprint=True,
+@@ -134,24 +139,24 @@ def write_graphml_xml(
+     Notes
+     -----
+     This implementation does not support mixed graphs (directed
+     and unidirected edges together) hyperedges, nested graphs, or ports.
+     """
+-    writer = GraphMLWriter(
+-        encoding=encoding,
+-        prettyprint=prettyprint,
+-        infer_numeric_types=infer_numeric_types,
+-        named_key_ids=named_key_ids,
+-        edge_id_from_attribute=edge_id_from_attribute,
+-    )
+-    writer.add_graph_element(G)
+-    path, finish = compressing(path, compression)
+-    writer.dump(path)
+-    finish()
++    with TextFile().open(path, "wb") as path:
++        writer = GraphMLWriter(
++            encoding=encoding,
++            prettyprint=prettyprint,
++            infer_numeric_types=infer_numeric_types,
++            named_key_ids=named_key_ids,
++            edge_id_from_attribute=edge_id_from_attribute,
++        )
++        writer.add_graph_element(G)
++        path, finish = compressing(path, compression)
++        writer.dump(path)
++        finish()
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_graphml_lxml(
+     G,
+     path,
+     encoding="utf-8",
+     prettyprint=True,
+@@ -219,36 +224,37 @@ def write_graphml_lxml(
+     Notes
+     -----
+     This implementation does not support mixed graphs (directed
+     and unidirected edges together) hyperedges, nested graphs, or ports.
+     """
+-    try:
+-        import lxml.etree as lxmletree
+-    except ImportError:
+-        return write_graphml_xml(
+-            G,
++    with TextFile().open(path, "wb") as path:
++        try:
++            import lxml.etree as lxmletree
++        except ImportError:
++            return write_graphml_xml(
++                G,
++                path,
++                encoding,
++                prettyprint,
++                infer_numeric_types,
++                named_key_ids,
++                edge_id_from_attribute,
++                compression,
++            )
++
++        path, finish = compressing(path, compression)
++        writer = GraphMLWriterLxml(
+             path,
+-            encoding,
+-            prettyprint,
+-            infer_numeric_types,
+-            named_key_ids,
+-            edge_id_from_attribute,
+-            compression,
++            graph=G,
++            encoding=encoding,
++            prettyprint=prettyprint,
++            infer_numeric_types=infer_numeric_types,
++            named_key_ids=named_key_ids,
++            edge_id_from_attribute=edge_id_from_attribute,
+         )
+-
+-    path, finish = compressing(path, compression)
+-    writer = GraphMLWriterLxml(
+-        path,
+-        graph=G,
+-        encoding=encoding,
+-        prettyprint=prettyprint,
+-        infer_numeric_types=infer_numeric_types,
+-        named_key_ids=named_key_ids,
+-        edge_id_from_attribute=edge_id_from_attribute,
+-    )
+-    writer.dump()
+-    finish()
++        writer.dump()
++        finish()
+ 
+ 
+ def generate_graphml(
+     G,
+     encoding="utf-8",
+@@ -294,11 +300,10 @@ def generate_graphml(
+     )
+     writer.add_graph_element(G)
+     yield from str(writer).splitlines()
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_graphml(path, node_type=str, edge_key_type=int, force_multigraph=False):
+     """Read graph in GraphML format from path.
+ 
+     Parameters
+@@ -356,23 +361,24 @@ def read_graphml(path, node_type=str, edge_key_type=int, force_multigraph=False)
+ 
+     A file compressed with gzip, bz2 or xz is read whatever its name: the
+     compression is recognised by the first bytes of the file.
+ 
+     """
+-    reader = GraphMLReader(node_type, edge_key_type, force_multigraph)
+-    # need to check for multiple graphs
+-    glist = list(reader(path=uncompressed(path)))
+-    if len(glist) == 0:
+-        # If no graph comes back, try looking for an incomplete header
+-        header = b'<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'
+-        path.seek(0)
+-        old_bytes = path.read()
+-        new_bytes = old_bytes.replace(b"<graphml>", header)
+-        glist = list(reader(string=new_bytes))
++    with TextFile().open(path, "rb") as path:
++        reader = GraphMLReader(node_type, edge_key_type, force_multigraph)
++        # need to check for multiple graphs
++        glist = list(reader(path=uncompressed(path)))
+         if len(glist) == 0:
+-            raise nx.NetworkXError("file not successfully read as graphml")
+-    return glist[0]
++            # If no graph comes back, try looking for an incomplete header
++            header = b'<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'
++            path.seek(0)
++            old_bytes = path.read()
++            new_bytes = old_bytes.replace(b"<graphml>", header)
++            glist = list(reader(string=new_bytes))
++            if len(glist) == 0:
++                raise nx.NetworkXError("file not successfully read as graphml")
++        return glist[0]
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_graphml(
+     graphml_string, node_type=str, edge_key_type=int, force_multigraph=False
+diff --git a/networkx/readwrite/leda.py b/networkx/readwrite/leda.py
+index e5b9e0a..b923f14 100644
+--- a/networkx/readwrite/leda.py
++++ b/networkx/readwrite/leda.py
+@@ -20,25 +20,31 @@ from the byte order mark with ``encoding=None`` and read lines that end with
+ ``\\n``, ``\\r\\n`` or ``\\r``.
+ Compressed files
+ ----------------
+ The ``read_*`` functions read a file compressed with gzip, bz2 or xz
+ whatever its name: they recognise the compression by its first bytes.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ # Original author: D. Eppstein, UC Irvine, August 12, 2003.
+ # The original code at http://www.ics.uci.edu/~eppstein/PADS/ is public domain.
+ 
+ __all__ = ["read_leda", "parse_leda"]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.readwrite._compression import compressing, uncompressed
+-from networkx.utils import open_file
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_leda(path, encoding="UTF-8"):
+     """Read graph in LEDA format from path.
+ 
+     Parameters
+@@ -65,17 +71,11 @@ def read_leda(path, encoding="UTF-8"):
+ 
+     References
+     ----------
+     .. [1] http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+     """
+-    lines = split_line_ends(decoded_lines(uncompressed(path), encoding))
+-    try:
+-        G = parse_leda(lines)
+-    except LineParseError as err:
+-        err.filename = getattr(path, "name", None)
+-        raise
+-    return G
++    return TextFile(encoding).read(path, parse_leda)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_leda(lines):
+     """Read graph in LEDA format from string or iterable.
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 80a1669..fd97afc 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -108,20 +108,28 @@ Writing
+ ``generate_*`` of this module is a
+ :class:`~networkx.readwrite._linewriter.LineWriter` method:
+ ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
+ is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+@@ -132,11 +140,10 @@ from networkx.readwrite._quote import (
+     quote_name,
+     split_names,
+     strip_comment,
+ )
+ from networkx.readwrite._sorting import sorted_graph
+-from networkx.utils import open_file
+ 
+ 
+ def generate_multiline_adjlist(
+     G, delimiter=" ", header=False, comments="#", sort=False, float_format=None
+ ):
+@@ -202,11 +209,10 @@ def generate_multiline_adjlist(
+     write_multiline_adjlist, read_multiline_adjlist
+     """
+     return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).multiline_adjlist(G)
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_multiline_adjlist(
+     G,
+     path,
+     delimiter=" ",
+     comments="#",
+@@ -332,22 +338,11 @@ def write_multiline_adjlist(
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+-    check_newline(newline)
+-    path, finish = compressing(path, compression)
+-    if bom:
+-        path.write(bom_bytes(encoding))
+-    path.write(header.replace("\n", newline).encode(encoding))
+-
+-    for multiline in generate_multiline_adjlist(
+-        G, delimiter, sort=sort, float_format=float_format
+-    ):
+-        multiline += newline
+-        path.write(multiline.encode(encoding))
+-    finish()
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, [*header.split("\n")[:-1], *generate_multiline_adjlist(G, delimiter, sort=sort, float_format=float_format)])
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_multiline_adjlist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None, edgetype=None
+@@ -404,11 +399,10 @@ def parse_multiline_adjlist(
+     return LineParser(comments, delimiter, nodetype).parse_multiline_adjlist(
+         lines, create_using=create_using, edgetype=edgetype
+     )
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_multiline_adjlist(
+     path,
+     comments="#",
+     delimiter=None,
+@@ -512,18 +506,12 @@ def read_multiline_adjlist(
+ 
+     See Also
+     --------
+     write_multiline_adjlist
+     """
+-    lines = split_line_ends(decoded_lines(uncompressed(path), encoding))
+-    try:
+-        return parse_multiline_adjlist(
+-            lines,
+-            comments=comments,
++    return TextFile(encoding).read(path, parse_multiline_adjlist, comments=comments,
+             delimiter=delimiter,
+             create_using=create_using,
+             nodetype=nodetype,
+-            edgetype=edgetype,
+-        )
+-    except LineParseError as err:
+-        err.filename = getattr(path, "name", None)
+-        raise
++            edgetype=edgetype)
++
++
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+index cd44e74..451bd61 100644
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -43,23 +43,30 @@ Writing
+ ``generate_*`` of this module is a
+ :class:`~networkx.readwrite._linewriter.LineWriter` method:
+ ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
+ is ``LineWriter(...).pajek(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open, read and write their file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read(path, parse_*, ...)`` and
++``TextFile(encoding, ...).write(path, lines)``.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._linewriter import LineWriter
+ from networkx.exception import LineParseError
+ from networkx.readwrite._floats import value_text
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.readwrite._compression import compressing, uncompressed
+-from networkx.utils import open_file
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
+ 
+ 
+ class _Numbered:
+@@ -102,11 +109,10 @@ def generate_pajek(G, sort=False, float_format=None):
+     for format information.
+     """
+     return LineWriter(sort=sort, float_format=float_format).pajek(G)
+ 
+ 
+-@open_file(1, mode="wb")
+ def write_pajek(
+     G,
+     path,
+     encoding="UTF-8",
+     sort=False,
+@@ -180,21 +186,13 @@ def write_pajek(
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    check_newline(newline)
+-    path, finish = compressing(path, compression)
+-    if bom:
+-        path.write(bom_bytes(encoding))
+-    for line in generate_pajek(G, sort=sort, float_format=float_format):
+-        line += newline
+-        path.write(line.encode(encoding))
+-    finish()
++    TextFile(encoding, bom=bom, newline=newline, compression=compression).write(path, generate_pajek(G, sort=sort, float_format=float_format))
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_pajek(path, encoding="UTF-8"):
+     """Read graph in Pajek format from path.
+ 
+     Parameters
+@@ -236,16 +234,11 @@ def read_pajek(path, encoding="UTF-8"):
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    lines = split_line_ends(decoded_lines(uncompressed(path), encoding))
+-    try:
+-        return parse_pajek(lines)
+-    except LineParseError as err:
+-        err.filename = getattr(path, "name", None)
+-        raise
++    return TextFile(encoding).read(path, parse_pajek)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_pajek(lines):
+     """Parse Pajek format graph from string or iterable.
+diff --git a/networkx/readwrite/sparse6.py b/networkx/readwrite/sparse6.py
+index 518f911..74a3db6 100644
+--- a/networkx/readwrite/sparse6.py
++++ b/networkx/readwrite/sparse6.py
+@@ -14,13 +14,20 @@ Compressed files
+ ----------------
+ The ``read_*`` function reads a file compressed with gzip, bz2 or xz
+ whatever its name, and the ``write_*`` function takes
+ ``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
+ ``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions open their file through
++:meth:`TextFile.open <networkx.readwrite._textfile.TextFile.open>`, as the
++line formats do.
+ """
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite.graph6 import data_to_n, n_to_data
+ from networkx.utils import not_implemented_for, open_file
+ 
+ __all__ = ["from_sparse6_bytes", "read_sparse6", "to_sparse6_bytes", "write_sparse6"]
+@@ -256,11 +263,10 @@ def to_sparse6_bytes(G, nodes=None, header=True):
+         G = G.subgraph(nodes)
+     G = nx.convert_node_labels_to_integers(G, ordering="sorted")
+     return b"".join(_generate_sparse6_bytes(G, nodes, header))
+ 
+ 
+-@open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_sparse6(path):
+     """Read an undirected graph in sparse6 format from path.
+ 
+     Parameters
+@@ -312,24 +318,24 @@ def read_sparse6(path):
+     ----------
+     .. [1] Sparse6 specification
+            <https://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    glist = []
+-    for line in uncompressed(path):
+-        line = line.strip()
+-        if not len(line):
+-            continue
+-        glist.append(from_sparse6_bytes(line))
+-    if len(glist) == 1:
+-        return glist[0]
+-    else:
+-        return glist
++    with TextFile().open(path, "rb") as path:
++        glist = []
++        for line in uncompressed(path):
++            line = line.strip()
++            if not len(line):
++                continue
++            glist.append(from_sparse6_bytes(line))
++        if len(glist) == 1:
++            return glist[0]
++        else:
++            return glist
+ 
+ 
+ @not_implemented_for("directed")
+-@open_file(1, mode="wb")
+ def write_sparse6(G, path, nodes=None, header=True, compression=None):
+     """Write graph G to given path in sparse6 format.
+ 
+     Parameters
+     ----------
+@@ -388,12 +394,15 @@ def write_sparse6(G, path, nodes=None, header=True, compression=None):
+     ----------
+     .. [1] Sparse6 specification
+            <https://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    if nodes is not None:
+-        G = G.subgraph(nodes)
+-    G = nx.convert_node_labels_to_integers(G, ordering="sorted")
+-    path, finish = compressing(path, compression)
+-    for b in _generate_sparse6_bytes(G, nodes, header):
+-        path.write(b)
+-    finish()
++    with TextFile().open(path, "wb") as path:
++        if nodes is not None:
++            G = G.subgraph(nodes)
++        G = nx.convert_node_labels_to_integers(G, ordering="sorted")
++        path, finish = compressing(path, compression)
++        for b in _generate_sparse6_bytes(G, nodes, header):
++            path.write(b)
++        finish()
++
++

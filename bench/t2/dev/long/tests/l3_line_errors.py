@@ -68,3 +68,68 @@ def test_read_functions_add_the_file_name(tmp_path):
 def test_old_handlers_still_catch_it():
     with pytest.raises(TypeError, match="Failed to convert"):
         nx.parse_adjlist(["a b"], nodetype=int)
+
+
+def where(call, *args):
+    with pytest.raises(nx.LineParseError) as info:
+        call(*args)
+    err = info.value
+    assert isinstance(err, nx.NetworkXError) and isinstance(err, TypeError)
+    assert err.__cause__ is not None or err.lineno >= 1
+    return err.lineno, err.line
+
+
+def test_the_exception_is_a_networkx_error():
+    assert issubclass(nx.LineParseError, nx.NetworkXError)
+    assert issubclass(nx.LineParseError, TypeError)
+
+
+@pytest.mark.parametrize(
+    ("text", "lineno", "line"),
+    [("*vertices x", 1, "*vertices x"),
+     ('*vertices 1\n1 "a', 2, '1 "a'),
+     ("*vertices 1\n1", 2, "1"),
+     ('*vertices 2\n1 a\n2 b\n*edges\n1 "2', 5, '1 "2'),
+     ("*vertices 2\n1 a\n2 b\n*matrix\n0 x", 5, "0 x")],
+)
+def test_pajek_errors_say_the_line(text, lineno, line):
+    assert where(nx.parse_pajek, text) == (lineno, line)
+    assert where(nx.parse_pajek, text.split("\n")) == (lineno, line)
+
+
+def test_pajek_missing_vertex_lines():
+    lineno, line = where(nx.parse_pajek, ["*vertices 3", "1 a"])
+    assert lineno == 1 and line == "*vertices 3"
+
+
+LEDA = ["LEDA.GRAPH", "string", "int"]
+
+
+@pytest.mark.parametrize(
+    ("rest", "lineno", "line"),
+    [(["x"], 4, "x"),
+     (["-1", "2", "|{a}|", "|{b}|", "z"], 8, "z"),
+     (["-1", "# c", "", "2", "|{a}|", "|{b}|", "1", "1 2 0"], 11, "1 2 0"),
+     (["-1", "2", "|{a}|", "|{b}|", "1", "1 5 0 |{x}|"], 9, "1 5 0 |{x}|")],
+)
+def test_leda_errors_say_the_line(rest, lineno, line):
+    assert where(nx.parse_leda, LEDA + rest) == (lineno, line)
+    assert where(nx.parse_leda, "\n".join(LEDA + rest)) == (lineno, line)
+
+
+def test_leda_missing_lines():
+    lineno, line = where(nx.parse_leda, LEDA + ["-1", "2", "|{a}|"])
+    assert lineno == 7 and line == ""
+
+
+def test_pajek_and_leda_readers_add_the_file_name(tmp_path):
+    p = tmp_path / "g.net"
+    p.write_bytes(b"*vertices x\n")
+    with pytest.raises(nx.LineParseError) as info:
+        nx.read_pajek(p)
+    assert info.value.filename == str(p) and str(info.value).startswith(f"{p}:1: ")
+    p = tmp_path / "g.leda"
+    p.write_bytes(b"LEDA.GRAPH\nstring\nint\nx\n")
+    with pytest.raises(nx.LineParseError) as info:
+        nx.read_leda(p)
+    assert info.value.filename == str(p) and str(info.value).startswith(f"{p}:4: ")

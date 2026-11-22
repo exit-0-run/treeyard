@@ -1,0 +1,657 @@
+diff --git a/networkx/readwrite/_floats.py b/networkx/readwrite/_floats.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_floats.py
+@@ -0,0 +1,25 @@
++"""The text of edge data for the line formats, with ``float_format``."""
++
++__all__ = []
++
++
++def value_text(value, float_format=None):
++    """``str(value)``, or ``format(value, float_format)`` for a float when
++    `float_format` is given."""
++    if float_format is not None and isinstance(value, float):
++        return format(value, float_format)
++    return str(value)
++
++
++def data_text(data, float_format=None):
++    """The text of an edge data dict: ``str(dict(data))``; with
++    `float_format`, float values are written with it and keys and other values
++    with ``repr`` as ``str`` of a dict does."""
++    data = dict(data)
++    if float_format is None:
++        return str(data)
++    items = []
++    for key, value in data.items():
++        text = format(value, float_format) if isinstance(value, float) else repr(value)
++        items.append(f"{key!r}: {text}")
++    return "{" + ", ".join(items) + "}"
+diff --git a/networkx/readwrite/_sorting.py b/networkx/readwrite/_sorting.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_sorting.py
+@@ -0,0 +1,41 @@
++"""Sorted output for the line formats (``sort=True`` or a key function)."""
++
++__all__ = []
++
++
++def sorted_graph(G, sort=True):
++    """A copy of `G` whose nodes, neighbours and edge keys are in sorted order,
++    so that writing it does not depend on the order in which nodes and edges
++    were added.
++
++    Nodes are sorted by ``str(node)``, or by ``sort(node)`` when `sort` is a
++    function; ties keep the order of `G`. In an undirected graph each edge is
++    stored from the end that comes first, so the line formats write it there.
++    Edges are in the order of their ends, parallel edges in the order of
++    ``str(key)``.
++    """
++    key = sort if callable(sort) else str
++    H = G.__class__()
++    H.graph.update(G.graph)
++    nodes = sorted(G, key=key)
++    rank = {n: i for i, n in enumerate(nodes)}
++    for n in nodes:
++        H.add_node(n, **G.nodes[n])
++    directed = G.is_directed()
++
++    def ends(u, v):
++        if directed or rank[u] <= rank[v]:
++            return u, v
++        return v, u
++
++    if G.is_multigraph():
++        edges = [(*ends(u, v), k, d) for u, v, k, d in G.edges(keys=True, data=True)]
++        edges.sort(key=lambda e: (rank[e[0]], rank[e[1]], str(e[2])))
++        for u, v, k, d in edges:
++            H.add_edge(u, v, key=k, **d)
++    else:
++        edges = [(*ends(u, v), d) for u, v, d in G.edges(data=True)]
++        edges.sort(key=lambda e: (rank[e[0]], rank[e[1]]))
++        for u, v, d in edges:
++            H.add_edge(u, v, **d)
++    return H
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,15 +20,26 @@
+ 
+      a b c # source target target
+      d e
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+-def generate_adjlist(G, delimiter=" "):
++def generate_adjlist(G, delimiter=" ", sort=False):
+     """Generate lines representing a graph in adjacency list format.
+ 
+     Parameters
+@@ -37,6 +48,12 @@
+ 
+     delimiter : str, default=" "
+         Separator for node labels.
++
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
+ 
+     Yields
+     ------
+@@ -89,6 +106,8 @@
+     NB: This option is not available for data that isn't user-generated.
+ 
+     """
++    if sort:
++        G = sorted_graph(G, sort)
+     seen = set()
+     directed = G.is_directed()
+     multigraph = G.is_multigraph()
+@@ -107,7 +126,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8", sort=False):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+@@ -127,6 +146,11 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
+ 
+     Examples
+     --------
+@@ -190,7 +214,7 @@
+     )
+     path.write(header.encode(encoding))
+ 
+-    for line in generate_adjlist(G, delimiter):
++    for line in generate_adjlist(G, delimiter, sort=sort):
+         line += "\n"
+         path.write(line.encode(encoding))
+ 
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,24 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
+ """
+ 
+ __all__ = [
+@@ -37,10 +55,12 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._floats import data_text, value_text
++from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+-def generate_edgelist(G, delimiter=" ", data=True):
++def generate_edgelist(G, delimiter=" ", data=True, sort=False, float_format=None):
+     """Generate lines representing edges of `G` in edge list format.
+ 
+     Parameters
+@@ -54,6 +74,17 @@
+        If False generate no edge data.  If True use a dictionary
+        representation of edge data.  If a list of keys use a list of data
+        values corresponding to the keys.
++
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Yields
+     ------
+@@ -105,9 +136,11 @@
+     --------
+     write_edgelist, read_edgelist
+     """
++    if sort:
++        G = sorted_graph(G, sort)
+     if data is True:
+         for u, v, d in G.edges(data=True):
+-            e = u, v, dict(d)
++            e = u, v, data_text(d, float_format)
+             yield delimiter.join(map(str, e))
+     elif data is False:
+         for u, v in G.edges(data=False):
+@@ -120,11 +153,20 @@
+                 e.extend(d[k] for k in data)
+             except KeyError:
+                 pass  # missing data for this edge, should warn?
+-            yield delimiter.join(map(str, e))
++            yield delimiter.join(value_text(x, float_format) for x in e)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    data=True,
++    encoding="utf-8",
++    sort=False,
++    float_format=None,
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+@@ -145,6 +187,15 @@
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+@@ -209,7 +260,9 @@
+     write_weighted_edgelist
+     """
+ 
+-    for line in generate_edgelist(G, delimiter, data):
++    for line in generate_edgelist(
++        G, delimiter, data, sort=sort, float_format=float_format
++    ):
+         line += "\n"
+         path.write(line.encode(encoding))
+ 
+@@ -454,7 +507,15 @@
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    encoding="utf-8",
++    sort=False,
++    float_format=None,
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+@@ -471,6 +532,15 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+@@ -500,6 +570,8 @@
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        sort=sort,
++        float_format=float_format,
+     )
+ 
+ 
+diff --git a/networkx/readwrite/gml.py b/networkx/readwrite/gml.py
+--- a/networkx/readwrite/gml.py
++++ b/networkx/readwrite/gml.py
+@@ -26,6 +26,12 @@
+ 
+ Several example graphs in GML format may be found on Mark Newman's
+ `Network data page <http://www-personal.umich.edu/~mejn/netdata/>`_.
++
++Sorted output
++-------------
++``generate_gml`` and ``write_gml`` take ``sort`` (True, or a key function
++for the nodes) to write nodes and edges in a fixed order, whatever the order
++in which the graph was built.
+ """
+ 
+ import html.entities as htmlentitydefs
+@@ -37,6 +43,7 @@
+ from typing import Any, NamedTuple
+ 
+ import networkx as nx
++from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_gml", "parse_gml", "generate_gml", "write_gml"]
+@@ -631,7 +638,7 @@
+     return buf.getvalue()
+ 
+ 
+-def generate_gml(G, stringizer=None):
++def generate_gml(G, stringizer=None, sort=False):
+     r"""Generate a single entry of the graph `G` in GML format.
+ 
+     Parameters
+@@ -643,6 +650,12 @@
+         A `stringizer` which converts non-int/non-float/non-dict values into
+         strings. If it cannot convert a value into a string, it should raise a
+         `ValueError` to indicate that. Default value: None.
++
++    sort : bool or function, optional (default=False)
++        If True, write the nodes in the order of their ``str`` and the edges
++        in the order of their ends (an undirected edge from the end that
++        comes first, parallel edges by ``str(key)``); a function is a key
++        for the nodes. Node ids follow that order.
+ 
+     Yields
+     ------
+@@ -782,6 +795,8 @@
+                     raise nx.NetworkXError(f"{value!r} is not a string")
+                 yield indent + key + ' "' + escape(value) + '"'
+ 
++    if sort:
++        G = sorted_graph(G, sort)
+     multigraph = G.is_multigraph()
+     yield "graph ["
+ 
+@@ -824,7 +839,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_gml(G, path, stringizer=None):
++def write_gml(G, path, stringizer=None, sort=False):
+     """Write a graph `G` in GML format to the file or file handle `path`.
+ 
+     Parameters
+@@ -840,6 +855,12 @@
+         A `stringizer` which converts non-int/non-float/non-dict values into
+         strings. If it cannot convert a value into a string, it should raise a
+         `ValueError` to indicate that. Default value: None.
++
++    sort : bool or function, optional (default=False)
++        If True, write the nodes in the order of their ``str`` and the edges
++        in the order of their ends (an undirected edge from the end that
++        comes first, parallel edges by ``str(key)``); a function is a key
++        for the nodes. Node ids follow that order.
+ 
+     Raises
+     ------
+@@ -916,5 +937,5 @@
+     >>> fpath = tmp_path / "test_path5.gml.gz"
+     >>> nx.write_gml(G, fpath)
+     """
+-    for line in generate_gml(G, stringizer):
++    for line in generate_gml(G, stringizer, sort=sort):
+         path.write((line + "\n").encode("ascii"))
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,24 @@
+      c
+      d 1
+      e
++
++Sorted output
++-------------
++With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
++nodes, the neighbours of each node and parallel edges in the order of their
++``str``, an undirected edge from the end that sorts first. ``sort`` may also
++be a key function for the nodes, such as ``sort=lambda n: -G.degree(n)``;
++nodes with the same key keep the order of the graph. Two graphs with
++the same nodes and edges then give the same lines, whatever the order in
++which they were built.
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
+ """
+ 
+ __all__ = [
+@@ -33,10 +51,12 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._floats import data_text
++from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+-def generate_multiline_adjlist(G, delimiter=" "):
++def generate_multiline_adjlist(G, delimiter=" ", sort=False, float_format=None):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+ 
+     Parameters
+@@ -45,6 +65,17 @@
+ 
+     delimiter : str, optional (default=" ")
+        Separator for node labels.
++
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Yields
+     ------
+@@ -78,6 +109,8 @@
+     --------
+     write_multiline_adjlist, read_multiline_adjlist
+     """
++    if sort:
++        G = sorted_graph(G, sort)
+     if G.is_directed():
+         if G.is_multigraph():
+             for s, nbrs in G.adjacency():
+@@ -92,7 +125,7 @@
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+         else:  # directed single edges
+             for s, nbrs in G.adjacency():
+                 deg = len(nbrs)
+@@ -101,7 +134,7 @@
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+     else:  # undirected
+         if G.is_multigraph():
+             seen = set()  # helper dict used to avoid duplicate edges
+@@ -118,7 +151,7 @@
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+                 seen.add(s)
+         else:  # undirected single edges
+             seen = set()  # helper dict used to avoid duplicate edges
+@@ -130,12 +163,20 @@
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+                 seen.add(s)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G,
++    path,
++    delimiter=" ",
++    comments="#",
++    encoding="utf-8",
++    sort=False,
++    float_format=None,
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+@@ -154,6 +195,15 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    sort : bool or function, optional (default=False)
++       If True, write nodes, neighbours and parallel edges in the order of
++       their ``str`` (an undirected edge from the end that sorts first), so
++       the output does not depend on the order in which the graph was built.
++       A function is a key: nodes are ordered by ``sort(node)``.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+@@ -215,7 +265,9 @@
+     )
+     path.write(header.encode(encoding))
+ 
+-    for multiline in generate_multiline_adjlist(G, delimiter):
++    for multiline in generate_multiline_adjlist(
++        G, delimiter, sort=sort, float_format=float_format
++    ):
+         multiline += "\n"
+         path.write(multiline.encode(encoding))
+ 
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -12,29 +12,47 @@
+ See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+ for format information.
+ 
++Sorted output and number format
++-------------------------------
++``generate_pajek`` and ``write_pajek`` take ``sort`` (True, or a key
++function for the vertices) to write vertices and edges in a fixed order, and
++``float_format`` (a format spec such as ``".3g"``) for the coordinates and
++weights they write.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.readwrite._floats import value_text
++from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
+ 
+ 
+-def generate_pajek(G):
++def generate_pajek(G, sort=False, float_format=None):
+     """Generate lines in Pajek graph format.
+ 
+     Parameters
+     ----------
+     G : graph
+        A Networkx graph
++    sort : bool or function, optional (default=False)
++       If True, write the vertices in the order of their ``str`` and the
++       edges in the order of their ends (an undirected edge from the end
++       that comes first); a function is a key for the vertices. Vertex
++       numbers follow that order.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"`` for the float values written: the
++       vertex coordinates ``x`` and ``y`` and the edge weights.
+ 
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
++    if sort:
++        G = sorted_graph(G, sort)
+     if G.name == "":
+         name = "NetworkX"
+     else:
+@@ -66,6 +84,8 @@
+             raise
+         nodenumber[n] = id
+         shape = na.pop("shape", "ellipse")
++        if float_format is not None:
++            x, y = value_text(x, float_format), value_text(y, float_format)
+         s = " ".join(map(make_qstr, (id, n, x, y, shape)))
+         # only optional attributes are left in na.
+         for k, v in na.items():
+@@ -85,6 +105,8 @@
+     for u, v, edgedata in G.edges(data=True):
+         d = edgedata.copy()
+         value = d.pop("weight", 1.0)  # use 1 as default edge value
++        if float_format is not None:
++            value = value_text(value, float_format)
+         s = " ".join(map(make_qstr, (nodenumber[u], nodenumber[v], value)))
+         for k, v in d.items():
+             if isinstance(v, str) and v.strip() != "":
+@@ -97,7 +119,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_pajek(G, path, encoding="UTF-8"):
++def write_pajek(G, path, encoding="UTF-8", sort=False, float_format=None):
+     """Write graph in Pajek format to path.
+ 
+     Parameters
+@@ -107,6 +129,14 @@
+     path : file or string
+        File or filename to write.
+        Filenames ending in .gz or .bz2 will be compressed.
++    sort : bool or function, optional (default=False)
++       If True, write the vertices in the order of their ``str`` and the
++       edges in the order of their ends (an undirected edge from the end
++       that comes first); a function is a key for the vertices. Vertex
++       numbers follow that order.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"`` for the float values written: the
++       vertex coordinates ``x`` and ``y`` and the edge weights.
+ 
+     Examples
+     --------
+@@ -142,7 +172,7 @@
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    for line in generate_pajek(G):
++    for line in generate_pajek(G, sort=sort, float_format=float_format):
+         line += "\n"
+         path.write(line.encode(encoding))
+ 

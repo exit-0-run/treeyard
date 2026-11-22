@@ -1,8 +1,7 @@
 {
   "set": "long",
-  "agents": 10,
+  "agents": 9,
   "mix": [
-    "claude",
     "claude",
     "claude",
     "claude",
@@ -17,26 +16,25 @@
     "max_turns": 600,
     "max_tokens": 40000000,
     "timeout_s": 7200,
-    "claude_budget_usd": 15.0
+    "claude_budget_usd": 1.5
   },
   "sequential": true,
   "tasks": [
     "l1-quoted-names",
     "l2-graph-header",
     "l3-line-errors",
-    "l4-sorted-output",
-    "l5-float-format",
-    "l6-byte-order-mark",
-    "l7-line-ends",
-    "l8-line-parser",
-    "l9-line-writer",
-    "l10-text-file"
+    "l4-output-format",
+    "l5-file-bytes",
+    "l6-compression",
+    "l7-line-parser",
+    "l8-line-writer",
+    "l9-text-file"
   ],
   "integration": [
     {
       "id": "i1-parser-quoted-names",
       "pair": [
-        8,
+        7,
         1
       ],
       "test": "networkx/readwrite/tests/test_t2_i1_parser_quoted_names.py",
@@ -45,7 +43,7 @@
     {
       "id": "i2-parser-graph-header",
       "pair": [
-        8,
+        7,
         2
       ],
       "test": "networkx/readwrite/tests/test_t2_i2_parser_graph_header.py",
@@ -54,7 +52,7 @@
     {
       "id": "i3-parser-line-errors",
       "pair": [
-        8,
+        7,
         3
       ],
       "test": "networkx/readwrite/tests/test_t2_i3_parser_line_errors.py",
@@ -63,83 +61,83 @@
     {
       "id": "i4-parser-line-ends",
       "pair": [
-        8,
-        7
+        7,
+        5
       ],
       "test": "networkx/readwrite/tests/test_t2_i4_parser_line_ends.py",
-      "why": "refactor: LineParser.split drops l7's line ends"
+      "why": "refactor: LineParser.split drops l5's line ends"
     },
     {
       "id": "i5-writer-quoted-names",
       "pair": [
-        9,
+        8,
         1
       ],
       "test": "networkx/readwrite/tests/test_t2_i5_writer_quoted_names.py",
       "why": "refactor: LineWriter.name quotes l1's names"
     },
     {
-      "id": "i6-writer-sorted-output",
+      "id": "i6-writer-output-format",
       "pair": [
-        9,
+        8,
         4
       ],
-      "test": "networkx/readwrite/tests/test_t2_i6_writer_sorted_output.py",
-      "why": "refactor: l4's sort is a LineWriter option"
+      "test": "networkx/readwrite/tests/test_t2_i6_writer_output_format.py",
+      "why": "refactor: l4's sort and float_format are LineWriter options"
     },
     {
-      "id": "i7-writer-float-format",
+      "id": "i7-writer-graph-header",
       "pair": [
-        9,
-        5
+        8,
+        2
       ],
-      "test": "networkx/readwrite/tests/test_t2_i7_writer_float_format.py",
-      "why": "refactor: l5's float_format is a LineWriter option"
+      "test": "networkx/readwrite/tests/test_t2_i7_writer_graph_header.py",
+      "why": "refactor: l2's header and comments are LineWriter options"
     },
     {
       "id": "i8-file-graph-header",
       "pair": [
-        10,
+        9,
         2
       ],
       "test": "networkx/readwrite/tests/test_t2_i8_file_graph_header.py",
       "why": "refactor: l2's header line goes through TextFile.write_lines"
     },
     {
-      "id": "i9-file-byte-order-mark",
+      "id": "i9-file-bytes",
       "pair": [
-        10,
+        9,
+        5
+      ],
+      "test": "networkx/readwrite/tests/test_t2_i9_file_bytes.py",
+      "why": "refactor: l5's byte order marks and line ends are TextFile's"
+    },
+    {
+      "id": "i10-file-line-errors",
+      "pair": [
+        9,
+        3
+      ],
+      "test": "networkx/readwrite/tests/test_t2_i10_file_line_errors.py",
+      "why": "refactor: TextFile.read names the file of l3's errors"
+    },
+    {
+      "id": "i11-file-compression",
+      "pair": [
+        9,
         6
       ],
-      "test": "networkx/readwrite/tests/test_t2_i9_file_byte_order_mark.py",
-      "why": "refactor: l6's byte order marks are TextFile's"
+      "test": "networkx/readwrite/tests/test_t2_i11_file_compression.py",
+      "why": "refactor: l6's compression is TextFile's"
     },
     {
-      "id": "i10-file-line-ends",
-      "pair": [
-        10,
-        7
-      ],
-      "test": "networkx/readwrite/tests/test_t2_i10_file_line_ends.py",
-      "why": "refactor: l7's line ends are TextFile's"
-    },
-    {
-      "id": "i11-header-with-bom",
+      "id": "i12-header-file-bytes",
       "pair": [
         2,
-        6
+        5
       ],
-      "test": "networkx/readwrite/tests/test_t2_i11_header_with_bom.py",
-      "why": "interface: the header comes after l6's byte order mark"
-    },
-    {
-      "id": "i12-header-line-ends",
-      "pair": [
-        2,
-        7
-      ],
-      "test": "networkx/readwrite/tests/test_t2_i12_header_line_ends.py",
-      "why": "interface: the header line ends with l7's newline"
+      "test": "networkx/readwrite/tests/test_t2_i12_header_file_bytes.py",
+      "why": "interface: the header after l5's byte order mark, ended by its newline"
     }
   ]
 }

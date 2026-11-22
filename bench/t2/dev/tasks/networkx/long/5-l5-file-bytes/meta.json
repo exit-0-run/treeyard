@@ -1,0 +1,17 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 5,
+  "id": "l5-file-bytes",
+  "title": "Text formats: byte order marks and line ends",
+  "files": [
+    "networkx/readwrite/_encoding.py",
+    "networkx/readwrite/_newlines.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/leda.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l5_file_bytes.py"
+}

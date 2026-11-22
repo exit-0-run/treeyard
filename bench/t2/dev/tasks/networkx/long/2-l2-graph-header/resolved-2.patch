@@ -1,17 +1,30 @@
+diff --git a/doc/reference/readwrite/edgelist.rst b/doc/reference/readwrite/edgelist.rst
+--- a/doc/reference/readwrite/edgelist.rst
++++ b/doc/reference/readwrite/edgelist.rst
+@@ -11,3 +11,5 @@
+    write_weighted_edgelist
+    generate_edgelist
+    parse_edgelist
++   read_graph_header
++   parse_graph_header
 diff --git a/networkx/readwrite/_header.py b/networkx/readwrite/_header.py
 new file mode 100644
 --- /dev/null
 +++ b/networkx/readwrite/_header.py
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,78 @@
 +"""The graph header line of the line formats (edge list, adjacency lists).
 +
 +``write_*(..., header=True)`` writes as the first line::
 +
-+    # networkx-graph: directed=True multigraph=False
++    # networkx-graph: directed=True multigraph=False name="roads"
++
++(``name=`` only for a graph with a name, as a JSON string),
 +
 +and the ``parse_*``/``read_*`` functions build a graph of that type when
 +such a line comes before the first data line and ``create_using`` is None.
 +"""
++
++import json
 +
 +import networkx as nx
 +
@@ -27,19 +40,22 @@ new file mode 100644
 +
 +def header_line(G, comments="#"):
 +    """The header line of `G`, without its line end."""
-+    return f"{comments} networkx-graph: directed={G.is_directed()} multigraph={G.is_multigraph()}"
++    line = f"{comments} networkx-graph: directed={G.is_directed()} multigraph={G.is_multigraph()}"
++    if G.name:
++        line += f" name={json.dumps(str(G.name))}"
++    return line
 +
 +
-+def graph_class(line, comments="#"):
-+    """The graph class that the header `line` names, or None when `line` is
-+    not a header line."""
++def parse_header(line, comments="#"):
++    """``{"directed": bool, "multigraph": bool, "name": str or None}`` of the
++    header `line`, or None when `line` is not a header line."""
 +    if comments is None:
 +        return None
 +    text = line.rstrip("\r\n").strip()
 +    if not text.startswith(comments):
 +        return None
-+    words = text[len(comments) :].split()
-+    if len(words) != 3 or words[0] != "networkx-graph:":
++    words = text[len(comments) :].split(None, 3)
++    if len(words) < 3 or words[0] != "networkx-graph:":
 +        return None
 +    flags = {"True": True, "False": False}
 +    if not (words[1].startswith("directed=") and words[2].startswith("multigraph=")):
@@ -48,12 +64,37 @@ new file mode 100644
 +    multigraph = flags.get(words[2][len("multigraph=") :])
 +    if directed is None or multigraph is None:
 +        return None
-+    return _CLASSES[directed, multigraph]
++    name = None
++    if len(words) == 4:
++        if not words[3].startswith("name="):
++            return None
++        try:
++            name = json.loads(words[3][len("name=") :])
++        except ValueError:
++            return None
++        if not isinstance(name, str):
++            return None
++    return {"directed": directed, "multigraph": multigraph, "name": name}
++
++
++def header_name(line, comments="#"):
++    """The graph name of the header `line` (None without one)."""
++    info = parse_header(line, comments)
++    return info["name"] if info else None
++
++
++def graph_class(line, comments="#"):
++    """The graph class that the header `line` names, or None when `line` is
++    not a header line."""
++    info = parse_header(line, comments)
++    if info is None:
++        return None
++    return _CLASSES[info["directed"], info["multigraph"]]
 diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 --- a/networkx/readwrite/adjlist.py
 +++ b/networkx/readwrite/adjlist.py
-@@ -28,11 +28,23 @@
- ``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
+@@ -29,11 +29,27 @@
+ return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
  Readers take a token that starts with ``"`` as one quoted name, so such
  graphs round-trip. Edge data is written and read as before.
 +
@@ -64,19 +105,54 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 +
 + # networkx-graph: directed=True multigraph=False
 +
-+When ``create_using`` is None, the readers build a graph of that type
-+(``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
-+comes before the first data line.
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
  """
  
  __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
  
  import networkx as nx
-+from networkx.readwrite._header import graph_class, header_line
- from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._header import graph_class, header_line, header_name
+ from networkx.readwrite._quote import (
+     quote_name,
+     split_names,
+@@ -42,7 +58,7 @@
  from networkx.utils import open_file
  
-@@ -116,7 +128,7 @@
+ 
+-def generate_adjlist(G, delimiter=" "):
++def generate_adjlist(G, delimiter=" ", header=False, comments="#"):
+     """Generate lines representing a graph in adjacency list format.
+ 
+     Parameters
+@@ -52,6 +68,12 @@
+     delimiter : str, default=" "
+         Separator for node labels.
+ 
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
+     Yields
+     ------
+     str
+@@ -106,6 +128,8 @@
+     NB: This option is not available for data that isn't user-generated.
+ 
+     """
++    if header:
++        yield header_line(G, comments)
+     seen = set()
+     directed = G.is_directed()
+     multigraph = G.is_multigraph()
+@@ -124,7 +148,7 @@
  
  
  @open_file(1, mode="wb")
@@ -85,7 +161,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
      """Write graph G in single-line adjacency-list format to path.
  
  
-@@ -136,6 +148,11 @@
+@@ -144,6 +168,11 @@
  
      encoding : string, optional
         Text encoding.
@@ -95,9 +171,9 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 +       `comments` string), from which the readers build a graph of the
 +       same type.
  
-     Examples
-     --------
-@@ -190,6 +207,8 @@
+     Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
+     or ``\\`` are written in double quotes (see the module docstring).
+@@ -205,6 +234,8 @@
      import time
  
      pargs = comments + " ".join(sys.argv) + "\n"
@@ -106,7 +182,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
      header = (
          pargs
          + comments
-@@ -217,6 +236,10 @@
+@@ -232,6 +263,10 @@
  
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -117,7 +193,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
  
      nodetype : Python type, optional
         Convert nodes to this type.
-@@ -249,10 +272,17 @@
+@@ -268,10 +303,19 @@
  
      """
      G = nx.empty_graph(0, create_using)
@@ -127,6 +203,8 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 +            cls = graph_class(line, comments)
 +            if cls is not None:
 +                G = nx.empty_graph(0, cls)
++                if header_name(line, comments):
++                    G.graph["name"] = header_name(line, comments)
 +                continue
          line = strip_comment(line, comments, delimiter)
          if not len(line):
@@ -135,7 +213,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
          vlist = split_names(line.rstrip("\n"), delimiter)
          u = vlist.pop(0)
          # convert types
-@@ -295,6 +325,10 @@
+@@ -314,6 +358,10 @@
  
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -149,10 +227,10 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
-@@ -33,6 +33,17 @@
- ``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
- Readers take a token that starts with ``"`` as one quoted name, so such
- graphs round-trip. Edge data is written and read as before.
+@@ -37,6 +37,21 @@
+ list of data keys (``data=["label"]`` when writing, ``data=(("label",
+ str),)`` when reading): then a ``str`` value is quoted by the same rule
+ (``1 2 "dark red"``) and read back as one value.
 +
 +Graph header
 +------------
@@ -161,21 +239,63 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +
 + # networkx-graph: directed=True multigraph=False
 +
-+When ``create_using`` is None, the readers build a graph of that type
-+(``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
-+comes before the first data line.
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
  """
  
  __all__ = [
-@@ -45,6 +56,7 @@
+@@ -46,14 +61,22 @@
+     "read_edgelist",
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
++    "parse_graph_header",
++    "read_graph_header",
  ]
  
  import networkx as nx
-+from networkx.readwrite._header import graph_class, header_line
++from networkx.readwrite._header import (
++    graph_class,
++    header_line,
++    header_name,
++    parse_header,
++)
  from networkx.readwrite._quote import quote_name, split_names, strip_comment
  from networkx.utils import open_file
  
-@@ -133,7 +145,9 @@
+ 
+-def generate_edgelist(G, delimiter=" ", data=True):
++def generate_edgelist(G, delimiter=" ", data=True, header=False, comments="#"):
+     """Generate lines representing edges of `G` in edge list format.
+ 
+     Parameters
+@@ -68,6 +91,12 @@
+        representation of edge data.  If a list of keys use a list of data
+        values corresponding to the keys.
+ 
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
+     Yields
+     ------
+     str
+@@ -121,6 +150,8 @@
+     --------
+     write_edgelist, read_edgelist
+     """
++    if header:
++        yield header_line(G, comments)
+     if data is True:
+         for u, v, d in G.edges(data=True):
+             e = quote_name(u, delimiter), quote_name(v, delimiter), dict(d)
+@@ -143,7 +174,9 @@
  
  
  @open_file(1, mode="wb")
@@ -186,7 +306,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      """Write graph as a list of edges.
  
      Parameters
-@@ -154,6 +168,11 @@
+@@ -164,6 +197,11 @@
         in the list.
      encoding: string, optional
         Specify which encoding to use when writing file.
@@ -196,9 +316,9 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +       `comments` string), from which the readers build a graph of the
 +       same type.
  
-     Examples
-     --------
-@@ -218,6 +237,8 @@
+     Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
+     or ``\\`` are written in double quotes (see the module docstring).
+@@ -231,6 +269,8 @@
      write_weighted_edgelist
      """
  
@@ -207,7 +327,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      for line in generate_edgelist(G, delimiter, data):
          line += "\n"
          path.write(line.encode(encoding))
-@@ -240,6 +261,10 @@
+@@ -253,6 +293,10 @@
         Separator for node labels. Default is `None`, meaning any whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -218,7 +338,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      nodetype : Python type, optional
         Convert nodes to this type. Default is `None`, meaning no conversion is
         performed.
-@@ -289,7 +314,13 @@
+@@ -306,7 +350,15 @@
      from ast import literal_eval
  
      G = nx.empty_graph(0, create_using)
@@ -228,19 +348,21 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +            cls = graph_class(line, comments)
 +            if cls is not None:
 +                G = nx.empty_graph(0, cls)
++                if header_name(line, comments):
++                    G.graph["name"] = header_name(line, comments)
 +                continue
          if comments is not None:
              line = strip_comment(line, comments, delimiter)
              if not line:
-@@ -298,6 +329,7 @@
-         s = split_names(line.rstrip("\n"), delimiter, names=2)
+@@ -317,6 +369,7 @@
+         s = split_names(line.rstrip("\n"), delimiter, names=names)
          if len(s) < 2:
              continue
 +        seen_data = True
          u = s.pop(0)
          v = s.pop(0)
          d = s
-@@ -372,6 +404,10 @@
+@@ -391,6 +444,10 @@
         The string used to separate values.  The default is whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -251,7 +373,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      nodetype : int, float, str, Python type, optional
         Convert node data from strings to specified type
      data : bool or list of (label,type) tuples
-@@ -461,7 +497,9 @@
+@@ -484,7 +541,9 @@
      )
  
  
@@ -262,7 +384,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      """Write graph `G` as a list of edges with numeric weights.
  
      Parameters
-@@ -507,6 +545,7 @@
+@@ -533,6 +592,7 @@
          delimiter=delimiter,
          data=("weight",),
          encoding=encoding,
@@ -270,7 +392,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      )
  
  
-@@ -533,6 +572,10 @@
+@@ -559,6 +619,10 @@
         The string used to separate values.  The default is whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -281,11 +403,82 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      nodetype : int, float, str, Python type, optional
         Convert node data from strings to specified type
      encoding: string, optional
+@@ -615,3 +679,70 @@
+         data=(("weight", float),),
+         encoding=encoding,
+     )
++
++
++def parse_graph_header(lines, comments="#"):
++    """The graph header of the lines of a file in the edge list, adjacency
++    list or multiline adjacency list format.
++
++    Parameters
++    ----------
++    lines : iterable of str
++       The lines of the file.
++    comments : str, optional (default="#")
++       The comment string of the file.
++
++    Returns
++    -------
++    dict or None
++       ``{"directed": bool, "multigraph": bool, "name": str or None}`` when a
++       header line (as written with ``header=True``) comes before the first
++       data line, else None. Reading stops at the first data line.
++
++    Examples
++    --------
++    >>> nx.parse_graph_header(
++    ...     ["# networkx-graph: directed=True multigraph=False", "1 2"]
++    ... )
++    {'directed': True, 'multigraph': False, 'name': None}
++
++    See Also
++    --------
++    read_graph_header
++    """
++    for line in lines:
++        info = parse_header(line, comments)
++        if info is not None:
++            return info
++        text = line.strip()
++        if text and not (comments is not None and text.startswith(comments)):
++            return None
++    return None
++
++
++@open_file(0, mode="rb")
++def read_graph_header(path, comments="#", encoding="utf-8"):
++    """The graph header of a file in the edge list, adjacency list or
++    multiline adjacency list format, without reading the rest of it.
++
++    Parameters
++    ----------
++    path : file or string
++       File or filename to read. Filenames ending in .gz or .bz2 are
++       uncompressed.
++    comments : str, optional (default="#")
++       The comment string of the file.
++    encoding : str, optional (default="utf-8")
++       The text encoding of the file.
++
++    Returns
++    -------
++    dict or None
++       What :func:`parse_graph_header` returns for the lines of the file.
++
++    See Also
++    --------
++    parse_graph_header
++    """
++    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    return parse_graph_header(lines, comments)
 diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
 --- a/networkx/readwrite/multiline_adjlist.py
 +++ b/networkx/readwrite/multiline_adjlist.py
-@@ -31,6 +31,17 @@
- ``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
+@@ -32,6 +32,21 @@
+ return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
  Readers take a token that starts with ``"`` as one quoted name, so such
  graphs round-trip. Edge data is written and read as before.
 +
@@ -296,21 +489,56 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
 +
 + # networkx-graph: directed=True multigraph=False
 +
-+When ``create_using`` is None, the readers build a graph of that type
-+(``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
-+comes before the first data line.
++A graph with a name gets ``name="<name>"`` (a JSON string) at the end of
++the line. When ``create_using`` is None, the readers build a graph of that
++type (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``), with that
++name, if such a line comes before the first data line. ``generate_*(G,
++header=True)`` yields the header line first, and
++:func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
++header of a file.
  """
  
  __all__ = [
-@@ -41,6 +52,7 @@
+@@ -42,6 +57,7 @@
  ]
  
  import networkx as nx
-+from networkx.readwrite._header import graph_class, header_line
- from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._header import graph_class, header_line, header_name
+ from networkx.readwrite._quote import (
+     quote_name,
+     split_names,
+@@ -50,7 +66,7 @@
  from networkx.utils import open_file
  
-@@ -144,7 +156,9 @@
+ 
+-def generate_multiline_adjlist(G, delimiter=" "):
++def generate_multiline_adjlist(G, delimiter=" ", header=False, comments="#"):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+ 
+     Parameters
+@@ -60,6 +76,12 @@
+     delimiter : str, optional (default=" ")
+        Separator for node labels.
+ 
++    header : bool, optional (default=False)
++       If True, yield the graph header line first (see the module
++       docstring), with the `comments` string.
++
++    comments : str, optional (default="#")
++       The comment string of the header line.
+     Yields
+     ------
+     str
+@@ -95,6 +117,8 @@
+     --------
+     write_multiline_adjlist, read_multiline_adjlist
+     """
++    if header:
++        yield header_line(G, comments)
+     if G.is_directed():
+         if G.is_multigraph():
+             for s, nbrs in G.adjacency():
+@@ -152,7 +176,9 @@
  
  
  @open_file(1, mode="wb")
@@ -321,7 +549,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
      """Write the graph G in multiline adjacency list format to path
  
      Parameters
-@@ -163,6 +177,11 @@
+@@ -171,6 +197,11 @@
  
      encoding : string, optional
         Text encoding.
@@ -331,9 +559,9 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
 +       `comments` string), from which the readers build a graph of the
 +       same type.
  
-     Examples
-     --------
-@@ -215,6 +234,8 @@
+     Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
+     or ``\\`` are written in double quotes (see the module docstring).
+@@ -230,6 +261,8 @@
      import time
  
      pargs = comments + " ".join(sys.argv)
@@ -342,7 +570,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
      header = (
          f"{pargs}\n"
          + comments
-@@ -242,6 +263,10 @@
+@@ -257,6 +290,10 @@
  
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -353,7 +581,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
  
      nodetype : Python type, optional
         Convert nodes to this type.
-@@ -277,10 +302,17 @@
+@@ -296,10 +333,19 @@
      from ast import literal_eval
  
      G = nx.empty_graph(0, create_using)
@@ -363,6 +591,8 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
 +            cls = graph_class(line, comments)
 +            if cls is not None:
 +                G = nx.empty_graph(0, cls)
++                if header_name(line, comments):
++                    G.graph["name"] = header_name(line, comments)
 +                continue
          line = strip_comment(line, comments, delimiter)
          if not line:
@@ -371,7 +601,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
          try:
              (u, deg) = split_names(line.rstrip("\n"), delimiter, names=1)
              deg = int(deg)
-@@ -355,6 +387,10 @@
+@@ -374,6 +420,10 @@
  
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.

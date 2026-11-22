@@ -1,0 +1,22 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 6,
+  "id": "l6-compression",
+  "title": "Text formats: compressed files",
+  "files": [
+    "networkx/readwrite/_compression.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/gexf.py",
+    "networkx/readwrite/gml.py",
+    "networkx/readwrite/graph6.py",
+    "networkx/readwrite/graphml.py",
+    "networkx/readwrite/leda.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py",
+    "networkx/readwrite/sparse6.py",
+    "networkx/utils/decorators.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l6_compression.py"
+}

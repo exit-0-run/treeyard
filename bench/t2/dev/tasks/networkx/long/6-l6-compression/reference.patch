@@ -1,0 +1,910 @@
+diff --git a/networkx/readwrite/_compression.py b/networkx/readwrite/_compression.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_compression.py
+@@ -0,0 +1,56 @@
++"""Compressed files for the line formats (edge list, adjacency lists, Pajek,
++LEDA).
++
++The readers recognise a gzip, bz2 or xz file by its first bytes, whatever its
++name; the writers compress with ``compression="gzip"``, ``"bz2"`` or ``"xz"``.
++"""
++
++import bz2
++import gzip
++import io
++import lzma
++
++__all__ = []
++
++# The first bytes of each kind of compressed file.
++MAGIC = ((b"\x1f\x8b", gzip), (b"BZh", bz2), (b"\xfd7zXZ\x00", lzma))
++COMPRESSIONS = {"gzip": gzip.GzipFile, "bz2": bz2.BZ2File, "xz": lzma.LZMAFile}
++
++
++def uncompressed(f):
++    """The open binary file `f`, uncompressed when its content is gzip, bz2 or
++    xz data (several compressions in a row are all undone). A file of text
++    lines (``str``) is returned as it is."""
++    data = f.read()
++    if isinstance(data, str):
++        return io.StringIO(data)
++    while True:
++        for magic, module in MAGIC:
++            if data.startswith(magic):
++                data = module.decompress(data)
++                break
++        else:
++            return io.BytesIO(data)
++
++
++def compressing(f, compression):
++    """``(writer, finish)``: the file to write to and the function to call when
++    all is written. With `compression` None they are `f` and a no-op; else a
++    writer that compresses into `f` (which stays open)."""
++    if compression is None:
++        return f, lambda: None
++    if compression not in COMPRESSIONS:
++        raise ValueError(
++            f"compression must be None, 'gzip', 'bz2' or 'xz', not {compression!r}"
++        )
++    if isinstance(f, (gzip.GzipFile, bz2.BZ2File, lzma.LZMAFile)):
++        # a file name ending in .gz, .gzip, .bz2 or .xz: open_file compresses already
++        raise ValueError(
++            f"compression={compression!r} for a file whose name ending compresses already"
++        )
++    writer = (
++        COMPRESSIONS[compression](f, mode="wb")
++        if compression != "gzip"
++        else gzip.GzipFile(fileobj=f, mode="wb")
++    )
++    return writer, writer.close
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,11 +20,20 @@
+ 
+      a b c # source target target
+      d e
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ 
+@@ -107,7 +116,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_adjlist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", compression=None
++):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+@@ -127,6 +138,13 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -188,11 +206,13 @@
+         + comments
+         + f" {G.name}\n"
+     )
++    path, finish = compressing(path, compression)
+     path.write(header.encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter):
+         line += "\n"
+         path.write(line.encode(encoding))
++    finish()
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -303,6 +323,9 @@
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -363,7 +386,7 @@
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = (line.decode(encoding) for line in uncompressed(path))
+     return parse_adjlist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,14 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ __all__ = [
+@@ -37,6 +45,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ 
+@@ -124,7 +133,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G, path, comments="#", delimiter=" ", data=True, encoding="utf-8", compression=None
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+@@ -145,6 +156,13 @@
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -209,9 +227,11 @@
+     write_weighted_edgelist
+     """
+ 
++    path, finish = compressing(path, compression)
+     for line in generate_edgelist(G, delimiter, data):
+         line += "\n"
+         path.write(line.encode(encoding))
++    finish()
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -379,6 +399,9 @@
+     G : graph
+        A networkx Graph or other type specified with create_using
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -443,7 +466,10 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = (
++        line if isinstance(line, str) else line.decode(encoding)
++        for line in uncompressed(path)
++    )
+     return parse_edgelist(
+         lines,
+         comments=comments,
+@@ -454,7 +480,9 @@
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", compression=None
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+@@ -471,6 +499,13 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -500,6 +535,7 @@
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        compression=compression,
+     )
+ 
+ 
+@@ -541,6 +577,9 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+diff --git a/networkx/readwrite/gexf.py b/networkx/readwrite/gexf.py
+--- a/networkx/readwrite/gexf.py
++++ b/networkx/readwrite/gexf.py
+@@ -15,6 +15,13 @@
+ ------
+ GEXF is an XML format.  See http://gexf.net/schema.html for the
+ specification and http://gexf.net/basic.html for examples.
++
++Compressed files
++----------------
++``read_gexf`` reads a file compressed with gzip, bz2 or xz whatever its
++name, and ``write_gexf`` takes ``compression="gzip"``, ``"bz2"`` or
++``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
++and ``.bz2`` are.
+ """
+ 
+ import itertools
+@@ -28,13 +35,16 @@
+ )
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ __all__ = ["write_gexf", "read_gexf", "relabel_gexf_graph", "generate_gexf"]
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_gexf(G, path, encoding="utf-8", prettyprint=True, version="1.2draft"):
++def write_gexf(
++    G, path, encoding="utf-8", prettyprint=True, version="1.2draft", compression=None
++):
+     """Write G in GEXF format to path.
+ 
+     "GEXF (Graph Exchange XML Format) is a language for describing
+@@ -70,6 +80,13 @@
+     ------
+     ValueError
+         If an attribute has mixed typed values across nodes or edges.
++
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -150,7 +167,9 @@
+     """
+     writer = GEXFWriter(encoding=encoding, prettyprint=prettyprint, version=version)
+     writer.add_graph(G)
++    path, finish = compressing(path, compression)
+     writer.write(path)
++    finish()
+ 
+ 
+ def generate_gexf(G, encoding="utf-8", prettyprint=True, version="1.2draft"):
+@@ -268,8 +287,13 @@
+     References
+     ----------
+     .. [1] GEXF File Format, http://gexf.net/
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     """
+     reader = GEXFReader(node_type=node_type, version=version)
++    path = uncompressed(path)
+     if relabel:
+         G = relabel_gexf_graph(reader(path))
+     else:
+diff --git a/networkx/readwrite/gml.py b/networkx/readwrite/gml.py
+--- a/networkx/readwrite/gml.py
++++ b/networkx/readwrite/gml.py
+@@ -26,6 +26,13 @@
+ 
+ Several example graphs in GML format may be found on Mark Newman's
+ `Network data page <http://www-personal.umich.edu/~mejn/netdata/>`_.
++
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ import html.entities as htmlentitydefs
+@@ -37,6 +44,7 @@
+ from typing import Any, NamedTuple
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_gml", "parse_gml", "generate_gml", "write_gml"]
+@@ -159,6 +167,9 @@
+ 
+     See the module docstring :mod:`networkx.readwrite.gml` for more details.
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -196,7 +207,7 @@
+                 line = line[:-1]
+             yield line
+ 
+-    G = parse_gml_lines(filter_lines(path), label, destringizer)
++    G = parse_gml_lines(filter_lines(uncompressed(path)), label, destringizer)
+     return G
+ 
+ 
+@@ -824,7 +835,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_gml(G, path, stringizer=None):
++def write_gml(G, path, stringizer=None, compression=None):
+     """Write a graph `G` in GML format to the file or file handle `path`.
+ 
+     Parameters
+@@ -840,6 +851,11 @@
+         A `stringizer` which converts non-int/non-float/non-dict values into
+         strings. If it cannot convert a value into a string, it should raise a
+         `ValueError` to indicate that. Default value: None.
++
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+ 
+     Raises
+     ------
+@@ -874,6 +890,9 @@
+     `GML url <https://web.archive.org/web/20190207140002/http://www.fim.uni-passau.de/index.php?id=17297&L=1>`_.
+ 
+     See the module docstring :mod:`networkx.readwrite.gml` for more details.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -916,5 +935,7 @@
+     >>> fpath = tmp_path / "test_path5.gml.gz"
+     >>> nx.write_gml(G, fpath)
+     """
++    path, finish = compressing(path, compression)
+     for line in generate_gml(G, stringizer):
+         path.write((line + "\n").encode("ascii"))
++    finish()
+diff --git a/networkx/readwrite/graph6.py b/networkx/readwrite/graph6.py
+--- a/networkx/readwrite/graph6.py
++++ b/networkx/readwrite/graph6.py
+@@ -9,11 +9,18 @@
+ 
+ .. _graph6: http://users.cecs.anu.edu.au/~bdm/data/formats.html
+ 
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ from itertools import islice
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import not_implemented_for, open_file
+ 
+ __all__ = ["from_graph6_bytes", "read_graph6", "to_graph6_bytes", "write_graph6"]
+@@ -212,6 +219,9 @@
+     NetworkXError
+         If the string is unable to be parsed in graph6 format
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     You can read a graph6 file by giving the path to the file::
+@@ -245,7 +255,7 @@
+ 
+     """
+     glist = []
+-    for line in path:
++    for line in uncompressed(path):
+         line = line.strip()
+         if not len(line):
+             continue
+@@ -259,7 +269,7 @@
+ @not_implemented_for("directed")
+ @not_implemented_for("multigraph")
+ @open_file(1, mode="wb")
+-def write_graph6(G, path, nodes=None, header=True):
++def write_graph6(G, path, nodes=None, header=True, compression=None):
+     """Write a simple undirected graph to a path in graph6 format.
+ 
+     Parameters
+@@ -277,6 +287,10 @@
+     header: bool
+        If True add '>>graph6<<' string to head of data
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+     Raises
+     ------
+     NetworkXNotImplemented
+@@ -285,6 +299,9 @@
+     ValueError
+         If the graph has at least ``2 ** 36`` nodes; the graph6 format
+         is only defined for graphs of order less than ``2 ** 36``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -315,7 +332,9 @@
+            <http://users.cecs.anu.edu.au/~bdm/data/formats.html>
+ 
+     """
+-    return write_graph6_file(G, path, nodes=nodes, header=header)
++    path, finish = compressing(path, compression)
++    write_graph6_file(G, path, nodes=nodes, header=header)
++    finish()
+ 
+ 
+ @not_implemented_for("directed")
+diff --git a/networkx/readwrite/graphml.py b/networkx/readwrite/graphml.py
+--- a/networkx/readwrite/graphml.py
++++ b/networkx/readwrite/graphml.py
+@@ -39,12 +39,20 @@
+ http://graphml.graphdrawing.org/specification.html for the specification and
+ http://graphml.graphdrawing.org/primer/graphml-primer.html
+ for examples.
++
++Compressed files
++----------------
++``read_graphml`` reads a file compressed with gzip, bz2 or xz whatever its
++name, and ``write_graphml`` takes ``compression="gzip"``, ``"bz2"`` or
++``"xz"``; a file name ending in ``.xz`` is compressed with xz, as ``.gz``
++and ``.bz2`` are.
+ """
+ 
+ import warnings
+ from collections import defaultdict
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ __all__ = [
+@@ -68,6 +76,7 @@
+     infer_numeric_types=False,
+     named_key_ids=False,
+     edge_id_from_attribute=None,
++    compression=None,
+ ):
+     """Write G in GraphML XML format to path
+ 
+@@ -93,6 +102,10 @@
+         edge data attribute keyed by this parameter. If `None` or the key does not exist in edge data,
+         the edge id is set by the edge key if `G` is a MultiGraph, else the edge id is left unset.
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -131,7 +144,9 @@
+         edge_id_from_attribute=edge_id_from_attribute,
+     )
+     writer.add_graph_element(G)
++    path, finish = compressing(path, compression)
+     writer.dump(path)
++    finish()
+ 
+ 
+ @open_file(1, mode="wb")
+@@ -143,6 +158,7 @@
+     infer_numeric_types=False,
+     named_key_ids=False,
+     edge_id_from_attribute=None,
++    compression=None,
+ ):
+     """Write G in GraphML XML format to path
+ 
+@@ -171,6 +187,10 @@
+         edge data attribute keyed by this parameter. If `None` or the key does not exist in edge data,
+         the edge id is set by the edge key if `G` is a MultiGraph, else the edge id is left unset.
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -212,8 +232,10 @@
+             infer_numeric_types,
+             named_key_ids,
+             edge_id_from_attribute,
++            compression,
+         )
+ 
++    path, finish = compressing(path, compression)
+     writer = GraphMLWriterLxml(
+         path,
+         graph=G,
+@@ -224,6 +246,7 @@
+         edge_id_from_attribute=edge_id_from_attribute,
+     )
+     writer.dump()
++    finish()
+ 
+ 
+ def generate_graphml(
+@@ -331,10 +354,13 @@
+     yEd compressed files ("file.graphmlz" extension) can be read by renaming
+     the file to "file.graphml.gz".
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     """
+     reader = GraphMLReader(node_type, edge_key_type, force_multigraph)
+     # need to check for multiple graphs
+-    glist = list(reader(path=path))
++    glist = list(reader(path=uncompressed(path)))
+     if len(glist) == 0:
+         # If no graph comes back, try looking for an incomplete header
+         header = b'<graphml xmlns="http://graphml.graphdrawing.org/xmlns">'
+diff --git a/networkx/readwrite/leda.py b/networkx/readwrite/leda.py
+--- a/networkx/readwrite/leda.py
++++ b/networkx/readwrite/leda.py
+@@ -7,6 +7,10 @@
+ ------
+ See http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+ 
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes.
+ """
+ # Original author: D. Eppstein, UC Irvine, August 12, 2003.
+ # The original code at http://www.ics.uci.edu/~eppstein/PADS/ is public domain.
+@@ -14,6 +18,7 @@
+ __all__ = ["read_leda", "parse_leda"]
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ 
+@@ -32,6 +37,9 @@
+     -------
+     G : NetworkX graph
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> G = nx.read_leda("file.leda")  # doctest: +SKIP
+@@ -40,7 +48,7 @@
+     ----------
+     .. [1] http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = (line.decode(encoding) for line in uncompressed(path))
+     G = parse_leda(lines)
+     return G
+ 
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,14 @@
+      c
+      d 1
+      e
++
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ __all__ = [
+@@ -33,6 +41,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ 
+@@ -135,7 +144,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G, path, delimiter=" ", comments="#", encoding="utf-8", compression=None
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+@@ -154,6 +165,13 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -213,11 +231,13 @@
+         + comments
+         + f" {G.name}\n"
+     )
++    path, finish = compressing(path, compression)
+     path.write(header.encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(G, delimiter):
+         multiline += "\n"
+         path.write(multiline.encode(encoding))
++    finish()
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -367,6 +387,9 @@
+     -------
+     G : NetworkX graph
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -422,7 +445,7 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = (line.decode(encoding) for line in uncompressed(path))
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -12,11 +12,19 @@
+ See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+ for format information.
+ 
++Compressed files
++----------------
++The ``read_*`` functions read a file compressed with gzip, bz2 or xz
++whatever its name: they recognise the compression by its first bytes. The
++``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
++compress what they write, also into an open file; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
+@@ -97,7 +105,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_pajek(G, path, encoding="UTF-8"):
++def write_pajek(G, path, encoding="UTF-8", compression=None):
+     """Write graph in Pajek format to path.
+ 
+     Parameters
+@@ -107,6 +115,13 @@
+     path : file or string
+        File or filename to write.
+        Filenames ending in .gz or .bz2 will be compressed.
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++       Compress what is written, also into a file object. With None a file
++       name ending in .gz, .bz2 or .xz decides, as before; a compression
++       with such a name, or another value, raises ``ValueError``.
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -142,9 +157,11 @@
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
++    path, finish = compressing(path, compression)
+     for line in generate_pajek(G):
+         line += "\n"
+         path.write(line.encode(encoding))
++    finish()
+ 
+ 
+ @open_file(0, mode="rb")
+@@ -161,6 +178,9 @@
+     Returns
+     -------
+     G : NetworkX MultiGraph or MultiDiGraph.
++
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
+ 
+     Examples
+     --------
+@@ -185,7 +205,7 @@
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = (line.decode(encoding) for line in uncompressed(path))
+     return parse_pajek(lines)
+ 
+ 
+diff --git a/networkx/readwrite/sparse6.py b/networkx/readwrite/sparse6.py
+--- a/networkx/readwrite/sparse6.py
++++ b/networkx/readwrite/sparse6.py
+@@ -10,9 +10,16 @@
+ 
+ .. _sparse6: https://users.cecs.anu.edu.au/~bdm/data/formats.html
+ 
++Compressed files
++----------------
++The ``read_*`` function reads a file compressed with gzip, bz2 or xz
++whatever its name, and the ``write_*`` function takes
++``compression="gzip"``, ``"bz2"`` or ``"xz"``; a file name ending in
++``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
+ """
+ 
+ import networkx as nx
++from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite.graph6 import data_to_n, n_to_data
+ from networkx.utils import not_implemented_for, open_file
+ 
+@@ -272,6 +279,9 @@
+     NetworkXError
+         If the string is unable to be parsed in sparse6 format
+ 
++    A file compressed with gzip, bz2 or xz is read whatever its name: the
++    compression is recognised by the first bytes of the file.
++
+     Examples
+     --------
+     You can read a sparse6 file by giving the path to the file::
+@@ -305,7 +315,7 @@
+ 
+     """
+     glist = []
+-    for line in path:
++    for line in uncompressed(path):
+         line = line.strip()
+         if not len(line):
+             continue
+@@ -318,7 +328,7 @@
+ 
+ @not_implemented_for("directed")
+ @open_file(1, mode="wb")
+-def write_sparse6(G, path, nodes=None, header=True):
++def write_sparse6(G, path, nodes=None, header=True, compression=None):
+     """Write graph G to given path in sparse6 format.
+ 
+     Parameters
+@@ -336,10 +346,17 @@
+     header: bool
+        If True add '>>sparse6<<' string to head of data
+ 
++    compression : {None, "gzip", "bz2", "xz"}, optional (default=None)
++        Compress what is written, also into a file object. With None a file
++        name ending in .gz, .bz2 or .xz decides, as before; a compression
++        with such a name, or another value, raises ``ValueError``.
+     Raises
+     ------
+     NetworkXError
+         If the graph is directed
++
++    With ``compression`` set the file is compressed; the open file given as
++    `path` stays open.
+ 
+     Examples
+     --------
+@@ -376,5 +393,7 @@
+     if nodes is not None:
+         G = G.subgraph(nodes)
+     G = nx.convert_node_labels_to_integers(G, ordering="sorted")
++    path, finish = compressing(path, compression)
+     for b in _generate_sparse6_bytes(G, nodes, header):
+         path.write(b)
++    finish()
+diff --git a/networkx/utils/decorators.py b/networkx/utils/decorators.py
+--- a/networkx/utils/decorators.py
++++ b/networkx/utils/decorators.py
+@@ -2,6 +2,7 @@
+ import collections
+ import gzip
+ import inspect
++import lzma
+ import re
+ import threading
+ from collections import defaultdict
+@@ -97,6 +98,7 @@
+     ".gz": gzip.open,
+     ".gzip": gzip.open,
+     ".bz2": bz2.BZ2File,
++    ".xz": lzma.open,
+ }
+ _dispatch_dict = defaultdict(lambda: open, **fopeners)
+ 

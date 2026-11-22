@@ -1,0 +1,15 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 8,
+  "id": "l8-line-writer",
+  "title": "Refactor: one writer for the line formats and Pajek",
+  "files": [
+    "networkx/readwrite/_linewriter.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l8_line_writer.py"
+}

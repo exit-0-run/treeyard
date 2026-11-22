@@ -1,0 +1,22 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 9,
+  "id": "l9-text-file",
+  "title": "Refactor: the files of the text formats in one class",
+  "files": [
+    "networkx/readwrite/_textfile.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/gexf.py",
+    "networkx/readwrite/gml.py",
+    "networkx/readwrite/graph6.py",
+    "networkx/readwrite/graphml.py",
+    "networkx/readwrite/leda.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py",
+    "networkx/readwrite/sparse6.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l9_text_file.py",
+  "oracle_undo": "This refactor moves the decoding and encoding code of the five line formats into TextFile: one copy replaces five."
+}

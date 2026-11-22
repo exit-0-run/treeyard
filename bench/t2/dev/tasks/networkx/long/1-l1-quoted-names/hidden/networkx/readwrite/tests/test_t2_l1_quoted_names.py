@@ -67,3 +67,41 @@ def test_other_names_and_data_as_before():
     assert nx.parse_edgelist(["1 2 {'color': 'dark red'}"], nodetype=int)[1][2] == {"color": "dark red"}
     with pytest.raises(TypeError):
         nx.parse_adjlist(['"open a'])
+
+
+def test_line_breaks_in_names_are_escaped():
+    G = nx.Graph([("a\nb", "c\rd")])
+    assert list(nx.generate_edgelist(G, data=False)) == ['"a\\nb" "c\\rd"']
+    assert list(nx.generate_adjlist(G))[0] == '"a\\nb" "c\\rd"'
+    assert list(nx.generate_multiline_adjlist(G))[:2] == ['"a\\nb" 1', '"c\\rd" {}']
+    for fmt in FORMATS:
+        text, H = roundtrip(fmt, G)
+        assert sorted(H) == ["a\nb", "c\rd"], fmt
+
+
+def test_escapes_read_back():
+    G = nx.parse_edgelist(['"x\\ny" "p\\rq" {}', '"s\\\\n" t {}'])
+    assert sorted(G) == ["p\rq", "s\\n", "t", "x\ny"]
+
+
+def test_the_graph_name_line_is_quoted():
+    for fmt in ("adjlist", "multiline_adjlist"):
+        text, H = roundtrip(fmt, nx.Graph(name="x\ny"))
+        assert text.split("\n")[2] == '# "x\\ny"', fmt
+        assert len(text.split("\n")) == 4, fmt
+        text, H = roundtrip(fmt, nx.Graph(name="roads"))
+        assert text.split("\n")[2] == "# roads", fmt
+
+
+def test_string_values_of_data_keys_are_quoted():
+    G = nx.Graph()
+    G.add_edge(1, 2, label="dark red", weight=3)
+    assert list(nx.generate_edgelist(G, data=["label", "weight"])) == ['1 2 "dark red" 3']
+    assert list(nx.generate_edgelist(G, data=["weight"])) == ["1 2 3"]
+    assert list(nx.generate_edgelist(G, data=True)) == ["1 2 {'label': 'dark red', 'weight': 3}"]
+    H = nx.parse_edgelist(['1 2 "dark red" 3'], nodetype=int, data=(("label", str), ("weight", int)))
+    assert list(H.edges(data=True)) == [(1, 2, {"label": "dark red", "weight": 3})]
+    b = io.BytesIO()
+    nx.write_edgelist(G, b, data=["label"])
+    H = nx.read_edgelist(io.BytesIO(b.getvalue()), nodetype=int, data=(("label", str),))
+    assert H[1][2]["label"] == "dark red"

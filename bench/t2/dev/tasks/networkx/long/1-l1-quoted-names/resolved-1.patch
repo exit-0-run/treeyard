@@ -2,15 +2,18 @@ diff --git a/networkx/readwrite/_quote.py b/networkx/readwrite/_quote.py
 new file mode 100644
 --- /dev/null
 +++ b/networkx/readwrite/_quote.py
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,139 @@
 +"""Quoted node names for the line formats (edge list, adjacency lists).
 +
 +A node name that cannot be written as a bare token is written in double
-+quotes. Inside the quotes a backslash is written as ``\\\\`` and a double
-+quote as ``\\"``.
++quotes. Inside the quotes a backslash is written as ``\\\\``, a double quote
++as ``\\"``, a line feed as ``\\n`` and a carriage return as ``\\r``.
 +"""
 +
 +__all__ = []
++
++# The escapes inside a quoted name: a line break would end the line.
++_ESCAPES = {"n": "\n", "r": "\r"}
 +
 +
 +def needs_quotes(name, delimiter=" "):
@@ -31,7 +34,9 @@ new file mode 100644
 +    name = str(node)
 +    if not needs_quotes(name, delimiter):
 +        return name
-+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
++    text = name.replace("\\", "\\\\").replace('"', '\\"')
++    text = text.replace("\n", "\\n").replace("\r", "\\r")
++    return '"' + text + '"'
 +
 +
 +def split_names(line, delimiter=None, names=None):
@@ -65,6 +70,9 @@ new file mode 100644
 +            while j < n and line[j] != '"':
 +                if line[j] == "\\" and j + 1 < n:
 +                    j += 1
++                    chars.append(_ESCAPES.get(line[j], line[j]))
++                    j += 1
++                    continue
 +                chars.append(line[j])
 +                j += 1
 +            if j >= n:
@@ -137,7 +145,7 @@ new file mode 100644
 diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 --- a/networkx/readwrite/adjlist.py
 +++ b/networkx/readwrite/adjlist.py
-@@ -20,11 +20,20 @@
+@@ -20,11 +20,25 @@
  
       a b c # source target target
       d e
@@ -146,7 +154,8 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
 +graphs round-trip. Edge data is written and read as before.
  """
@@ -154,11 +163,25 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
  __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
  
  import networkx as nx
-+from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
  from networkx.utils import open_file
  
  
-@@ -93,14 +102,14 @@
+@@ -43,6 +57,9 @@
+     str
+         Adjacency list for a node in `G`. The first item is the node label,
+         followed by the labels of its neighbors.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -93,14 +110,14 @@
      directed = G.is_directed()
      multigraph = G.is_multigraph()
      for s, nbrs in G.adjacency():
@@ -176,7 +199,41 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
          if not directed:
              seen.add(s)
          yield delimiter.join(nodes)
-@@ -241,12 +250,10 @@
+@@ -127,6 +144,13 @@
+ 
+     encoding : string, optional
+        Text encoding.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
+ 
+     Examples
+     --------
+@@ -186,7 +210,7 @@
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+     path.write(header.encode(encoding))
+ 
+@@ -222,6 +246,10 @@
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
+ 
+     Examples
+     --------
+@@ -241,12 +269,10 @@
      """
      G = nx.empty_graph(0, create_using)
      for line in lines:
@@ -191,10 +248,21 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
          u = vlist.pop(0)
          # convert types
          if nodetype is not None:
+@@ -303,6 +329,10 @@
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
-@@ -25,6 +25,14 @@
+@@ -25,6 +25,18 @@
  Arbitrary data::
  
   1 2 7 green
@@ -203,13 +271,17 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
-+graphs round-trip. Edge data is written and read as before.
++graphs round-trip. Edge data is written and read as before, except with a
++list of data keys (``data=["label"]`` when writing, ``data=(("label",
++str),)`` when reading): then a ``str`` value is quoted by the same rule
++(``1 2 "dark red"``) and read back as one value.
  """
  
  __all__ = [
-@@ -37,6 +45,7 @@
+@@ -37,6 +49,7 @@
  ]
  
  import networkx as nx
@@ -217,7 +289,17 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  from networkx.utils import open_file
  
  
-@@ -107,15 +116,15 @@
+@@ -59,6 +72,9 @@
+     ------
+     str
+         A line of data in edge list format for an edge in `G`.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -107,17 +123,20 @@
      """
      if data is True:
          for u, v, d in G.edges(data=True):
@@ -234,9 +316,36 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 -            e = [u, v]
 +            e = [quote_name(u, delimiter), quote_name(v, delimiter)]
              try:
-                 e.extend(d[k] for k in data)
+-                e.extend(d[k] for k in data)
++                e.extend(
++                    quote_name(d[k], delimiter) if isinstance(d[k], str) else d[k]
++                    for k in data
++                )
              except KeyError:
-@@ -282,13 +291,11 @@
+                 pass  # missing data for this edge, should warn?
+             yield delimiter.join(map(str, e))
+@@ -146,6 +165,9 @@
+     encoding: string, optional
+        Specify which encoding to use when writing file.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -244,6 +266,10 @@
+     G: NetworkX Graph
+         The graph corresponding to lines
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     Edgelist with no data:
+@@ -282,13 +308,13 @@
      G = nx.empty_graph(0, create_using)
      for line in lines:
          if comments is not None:
@@ -249,14 +358,48 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 -        # split line, should have 2 or more
 -        s = line.rstrip("\n").split(delimiter)
 +        # split line, should have 2 or more; the two node names may be quoted
-+        s = split_names(line.rstrip("\n"), delimiter, names=2)
++        # with data keys every value may be quoted too; else the data is text
++        names = None if data not in (True, False) else 2
++        s = split_names(line.rstrip("\n"), delimiter, names=names)
          if len(s) < 2:
              continue
          u = s.pop(0)
+@@ -379,6 +405,10 @@
+     G : graph
+        A networkx Graph or other type specified with create_using
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+@@ -471,6 +501,9 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -541,6 +574,10 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
 diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
 --- a/networkx/readwrite/multiline_adjlist.py
 +++ b/networkx/readwrite/multiline_adjlist.py
-@@ -23,6 +23,14 @@
+@@ -23,6 +23,15 @@
       c
       d 1
       e
@@ -265,21 +408,36 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
 +graphs round-trip. Edge data is written and read as before.
  """
  
  __all__ = [
-@@ -33,6 +41,7 @@
+@@ -33,6 +42,11 @@
  ]
  
  import networkx as nx
-+from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
  from networkx.utils import open_file
  
  
-@@ -87,21 +96,21 @@
+@@ -51,6 +65,9 @@
+     str
+         A line of data in multiline adjacency list format for a node or one of
+         its neighbors in `G`.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
+ 
+     Examples
+     --------
+@@ -87,21 +104,21 @@
                      for key, data in datadict.items()
                  ]
                  deg = len(nbr_edges)
@@ -307,7 +465,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
      else:  # undirected
          if G.is_multigraph():
              seen = set()  # helper dict used to avoid duplicate edges
-@@ -113,24 +122,24 @@
+@@ -113,24 +130,24 @@
                      for key, data in datadict.items()
                  ]
                  deg = len(nbr_edges)
@@ -338,7 +496,41 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
                  seen.add(s)
  
  
-@@ -269,13 +278,11 @@
+@@ -154,6 +171,13 @@
+ 
+     encoding : string, optional
+        Text encoding.
++
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
+ 
+     Examples
+     --------
+@@ -211,7 +235,7 @@
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+     path.write(header.encode(encoding))
+ 
+@@ -250,6 +274,10 @@
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in multiline adjacency list format.
++
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
+ 
+     Examples
+     --------
+@@ -269,13 +297,11 @@
  
      G = nx.empty_graph(0, create_using)
      for line in lines:
@@ -354,7 +546,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
              deg = int(deg)
          except BaseException as err:
              raise TypeError(f"Failed to read node and degree on line ({line})") from err
-@@ -294,12 +301,10 @@
+@@ -294,12 +320,10 @@
                  except StopIteration as err:
                      msg = f"Failed to find neighbor for node ({u})"
                      raise TypeError(msg) from err
@@ -369,3 +561,14 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
              numb = len(vlist)
              if numb < 1:
                  continue  # isolated node
+@@ -367,6 +391,10 @@
+     -------
+     G : NetworkX graph
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path

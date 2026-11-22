@@ -3,12 +3,14 @@
   "set": "long",
   "k": 3,
   "id": "l3-line-errors",
-  "title": "Line formats: errors that say which line",
+  "title": "Text formats: errors that say which line",
   "files": [
     "networkx/exception.py",
     "networkx/readwrite/adjlist.py",
     "networkx/readwrite/edgelist.py",
-    "networkx/readwrite/multiline_adjlist.py"
+    "networkx/readwrite/leda.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py"
   ],
   "test": "networkx/readwrite/tests/test_t2_l3_line_errors.py"
 }

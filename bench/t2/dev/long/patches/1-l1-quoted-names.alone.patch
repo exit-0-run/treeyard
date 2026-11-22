@@ -1,17 +1,20 @@
 diff --git a/networkx/readwrite/_quote.py b/networkx/readwrite/_quote.py
 new file mode 100644
-index 0000000..df9e4a7
+index 0000000..cc9e9fb
 --- /dev/null
 +++ b/networkx/readwrite/_quote.py
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,139 @@
 +"""Quoted node names for the line formats (edge list, adjacency lists).
 +
 +A node name that cannot be written as a bare token is written in double
-+quotes. Inside the quotes a backslash is written as ``\\\\`` and a double
-+quote as ``\\"``.
++quotes. Inside the quotes a backslash is written as ``\\\\``, a double quote
++as ``\\"``, a line feed as ``\\n`` and a carriage return as ``\\r``.
 +"""
 +
 +__all__ = []
++
++# The escapes inside a quoted name: a line break would end the line.
++_ESCAPES = {"n": "\n", "r": "\r"}
 +
 +
 +def needs_quotes(name, delimiter=" "):
@@ -32,7 +35,9 @@ index 0000000..df9e4a7
 +    name = str(node)
 +    if not needs_quotes(name, delimiter):
 +        return name
-+    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
++    text = name.replace("\\", "\\\\").replace('"', '\\"')
++    text = text.replace("\n", "\\n").replace("\r", "\\r")
++    return '"' + text + '"'
 +
 +
 +def split_names(line, delimiter=None, names=None):
@@ -66,6 +71,9 @@ index 0000000..df9e4a7
 +            while j < n and line[j] != '"':
 +                if line[j] == "\\" and j + 1 < n:
 +                    j += 1
++                    chars.append(_ESCAPES.get(line[j], line[j]))
++                    j += 1
++                    continue
 +                chars.append(line[j])
 +                j += 1
 +            if j >= n:
@@ -136,10 +144,10 @@ index 0000000..df9e4a7
 +        i += 1
 +    return line
 diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
-index 0f0c210..2d1162a 100644
+index 0f0c210..ef6ee9f 100644
 --- a/networkx/readwrite/adjlist.py
 +++ b/networkx/readwrite/adjlist.py
-@@ -18,15 +18,24 @@ between the source node and target node.
+@@ -18,15 +18,29 @@ between the source node and target node.
  The graph with edges a-b, a-c, d-e can be represented as the following
  adjacency list (anything following the # in a line is a comment)::
  
@@ -150,7 +158,8 @@ index 0f0c210..2d1162a 100644
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
 +graphs round-trip. Edge data is written and read as before.
  """
@@ -158,13 +167,31 @@ index 0f0c210..2d1162a 100644
  __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
  
  import networkx as nx
-+from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
  from networkx.utils import open_file
  
  
  def generate_adjlist(G, delimiter=" "):
      """Generate lines representing a graph in adjacency list format.
-@@ -91,18 +100,18 @@ def generate_adjlist(G, delimiter=" "):
+@@ -42,10 +56,13 @@ def generate_adjlist(G, delimiter=" "):
+     ------
+     str
+         Adjacency list for a node in `G`. The first item is the node label,
+         followed by the labels of its neighbors.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> G = nx.lollipop_graph(4, 3)
+     >>> for line in nx.generate_adjlist(G):
+     ...     print(line)
+@@ -91,18 +108,18 @@ def generate_adjlist(G, delimiter=" "):
      """
      seen = set()
      directed = G.is_directed()
@@ -186,7 +213,53 @@ index 0f0c210..2d1162a 100644
          yield delimiter.join(nodes)
  
  
-@@ -239,16 +248,14 @@ def parse_adjlist(
+@@ -126,10 +143,17 @@ def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+        Separator for node labels
+ 
+     encoding : string, optional
+        Text encoding.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -184,11 +208,11 @@ def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+     header = (
+         pargs
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+     path.write(header.encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter):
+         line += "\n"
+@@ -221,10 +245,14 @@ def parse_adjlist(
+     Returns
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> lines = ["1 2 5", "2 3 4", "3 5", "4", "5"]
+     >>> G = nx.parse_adjlist(lines, nodetype=int)
+     >>> nodes = [1, 2, 3, 4, 5]
+@@ -239,16 +267,14 @@ def parse_adjlist(
      read_adjlist
  
      """
@@ -205,11 +278,26 @@ index 0f0c210..2d1162a 100644
          if nodetype is not None:
              try:
                  u = nodetype(u)
+@@ -301,10 +327,14 @@ def read_adjlist(
+     Returns
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index fe62ba8..aff0db7 100644
+index fe62ba8..ab2cc15 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
-@@ -23,10 +23,18 @@ Python dictionary as data::
+@@ -23,10 +23,22 @@ Python dictionary as data::
   1 2 {'weight':7, 'color':'green'}
  
  Arbitrary data::
@@ -220,15 +308,19 @@ index fe62ba8..aff0db7 100644
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
-+graphs round-trip. Edge data is written and read as before.
++graphs round-trip. Edge data is written and read as before, except with a
++list of data keys (``data=["label"]`` when writing, ``data=(("label",
++str),)`` when reading): then a ``str`` value is quoted by the same rule
++(``1 2 "dark red"``) and read back as one value.
  """
  
  __all__ = [
      "generate_edgelist",
      "write_edgelist",
-@@ -35,10 +43,11 @@ __all__ = [
+@@ -35,10 +47,11 @@ __all__ = [
      "read_weighted_edgelist",
      "write_weighted_edgelist",
  ]
@@ -240,7 +332,21 @@ index fe62ba8..aff0db7 100644
  
  def generate_edgelist(G, delimiter=" ", data=True):
      """Generate lines representing edges of `G` in edge list format.
-@@ -105,19 +114,19 @@ def generate_edgelist(G, delimiter=" ", data=True):
+@@ -58,10 +71,13 @@ def generate_edgelist(G, delimiter=" ", data=True):
+     Yields
+     ------
+     str
+         A line of data in edge list format for an edge in `G`.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> G = nx.lollipop_graph(4, 3)
+     >>> G[1][2]["weight"] = 3
+     >>> G[3][4]["capacity"] = 12
+@@ -105,21 +121,24 @@ def generate_edgelist(G, delimiter=" ", data=True):
      --------
      write_edgelist, read_edgelist
      """
@@ -259,11 +365,46 @@ index fe62ba8..aff0db7 100644
 -            e = [u, v]
 +            e = [quote_name(u, delimiter), quote_name(v, delimiter)]
              try:
-                 e.extend(d[k] for k in data)
+-                e.extend(d[k] for k in data)
++                e.extend(
++                    quote_name(d[k], delimiter) if isinstance(d[k], str) else d[k]
++                    for k in data
++                )
              except KeyError:
                  pass  # missing data for this edge, should warn?
              yield delimiter.join(map(str, e))
-@@ -280,17 +289,15 @@ def parse_edgelist(
+ 
+ 
+@@ -144,10 +163,13 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+        If a list (or other iterable) is provided, write the  keys specified
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -242,10 +264,14 @@ def parse_edgelist(
+     Returns
+     -------
+     G: NetworkX Graph
+         The graph corresponding to lines
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     Edgelist with no data:
+ 
+     >>> lines = ["1 2", "2 3", "3 4"]
+@@ -280,17 +306,17 @@ def parse_edgelist(
      from ast import literal_eval
  
      G = nx.empty_graph(0, create_using)
@@ -278,17 +419,63 @@ index fe62ba8..aff0db7 100644
 -        # split line, should have 2 or more
 -        s = line.rstrip("\n").split(delimiter)
 +        # split line, should have 2 or more; the two node names may be quoted
-+        s = split_names(line.rstrip("\n"), delimiter, names=2)
++        # with data keys every value may be quoted too; else the data is text
++        names = None if data not in (True, False) else 2
++        s = split_names(line.rstrip("\n"), delimiter, names=names)
          if len(s) < 2:
              continue
          u = s.pop(0)
          v = s.pop(0)
          d = s
+@@ -377,10 +403,14 @@ def read_edgelist(
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -470,10 +500,13 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+     delimiter : string, optional
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -539,10 +572,14 @@ def read_weighted_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+     >>> tmp_path = Path(tempfile.gettempdir())
 diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
-index 08e17d5..3564817 100644
+index 08e17d5..361c776 100644
 --- a/networkx/readwrite/multiline_adjlist.py
 +++ b/networkx/readwrite/multiline_adjlist.py
-@@ -21,20 +21,29 @@ adjacency list (anything following the # in a line is a comment)::
+@@ -21,20 +21,34 @@ adjacency list (anything following the # in a line is a comment)::
       a 2
       b
       c
@@ -299,7 +486,8 @@ index 08e17d5..3564817 100644
 +----------------------
 +A node name (``str(node)``) that is empty or holds whitespace, the
 +delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
-+``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++``\\`` and ``"`` escaped by a backslash and a line feed or carriage
++return written as ``\\n`` or ``\\r`` (``"New York"``, ``"say \\"hi\\""``).
 +Readers take a token that starts with ``"`` as one quoted name, so such
 +graphs round-trip. Edge data is written and read as before.
  """
@@ -312,13 +500,31 @@ index 08e17d5..3564817 100644
  ]
  
  import networkx as nx
-+from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import (
++    quote_name,
++    split_names,
++    strip_comment,
++)
  from networkx.utils import open_file
  
  
  def generate_multiline_adjlist(G, delimiter=" "):
      """Generate lines representing the graph `G` in multiline adjacency list format.
-@@ -85,25 +94,25 @@ def generate_multiline_adjlist(G, delimiter=" "):
+@@ -50,10 +64,13 @@ def generate_multiline_adjlist(G, delimiter=" "):
+     ------
+     str
+         A line of data in multiline adjacency list format for a node or one of
+         its neighbors in `G`.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
+     Examples
+     --------
+     >>> G = nx.lollipop_graph(4, 3)
+     >>> for line in nx.generate_multiline_adjlist(G):
+     ...     print(line)
+@@ -85,25 +102,25 @@ def generate_multiline_adjlist(G, delimiter=" "):
                      (u, data)
                      for u, datadict in nbrs.items()
                      for key, data in datadict.items()
@@ -350,7 +556,7 @@ index 08e17d5..3564817 100644
              seen = set()  # helper dict used to avoid duplicate edges
              for s, nbrs in G.adjacency():
                  nbr_edges = [
-@@ -111,28 +120,28 @@ def generate_multiline_adjlist(G, delimiter=" "):
+@@ -111,28 +128,28 @@ def generate_multiline_adjlist(G, delimiter=" "):
                      for u, datadict in nbrs.items()
                      if u not in seen
                      for key, data in datadict.items()
@@ -385,7 +591,53 @@ index 08e17d5..3564817 100644
  
  @open_file(1, mode="wb")
  def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
-@@ -267,17 +276,15 @@ def parse_multiline_adjlist(
+@@ -153,10 +170,17 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+        Separator for node labels
+ 
+     encoding : string, optional
+        Text encoding.
+ 
++    Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
++    or ``\\`` are written in double quotes (see the module docstring).
++
++    The comment line with the name of the graph holds the name quoted by the
++    same rule when it needs quotes, so a line break in the name does not add a
++    line to the file.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -209,11 +233,11 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+     header = (
+         f"{pargs}\n"
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+-        + f" {G.name}\n"
++        + f" {quote_name(G.name, delimiter) if G.name else G.name}\n"
+     )
+     path.write(header.encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(G, delimiter):
+         multiline += "\n"
+@@ -249,10 +273,14 @@ def parse_multiline_adjlist(
+     Returns
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in multiline adjacency list format.
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> lines = [
+     ...     "1 2",
+     ...     "2 {'weight':3, 'name': 'Frodo'}",
+@@ -267,17 +295,15 @@ def parse_multiline_adjlist(
      """
      from ast import literal_eval
  
@@ -405,7 +657,7 @@ index 08e17d5..3564817 100644
              raise TypeError(f"Failed to read node and degree on line ({line})") from err
          if nodetype is not None:
              try:
-@@ -292,16 +299,14 @@ def parse_multiline_adjlist(
+@@ -292,16 +318,14 @@ def parse_multiline_adjlist(
                  try:
                      line = next(lines)
                  except StopIteration as err:
@@ -424,3 +676,18 @@ index 08e17d5..3564817 100644
                  continue  # isolated node
              v = vlist.pop(0)
              data = "".join(vlist)
+@@ -365,10 +389,14 @@ def read_multiline_adjlist(
+ 
+     Returns
+     -------
+     G : NetworkX graph
+ 
++    A token that starts with ``"`` is a quoted node name (see the module
++    docstring); the delimiter and the comment string inside it are part of
++    the name.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())

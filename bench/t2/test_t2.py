@@ -1627,7 +1627,7 @@ class DevLongTests(unittest.TestCase):
 
     def test_files_match_their_manifest(self):
         manifest = json.loads((k.DEV / "tasks" / "MANIFEST-long.json").read_text())
-        self.assertEqual(sum(1 for p in manifest if p.endswith("prompt.md")), 10)
+        self.assertEqual(sum(1 for p in manifest if p.endswith("prompt.md")), 9)
         for rel, digest in manifest.items():
             self.assertTrue(rel.startswith("dev/tasks/networkx/long/"), rel)
             self.assertEqual(k.sha256(k.HERE / rel), digest, rel)
@@ -1636,8 +1636,9 @@ class DevLongTests(unittest.TestCase):
 
     def test_set_json_and_the_repository(self):
         spec = k.set_spec(k.TASKS_DIR, "networkx", "long")
-        self.assertEqual((spec["agents"], spec["mix"]), (10, ["claude"] * 10))
+        self.assertEqual((spec["agents"], spec["mix"]), (9, ["claude"] * 9))
         self.assertGreaterEqual(spec["limits"]["timeout_s"], 3600)
+        self.assertLessEqual(spec["limits"]["claude_budget_usd"] * spec["agents"], 15)
         self.assertEqual(len(spec["integration"]), 12)
         self.assertEqual(k.sets_of("networkx"), ["long"])
         self.assertEqual(k.TASK_TOTAL, 10)
@@ -1650,11 +1651,32 @@ class DevLongTests(unittest.TestCase):
 
     def test_each_refactor_meets_three_features(self):
         spec = k.set_spec(k.TASKS_DIR, "networkx", "long")
-        for r in (8, 9, 10):
+        for r in (7, 8, 9):
             partners = {p for it in spec["integration"] for p in it["pair"] if r in it["pair"] and p != r}
             self.assertGreaterEqual(len(partners), 3, r)
             self.assertRegex(self.td().PROMPTS[self.td().IDS[r - 1]][1], r"\. Keep ")
-        self.assertEqual(sorted(self.td().WITHOUT["networkx"]["long"]), list(range(1, 11)))
+        self.assertEqual(sorted(self.td().WITHOUT["networkx"]["long"]), list(range(1, 10)))
+
+    def test_every_reference_is_long(self):
+        """Each task's reference patch changes 300 or more lines of source (tests not counted)."""
+        import difflib
+
+        for t in self.td().NETWORKX_LONG:
+            n = 0
+            for o in t["edits"]:
+                if "/tests/" in o["file"] or not o["file"].endswith(".py"):
+                    continue
+                if o["op"] == "create":
+                    n += len(o["text"].splitlines())
+                else:
+                    n += sum(1 for x in difflib.ndiff(o["old"].splitlines(), o["new"].splitlines()) if x[:1] in "+-")
+            self.assertGreaterEqual(n, 300, t["id"])
+
+    def test_only_the_text_file_refactor_overrides_holds(self):
+        tds = self.td().NETWORKX_LONG
+        self.assertEqual([t["id"] for t in tds if t.get("oracle_undo")], ["l9-text-file"])
+        meta = json.loads((k.TASKS_DIR / "networkx" / "long" / "9-l9-text-file" / "meta.json").read_text())
+        self.assertIn("oracle_undo", meta)
 
 
 if __name__ == "__main__":

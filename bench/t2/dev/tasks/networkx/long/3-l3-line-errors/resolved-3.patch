@@ -9,17 +9,18 @@ diff --git a/networkx/exception.py b/networkx/exception.py
      "NodeNotFound",
      "PowerIterationFailedConvergence",
      "ExceededMaxIterations",
-@@ -26,6 +27,43 @@
+@@ -30,6 +31,44 @@
  
- class NetworkXException(Exception):
-     """Base class for exceptions in NetworkX."""
+ class NetworkXError(NetworkXException):
+     """Exception for a serious error in NetworkX"""
 +
 +
-+class LineParseError(NetworkXException, TypeError):
++class LineParseError(NetworkXError, TypeError):
 +    """Raised by the readers of the line formats (edge list, adjacency list,
-+    multiline adjacency list) for a line they cannot read.
++    multiline adjacency list, Pajek, LEDA) for a line they cannot read.
 +
-+    It is a :exc:`TypeError`, as the errors these readers raised before.
++    It is a :exc:`TypeError` and a :exc:`NetworkXError`, the kinds of errors
++    these readers raised before.
 +
 +    Attributes
 +    ----------
@@ -52,14 +53,14 @@ diff --git a/networkx/exception.py b/networkx/exception.py
 +        return f"{where}: {self.message}"
  
  
- class NetworkXError(NetworkXException):
+ class NetworkXPointlessConcept(NetworkXException):
 diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 --- a/networkx/readwrite/adjlist.py
 +++ b/networkx/readwrite/adjlist.py
-@@ -39,11 +39,21 @@
- When ``create_using`` is None, the readers build a graph of that type
- (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
- comes before the first data line.
+@@ -44,11 +44,21 @@
+ header=True)`` yields the header line first, and
+ :func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
+ header of a file.
 +
 +Errors
 +------
@@ -75,10 +76,10 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
  
  import networkx as nx
 +from networkx.exception import LineParseError
- from networkx.readwrite._header import graph_class, header_line
- from networkx.readwrite._quote import quote_name, split_names, strip_comment
- from networkx.utils import open_file
-@@ -273,7 +283,8 @@
+ from networkx.readwrite._header import graph_class, header_line, header_name
+ from networkx.readwrite._quote import (
+     quote_name,
+@@ -304,7 +314,8 @@
      """
      G = nx.empty_graph(0, create_using)
      seen_data = create_using is not None
@@ -88,7 +89,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
          if not seen_data:
              cls = graph_class(line, comments)
              if cls is not None:
-@@ -290,16 +301,18 @@
+@@ -323,16 +334,18 @@
              try:
                  u = nodetype(u)
              except BaseException as err:
@@ -111,7 +112,7 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
                  ) from err
          G.add_edges_from([(u, v) for v in vlist])
      return G
-@@ -405,10 +418,14 @@
+@@ -442,10 +455,14 @@
      write_adjlist
      """
      lines = (line.decode(encoding) for line in path)
@@ -136,10 +137,10 @@ diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
-@@ -44,6 +44,15 @@
- When ``create_using`` is None, the readers build a graph of that type
- (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
- comes before the first data line.
+@@ -52,6 +52,15 @@
+ header=True)`` yields the header line first, and
+ :func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
+ header of a file.
 +
 +Errors
 +------
@@ -152,15 +153,15 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  """
  
  __all__ = [
-@@ -56,6 +65,7 @@
+@@ -66,6 +75,7 @@
  ]
  
  import networkx as nx
 +from networkx.exception import LineParseError
- from networkx.readwrite._header import graph_class, header_line
- from networkx.readwrite._quote import quote_name, split_names, strip_comment
- from networkx.utils import open_file
-@@ -315,12 +325,13 @@
+ from networkx.readwrite._header import (
+     graph_class,
+     header_line,
+@@ -351,7 +361,7 @@
  
      G = nx.empty_graph(0, create_using)
      seen_data = create_using is not None
@@ -169,13 +170,15 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
          if not seen_data:
              cls = graph_class(line, comments)
              if cls is not None:
-                 G = nx.empty_graph(0, cls)
+@@ -359,6 +369,7 @@
+                 if header_name(line, comments):
+                     G.graph["name"] = header_name(line, comments)
                  continue
 +        text = line
          if comments is not None:
              line = strip_comment(line, comments, delimiter)
              if not line:
-@@ -338,8 +349,8 @@
+@@ -378,8 +389,8 @@
                  u = nodetype(u)
                  v = nodetype(v)
              except Exception as err:
@@ -186,7 +189,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
                  ) from err
  
          if len(d) == 0 or data is False:
-@@ -354,8 +365,8 @@
+@@ -394,8 +405,8 @@
                      edgedata_str = " ".join(d)
                  edgedata = dict(literal_eval(edgedata_str.strip()))
              except Exception as err:
@@ -197,7 +200,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
                  ) from err
          else:
              # convert edge data to dictionary with specified keys and type
-@@ -368,9 +379,11 @@
+@@ -408,9 +419,11 @@
                  try:
                      edge_value = edge_type(edge_value)
                  except Exception as err:
@@ -211,7 +214,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
                      ) from err
                  edgedata.update({edge_key: edge_value})
          G.add_edge(u, v, **edgedata)
-@@ -487,14 +500,18 @@
+@@ -531,14 +544,18 @@
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
      """
      lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
@@ -238,13 +241,127 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  def write_weighted_edgelist(
+diff --git a/networkx/readwrite/leda.py b/networkx/readwrite/leda.py
+--- a/networkx/readwrite/leda.py
++++ b/networkx/readwrite/leda.py
+@@ -7,6 +7,12 @@
+ ------
+ See http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+ 
++Errors
++------
++The ``parse_*`` and ``read_*`` functions raise
++:exc:`~networkx.LineParseError` (a ``TypeError`` and a ``NetworkXError``)
++for a line they cannot read, with its number (from 1, comment and blank
++lines counted) and, from a ``read_*`` function, the file name.
+ """
+ # Original author: D. Eppstein, UC Irvine, August 12, 2003.
+ # The original code at http://www.ics.uci.edu/~eppstein/PADS/ is public domain.
+@@ -14,6 +20,7 @@
+ __all__ = ["read_leda", "parse_leda"]
+ 
+ import networkx as nx
++from networkx.exception import LineParseError
+ from networkx.utils import open_file
+ 
+ 
+@@ -41,7 +48,11 @@
+     .. [1] http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+     """
+     lines = (line.decode(encoding) for line in path)
+-    G = parse_leda(lines)
++    try:
++        G = parse_leda(lines)
++    except LineParseError as err:
++        err.filename = getattr(path, "name", None)
++        raise
+     return G
+ 
+ 
+@@ -70,25 +81,44 @@
+         lines = iter(lines.split("\n"))
+     lines = iter(
+         [
+-            line.rstrip("\n")
+-            for line in lines
++            (lineno, line.rstrip("\n"))
++            for lineno, line in enumerate(lines, 1)
+             if not (line.startswith(("#", "\n")) or line == "")
+         ]
+     )
++    where = [0, None]
++
++    def take(what):
++        """The next data line; a missing one is a LineParseError."""
++        try:
++            where[0], where[1] = next(lines)
++        except StopIteration as err:
++            raise LineParseError(f"Missing {what}", where[0] + 1, "") from err
++        return where[1]
++
++    def number(what):
++        text = take(what)
++        try:
++            return int(text)
++        except ValueError as err:
++            raise LineParseError(
++                f"Failed to read the {what} ({text})", where[0], text
++            ) from err
++
+     for i in range(3):
+-        next(lines)
++        take("header line")
+     # Graph
+-    du = int(next(lines))  # -1=directed, -2=undirected
++    du = number("graph type")  # -1=directed, -2=undirected
+     if du == -1:
+         G = nx.DiGraph()
+     else:
+         G = nx.Graph()
+ 
+     # Nodes
+-    n = int(next(lines))  # number of nodes
++    n = number("number of nodes")
+     node = {}
+     for i in range(1, n + 1):  # LEDA counts from 1 to n
+-        symbol = next(lines).rstrip().strip("|{}|  ")
++        symbol = take(f"node {i}").rstrip().strip("|{}|  ")
+         if symbol == "":
+             symbol = str(i)  # use int if no label - could be trouble
+         node[i] = symbol
+@@ -96,14 +126,20 @@
+     G.add_nodes_from([s for i, s in node.items()])
+ 
+     # Edges
+-    m = int(next(lines))  # number of edges
++    m = number("number of edges")
+     for i in range(m):
++        text = take(f"edge {i + 1}")
+         try:
+-            s, t, reversal, label = next(lines).split()
++            s, t, reversal, label = text.split()
+         except BaseException as err:
+-            raise nx.NetworkXError(
+-                f"Too few fields in LEDA.GRAPH edge {i + 1}"
++            raise LineParseError(
++                f"Too few fields in LEDA.GRAPH edge {i + 1}", where[0], text
+             ) from err
+         # BEWARE: no handling of reversal edges
+-        G.add_edge(node[int(s)], node[int(t)], label=label[2:-2])
++        try:
++            G.add_edge(node[int(s)], node[int(t)], label=label[2:-2])
++        except (KeyError, ValueError) as err:
++            raise LineParseError(
++                f"Unknown node in LEDA.GRAPH edge {i + 1}", where[0], text
++            ) from err
+     return G
 diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
 --- a/networkx/readwrite/multiline_adjlist.py
 +++ b/networkx/readwrite/multiline_adjlist.py
-@@ -42,6 +42,15 @@
- When ``create_using`` is None, the readers build a graph of that type
- (``Graph``, ``DiGraph``, ``MultiGraph`` or ``MultiDiGraph``) if such a line
- comes before the first data line.
+@@ -47,6 +47,15 @@
+ header=True)`` yields the header line first, and
+ :func:`~networkx.readwrite.edgelist.read_graph_header` reads only the
+ header of a file.
 +
 +Errors
 +------
@@ -257,15 +374,15 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
  """
  
  __all__ = [
-@@ -52,6 +61,7 @@
+@@ -57,6 +66,7 @@
  ]
  
  import networkx as nx
 +from networkx.exception import LineParseError
- from networkx.readwrite._header import graph_class, header_line
- from networkx.readwrite._quote import quote_name, split_names, strip_comment
- from networkx.utils import open_file
-@@ -303,7 +313,12 @@
+ from networkx.readwrite._header import graph_class, header_line, header_name
+ from networkx.readwrite._quote import (
+     quote_name,
+@@ -334,7 +344,12 @@
  
      G = nx.empty_graph(0, create_using)
      seen_data = create_using is not None
@@ -278,7 +395,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
          if not seen_data:
              cls = graph_class(line, comments)
              if cls is not None:
-@@ -317,22 +332,27 @@
+@@ -350,22 +365,27 @@
              (u, deg) = split_names(line.rstrip("\n"), delimiter, names=1)
              deg = int(deg)
          except BaseException as err:
@@ -310,7 +427,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
                  line = strip_comment(line, comments, delimiter)
                  if line:
                      break
-@@ -346,15 +366,17 @@
+@@ -379,15 +399,17 @@
                  try:
                      v = nodetype(v)
                  except BaseException as err:
@@ -332,7 +449,7 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
                      ) from err
              else:
                  try:  # try to evaluate
-@@ -464,11 +486,15 @@
+@@ -501,11 +523,15 @@
      write_multiline_adjlist
      """
      lines = (line.decode(encoding) for line in path)
@@ -356,3 +473,170 @@ diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multil
 +    except LineParseError as err:
 +        err.filename = getattr(path, "name", None)
 +        raise
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -12,14 +12,39 @@
+ See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+ for format information.
+ 
++Errors
++------
++The ``parse_*`` and ``read_*`` functions raise
++:exc:`~networkx.LineParseError` (a ``TypeError`` and a ``NetworkXError``)
++for a line they cannot read, with its number (from 1, comment and blank
++lines counted) and, from a ``read_*`` function, the file name.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.exception import LineParseError
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
++
++
++class _Numbered:
++    """An iterator over lines that knows the number (from 1) and the text of
++    the line it gave last."""
++
++    def __init__(self, lines):
++        self._it = iter(lines)
++        self.lineno = 0
++        self.line = None
++
++    def __iter__(self):
++        return self
++
++    def __next__(self):
++        self.line = next(self._it)
++        self.lineno += 1
++        return self.line
+ 
+ 
+ def generate_pajek(G):
+@@ -186,7 +211,11 @@
+     for format information.
+     """
+     lines = (line.decode(encoding) for line in path)
+-    return parse_pajek(lines)
++    try:
++        return parse_pajek(lines)
++    except LineParseError as err:
++        err.filename = getattr(path, "name", None)
++        raise
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -212,7 +241,7 @@
+     # multigraph=False
+     if isinstance(lines, str):
+         lines = iter(lines.split("\n"))
+-    lines = iter([line.rstrip("\n") for line in lines])
++    lines = _Numbered([line.rstrip("\n") for line in lines])
+     G = nx.MultiDiGraph()  # are multiedges allowed in Pajek? assume yes
+     labels = []  # in the order of the file, needed for matrix
+     while lines:
+@@ -230,15 +259,43 @@
+                 G.graph["name"] = name
+         elif l.lower().startswith("*vertices"):
+             nodelabels = {}
+-            l, nnodes = l.split()
+-            for i in range(int(nnodes)):
+-                l = next(lines)
+-                try:
+-                    splitline = [
+-                        x.decode("utf-8") for x in shlex.split(str(l).encode("utf-8"))
+-                    ]
+-                except AttributeError:
+-                    splitline = shlex.split(str(l))
++            try:
++                l, nnodes = l.split()
++                nnodes = int(nnodes)
++            except ValueError as err:
++                raise LineParseError(
++                    f"Failed to read the number of vertices ({lines.line})",
++                    lines.lineno,
++                    lines.line,
++                ) from err
++            vertices_lineno, vertices_line = lines.lineno, lines.line
++            for i in range(nnodes):
++                try:
++                    l = next(lines)
++                except StopIteration as err:
++                    raise LineParseError(
++                        f"Expected {nnodes} vertex lines, found {i}",
++                        vertices_lineno,
++                        vertices_line,
++                    ) from err
++                try:
++                    try:
++                        splitline = [
++                            x.decode("utf-8")
++                            for x in shlex.split(str(l).encode("utf-8"))
++                        ]
++                    except AttributeError:
++                        splitline = shlex.split(str(l))
++                except ValueError as err:
++                    raise LineParseError(
++                        f"Failed to split vertex line ({l}): {err}", lines.lineno, l
++                    ) from err
++                if len(splitline) < 2:
++                    raise LineParseError(
++                        f"Failed to read the id and label of vertex line ({l})",
++                        lines.lineno,
++                        l,
++                    )
+                 id, label = splitline[0:2]
+                 labels.append(label)
+                 G.add_node(label)
+@@ -262,11 +319,17 @@
+                 G = G.to_directed()
+             for l in lines:
+                 try:
+-                    splitline = [
+-                        x.decode("utf-8") for x in shlex.split(str(l).encode("utf-8"))
+-                    ]
+-                except AttributeError:
+-                    splitline = shlex.split(str(l))
++                    try:
++                        splitline = [
++                            x.decode("utf-8")
++                            for x in shlex.split(str(l).encode("utf-8"))
++                        ]
++                    except AttributeError:
++                        splitline = shlex.split(str(l))
++                except ValueError as err:
++                    raise LineParseError(
++                        f"Failed to split edge line ({l}): {err}", lines.lineno, l
++                    ) from err
+ 
+                 if len(splitline) < 2:
+                     continue
+@@ -290,12 +353,19 @@
+                 G.add_edge(u, v, **edge_data)
+         elif l.lower().startswith("*matrix"):
+             G = nx.DiGraph(G)
+-            adj_list = (
+-                (labels[row], labels[col], {"weight": int(data)})
+-                for (row, line) in enumerate(lines)
+-                for (col, data) in enumerate(line.split())
+-                if int(data) != 0
+-            )
++            adj_list = []
++            for row, line in enumerate(lines):
++                for col, data in enumerate(line.split()):
++                    try:
++                        weight = int(data)
++                        if weight != 0:
++                            adj_list.append(
++                                (labels[row], labels[col], {"weight": weight})
++                            )
++                    except (ValueError, IndexError) as err:
++                        raise LineParseError(
++                            f"Failed to read matrix entry ({data})", lines.lineno, line
++                        ) from err
+             G.add_edges_from(adj_list)
+ 
+     return G

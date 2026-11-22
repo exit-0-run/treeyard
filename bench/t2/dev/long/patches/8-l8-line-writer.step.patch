@@ -1,0 +1,641 @@
+diff --git a/networkx/readwrite/_linewriter.py b/networkx/readwrite/_linewriter.py
+new file mode 100644
+index 0000000..3b7e4dc
+--- /dev/null
++++ b/networkx/readwrite/_linewriter.py
+@@ -0,0 +1,275 @@
++"""The writer of the line formats: edge list, adjacency list, multiline
++adjacency list and Pajek.
++
++:func:`~networkx.readwrite.edgelist.generate_edgelist`,
++:func:`~networkx.readwrite.adjlist.generate_adjlist`,
++:func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist` and
++:func:`~networkx.readwrite.pajek.generate_pajek` are
++``LineWriter(delimiter, ...).<format>(G, ...)``. The text of a node name is
++one method, so a subclass can change it for the three line formats.
++"""
++
++import warnings
++
++from networkx.readwrite._floats import data_text, value_text
++from networkx.readwrite._header import header_line
++from networkx.readwrite._quote import quote_name
++from networkx.readwrite._sorting import sorted_graph
++
++
++__all__ = ["LineWriter"]
++
++
++class LineWriter:
++    """Writes graphs as lines in the edge list, adjacency list, multiline
++    adjacency list and Pajek formats.
++
++    Parameters
++    ----------
++    delimiter : str, optional (default=" ")
++        The text written between the tokens of a line.
++    header : bool, optional (default=False)
++        Yield the graph header line first (see ``header`` of the
++        ``generate_*`` functions).
++    comments : str, optional (default="#")
++        The comment string of the header line.
++    sort : bool or function, optional (default=False)
++        Write nodes, neighbours and parallel edges in a fixed order (see
++        ``sort`` of the ``generate_*`` functions).
++    float_format : str or None, optional (default=None)
++        The format spec of float edge data values (see ``float_format`` of
++        the ``generate_*`` functions).
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, delimiter=" ", header=False, comments="#", sort=False, float_format=None):
++        self.delimiter = delimiter
++        self.header = header
++        self.comments = comments
++        self.sort = sort
++        self.float_format = float_format
++
++    def name(self, node):
++        """The text of a node in a line: ``str(node)``, in double quotes when
++        it needs them (see the ``generate_*`` functions)."""
++        return quote_name(node, self.delimiter)
++
++    def _quote_name(self, node, delimiter):
++        return self.name(node)
++
++    def edgelist(self, G, data=True):
++        """The lines of `G` in edge list format: what
++        :func:`~networkx.readwrite.edgelist.generate_edgelist` yields."""
++        delimiter = self.delimiter
++        header, comments, sort, float_format = self.header, self.comments, self.sort, self.float_format
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        if data is True:
++            for u, v, d in G.edges(data=True):
++                e = (
++                    quote_name(u, delimiter),
++                    quote_name(v, delimiter),
++                    data_text(d, float_format),
++                )
++                yield delimiter.join(map(str, e))
++        elif data is False:
++            for u, v in G.edges(data=False):
++                e = quote_name(u, delimiter), quote_name(v, delimiter)
++                yield delimiter.join(map(str, e))
++        else:
++            for u, v, d in G.edges(data=True):
++                e = [quote_name(u, delimiter), quote_name(v, delimiter)]
++                try:
++                    e.extend(
++                        quote_name(d[k], delimiter) if isinstance(d[k], str) else d[k]
++                        for k in data
++                    )
++                except KeyError:
++                    pass  # missing data for this edge, should warn?
++                yield delimiter.join(value_text(x, float_format) for x in e)
++
++    def adjlist(self, G):
++        """The lines of `G` in adjacency list format: what
++        :func:`~networkx.readwrite.adjlist.generate_adjlist` yields."""
++        delimiter = self.delimiter
++        header, comments, sort = self.header, self.comments, self.sort
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        seen = set()
++        directed = G.is_directed()
++        multigraph = G.is_multigraph()
++        for s, nbrs in G.adjacency():
++            nodes = [quote_name(s, delimiter)]
++            for t, data in nbrs.items():
++                if t in seen:
++                    continue
++                if multigraph and len(data) > 1:
++                    nodes.extend((quote_name(t, delimiter),) * len(data))
++                else:
++                    nodes.append(quote_name(t, delimiter))
++            if not directed:
++                seen.add(s)
++            yield delimiter.join(nodes)
++
++    def multiline_adjlist(self, G):
++        """The lines of `G` in multiline adjacency list format: what
++        :func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist`
++        yields."""
++        delimiter = self.delimiter
++        header, comments, sort, float_format = self.header, self.comments, self.sort, self.float_format
++        quote_name = self._quote_name
++        if header:
++            yield header_line(G, comments)
++        if sort:
++            G = sorted_graph(G, sort)
++        if G.is_directed():
++            if G.is_multigraph():
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++            else:  # directed single edges
++                for s, nbrs in G.adjacency():
++                    deg = len(nbrs)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbrs.items():
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++        else:  # undirected
++            if G.is_multigraph():
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        if u not in seen
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++                    seen.add(s)
++            else:  # undirected single edges
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
++                    deg = len(nbr_edges)
++                    yield quote_name(s, delimiter) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield quote_name(u, delimiter)
++                        else:
++                            yield (
++                                quote_name(u, delimiter)
++                                + delimiter
++                                + data_text(d, float_format)
++                            )
++                    seen.add(s)
++
++    def pajek(self, G):
++        """The lines of `G` in Pajek format: what
++        :func:`~networkx.readwrite.pajek.generate_pajek` yields.
++        (The Pajek format quotes its own names, so :meth:`name` is not used
++        here.)"""
++        from networkx.readwrite.pajek import make_qstr
++
++        sort, float_format = self.sort, self.float_format
++        if sort:
++            G = sorted_graph(G, sort)
++        if G.name == "":
++            name = "NetworkX"
++        else:
++            name = G.name
++        # Apparently many Pajek format readers can't process this line
++        # So we'll leave it out for now.
++        # yield '*network %s'%name
++
++        # write nodes with attributes
++        yield f"*vertices {G.order()}"
++        nodes = list(G)
++        # make dictionary mapping nodes to integers
++        nodenumber = dict(zip(nodes, range(1, len(nodes) + 1)))
++        for n in nodes:
++            # copy node attributes and pop mandatory attributes
++            # to avoid duplication.
++            na = G.nodes.get(n, {}).copy()
++            x = na.pop("x", 0.0)
++            y = na.pop("y", 0.0)
++            try:
++                id = int(na.pop("id", nodenumber[n]))
++            except ValueError as err:
++                err.args += (
++                    (
++                        "Pajek format requires 'id' to be an int()."
++                        " Refer to the 'Relabeling nodes' section."
++                    ),
++                )
++                raise
++            nodenumber[n] = id
++            shape = na.pop("shape", "ellipse")
++            if float_format is not None:
++                x, y = value_text(x, float_format), value_text(y, float_format)
++            s = " ".join(map(make_qstr, (id, n, x, y, shape)))
++            # only optional attributes are left in na.
++            for k, v in na.items():
++                if isinstance(v, str) and v.strip() != "":
++                    s += f" {make_qstr(k)} {make_qstr(v)}"
++                else:
++                    warnings.warn(
++                        f"Node attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
++                    )
++            yield s
++
++        # write edges with attributes
++        if G.is_directed():
++            yield "*arcs"
++        else:
++            yield "*edges"
++        for u, v, edgedata in G.edges(data=True):
++            d = edgedata.copy()
++            value = d.pop("weight", 1.0)  # use 1 as default edge value
++            if float_format is not None:
++                value = value_text(value, float_format)
++            s = " ".join(map(make_qstr, (nodenumber[u], nodenumber[v], value)))
++            for k, v in d.items():
++                if isinstance(v, str) and v.strip() != "":
++                    s += f" {make_qstr(k)} {make_qstr(v)}"
++                else:
++                    warnings.warn(
++                        f"Edge attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
++                    )
++            yield s
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 893eab0..5d7665f 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -89,15 +89,24 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import graph_class, header_line, header_name
+@@ -185,29 +194,11 @@ def generate_adjlist(G, delimiter=" ", header=False, comments="#", sort=False):
+     valid in node names.
+ 
+     NB: This option is not available for data that isn't user-generated.
+ 
+     """
+-    if header:
+-        yield header_line(G, comments)
+-    if sort:
+-        G = sorted_graph(G, sort)
+-    seen = set()
+-    directed = G.is_directed()
+-    multigraph = G.is_multigraph()
+-    for s, nbrs in G.adjacency():
+-        nodes = [quote_name(s, delimiter)]
+-        for t, data in nbrs.items():
+-            if t in seen:
+-                continue
+-            if multigraph and len(data) > 1:
+-                nodes.extend((quote_name(t, delimiter),) * len(data))
+-            else:
+-                nodes.append(quote_name(t, delimiter))
+-        if not directed:
+-            seen.add(s)
+-        yield delimiter.join(nodes)
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort).adjlist(G)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_adjlist(
+     G,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index 29b3d1c..0b7f1f1 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -105,10 +105,18 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -119,10 +127,11 @@ __all__ = [
+     "parse_graph_header",
+     "read_graph_header",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text, value_text
+@@ -229,37 +238,11 @@ def generate_edgelist(
+ 
+     See Also
+     --------
+     write_edgelist, read_edgelist
+     """
+-    if header:
+-        yield header_line(G, comments)
+-    if sort:
+-        G = sorted_graph(G, sort)
+-    if data is True:
+-        for u, v, d in G.edges(data=True):
+-            e = (
+-                quote_name(u, delimiter),
+-                quote_name(v, delimiter),
+-                data_text(d, float_format),
+-            )
+-            yield delimiter.join(map(str, e))
+-    elif data is False:
+-        for u, v in G.edges(data=False):
+-            e = quote_name(u, delimiter), quote_name(v, delimiter)
+-            yield delimiter.join(map(str, e))
+-    else:
+-        for u, v, d in G.edges(data=True):
+-            e = [quote_name(u, delimiter), quote_name(v, delimiter)]
+-            try:
+-                e.extend(
+-                    quote_name(d[k], delimiter) if isinstance(d[k], str) else d[k]
+-                    for k in data
+-                )
+-            except KeyError:
+-                pass  # missing data for this edge, should warn?
+-            yield delimiter.join(value_text(x, float_format) for x in e)
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).edgelist(G, data)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_edgelist(
+     G,
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 36840d6..80a1669 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -100,20 +100,29 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, nodetype, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.exception import LineParseError
+ from networkx.readwrite._compression import compressing, uncompressed
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text
+@@ -190,84 +199,11 @@ def generate_multiline_adjlist(
+ 
+     See Also
+     --------
+     write_multiline_adjlist, read_multiline_adjlist
+     """
+-    if header:
+-        yield header_line(G, comments)
+-    if sort:
+-        G = sorted_graph(G, sort)
+-    if G.is_directed():
+-        if G.is_multigraph():
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-        else:  # directed single edges
+-            for s, nbrs in G.adjacency():
+-                deg = len(nbrs)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbrs.items():
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-    else:  # undirected
+-        if G.is_multigraph():
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    if u not in seen
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-                seen.add(s)
+-        else:  # undirected single edges
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-                seen.add(s)
++    return LineWriter(delimiter, header=header, comments=comments, sort=sort, float_format=float_format).multiline_adjlist(G)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_multiline_adjlist(
+     G,
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+index 740b447..cd44e74 100644
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -35,15 +35,24 @@ Compressed files
+ The ``read_*`` functions read a file compressed with gzip, bz2 or xz
+ whatever its name: they recognise the compression by its first bytes. The
+ ``write_*`` functions take ``compression="gzip"``, ``"bz2"`` or ``"xz"`` to
+ compress what they write, also into an open file; a file name ending in
+ ``.xz`` is compressed with xz, as ``.gz`` and ``.bz2`` are.
++
++Writing
++-------
++``generate_*`` of this module is a
++:class:`~networkx.readwrite._linewriter.LineWriter` method:
++``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``, and ``generate_pajek(G, ...)``
++is ``LineWriter(...).pajek(G)``.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.exception import LineParseError
+ from networkx.readwrite._floats import value_text
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+@@ -90,75 +99,11 @@ def generate_pajek(G, sort=False, float_format=None):
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    if sort:
+-        G = sorted_graph(G, sort)
+-    if G.name == "":
+-        name = "NetworkX"
+-    else:
+-        name = G.name
+-    # Apparently many Pajek format readers can't process this line
+-    # So we'll leave it out for now.
+-    # yield '*network %s'%name
+-
+-    # write nodes with attributes
+-    yield f"*vertices {G.order()}"
+-    nodes = list(G)
+-    # make dictionary mapping nodes to integers
+-    nodenumber = dict(zip(nodes, range(1, len(nodes) + 1)))
+-    for n in nodes:
+-        # copy node attributes and pop mandatory attributes
+-        # to avoid duplication.
+-        na = G.nodes.get(n, {}).copy()
+-        x = na.pop("x", 0.0)
+-        y = na.pop("y", 0.0)
+-        try:
+-            id = int(na.pop("id", nodenumber[n]))
+-        except ValueError as err:
+-            err.args += (
+-                (
+-                    "Pajek format requires 'id' to be an int()."
+-                    " Refer to the 'Relabeling nodes' section."
+-                ),
+-            )
+-            raise
+-        nodenumber[n] = id
+-        shape = na.pop("shape", "ellipse")
+-        if float_format is not None:
+-            x, y = value_text(x, float_format), value_text(y, float_format)
+-        s = " ".join(map(make_qstr, (id, n, x, y, shape)))
+-        # only optional attributes are left in na.
+-        for k, v in na.items():
+-            if isinstance(v, str) and v.strip() != "":
+-                s += f" {make_qstr(k)} {make_qstr(v)}"
+-            else:
+-                warnings.warn(
+-                    f"Node attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
+-                )
+-        yield s
+-
+-    # write edges with attributes
+-    if G.is_directed():
+-        yield "*arcs"
+-    else:
+-        yield "*edges"
+-    for u, v, edgedata in G.edges(data=True):
+-        d = edgedata.copy()
+-        value = d.pop("weight", 1.0)  # use 1 as default edge value
+-        if float_format is not None:
+-            value = value_text(value, float_format)
+-        s = " ".join(map(make_qstr, (nodenumber[u], nodenumber[v], value)))
+-        for k, v in d.items():
+-            if isinstance(v, str) and v.strip() != "":
+-                s += f" {make_qstr(k)} {make_qstr(v)}"
+-            else:
+-                warnings.warn(
+-                    f"Edge attribute {k} is not processed. {('Empty attribute' if isinstance(v, str) else 'Non-string attribute')}."
+-                )
+-        yield s
++    return LineWriter(sort=sort, float_format=float_format).pajek(G)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_pajek(
+     G,

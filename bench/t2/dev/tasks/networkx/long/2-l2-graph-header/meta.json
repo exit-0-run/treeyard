@@ -5,6 +5,7 @@
   "id": "l2-graph-header",
   "title": "Line formats: a header line with the graph type",
   "files": [
+    "doc/reference/readwrite/edgelist.rst",
     "networkx/readwrite/_header.py",
     "networkx/readwrite/adjlist.py",
     "networkx/readwrite/edgelist.py",

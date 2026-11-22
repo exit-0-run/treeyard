@@ -1,0 +1,803 @@
+diff --git a/networkx/readwrite/_encoding.py b/networkx/readwrite/_encoding.py
+new file mode 100644
+index 0000000..246ecc3
+--- /dev/null
++++ b/networkx/readwrite/_encoding.py
+@@ -0,0 +1,63 @@
++"""Byte order marks and encoding detection for the line formats."""
++
++import codecs
++import re
++
++__all__ = []
++
++_BOMS = (
++    (codecs.BOM_UTF8, "utf-8"),
++    (codecs.BOM_UTF16_LE, "utf-16-le"),
++    (codecs.BOM_UTF16_BE, "utf-16-be"),
++)
++
++
++def _canonical(encoding):
++    return codecs.lookup(encoding).name
++
++
++def decoded_lines(f, encoding="utf-8"):
++    """The lines of the open file `f` as text, line ends kept.
++
++    A UTF-8 byte order mark at the start is skipped when the encoding is
++    UTF-8. With ``encoding=None`` the encoding comes from the byte order mark
++    (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when there is none.
++    """
++    if encoding is None:
++        data = f.read()
++        if isinstance(data, str):
++            return iter(_lines(data.removeprefix("﻿")))
++        encoding = "utf-8"
++        for bom, name in _BOMS:
++            if data.startswith(bom):
++                data, encoding = data[len(bom) :], name
++                break
++        return iter(_lines(data.decode(encoding)))
++    utf8 = _canonical(encoding) == "utf-8"
++
++    def gen():
++        first = True
++        for line in f:
++            if not isinstance(line, str):
++                line = line.decode(encoding)
++            if first and utf8:
++                line = line.removeprefix("﻿")
++            first = False
++            yield line
++
++    return gen()
++
++
++def _lines(text):
++    return re.findall(r"[^\n]*\n|[^\n]+\Z", text)
++
++
++def bom_bytes(encoding):
++    """The byte order mark of `encoding` for ``bom=True``."""
++    name = _canonical(encoding)
++    for bom, bom_name in _BOMS:
++        if name == bom_name:
++            return bom
++    raise ValueError(
++        f"bom=True needs the encoding utf-8, utf-16-le or utf-16-be, not {encoding!r}"
++    )
+diff --git a/networkx/readwrite/_newlines.py b/networkx/readwrite/_newlines.py
+new file mode 100644
+index 0000000..c225ca9
+--- /dev/null
++++ b/networkx/readwrite/_newlines.py
+@@ -0,0 +1,31 @@
++"""Line ends for the line formats: ``\\n``, ``\\r\\n`` or ``\\r``."""
++
++import re
++
++__all__ = []
++
++NEWLINES = ("\n", "\r\n", "\r")
++
++_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\Z")
++
++
++def split_line_ends(lines):
++    """The lines of `lines` (text pieces as a file yields them), split again at
++    every ``\\r\\n``, ``\\r`` or ``\\n``, each with its line end."""
++    rest = ""
++    for piece in lines:
++        text = rest + piece
++        rest = ""
++        parts = _END.findall(text)
++        if parts and parts[-1].endswith("\r") and text.endswith("\r"):
++            # a "\r" at the end of a piece may be the first half of "\r\n"
++            rest = parts.pop()
++        yield from parts
++    if rest:
++        yield rest
++
++
++def check_newline(newline):
++    """Raises ValueError unless `newline` is ``"\\n"``, ``"\\r\\n"`` or ``"\\r"``."""
++    if newline not in NEWLINES:
++        raise ValueError(f'newline must be "\\n", "\\r\\n" or "\\r", not {newline!r}')
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 0f0c210..c93552b 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -18,15 +18,30 @@ between the source node and target node.
+ The graph with edges a-b, a-c, d-e can be represented as the following
+ adjacency list (anything following the # in a line is a comment)::
+ 
+      a b c # source target target
+      d e
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+ def generate_adjlist(G, delimiter=" "):
+     """Generate lines representing a graph in adjacency list format.
+@@ -105,11 +120,13 @@ def generate_adjlist(G, delimiter=" "):
+             seen.add(s)
+         yield delimiter.join(nodes)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_adjlist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", bom=False, newline="\n"
++):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+     Parameters
+     ----------
+@@ -125,10 +142,19 @@ def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+     delimiter : string, optional
+        Separator for node labels
+ 
+     encoding : string, optional
+        Text encoding.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -186,14 +212,17 @@ def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
++    check_newline(newline)
++    if bom:
++        path.write(bom_bytes(encoding))
++    path.write(header.replace("\n", newline).encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter):
+-        line += "\n"
++        line += newline
+         path.write(line.encode(encoding))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_adjlist(
+@@ -244,11 +273,11 @@ def parse_adjlist(
+         p = line.find(comments)
+         if p >= 0:
+             line = line[:p]
+         if not len(line):
+             continue
+-        vlist = line.rstrip("\n").split(delimiter)
++        vlist = line.rstrip("\r\n").split(delimiter)
+         u = vlist.pop(0)
+         # convert types
+         if nodetype is not None:
+             try:
+                 u = nodetype(u)
+@@ -301,10 +330,14 @@ def read_adjlist(
+     Returns
+     -------
+     G: NetworkX graph
+         The graph corresponding to the lines in adjacency list format.
+ 
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -361,11 +394,11 @@ def read_adjlist(
+ 
+     See Also
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(decoded_lines(path, encoding))
+     return parse_adjlist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index fe62ba8..f64bae6 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -23,10 +23,23 @@ Python dictionary as data::
+  1 2 {'weight':7, 'color':'green'}
+ 
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -35,10 +48,12 @@ __all__ = [
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+ def generate_edgelist(G, delimiter=" ", data=True):
+     """Generate lines representing edges of `G` in edge list format.
+@@ -122,11 +137,20 @@ def generate_edgelist(G, delimiter=" ", data=True):
+                 pass  # missing data for this edge, should warn?
+             yield delimiter.join(map(str, e))
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    data=True,
++    encoding="utf-8",
++    bom=False,
++    newline="\n",
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+     ----------
+     G : graph
+@@ -143,10 +167,19 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+        If True write a string representation of the edge data dictionary..
+        If a list (or other iterable) is provided, write the  keys specified
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+@@ -207,12 +240,15 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+     --------
+     read_edgelist
+     write_weighted_edgelist
+     """
+ 
++    check_newline(newline)
++    if bom:
++        path.write(bom_bytes(encoding))
+     for line in generate_edgelist(G, delimiter, data):
+-        line += "\n"
++        line += newline
+         path.write(line.encode(encoding))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_edgelist(
+@@ -286,11 +322,11 @@ def parse_edgelist(
+             if p >= 0:
+                 line = line[:p]
+             if not line:
+                 continue
+         # split line, should have 2 or more
+-        s = line.rstrip("\n").split(delimiter)
++        s = line.rstrip("\r\n").split(delimiter)
+         if len(s) < 2:
+             continue
+         u = s.pop(0)
+         v = s.pop(0)
+         d = s
+@@ -371,16 +407,23 @@ def read_edgelist(
+        Tuples specifying dictionary key names and types for edge data
+     edgetype : int, float, str, Python type, optional OBSOLETE
+        Convert edge data from strings to specified type and use as 'weight'
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
+ 
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -441,22 +484,24 @@ def read_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = split_line_ends(decoded_lines(path, encoding))
+     return parse_edgelist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+         nodetype=nodetype,
+         data=data,
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", bom=False, newline="\n"
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+     ----------
+     G : graph
+@@ -469,10 +514,19 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+        The character used to indicate the start of a comment
+     delimiter : string, optional
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -498,10 +552,12 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+         path,
+         comments=comments,
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        bom=bom,
++        newline=newline,
+     )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_weighted_edgelist(
+@@ -528,10 +584,13 @@ def read_weighted_edgelist(
+        Graph type to create. If graph instance, then cleared before populated.
+     nodetype : int, float, str, Python type, optional
+        Convert node data from strings to specified type
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
+@@ -539,10 +598,14 @@ def read_weighted_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+ 
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+     >>> tmp_path = Path(tempfile.gettempdir())
+diff --git a/networkx/readwrite/leda.py b/networkx/readwrite/leda.py
+index b4f188a..1a94953 100644
+--- a/networkx/readwrite/leda.py
++++ b/networkx/readwrite/leda.py
+@@ -5,17 +5,24 @@ LEDA is a C++ class library for efficient data types and algorithms.
+ 
+ Format
+ ------
+ See http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+ 
++Encodings and line ends
++-----------------------
++The ``read_*`` functions skip a UTF-8 byte order mark, take the encoding
++from the byte order mark with ``encoding=None`` and read lines that end with
++``\\n``, ``\\r\\n`` or ``\\r``.
+ """
+ # Original author: D. Eppstein, UC Irvine, August 12, 2003.
+ # The original code at http://www.ics.uci.edu/~eppstein/PADS/ is public domain.
+ 
+ __all__ = ["read_leda", "parse_leda"]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+ @open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -26,10 +33,15 @@ def read_leda(path, encoding="UTF-8"):
+     ----------
+     path : file or string
+        Filename or file handle to read.
+        Filenames ending in .gz or .bz2 will be decompressed.
+ 
++    encoding : str or None, optional (default="UTF-8")
++       The text encoding of the file. A UTF-8 byte order mark at its start
++       is skipped; with None the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 without one. Lines may end
++       with ``\\n``, ``\\r\\n`` or ``\\r``.
+     Returns
+     -------
+     G : NetworkX graph
+ 
+     Examples
+@@ -38,11 +50,11 @@ def read_leda(path, encoding="UTF-8"):
+ 
+     References
+     ----------
+     .. [1] http://www.algorithmic-solutions.info/leda_guide/graphs/leda_native_graph_fileformat.html
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(decoded_lines(path, encoding))
+     G = parse_leda(lines)
+     return G
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -68,13 +80,13 @@ def parse_leda(lines):
+     """
+     if isinstance(lines, str):
+         lines = iter(lines.split("\n"))
+     lines = iter(
+         [
+-            line.rstrip("\n")
++            line.rstrip("\r\n")
+             for line in lines
+-            if not (line.startswith(("#", "\n")) or line == "")
++            if not (line.startswith(("#", "\n", "\r")) or line == "")
+         ]
+     )
+     for i in range(3):
+         next(lines)
+     # Graph
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 08e17d5..5dc7c54 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -21,20 +21,35 @@ adjacency list (anything following the # in a line is a comment)::
+      a 2
+      b
+      c
+      d 1
+      e
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+ def generate_multiline_adjlist(G, delimiter=" "):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+@@ -133,11 +148,13 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                         yield str(u) + delimiter + str(d)
+                 seen.add(s)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G, path, delimiter=" ", comments="#", encoding="utf-8", bom=False, newline="\n"
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+     ----------
+     G : NetworkX graph
+@@ -152,10 +169,19 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+     delimiter : string, optional
+        Separator for node labels
+ 
+     encoding : string, optional
+        Text encoding.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
++
++    Every line written, comment lines included, ends with `newline`; with
++    ``bom=True`` the byte order mark of `encoding` comes before anything else.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -211,14 +237,17 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
++    check_newline(newline)
++    if bom:
++        path.write(bom_bytes(encoding))
++    path.write(header.replace("\n", newline).encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(G, delimiter):
+-        multiline += "\n"
++        multiline += newline
+         path.write(multiline.encode(encoding))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_multiline_adjlist(
+@@ -273,11 +302,11 @@ def parse_multiline_adjlist(
+         if p >= 0:
+             line = line[:p]
+         if not line:
+             continue
+         try:
+-            (u, deg) = line.rstrip("\n").split(delimiter)
++            (u, deg) = line.rstrip("\r\n").split(delimiter)
+             deg = int(deg)
+         except BaseException as err:
+             raise TypeError(f"Failed to read node and degree on line ({line})") from err
+         if nodetype is not None:
+             try:
+@@ -297,11 +326,11 @@ def parse_multiline_adjlist(
+                 p = line.find(comments)
+                 if p >= 0:
+                     line = line[:p]
+                 if line:
+                     break
+-            vlist = line.rstrip("\n").split(delimiter)
++            vlist = line.rstrip("\r\n").split(delimiter)
+             numb = len(vlist)
+             if numb < 1:
+                 continue  # isolated node
+             v = vlist.pop(0)
+             data = "".join(vlist)
+@@ -365,10 +394,14 @@ def read_multiline_adjlist(
+ 
+     Returns
+     -------
+     G : NetworkX graph
+ 
++    A UTF-8 byte order mark at the start of the file is skipped, and with
++    ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
++    UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
++
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+     >>> tmp_path = Path(tempfile.gettempdir())
+@@ -420,11 +453,11 @@ def read_multiline_adjlist(
+ 
+     See Also
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(decoded_lines(path, encoding))
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+diff --git a/networkx/readwrite/pajek.py b/networkx/readwrite/pajek.py
+index d7bd3c9..51bb04b 100644
+--- a/networkx/readwrite/pajek.py
++++ b/networkx/readwrite/pajek.py
+@@ -10,15 +10,23 @@ those with self loops and parallel edges.
+ Format
+ ------
+ See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+ for format information.
+ 
++Encodings and line ends
++-----------------------
++The ``read_*`` functions skip a UTF-8 byte order mark, take the encoding
++from the byte order mark with ``encoding=None`` and read lines that end with
++``\\n``, ``\\r\\n`` or ``\\r``. ``write_pajek`` takes ``bom`` and ``newline`` as the
++other writers do.
+ """
+ 
+ import warnings
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ __all__ = ["read_pajek", "parse_pajek", "generate_pajek", "write_pajek"]
+ 
+ 
+@@ -95,20 +103,28 @@ def generate_pajek(G):
+                 )
+         yield s
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_pajek(G, path, encoding="UTF-8"):
++def write_pajek(G, path, encoding="UTF-8", bom=False, newline="\n"):
+     """Write graph in Pajek format to path.
+ 
+     Parameters
+     ----------
+     G : graph
+        A Networkx graph
+     path : file or string
+        File or filename to write.
+        Filenames ending in .gz or .bz2 will be compressed.
++    encoding : str, optional (default="UTF-8")
++       The text encoding of the file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -140,12 +156,15 @@ def write_pajek(G, path, encoding="UTF-8"):
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
++    check_newline(newline)
++    if bom:
++        path.write(bom_bytes(encoding))
+     for line in generate_pajek(G):
+-        line += "\n"
++        line += newline
+         path.write(line.encode(encoding))
+ 
+ 
+ @open_file(0, mode="rb")
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -156,10 +175,15 @@ def read_pajek(path, encoding="UTF-8"):
+     ----------
+     path : file or string
+        Filename or file handle to read.
+        Filenames ending in .gz or .bz2 will be decompressed.
+ 
++    encoding : str or None, optional (default="UTF-8")
++       The text encoding of the file. A UTF-8 byte order mark at its start
++       is skipped; with None the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 without one. Lines may end
++       with ``\\n``, ``\\r\\n`` or ``\\r``.
+     Returns
+     -------
+     G : NetworkX MultiGraph or MultiDiGraph.
+ 
+     Examples
+@@ -183,11 +207,11 @@ def read_pajek(path, encoding="UTF-8"):
+     References
+     ----------
+     See http://vlado.fmf.uni-lj.si/pub/networks/pajek/doc/draweps.htm
+     for format information.
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(decoded_lines(path, encoding))
+     return parse_pajek(lines)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_pajek(lines):
+@@ -210,11 +234,11 @@ def parse_pajek(lines):
+     import shlex
+ 
+     # multigraph=False
+     if isinstance(lines, str):
+         lines = iter(lines.split("\n"))
+-    lines = iter([line.rstrip("\n") for line in lines])
++    lines = iter([line.rstrip("\r\n") for line in lines])
+     G = nx.MultiDiGraph()  # are multiedges allowed in Pajek? assume yes
+     labels = []  # in the order of the file, needed for matrix
+     while lines:
+         try:
+             l = next(lines)

@@ -1,0 +1,17 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 4,
+  "id": "l4-output-format",
+  "title": "Text formats: sorted output and a float format",
+  "files": [
+    "networkx/readwrite/_floats.py",
+    "networkx/readwrite/_sorting.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/gml.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l4_output_format.py"
+}
