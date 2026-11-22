@@ -47,6 +47,7 @@ takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
 `--tools native` is a third set, for agents that read, edit and test with their own tools in a
 directory of their own: `start`, `sync`, `land`, `change`, `diff`
 ([Native mode](#native-mode-start-edit-with-your-own-tools-sync-land)). Only the stdio bridge has it.
+Since 0.2.0 `treeyard connect` writes it by default; `connect --api` writes `--tools agent`.
 
 Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 378 bytes with
 `--tools all` now, 5 948 bytes with `--tools agent` (13 tools). With the `undo` parameters of `land`
@@ -363,6 +364,39 @@ the cache list or the backup list excludes never land (they are listed in `skipp
 A held land (`undoes`) has one rule everywhere (block, `land` schema, reply advice): put the other
 agent's part back; `undo: true` with a `reason` only when the agent's own task names those lines for
 removal; otherwise keep its part, land the rest, and say what could not hold.
+
+## The land test
+
+Agents land merged work that nobody tested: two changes that each pass the tests can fail together.
+With a land test the server lands a change only when the test passed on exactly the tree that lands.
+
+- **Where the command lives.** `[coordination] land_test = "CMD"` (and `land_test_timeout_s`, default
+  600) in the server's `treeyard.toml`; `treeyard connect --land-test CMD` writes it. The server is the
+  one place every client goes through, so the gate holds for every bridge and every agent. The `change`
+  reply carries `land_test: {command, timeout_s}` so the bridge knows.
+- **What the bridge does on `land`.** Native set: it syncs, rebases the change onto main, rewrites `dir`
+  to exactly that tree, runs `sh -c CMD` in `dir` (own process group, killed at the timeout, output to
+  `<dir>.land-test.log` beside it), and lands with `tested: {command, main, head}`. API set (`--tools
+  agent`): the same in the change's checkout directory.
+- **The atomic check.** `land` with a land test configured needs `tested`, and lands only when
+  `tested.main` is main now, the change is based on it and `tested.head` is its head; the check and the
+  land run under the server's one lock, so main cannot move in between. Otherwise it answers
+  `untested` (no proof) or `main_moved`; the bridge then rebases and tests again, at most 3 rounds, and
+  then answers `untested` with the reason. An empty, landed or abandoned change gets its usual answer.
+  The landed change records `tested: {command, main, head, ms, time}` (in `change`).
+- **What the agent sees.** `tests_failed` with `exit`, `timed_out`, the last 4 KB of the output
+  (`output`, `output_bytes`), `land_test: {command, rounds, seconds}`, and advice to fix it in `dir`
+  and land again. The change stays open, rebased onto the main it was tested on; `dir` holds that tree.
+  A passed land carries `land_test` too.
+- **No agent override.** There is no flag for an agent to land past the test: an agent that could skip
+  it would, the first time a test is slow or flaky. The owner turns it off in config
+  (`connect --no-land-test`). A human `git push` and `revert` do not go through `land` and are not gated.
+- Without a land test nothing changes: no field, no proof, the same replies. With landing mode
+  `queue` the land test is refused (a queued land lands on a later main).
+
+Tests: `tests/native.rs` (pass and record, fail then fix, main moving between test and land, timeout,
+output cap, two changes that pass alone and fail together, the server's refusal without a proof, no
+command, and the API set through its checkout), `src/gate.rs`.
 
 ## Many agents, one machine or many
 

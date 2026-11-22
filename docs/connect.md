@@ -33,8 +33,10 @@ Connect adds the files that it creates to `.git/info/exclude`, so `git status` s
 | `--agents N` | Agent names `<harness>-1` to `<harness>-N`. Each MCP bridge takes the first free name. |
 | `--port P` | Port on `127.0.0.1`. Default: a free port, then the same port on the next connect. |
 | `--mirror`, `--no-mirror` | Push landed changes to `origin` every 30 s, or never ask. |
-| `--all-tools` | The MCP entries list every operation. Default: `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout` ([mcp.md](mcp.md#tool-sets)). A `connect` without the flag writes the agent set again. |
-| `--native` | Native mode: the MCP entries run `treeyard mcp --tools native` (`start`, `sync`, `land`, `change`, `diff`) and the block is the native one (below). Each agent edits and tests a directory of its own with its normal tools ([mcp.md](mcp.md#native-mode-start-edit-with-your-own-tools-sync-land)). Not with `--all-tools`. A `connect` without the flag writes the normal entries and block again. |
+| (no mode flag) | Native mode, the default since 0.2.0: the MCP entries run `treeyard mcp --tools native` (`start`, `sync`, `land`, `change`, `diff`) and the block is the native one (below). Each agent edits and tests a directory of its own with its normal tools ([mcp.md](mcp.md#native-mode-start-edit-with-your-own-tools-sync-land)). `--native` is still accepted and changes nothing. |
+| `--api` | API mode (the default before 0.2.0): `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout`, and the API block ([mcp.md](mcp.md#tool-sets)). A `connect` without `--api` switches back to native mode. |
+| `--all-tools` | API mode with every operation listed. Refused with `--native`. |
+| `--land-test CMD`, `--land-test-timeout S`, `--no-land-test` | The land test: `land` lands only a result that passed `CMD` on the change rebased onto the main it lands on ([mcp.md](mcp.md#the-land-test)). Stored as `[coordination] land_test` in the server's `treeyard.toml` (the server restarts to read it). |
 
 A second `connect` with the same flags prints `already connected` and writes nothing. When the
 server stopped, connect starts it again on the recorded port.
@@ -116,12 +118,13 @@ from it and prints a warning.
 
 ## Native mode
 
-`treeyard connect --native` writes the native block instead (`NATIVE_INSTRUCTIONS` in
+`treeyard connect` (native mode) writes the native block (`NATIVE_INSTRUCTIONS` in
 `src/connect.rs`, the same text as `bench/t2/block-bn.md`): call `start` first; work only in its `dir`
 with your normal tools and run the tests there; `sync` when you want to know whether you collide
 (optional); on `undoes` keep the other agent's part; `land` when the tests pass; on a conflict fix the
 marked files in `dir` and `land` again. The files in the repository directory do not change. The
-normal block and entries stay byte for byte what they were.
+API block and entries (`--api`) stay byte for byte what they were. `connect status` prints the mode
+(`mode: native` or `mode: api`) and the land test.
 
 ## Agent names
 

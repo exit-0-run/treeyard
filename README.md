@@ -6,7 +6,7 @@
 
 <p align="center">
   <img alt="Licence: Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-2f6b45">
-  <img alt="Version 0.1.3" src="https://img.shields.io/badge/version-0.1.3-2f6b45">
+  <img alt="Version 0.2.0" src="https://img.shields.io/badge/version-0.2.0-2f6b45">
   <img alt="Rust 2024" src="https://img.shields.io/badge/rust-2024_edition-b7410e?logo=rust&logoColor=white">
   <img alt="Platforms: macOS, Linux" src="https://img.shields.io/badge/platform-macOS_%7C_Linux-4a5560">
   <img alt="MCP server" src="https://img.shields.io/badge/MCP-server-5b4fc4">
@@ -22,15 +22,22 @@
 curl -fsSL https://github.com/exit-0-run/treeyard/releases/latest/download/install.sh | sh
 ```
 
-<p align="center"><b>Connect Claude Code</b> · after <code>treeyard init --data rs --from . && treeyard serve --data rs</code></p>
+<p align="center"><b>Connect your agents</b> · Claude Code, Codex, OpenCode · in the git repository</p>
 
 ```bash
-claude mcp add --transport stdio treeyard -- treeyard mcp --agent claude-1
+treeyard connect                          # native mode: each agent works in a directory of its own
+treeyard connect --land-test "make test"  # and lands only what passed the tests on the merged result
 ```
 
 > [!TIP]
-> Codex: `codex mcp add treeyard -- treeyard mcp --agent codex-1`. OpenCode, `.mcp.json` and the Claude Code
-> worktree hooks: [docs/mcp.md](docs/mcp.md).
+> In native mode an agent calls `start`, reads, edits and tests the directory it gets with its own tools, and
+> calls `land`; TreeYard warns about collisions and lines it would undo, and integrates.
+> `treeyard connect --api` is the older mode (every edit through `apply`). `treeyard disconnect` undoes
+> everything. By hand: `claude mcp add --transport stdio treeyard -- treeyard mcp --agent claude-1 --tools native`;
+> Codex, OpenCode and the Claude Code worktree hooks: [docs/mcp.md](docs/mcp.md).
+
+On a development set of ten feature-sized tasks for ten agents, native mode cost about the same as plain git
+worktrees, and no difference in delivered tasks was shown ([the runs](bench/t2/dev/heavy-runs/README.md)).
 
 **What it is.** A self-hosted version control server between 10 to 200 AI coding agents and one git
 repository.

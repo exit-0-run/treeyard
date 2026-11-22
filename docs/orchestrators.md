@@ -59,9 +59,9 @@ the TreeYard workspace. The hook then gives you two things only:
 - a removal step that sends the edits made in the TreeYard workspace directory.
 
 Edits that the agent makes later in the orchestrator's worktree do not reach that change. For warnings
-while the agent works, use API-only mode: run `treeyard connect` in the repository
-([connect.md](connect.md)). The agent then opens its change and edits through MCP (`open_change`,
-`apply`, `land`), whatever directory the orchestrator gives it. The recipes below add the hook on top of
+while the agent works, run `treeyard connect` in the repository ([connect.md](connect.md)). In
+native mode (the default) the agent calls `start` and works in the directory it gets, whatever directory
+the orchestrator gives it; with `--api` it edits through MCP (`open_change`, `apply`, `land`). The recipes below add the hook on top of
 that; you can also leave them out.
 
 ## Orca

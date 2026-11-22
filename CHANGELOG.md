@@ -5,7 +5,30 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+Everything since 0.1.3: `treeyard connect` and the agent tool set, the bridge's `checkout`, the
+`undoes` hold, native mode (now the default of `connect`), the land test, and the T2 kit with the
+development sets. Breaking: `treeyard connect` without a mode flag now sets up native mode; pass
+`--api` for the previous setup.
+
+### Changed
+- `treeyard connect` sets up native mode by default (`treeyard mcp --tools native` and the native
+  block). `--api` gives the previous API mode (`--tools agent`, the API block, byte for byte as
+  before); `--native` is accepted and changes nothing; `--all-tools` means API mode and is refused
+  with `--native`. `connect status` prints `mode: native` or `mode: api` and the land test.
+
 ### Added
+- The land test. `[coordination] land_test` (and `land_test_timeout_s`, default 600) in the server's
+  `treeyard.toml`, or `treeyard connect --land-test CMD` (`--no-land-test` removes it). The stdio
+  bridge's `land` (native and API sets) rebases the change onto main, writes its directory, runs the
+  command there, and lands with a proof (`tested`: command, main, head) that the server checks under
+  its lock with the land: status `untested` without a proof, `main_moved` when main moved (the bridge
+  tests again, at most 3 rounds). A failed test answers `tests_failed` with the end of the output
+  (4 KB), not landed. The landed change records `tested`. No agent override; the owner turns it off in
+  config. bench/t2: `run --land-test` for arm BN (run name `-gate`), with `land_tests_failed`,
+  `land_test_rounds`, `land_test_seconds` in the run file. Tests: `tests/native.rs`, `src/gate.rs`,
+  `bench/t2/test_t2.py`.
 - Native mode. `treeyard mcp --tools native` is a third tool set for agents that read, edit and test
   with their own tools: `start {intent, paths?}` opens the change and writes a full checkout to a
   directory of its own (`dir`); `sync {change, rebase?}` sends what changed there (modified, added,
@@ -329,7 +352,8 @@ The first version that is complete end to end on one node.
 - `examples/swarm-demo.sh`: N scripted agents against git worktrees and against the server.
 - `site/index.html`: a static page with the measured numbers.
 
-[Unreleased]: https://github.com/exit-0-run/treeyard/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/exit-0-run/treeyard/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/exit-0-run/treeyard/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/exit-0-run/treeyard/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/exit-0-run/treeyard/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/exit-0-run/treeyard/compare/v0.1.0...v0.1.1
