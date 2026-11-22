@@ -465,6 +465,42 @@ class ArmA2Tests(StubBase):
         self.assert_guard(res)
 
     @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_oracle_arm_bn_with_the_land_test(self):
+        spec, tasks = oracle_world(self.tmp / "w")
+        r = k.Run(self.tmp, "BN", "mini", "colliding", 1, "oracle", limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                  tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / "run", results=self.tmp / "results", land_test=True)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["run"], "BN-mini-colliding-r1-oracle-gate")
+        self.assertEqual(res["land_test_gate"], {"on": True, "command": "t2-test"})
+        self.assertEqual((res["tasks_on_main"], res["interventions"], res["land_tests_failed"]), (5, 0, 0))
+        self.assertGreaterEqual(res["land_test_rounds"], 5)
+        self.assert_guard(res)
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_a_merged_result_that_fails_the_suite_is_refused(self):
+        """Tasks 1 and 2 each pass the suite alone; together they fail it. With the land test the second of them
+        to land stays out of main; without it both land."""
+        spec, tasks = oracle_world(self.tmp / "w")
+        spec["suite"] = [sys.executable, "-c", "import sys; t = open('a.txt').read(); sys.exit('task 1' in t and 'task 2' in t)"]
+        for gate in (False, True):
+            r = k.Run(self.tmp, "BN", "mini", "colliding", 1, "oracle", limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                      tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / f"run-{gate}", results=self.tmp / "results", land_test=gate)
+            res = r.execute()
+            self.assertEqual(res["status"], "done", res.get("stop_reason"))
+            if not gate:
+                self.assertEqual(res["tasks_on_main"], 5)
+                continue
+            # Task 2 stays out; so does any later oracle whose resolved patch brings line 2 back.
+            self.assertFalse(res["done"]["t2"])
+            self.assertTrue(res["done"]["t1"])
+            text = (self.tmp / f"run-{gate}" / "final" / "a.txt").read_text()
+            self.assertFalse("task 1" in text and "task 2" in text, text)
+            self.assertGreaterEqual(res["land_tests_failed"], 1, "agent 2's own land was refused")
+            self.assertEqual(res["lands"][1]["needs_human"], True, "out of main: a person decides")
+            self.assertIn("land_tests_failed_runner", res)
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
     def test_oracle_arm_bn(self):
         r, res = self.run_world("oracle", arm="BN")
         self.assertEqual(res["status"], "done", res.get("stop_reason"))

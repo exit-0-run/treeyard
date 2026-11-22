@@ -1871,6 +1871,7 @@ def warning_of(events, agent, native=False):
     (`undoes_overridden`). `land_conflicts` and `land_refused` (markers left) count those replies."""
     own, warned_at, reacted, landed_after = set(), None, False, False
     holds, held, overridden, hold_reacted, conflicts, refused = 0, set(), 0, False, 0, 0
+    tests_failed, gate_rounds, gate_s = 0, 0, 0.0
     react_ops = ("change", "rebase", "apply", "resolve") + (("sync",) if native else ())
     kinds, others, with_main = set(), set(), False
     for i, e in enumerate(events):
@@ -1927,11 +1928,17 @@ def warning_of(events, agent, native=False):
                     overridden += 1
                 elif held:
                     hold_reacted = True
+            if status == "tests_failed":
+                tests_failed += 1
+            lt = reply.get("land_test") if isinstance(reply.get("land_test"), dict) else {}
+            gate_rounds += int(lt.get("rounds") or 0)
+            gate_s += float(lt.get("seconds") or 0)
     out = {"warned": warned_at is not None, "reacted": warned_at is not None and (reacted or hold_reacted),
            "first_warning_call": warned_at, "kinds": sorted(kinds), "with_main": with_main, "others": sorted(others)}
     if native:
         out.update(land_holds=holds, held_changes=sorted(c for c in held if c), undoes_overridden=overridden,
-                   hold_reacted=hold_reacted, land_conflicts=conflicts, land_refused=refused, changes=sorted(own))
+                   hold_reacted=hold_reacted, land_conflicts=conflicts, land_refused=refused, changes=sorted(own),
+                   land_tests_failed=tests_failed, land_test_rounds=gate_rounds, land_test_seconds=round(gate_s, 2))
     return out
 
 
@@ -1956,8 +1963,9 @@ def metrics_of(arm, agents, k_of, pairs_truth=None):
     if native:
         # `land_conflicts` of a run counts the server's land conflict events; this is the agents' own replies.
         out["agent_land_conflicts"] = sum(w["land_conflicts"] for w in per.values())
-        for key in ("land_holds", "undoes_overridden", "land_refused", "hold_reacted"):
+        for key in ("land_holds", "undoes_overridden", "land_refused", "hold_reacted", "land_tests_failed", "land_test_rounds"):
             out[key] = sum(w[key] for w in per.values())
+        out["land_test_seconds"] = round(sum(w["land_test_seconds"] for w in per.values()), 2)
     return out
 
 
@@ -1978,6 +1986,9 @@ def bn_undoes_held(result):
 # ===================================================================================== agent environment
 
 TEST_CMD = "t2-test"
+# The land test of `run --land-test` (arm BN): the bridge runs it in the agent's start directory, on PATH
+# from the agent's box like the agent's own runs.
+LAND_TEST_CMD = TEST_CMD
 INTEGRATE_CMD = "t2-integrate"
 
 # The common preamble of every arm (item: same deliverable in both arms). Arm-independent text, outside
@@ -2200,7 +2211,7 @@ sys.exit(d["exit"])
 
 class Run:
     def __init__(self, scratch, arm, repo, s, rep, harness, limits=None, agents=None, tasks_dir=None, repo_spec=None,
-                 run_dir=None, health_url=None, results=None, block_file=None, agent_root=None):
+                 run_dir=None, health_url=None, results=None, block_file=None, agent_root=None, land_test=False):
         self.scratch, self.arm, self.repo, self.set, self.rep, self.harness = scratch, arm, repo, s, rep, harness
         self.tasks_dir = tasks_dir or TASKS_DIR
         # Set-level settings (set.json of an extra set; else 5 agents, MIX, the frozen LIMITS): the agent
@@ -2216,6 +2227,13 @@ class Run:
         self.block_file = Path(block_file) if block_file else None
         if self.block_file:
             self.name += f"-{self.block_file.stem}"
+        # --land-test (arm BN): the bridge's land test (`connect --land-test`) runs the set's suite, the
+        # command `t2-test` runs, on the rebased change before each land. Off by default.
+        self.land_test = bool(land_test)
+        if self.land_test:
+            if arm != "BN":
+                raise ValueError("--land-test is for arm BN")
+            self.name += "-gate"
         # The runner's directory (ctx.json, transcripts, final trees, the archive of the agent area):
         # never within an agent's reach. The agents' directory is `agent_area()`.
         self.run_dir = run_dir or scratch / "t2" / "runner" / self.name
@@ -2303,7 +2321,10 @@ class Run:
         ctx = {"arm": self.arm, "run_dir": str(self.run_dir), "agents": [], "treeyard": str(self.ty)}
         if self.arm in B_ARMS:
             ty = self.ty
-            native = ["--native"] if self.arm == "BN" else []
+            # The mode explicitly: `connect` is native by default, arm B is the API mode.
+            native = ["--native"] if self.arm == "BN" else ["--api"]
+            if self.land_test:
+                native += ["--land-test", LAND_TEST_CMD]
             r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror", *native],
                    cwd=self.repo_dir)
             self.note("connect: " + r.stdout.strip().splitlines()[0])
@@ -2698,12 +2719,16 @@ class Run:
         rec = {"change": cid, "workspace": is_ws, "status": status}
         if native is not None:
             rec["native"] = True
+        if isinstance(land.get("land_test"), dict):
+            rec["land_test"] = land["land_test"]
+        if status in ("tests_failed", "untested"):
+            rec["output"] = tail(land.get("output") or land.get("advice") or "", 600)
         if status == "refused":  # arm BN: conflict markers left in the directory; the hand-back settles them
             rec["markers_left"] = land.get("markers_left") or []
         if status == "undoes":
             # Held: the change removes lines another agent landed. The runner never overrides.
             rec["undoes"] = [{x: e.get(x) for x in ("path", "lines", "agent", "change", "text")} for e in land.get("undoes") or []]
-        elif status not in ("landed", "conflict", "already_on_main", "refused"):
+        elif status not in ("landed", "conflict", "already_on_main", "refused", "tests_failed", "untested"):
             rec["error"] = land.get("error") or land.get("detail") or tail(json.dumps(land), 600)
         return rec
 
@@ -2729,6 +2754,14 @@ class Run:
                 rec["runner_landed"].append(lr)
                 if lr["status"] == "undoes":
                     rec["undoes_held"].append({"change": cid, "undoes": lr.get("undoes") or []})
+                    rec["left_out"].append(cid)
+                    if not rec["needs_human"]:
+                        interventions += 1
+                    rec.update(needs_human=True, intervention=True)
+                    continue
+                if lr["status"] in ("tests_failed", "untested"):
+                    # The land test refused the merged result: out of main, a person decides.
+                    rec.setdefault("land_test_refused", []).append(cid)
                     rec["left_out"].append(cid)
                     if not rec["needs_human"]:
                         interventions += 1
@@ -3186,6 +3219,8 @@ class Run:
                                  "prompt_sha256": sha_text(self.prompt(a))} for a in self.agents]
             if self.arm_block():
                 result["arm_block_sha256"] = sha_text(self.arm_block())
+            if self.arm == "BN":
+                result["land_test_gate"] = {"on": self.land_test, "command": LAND_TEST_CMD if self.land_test else None}
             if self.arm in B_ARMS:
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
                 if self.block_file:
@@ -3222,6 +3257,10 @@ class Run:
             result.update(self.transcript_metrics(pairs_truth or {}))
             if self.arm == "BN":
                 bn_undoes_held(result)
+                gated = [x for rec in result.get("lands") or [] for x in rec["runner_landed"] if x.get("land_test")]
+                result["land_tests_failed_runner"] = sum(1 for rec in result.get("lands") or [] for _ in rec.get("land_test_refused") or [])
+                result["land_test_rounds"] = result.get("land_test_rounds", 0) + sum(int(x["land_test"].get("rounds") or 0) for x in gated)
+                result["land_test_seconds"] = round(result.get("land_test_seconds", 0) + sum(float(x["land_test"].get("seconds") or 0) for x in gated), 2)
             result["guard"] = {str(k): diff_stats(d, self.spec.get("test_globs") or DEFAULT_TEST_GLOBS) for k, d in own.items()}
             tree = self.final_tree()
             result["lost_lines"] = lost_lines(own, tree)
@@ -3762,6 +3801,8 @@ def main(argv=None):
             p.add_argument("--yes-real", action="store_true", help="needed for --harness real (owner's yes and budget)")
             p.add_argument("--dry-run", action="store_true", help="set up the arm and print the agent commands; start no agent")
             p.add_argument("--block", type=Path, help="arm B, development set only: this instruction block instead of block-b.md")
+            p.add_argument("--land-test", action="store_true", help="arm BN: land only what passed the suite on the rebased "
+                           "change (connect --land-test t2-test); the run name ends in -gate")
     p = sub.add_parser("collect")
     p.add_argument("--results", type=Path, default=RESULTS)
     p.add_argument("--out", type=Path)
@@ -3826,13 +3867,15 @@ def main(argv=None):
     kw = {"results": getattr(a, "results", None), "agent_root": getattr(a, "agent_root", None)}
     if a.cmd == "run":
         if a.dry_run:
-            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).dry_run():
+            for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, land_test=a.land_test, **kw).dry_run():
                 print(line)
             return
         if a.harness == "real" and not a.yes_real:
             raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
         truth = pair_table(scratch, a.repo, a.set) if a.arm in B_ARMS else None
-        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).execute(truth)
+        if a.land_test and a.arm != "BN":
+            raise SystemExit("--land-test is for arm BN")
+        r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, land_test=a.land_test, **kw).execute(truth)
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all", "suite_green_pinned",
                                                  "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}
                          | ({"integration": f"{r['integration_passed']}/{r['integration_total']}"} if r.get("integration_total") else {})))
