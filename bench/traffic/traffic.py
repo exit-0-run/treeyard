@@ -190,7 +190,8 @@ class Level:
         if self.a.test_s:
             with open(data / "treeyard.toml", "a") as f:
                 if self.queue:
-                    f.write(f'\n[landing]\nmode = "queue"\ntest = "sleep {self.a.test_s}"\nbatch = {self.a.batch}\n')
+                    test = f"sleep {self.a.test_s}" + ("; ! grep -rq 'def _bad_' src" if self.a.bad else "")
+                    f.write(f'\n[landing]\nmode = "queue"\ntest = "{test}"\nbatch = {self.a.batch}\n')
                 else:
                     f.write(f'\n[coordination]\nland_test = "sleep {self.a.test_s}"\n')
         pf = self.work / "port"
@@ -213,6 +214,9 @@ class Level:
         while time.time() < self.stop_new:
             k += 1
             name = f"_sim_{i}_{k}"
+            bad = rng.random() < self.a.bad
+            if bad:
+                name = "_bad" + name
             st = br.call("start", {"intent": name})
             cid, d = st.get("id"), st.get("dir")
             if not cid or not d:
@@ -235,6 +239,10 @@ class Level:
                     retries += 1
                     with self.lock:
                         self.verdicts[v] = self.verdicts.get(v, 0) + 1
+                    if v == "rejected" and name.startswith("_bad"):   # the agent fixes its change
+                        f = Path(d) / rel
+                        f.write_text(f.read_text().replace(name, name[4:]))
+                        name = name[4:]
                     continue
                 if s == "landed":
                     landed = time.time()
@@ -249,7 +257,7 @@ class Level:
                     if retries > 20:
                         break
                     time.sleep(0.2)
-            self.row(i, name, rel, ready, landed, retries, conflicts)
+            self.row(i, name, rel, ready, landed, retries, conflicts, bad)
             shutil.rmtree(d, ignore_errors=True)
 
     def wait_queue(self, cid):
@@ -278,13 +286,13 @@ class Level:
         br = Bridge(self.a.treeyard, self.url, "sim-check", dict(os.environ, TMPDIR=str(tmp)))
         d = br.call("start", {"intent": "check"}).get("dir")
         br.close()
-        out = subprocess.run(["grep", "-r", "-h", "-o", "-E", "^def _sim_[0-9]+_[0-9]+", str(Path(d) / "src")], capture_output=True, text=True).stdout
+        out = subprocess.run(["grep", "-r", "-h", "-o", "-E", "^def (_bad)?_sim_[0-9]+_[0-9]+", str(Path(d) / "src")], capture_output=True, text=True).stdout
         return {l.split()[1] for l in out.splitlines()}
 
     # ---- common
-    def row(self, i, name, rel, ready, landed, retries, conflicts):
+    def row(self, i, name, rel, ready, landed, retries, conflicts, bad=False):
         with self.lock:
-            self.rows.append(dict(agent=i, name=name, file=rel, ready=ready, landed=landed, retries=retries, conflicts=conflicts))
+            self.rows.append(dict(agent=i, name=name, file=rel, ready=ready, landed=landed, retries=retries, conflicts=conflicts, bad=bad))
 
     def err(self, text):
         with self.lock:
@@ -325,6 +333,10 @@ class Level:
                    ready=len(ready), landed=len(done), not_landed=len(ready) - len(done),
                    landed_per_hour=round(len(in_window) * 3600 / self.a.duration),
                    wait_median_s=q(0.5), wait_p95_s=q(0.95), wait_max_s=round(waits[-1], 3) if waits else None,
+                   bad_share=self.a.bad, batch=self.a.batch, bad_made=sum(r["bad"] for r in ready),
+                   wait_median_good_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["landed"] - r["ready"] for r in done if not r["bad"])),
+                   wait_median_bad_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["landed"] - r["ready"] for r in done if r["bad"])),
+                   bad_on_main=sum(1 for n in on_main if n.startswith("_bad")),
                    retries=sum(r["retries"] for r in ready), conflicts=sum(r["conflicts"] for r in ready),
                    hot_share=round(sum(r["file"] in HOT_FILES for r in ready) / max(1, len(ready)), 3),
                    landed_missing_on_main=len({r["name"] for r in done} - on_main), on_main=len(on_main),
@@ -348,6 +360,8 @@ def main():
     ap.add_argument("--test-s", type=float, default=0)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--bad", type=float, default=0, help="queue arm: share of changes that fail the test until their agent fixes them")
+    ap.add_argument("--tag", default="")
     ap.add_argument("--no-gc", action="store_true", help="git arm: gc.auto=0, maintenance.auto=false, receive.autogc=false in the shared repository and every clone")
     a = ap.parse_args()
     a.seed_n = a.seed
@@ -364,8 +378,8 @@ def main():
             results.append(res)
             print(json.dumps(res), flush=True)
             Path(a.out).write_text(json.dumps(dict(params=dict(levels=a.levels, duration=a.duration, grace=a.grace, think=a.think, hot=a.hot,
-                                                               test_s=a.test_s, no_gc=a.no_gc, seed=a.seed_n, rev=a.rev, cpus=os.cpu_count()), results=results), indent=1))
-            (Path(a.out).parent / f"rows-{arm}-{n}-t{a.test_s:g}.json").write_text(json.dumps(rows))
+                                                               test_s=a.test_s, bad=a.bad, batch=a.batch, no_gc=a.no_gc, seed=a.seed_n, rev=a.rev, cpus=os.cpu_count()), results=results), indent=1))
+            (Path(a.out).parent / f"rows-{arm}-{n}-t{a.test_s:g}{a.tag}.json").write_text(json.dumps(rows))
             shutil.rmtree(w, ignore_errors=True)
 
 

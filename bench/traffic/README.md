@@ -159,3 +159,24 @@ The comparison for this page: git **without** automatic housekeeping (`--no-gc`)
 alternating level by level (git, then TreeYard, at 50, 75, 100 and 200 agents), same settings as
 series 1, in one go on the same machine so both arms meet the same load. The numbers of git with
 housekeeping stay in the limits only.
+
+## The queue with failing changes (settings written before the run)
+
+Arm `treeyard_queue` only, binary 0.2.0. A share of the changes is bad (`--bad`): the queue's test
+is `sleep T; ! grep -rq 'def _bad_' src`, so a tree that holds a bad change fails. An agent whose
+change comes back `rejected` fixes it at once (renames the function) and lands again.
+
+- Bad share 0, 5, 10, 20, 30 %; test 30, 60, 120 s; batch 4, 8, 16: 45 cells. Server default for
+  `parallel` (test runs side by side after a failing batch).
+- 50 agents in every cell, the same pace and changes as before, so the agents offer more than the
+  queue can take in most cells (at most 2 000, 1 200 and 670 changes an hour for the three tests).
+- A cell runs 300, 480 and 960 s for the three tests, then twice the test plus 60 s. The three test
+  lengths run at the same time (the test is a `sleep`).
+- Reported per cell: changes entering main per hour (the ceiling when the queue is overloaded), the
+  ratio to 3600 / test length, median wait of good and of bad changes, changes ready and not
+  entered, bad changes that reached main (must be 0).
+- **Rule: the queue makes sense when at 10 % bad changes and a 60 s test it gives at least 2 times
+  3600 / test length, that is 120 changes an hour.** Read for batch 8 (the default); the other
+  batches are reported beside it.
+- The count starts with an empty queue, so the first test length of every cell lands nothing; the
+  rates are a little under the steady state.
