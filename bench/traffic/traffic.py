@@ -126,11 +126,16 @@ class Level:
     def setup_git(self):
         self.origin = self.work / "origin.git"
         git("clone", "-q", "--bare", str(self.a.seed), str(self.origin), cwd=self.work)
+        nogc = [("gc.auto", "0"), ("maintenance.auto", "false"), ("receive.autogc", "false")] if self.a.no_gc else []
+        for k, v in nogc:
+            git("config", k, v, cwd=self.origin)
         self.dirs = []
         for i in range(self.n):
             d = self.work / "agents" / f"a{i}"
             d.parent.mkdir(exist_ok=True)
             git("clone", "-q", str(self.origin), str(d), cwd=self.work)
+            for k, v in nogc:
+                git("config", k, v, cwd=d)
             self.dirs.append(d)
 
     def agent_git(self, i):
@@ -343,6 +348,7 @@ def main():
     ap.add_argument("--test-s", type=float, default=0)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--no-gc", action="store_true", help="git arm: gc.auto=0, maintenance.auto=false, receive.autogc=false in the shared repository and every clone")
     a = ap.parse_args()
     a.seed_n = a.seed
     work = Path(a.work).resolve()
@@ -358,7 +364,7 @@ def main():
             results.append(res)
             print(json.dumps(res), flush=True)
             Path(a.out).write_text(json.dumps(dict(params=dict(levels=a.levels, duration=a.duration, grace=a.grace, think=a.think, hot=a.hot,
-                                                               test_s=a.test_s, seed=a.seed_n, rev=a.rev, cpus=os.cpu_count()), results=results), indent=1))
+                                                               test_s=a.test_s, no_gc=a.no_gc, seed=a.seed_n, rev=a.rev, cpus=os.cpu_count()), results=results), indent=1))
             (Path(a.out).parent / f"rows-{arm}-{n}-t{a.test_s:g}.json").write_text(json.dumps(rows))
             shutil.rmtree(w, ignore_errors=True)
 

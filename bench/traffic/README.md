@@ -56,3 +56,12 @@ Series 2 (a 2 s test) clogged both arms alike. Step 1b repeats it with tests of 
   the rebased tree, run by the agent's bridge). Expected ceiling of the queue, if it holds: about
   8 x 3600 / test length. A `sleep` never fails, so this measures the queue without failing
   batches; the cost of a failing batch (bisect, more runs) is not in these numbers.
+
+## Check of series 1: git without automatic housekeeping. Settings written before the run
+
+At 75 agents git reported 1 683 fetch errors, some naming "possible repository corruption on the
+remote side". To see whether git's automatic housekeeping under load made the clog, git alone is
+run again at 50, 75 and 100 agents with `gc.auto=0`, `maintenance.auto=false` and
+`receive.autogc=false` in the shared repository and in every clone (`--no-gc`), nothing else
+changed, with nothing else of this test running. Reported beside the first result: fetch errors and
+the clog point.
