@@ -55,3 +55,21 @@ says "follows h1", because h1 itself is lost in that run and the script cannot l
 partner. So "follows" can hide a second cause; such entries are read by hand. The histories of the
 other five traced runs (A2 r22, A2 r33, BN r21, B r23, B r33) were deleted with their run
 directories and could not be checked.
+
+### Result of the git runs (2026-11-22)
+
+| Run | Tasks | Integration tests | Integration defects | Conflicts handed back | Wall s | Claude USD | Cost of the hand-backs | End phase (merges and hand-backs) |
+|---|---|---|---|---|---|---|---|---|
+| r51 | 13/13 | 21/21 | 0 | 10 (all resolved, 0 interventions) | 379 | 3.79 | 1.08 (28 %) | 269 s (71 %) |
+
+| Group | Tasks in r51 | Solo |
+|---|---|---|
+| Strong refactors (h1, h2, h11, h14) | 4/4 | 8/8 |
+| Weak refactors (h12, h13) | 2/2 | 4/4 |
+| Features | 7/7 | 14/14 |
+
+`losses.py` finds no loss and no break at any state of main. By the stop rule runs 2 and 3 were not
+started. **Conclusion: the set is not a cheap field for comparisons; the quality line is closed.**
+One run does not show that git cannot lose here. What it does show: with 10 of 13 agents handed a
+conflict, plain git with one model delivered everything, and paid for it with 28 % of the cost and
+71 % of the wall time in the merge phase. Run file and classifier output: [`git/`](git/).
