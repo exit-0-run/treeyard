@@ -1,6 +1,6 @@
 # T2 experiment kit
 
-Five coding agents at once on one repository (ten in the development set `mixed`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
+Five coding agents at once on one repository (ten in the development sets `mixed` and `heavy`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
 git-native way to integrate early (arm A2), and `treeyard connect` (arm B). The design, the metrics and
 the thresholds of version 3 are frozen in [PREREGISTRATION.md](PREREGISTRATION.md); its pilot on
 requests ran in [results/pilot-v3/](results/pilot-v3/README.md) and an audit after it found faults in
@@ -32,7 +32,7 @@ development set). Point it at a scratch directory for checks: the run files in `
 |---|---|
 | `repos.json` | pinned URL and commit per repository; `decide`, `suite`, `test_prefix` (`t2-test ARGS`), `test_globs` (test files, for `suite_green_pinned`) |
 | `taskdefs.py` | the 30 tasks: prompt, hidden test, reference edits |
-| `taskdefs_<name>.py` (optional, next to a `taskdefs.py`) | sets beyond `disjoint` and `colliding`, with their set-level settings and integration tests; today only `dev/taskdefs_mixed.py` |
+| `taskdefs_<name>.py` (optional, next to a `taskdefs.py`) | sets beyond `disjoint` and `colliding`, with their set-level settings and integration tests; today `dev/taskdefs_mixed.py` and `dev/taskdefs_heavy.py` (its reference solutions as patches in `dev/heavy/`, read into `edits` and `combined_edits`) |
 | `tasks/<repo>/<set>/<k>-<id>/` | `prompt.md`, `hidden/<path>`, `reference.patch`, `resolved-<k>.patch` (colliding), `meta.json` |
 | `tasks/MANIFEST.json` | sha256 of every task file of `disjoint` and `colliding` (checked by `test_t2.py`) |
 | `tasks/<repo>/<set>/set.json`, `tasks/MANIFEST-<set>.json` | an extra set: agent count, harness slots, limits, integration tests (`integration/<id>/`); its own manifest |
@@ -144,8 +144,8 @@ Arm B removes the same files from the workspace before the runner lands it. The 
 - `noop`: changes nothing and makes one tool call, so the zero-tool-call stop does not fire.
 - `stub`: scripted behaviour for the tests (`T2_STUB_MODES` per slot; `T2_STUB_AS` per slot = `claude` or
   `codex` makes it print that CLI's transcript format, so the parser and resume path of each harness run).
-- `real`: 3 Claude Code, 2 Codex (an extra set's `set.json` gives its own slots: `mixed` has 6 Claude
-  Code, 4 Codex). It needs `--yes-real`: the owner's yes and a budget.
+- `real`: 3 Claude Code, 2 Codex (an extra set's `set.json` gives its own slots: `mixed` and `heavy` have 6
+  Claude Code, 4 Codex). It needs `--yes-real`: the owner's yes and a budget.
 
 ## Stops
 

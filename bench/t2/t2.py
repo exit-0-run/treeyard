@@ -57,9 +57,9 @@ VENV = "requests-venv"
 TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
 # Sets beyond the two of preregistration v3, defined in sibling modules `taskdefs_<name>.py` (only the
-# development set has one: dev/taskdefs_mixed.py). Their tasks/<repo>/<set>/set.json holds the set-level
+# development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py). Their tasks/<repo>/<set>/set.json holds the set-level
 # settings: agent count, harness slots, limits, integration tests (`set_spec`).
-EXTRA_SETS = ("mixed",)
+EXTRA_SETS = ("mixed", "heavy")
 ARMS = ("A", "A2", "B")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 AGENTS = 5
 # Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
@@ -188,7 +188,12 @@ def apply_edits(files, tasks):
 
 
 def _apply_op(text, e):
-    """One edit op on `text`, or None when its `old` or anchor does not occur exactly once."""
+    """One edit op on `text`, or None when its `old` or anchor does not occur exactly once. `create`
+    makes a file that is not there yet (`text` is None for a path absent from the tree)."""
+    if e["op"] == "create":
+        return e["text"] if text is None else None
+    if text is None:
+        return None
     key = e["old"] if e["op"] == "replace" else e["anchor"]
     if text.count(key) != 1:
         return None
@@ -200,29 +205,88 @@ def _apply_op(text, e):
 def apply_seq(files, tasks, combined=True):
     """Applies the edits of `tasks` one task after the other (sets with `"sequential": true`). An op may
     carry `alts`, the same edit written for a tree that already holds another task's lines: a combined
-    tree (`combined`) tries the alts first, then the op; a task alone uses only the op."""
+    tree (`combined`) tries the alts first, then the op; a task alone uses only the op. A task may also
+    carry `combined_edits`, its whole step on a tree that holds all the tasks before it (the heavy set:
+    refactors move code that later tasks edit, so the step differs from the task alone); a combined tree
+    applies those instead of `edits`. A path that is not in `files` is absent (a `create` op makes it)."""
     out = dict(files)
     for t in tasks:
-        for e in t["edits"]:
+        for e in (t["combined_edits"] if combined and "combined_edits" in t else t["edits"]):
             for o in ([*e.get("alts", []), e] if combined else [e]):
-                new = _apply_op(out[o["file"]], o)
+                new = _apply_op(out.get(o["file"]), o)
                 if new is not None:
                     out[o["file"]] = new
                     break
             else:
-                raise ValueError(f"{t['id']}: an edit does not apply in {e['file']}: {(e.get('old') or e.get('anchor'))[:60]!r}")
+                raise ValueError(f"{t['id']}: an edit does not apply in {e['file']}: {(e.get('old') or e.get('anchor') or '')[:60]!r}")
+    return out
+
+
+def merge3(ours, base, theirs, union=False):
+    """`git merge-file` of three texts (None = absent file); None when the merge conflicts. `union`
+    keeps the lines of both sides of a conflict (ours first)."""
+    with tempfile.TemporaryDirectory() as d:
+        paths = []
+        for name, text in (("ours", ours), ("base", base), ("theirs", theirs)):
+            p = Path(d) / name
+            p.write_text(text or "")
+            paths.append(str(p))
+        r = subprocess.run(["git", "merge-file", "-p", "--diff-algorithm=histogram", *(["--union"] if union else []), *paths],
+                           capture_output=True, text=True)
+    return r.stdout if r.returncode == 0 else None
+
+
+def replay_without(files, tasks, k):
+    """The tree of all `tasks` but task k (1-based), for sets whose steps (`combined_edits`) do not apply
+    on a tree that lacks an earlier task. Each other task j is merged into the tree file by file, as
+    `git cherry-pick` would: its step (the chain 1..j-1 to 1..j), or, where the step conflicts because it
+    was written on task k's lines, the task alone (pin to its reference), and when that conflicts too
+    (lines inserted next to another task's) the task alone with both sides kept (`--union`). A file
+    that exists only through task k (a module that k creates) is left out. These trees serve only to
+    show that an integration test fails without one partner; `validate` checks that the other
+    partner's hidden test passes on them."""
+    chain = [dict(files)]
+    for j in range(1, len(tasks) + 1):
+        chain.append(apply_seq(chain[-1], [tasks[j - 1]]))
+    out = dict(files)
+    for j in range(1, len(tasks) + 1):
+        if j == k:
+            continue
+        before, after = chain[j - 1], chain[j]
+        alone = None
+        for f in sorted(set(before) | set(after)):
+            if before.get(f) == after.get(f):
+                continue
+            if out.get(f) is None and before.get(f) is not None:
+                continue
+            merged = merge3(out.get(f), before.get(f), after.get(f))
+            if merged is None:
+                alone = alone or apply_seq(files, [tasks[j - 1]], False)
+                if alone.get(f) != files.get(f):
+                    merged = merge3(out.get(f), files.get(f), alone.get(f))
+                    if merged is None:
+                        merged = merge3(out.get(f), files.get(f), alone.get(f), union=True)
+                else:
+                    merged = out.get(f)
+            if merged is None:
+                raise ValueError(f"{tasks[j - 1]['id']}: its step conflicts in {f} without task {k}")
+            out[f] = merged
     return out
 
 
 def unified(before, after):
-    """A git-style patch for the files that differ."""
+    """A git-style patch for the files that differ. A path missing from `before` (or None there) is a
+    new file."""
     parts = []
     for f in sorted(set(before) | set(after)):
-        a, b = before.get(f, ""), after.get(f, "")
-        if a == b:
+        a, b = before.get(f), after.get(f)
+        if (a or "") == (b or "") and (a is None) == (b is None):
             continue
         parts.append(f"diff --git a/{f} b/{f}\n")
-        parts.extend(difflib.unified_diff(a.splitlines(True), b.splitlines(True), f"a/{f}", f"b/{f}", n=3))
+        if a is None:
+            parts.append("new file mode 100644\n")
+        parts.extend(difflib.unified_diff((a or "").splitlines(True), (b or "").splitlines(True),
+                                          "/dev/null" if a is None else f"a/{f}", f"b/{f}", n=3))
     return "".join(parts)
 
 
@@ -240,7 +304,9 @@ def test_path(repo, task):
 
 
 def pinned_files(src, rev, paths):
-    return {p: git("show", f"{rev}:{p}", cwd=src).stdout for p in paths}
+    """{path: text at the pin}; a path that is not at the pin is left out (a task creates it)."""
+    have = set(git("ls-tree", "-r", "--name-only", rev, "--", *paths, cwd=src).stdout.splitlines()) if paths else set()
+    return {p: git("show", f"{rev}:{p}", cwd=src).stdout for p in paths if p in have}
 
 
 def generate(scratch):
@@ -318,14 +384,14 @@ def generate_extra(scratch, mod):
             assert len(settings["mix"]) == settings["agents"], (repo, s)
             src = scratch / "t2" / "src" / repo
             rev = REPOS[repo]["rev"]
-            paths = sorted({o["file"] for t in tasks for e in t["edits"] for o in [e, *e.get("alts", [])]})
+            paths = sorted({o["file"] for t in tasks for e in task_ops(t) for o in [e, *e.get("alts", [])]})
             base = pinned_files(src, rev, paths)
             seq = settings.get("sequential")
             apply = (lambda b, ts, combined=True: apply_seq(b, ts, combined)) if seq else (lambda b, ts, combined=True: apply_edits(b, ts))
             for t in tasks:  # an alt is for a tree with other tasks in: it may not fit the pin
                 for e in t["edits"]:
                     for alt in e.get("alts", []):
-                        if _apply_op(base[alt["file"]], alt) is not None:
+                        if _apply_op(base.get(alt["file"]), alt) is not None:
                             raise SystemExit(f"{t['id']}: an alt applies to the pin: {alt}")
             set_dir = TASKS_DIR / repo / s
             if set_dir.exists():
@@ -342,7 +408,7 @@ def generate_extra(scratch, mod):
                 hidden.parent.mkdir(parents=True)
                 hidden.write_text(t["test"])
                 (d / f"resolved-{k}.patch").write_text(unified(apply(base, tasks[: k - 1]), apply(base, tasks[:k])))
-                files = sorted({o["file"] for e in t["edits"] for o in [e, *e.get("alts", [])]})
+                files = sorted({o["file"] for e in task_ops(t) for o in [e, *e.get("alts", [])]})
                 meta_ = {"repo": repo, "set": s, "k": k, "id": t["id"], "title": t["title"], "files": files,
                          "test": test_path(repo, t)}
                 (d / "meta.json").write_text(json.dumps(meta_, indent=2) + "\n")
@@ -354,7 +420,19 @@ def generate_extra(scratch, mod):
                 (d / "hidden" / test).write_text(it["test"])
                 for k in it["pair"]:
                     rest = [t for j, t in enumerate(tasks, 1) if j != k]
-                    (d / f"without-{k}.patch").write_text(unified(base, apply(base, rest)))
+                    given = getattr(td, "WITHOUT", {}).get(repo, {}).get(s, {}).get(k)
+                    try:
+                        if given is not None:  # the set's own tree of all tasks but k
+                            without = apply_seq(base, [{"id": f"without-{k}", "edits": given}], False)
+                        else:
+                            without = apply(base, rest)
+                    except ValueError:  # steps written for a tree with task k: merge them in without it
+                        try:
+                            without = replay_without(base, tasks, k)
+                        except ValueError as e:
+                            print(f"{it['id']}: no tree without task {k}: {e}")
+                            continue
+                    (d / f"without-{k}.patch").write_text(unified(base, without))
                 integ.append({"id": it["id"], "pair": it["pair"], "test": test, "why": it.get("why", "")})
             spec = {"set": s, "agents": settings["agents"], "mix": settings["mix"], "limits": settings.get("limits", {}),
                     "sequential": bool(seq), "tasks": [t["id"] for t in tasks], "integration": integ}
@@ -363,6 +441,11 @@ def generate_extra(scratch, mod):
                 manifest[str(f.relative_to(HERE))] = sha256(f)
         (TASKS_DIR / f"MANIFEST-{s}.json").write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
         print(f"generated {s}: {sum(1 for k in manifest if k.endswith('prompt.md'))} tasks, {len(manifest)} files")
+
+
+def task_ops(t):
+    """Every edit op of a task: its own and those of its `combined_edits`."""
+    return [*t["edits"], *t.get("combined_edits", [])]
 
 
 def set_spec(tasks_dir, repo, s):
@@ -568,7 +651,7 @@ def validate_extra(scratch, repos, s):
         by_k = {meta(d)["k"]: d for d in dirs}
         for it in spec["integration"]:
             idir = TASKS_DIR / repo / s / "integration" / it["id"]
-            checks = {}
+            checks, sane = {}, {}
             reset_tree(tree, rev)
             checks["pin"] = decide_integration(repo, s, it, tree, scratch)[0]
             for k in it["pair"]:
@@ -578,10 +661,15 @@ def validate_extra(scratch, repos, s):
                 reset_tree(tree, rev)
                 apply_patch(tree, idir / f"without-{k}.patch")
                 checks[f"all but {k}"] = decide_integration(repo, s, it, tree, scratch)[0]
-            good = not any(checks.values())
+                # The tree without k is a real tree: the hidden tests of the other partners pass on it.
+                others = [by_k[j] for j in it["pair"] if j != k]
+                sane[f"all but {k}"] = all(decide(repo, o, tree, scratch)[0] for o in others)
+            good = not any(checks.values()) and all(sane.values())
             ok_all &= good
             lines.append(f"{repo} {s} integration {it['id']} (tasks {it['pair'][0]} and {it['pair'][1]}): "
-                         + ", ".join(f"{c} {'PASSES' if v else 'fails'}" for c, v in checks.items()) + f" -> {'ok' if good else 'BAD'}")
+                         + ", ".join(f"{c} {'PASSES' if v else 'fails'}" for c, v in checks.items())
+                         + "; the partner's own test " + ", ".join(f"{c} {'passes' if v else 'FAILS'}" for c, v in sane.items())
+                         + f" -> {'ok' if good else 'BAD'}")
         table = pair_table(scratch, repo, s)
         hits = sorted(p for p, v in table.items() if v)
         lines.append(f"{repo} {s}: {len(hits)} of {len(table)} pairs of reference patches conflict in git: {', '.join(hits)}")
@@ -1091,12 +1179,17 @@ def agent_oracle(ctx, k, resume=False):
         subprocess.run(["git", "init", "-q"], cwd=tmp)
         for f in meta(td)["files"]:
             rd = tool([ty, "call", "--url", c["url"], "read", json.dumps({"path": f})], cwd)
+            content = json.loads(rd.stdout or "{}").get("content") if rd.returncode == 0 else None
+            if content is None:  # not on main yet (a file the task creates): the patch makes it
+                continue
             p = tmp / f
             p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(json.loads(rd.stdout)["content"])
+            p.write_text(content)
         tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], tmp)
         for f in meta(td)["files"]:
-            shutil.copyfile(tmp / f, Path(cwd) / f)
+            if (tmp / f).is_file():
+                (Path(cwd) / f).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(tmp / f, Path(cwd) / f)
     else:
         emit({"type": "note", "land_status": "gave up"})
     # Not landed (held, an error, gave up): the next oracle in the fixed order goes on all the same, so the
@@ -1109,6 +1202,9 @@ def oracle_resolve(td, k, cwd):
     resolved = td / f"resolved-{k}.patch"
     for f in meta(td)["files"]:
         show = subprocess.run(["git", "show", f"main:{f}"], cwd=cwd, capture_output=True, text=True)
+        if show.returncode != 0:  # not on main yet (a file the task creates): the patch makes it
+            Path(cwd, f).unlink(missing_ok=True)
+            continue
         Path(cwd, f).write_text(show.stdout)
     tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], cwd)
 
