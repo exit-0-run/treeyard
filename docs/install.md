@@ -77,3 +77,6 @@ clippy and all tests.
 - 0.1.2: the same checks passed on macOS arm64 and in `ubuntu:24.04` (git 2.43.0), installed from `dist/`.
 - 0.1.3: the same checks passed on macOS arm64 and in `ubuntu:24.04` (git 2.43.0); on macOS, `POST /mcp`
   answered 401 with `WWW-Authenticate` without a token, accepted a bare token, and answered `GET` with 405.
+- 0.2.0: `scripts/dist.sh` built all four archives; `install.sh --from dist` installed on macOS arm64 and
+  in `ubuntu:24.04` (git 2.43.0), where `scripts/check-quickstart.sh docs/quickstart.md` and
+  `examples/swarm-demo.sh --agents 10 --pairs 2` passed. The quickstart was not re-run on macOS.
