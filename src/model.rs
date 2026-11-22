@@ -144,6 +144,22 @@ pub struct Change {
     /// own work, so they never hold another change's land.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reverts: Option<String>,
+    /// The last land test that passed on this change (`[coordination] land_test`): the command,
+    /// the main it was rebased on and the head it tested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tested: Option<Tested>,
+}
+
+/// A land test that passed: `command` ran on `head`, the change rebased onto `main`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Tested {
+    pub command: String,
+    pub main: String,
+    pub head: String,
+    /// Milliseconds the command ran, as the client measured them.
+    pub ms: u64,
+    /// Unix seconds when the server accepted the proof.
+    pub time: i64,
 }
 
 /// A land that removed lines other agents had landed, with the owner's explicit yes.

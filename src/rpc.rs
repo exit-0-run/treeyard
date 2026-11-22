@@ -249,6 +249,8 @@ struct LandP {
     undo: Option<bool>,
     /// Why the task removes those lines; required with `undo`.
     reason: Option<String>,
+    /// With `[coordination] land_test`: the proof that the test passed on this head and main.
+    tested: Option<crate::repo::TestedProof>,
 }
 
 #[derive(Deserialize)]
@@ -893,7 +895,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             };
             let ch = owned(r, c, &a.change)?;
             check_writes(r, c, &ch)?;
-            let mut v = r.land_undo(&a.change, undo)?;
+            let mut v = r.land_gated(&a.change, undo, a.tested)?;
             // `undoes` of a land (held, landed or queued) carries every path; keep the readable ones.
             crate::undoes::filter(&mut v, &|p| c.can_read(p));
             Ok(v)
@@ -984,6 +986,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                 v["behind_main"] = b;
             }
             r.undoes(&ch, Scope::All)?.put(&mut v, &|p| c.can_read(p));
+            if let Some(cmd) = &r.cfg.coordination.land_test {
+                let timeout = r.cfg.coordination.land_test_timeout_s.unwrap_or(crate::config::LAND_TEST_TIMEOUT_S);
+                v["land_test"] = json!({"command": cmd, "timeout_s": timeout});
+            }
             filter_change(&mut v, c);
             Ok(v)
         }
@@ -1442,7 +1448,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "land",
             "Land a change on main: rebases on the server if main moved. Returns status landed (with the git commit), queued (landing mode queue), already_on_main (main had every edit; a review task is opened), waiting (stacked on a change that has not landed), conflict (with tasks), or undoes (not landed: the change removes lines another agent landed, listed in undoes with advice; [coordination] hold_undoes). undo = true with a non-empty reason lands it anyway and records who removed whose lines and why (undid: in the change, the events, status, log and audit). Also lists merge drivers used and review tasks.",
-            json!({"change": change, "undo": {"type": "boolean", "description": "land although the change removes lines other agents landed (status undoes); needs reason"}, "reason": {"type": "string", "description": "why the task removes those lines; required with undo = true"}}),
+            json!({"change": change, "undo": {"type": "boolean", "description": "land although the change removes lines other agents landed (status undoes); needs reason"}, "reason": {"type": "string", "description": "why the task removes those lines; required with undo = true"}, "tested": {"type": "object", "description": "with [coordination] land_test: {command, main, head, seconds?}, the proof that the land test passed on this head rebased onto this main (the stdio bridge sends it); else status untested or main_moved"}}),
             &["change"],
         ),
         tool("abandon", "Drop a change.", json!({"change": change}), &["change"]),

@@ -8,7 +8,7 @@ use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
 use crate::lean::Lean;
-use crate::{client, native, rpc, workspace};
+use crate::{client, gate, native, rpc, workspace};
 
 const INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/list/grep/log \
 without a checkout; ask blame (who changed a line, with intent), symbols/outline (definitions) and \
@@ -208,6 +208,35 @@ pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
             args["agent"] = json!(a);
         }
         let given = args["change"].as_str().map(str::to_string);
+        // The land test (`[coordination] land_test`): run it in the change's checkout directory.
+        if name == "land"
+            && let Some(c) = given.clone()
+            && let Some(g) = gate::Gate::of(&client::call(url, "change", json!({"change": c}))?)
+        {
+            let dir = match checkouts.get(&c) {
+                Some(d) => d.clone(),
+                None => workspace::checkout_dir(&c)?,
+            };
+            let mut prepare = || -> Result<Option<Value>> {
+                let rb = client::call(url, "rebase", json!({"change": c}))?;
+                if rb["conflicted"] == true {
+                    return Ok(Some(json!({"status": "conflict", "change": rb})));
+                }
+                workspace::checkout(url, &c, &dir)?;
+                Ok(None)
+            };
+            let mut req = args.clone();
+            if let Some(m) = req.as_object_mut() {
+                m.remove("change");
+            }
+            let mut v = gate::land(url, &c, &g, &dir, &req, &mut prepare)?;
+            checkouts.insert(c.clone(), dir.clone());
+            if v.is_object() {
+                v["checkout"] = workspace::checkout(url, &c, &dir)
+                    .unwrap_or_else(|e| json!({"dir": dir, "error": format!("checkout not written: {e:#}")}));
+            }
+            return Ok(v);
+        }
         let mut v = client::call(url, name, args)?;
         // An apply that opened the change names it in the reply.
         let change = given.or_else(|| if opens { v["id"].as_str().map(str::to_string) } else { None });

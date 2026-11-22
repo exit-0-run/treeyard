@@ -54,7 +54,7 @@ Use the tools of the `treeyard` MCP server to make your change to this repositor
 2. Work only inside `dir`, with your normal tools: read, edit and run the repository's tests there. The files in this directory do not change.
 3. Call `sync` when you want to know whether you collide with other agents (optional). A collision of kind `conflict` means another open change edits the same lines; kind `overlap` merges by itself.
 4. When a reply has `undoes`, your edit removes work that another agent landed for its own task. Keep its part (the words in `contributed`, else the whole line) and still make your own edit of the same line; `land` holds a change that still removes it. Only when your own task names those lines for removal, land with `undo: true` and a `reason` that quotes your task. Otherwise, when both cannot hold, keep its part, land the rest of your work and say in your last message what could not hold.
-5. When the tests pass in `dir`, call `land`; it sends your files and rebases for you.
+5. When the tests pass in `dir`, call `land`; it sends your files and rebases for you. If the repository has a land test, `land` runs it on the rebased change and answers `tests_failed` with its output.
 6. On status `conflict`, the files in `conflicted` hold conflict markers in `dir`: `<<<<<<< main` to `=======` is the work on main, `=======` to `>>>>>>> change` is yours. Keep both, remove the markers, run the tests, and `land` again.
 ";
 
@@ -176,8 +176,53 @@ pub struct Options {
     pub mirror: Option<bool>,
     /// true = the bridge lists every operation (`--all-tools`); default the agent tool set.
     pub all_tools: bool,
-    /// true = the native tool set and block (`--native`): the agent edits a directory of its own.
+    /// true = the native tool set and block (the default; `--api` turns it off): the agent edits a
+    /// directory of its own.
     pub native: bool,
+    /// `--land-test CMD`: Some(Some(cmd)) sets `[coordination] land_test` in the server's
+    /// `treeyard.toml`, Some(None) (`--no-land-test`) removes it, None leaves it as it is.
+    pub land_test: Option<Option<String>>,
+    /// `--land-test-timeout S`: `[coordination] land_test_timeout_s`.
+    pub land_test_timeout_s: Option<u64>,
+}
+
+/// Sets or removes `[coordination] land_test` (and its timeout) in `<data>/treeyard.toml`.
+/// Returns whether the file changed. The file is rewritten as plain TOML (its comments go).
+pub fn set_land_test(data: &Path, cmd: Option<Option<&str>>, timeout_s: Option<u64>) -> Result<bool> {
+    if cmd.is_none() && timeout_s.is_none() {
+        return Ok(false);
+    }
+    let path = data.join(crate::config::FILE);
+    let old = fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: toml::Table = toml::from_str(&old).with_context(|| format!("reading {}", path.display()))?;
+    let co = doc.entry("coordination").or_insert_with(|| toml::Value::Table(Default::default()));
+    let co = co.as_table_mut().context("[coordination] is not a table")?;
+    match cmd {
+        Some(Some(c)) if !c.trim().is_empty() => {
+            co.insert("land_test".into(), toml::Value::String(c.to_string()));
+        }
+        Some(_) => {
+            co.remove("land_test");
+            co.remove("land_test_timeout_s");
+        }
+        None => {}
+    }
+    if let Some(t) = timeout_s
+        && co.contains_key("land_test")
+    {
+        co.insert("land_test_timeout_s".into(), toml::Value::Integer(t as i64));
+    }
+    if co.is_empty() {
+        doc.remove("coordination");
+    }
+    let was: toml::Table = toml::from_str(&old)?;
+    if was == doc {
+        return Ok(false);
+    }
+    let new = if doc.is_empty() { crate::config::TEMPLATE.to_string() } else { toml::to_string(&doc)? };
+    crate::config::Config::parse_text(&new, &path)?;
+    fs::write(&path, new)?;
+    Ok(true)
 }
 
 /// Where one repository's connect state lives.
@@ -694,6 +739,13 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
         notes.push(format!("imported {branch} as changeset {}", &root[..12]));
     }
     let prev = ctx.load()?;
+    if o.native && o.all_tools {
+        bail!("--all-tools lists the API operations: use it with --api, not with native mode");
+    }
+    let test_changed = set_land_test(&data, o.land_test.as_ref().map(|c| c.as_deref()), o.land_test_timeout_s)?;
+    if test_changed {
+        notes.push("land test changed in the server's treeyard.toml; the server restarts to read it".into());
+    }
     let mut st = prev.clone().unwrap_or_else(|| State {
         version: 1,
         repo: ctx.top.clone(),
@@ -713,7 +765,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
 
     // Server.
     let mut restarted = false;
-    if prev.is_none() || !server_alive(&st) || o.port.is_some_and(|p| p != st.port) {
+    if prev.is_none() || !server_alive(&st) || o.port.is_some_and(|p| p != st.port) || test_changed {
         if prev.is_some() && is_ours(st.pid, "serve", &st.data) {
             stop(st.pid, "serve", &st.data);
         }
@@ -747,9 +799,6 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     }
     let n = o.agents.unwrap_or_else(|| st.agents.values().map(Vec::len).max().unwrap_or(1));
     st.harnesses = hs.clone();
-    if o.native && o.all_tools {
-        bail!("--native and --all-tools do not go together: the native tool set is its own");
-    }
     st.all_tools = o.all_tools;
     st.native = o.native;
     st.agents = hs.iter().map(|h| (h.name().to_string(), agent_names(*h, n))).collect();
@@ -1030,6 +1079,8 @@ pub fn status_json(dir: &Path) -> Result<Value> {
         "data": st.data,
         "branch": st.branch,
         "native": st.native,
+        "mode": if st.native { "native" } else { "api" },
+        "land_test": crate::config::Config::load(&st.data).ok().and_then(|c| c.coordination.land_test),
         "harnesses": harnesses,
         "instructions": instructions,
         "mirror": st.mirror.as_ref().map(|m| json!({"pid": m.pid, "remote": m.remote, "alive": is_ours(m.pid, "mirror", &st.data)})),
@@ -1047,6 +1098,16 @@ pub fn status_text(v: &Value) -> String {
     }
     let alive = if v["server_alive"] == true { "running" } else { "NOT RUNNING (run `treeyard connect` again)" };
     out.push_str(&format!("server: {} (pid {}, {alive})\n", s(&v["url"]), v["pid"]));
+    let mode = if v["mode"] == "native" {
+        "native (start, sync, land: each agent edits a directory of its own)"
+    } else {
+        "api (edits through apply; `connect` without --api switches to native)"
+    };
+    out.push_str(&format!("mode: {mode}\n"));
+    match v["land_test"].as_str() {
+        Some(t) => out.push_str(&format!("land test: {t}\n")),
+        None => out.push_str("land test: none\n"),
+    }
     for h in v["harnesses"].as_array().into_iter().flatten() {
         let agents: Vec<String> = h["agents"].as_array().into_iter().flatten().map(&s).collect();
         let intact = if h["config_intact"] == true { "" } else { " (edited after connect)" };

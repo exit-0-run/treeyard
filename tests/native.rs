@@ -42,8 +42,12 @@ struct Bridge {
 
 impl Bridge {
     fn start(url: &str, agent: &str, cwd: &Path, tmp: &Path) -> Bridge {
+        Bridge::with_tools(url, agent, cwd, tmp, "native")
+    }
+
+    fn with_tools(url: &str, agent: &str, cwd: &Path, tmp: &Path, tools: &str) -> Bridge {
         let mut child = Command::new(bin())
-            .args(["mcp", "--url", url, "--agent", agent, "--tools", "native"])
+            .args(["mcp", "--url", url, "--agent", agent, "--tools", tools])
             .env("TMPDIR", tmp)
             .env_remove("TREEYARD_TOKEN")
             .current_dir(cwd)
@@ -92,10 +96,18 @@ struct World {
 }
 
 fn world() -> World {
+    world_with("")
+}
+
+/// A world whose server reads `toml` as its `treeyard.toml`.
+fn world_with(toml: &str) -> World {
     let tmp = tempfile::tempdir().unwrap();
     let src = repo(tmp.path());
     let data = tmp.path().join("data");
     Repo::init(&data, &src, "main", None).unwrap();
+    if !toml.is_empty() {
+        std::fs::write(data.join("treeyard.toml"), toml).unwrap();
+    }
     let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
     let tmpdir = tmp.path().join("tmpdir");
     std::fs::create_dir_all(&tmpdir).unwrap();
@@ -524,5 +536,192 @@ fn an_idle_change_is_not_in_start_advice() {
     let mut b = w.bridge("agent-a");
     let v = b.tool("start", json!({"intent": "x", "paths": ["lib.txt"]}));
     assert!(v.get("overlaps").is_none() && v.get("advice").is_none(), "{v}");
+    b.close();
+}
+
+// ---- the land test (`[coordination] land_test`) ------------------------------------------------
+
+fn gated(cmd: &str, timeout_s: u64) -> World {
+    let cmd = cmd.replace('\\', "\\\\").replace('"', "\\\"");
+    world_with(&format!("[coordination]\nland_test = \"{cmd}\"\nland_test_timeout_s = {timeout_s}\n"))
+}
+
+#[test]
+fn a_tested_land_lands_and_is_recorded() {
+    let w = gated("./run_tests.sh", 60);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "TWO");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(
+        (l["land_test"]["command"].as_str(), l["land_test"]["rounds"].as_u64()),
+        (Some("./run_tests.sh"), Some(1))
+    );
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert_eq!(ch["tested"]["command"], "./run_tests.sh", "{ch}");
+    assert_eq!(ch["tested"]["head"], ch["head"]);
+    assert_eq!(ch["tested"]["main"], ch["base"], "tested on the main it landed on");
+    b.close();
+}
+
+#[test]
+fn a_failing_land_test_does_not_land_until_fixed() {
+    let w = gated("./run_tests.sh", 60);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "two in capitals");
+    edit(&dir, "lib.txt", "two\n", "Two\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "tests_failed", "{l}");
+    assert_eq!(l["exit"], 1);
+    assert!(l["advice"].as_str().unwrap().contains("Fix it in dir"));
+    assert_eq!(w.main_file("lib.txt").unwrap(), LIB, "not landed");
+    assert!(std::fs::read_to_string(dir.join("lib.txt")).unwrap().contains("Two\n"), "dir as it was");
+    edit(&dir, "lib.txt", "Two\n", "TWO\n");
+    assert_eq!(b.tool("land", json!({"change": id}))["status"], "landed");
+    b.close();
+}
+
+#[test]
+fn main_moving_after_the_test_means_a_new_test() {
+    // The test itself lands another change the first time it runs: the proof is then for an old
+    // main, the server answers main_moved, and the bridge tests again on the new main.
+    let w = world_with("");
+    let other = treeyard::client::call(&w.url, "open_change", json!({"agent": "o", "intent": "five"})).unwrap();
+    let oid = other["id"].as_str().unwrap().to_string();
+    treeyard::client::call(
+        &w.url,
+        "apply",
+        json!({"change": oid, "edits": [{"path": "lib.txt", "replace": {"old": "five\n", "new": "five by o\n"}}]}),
+    )
+    .unwrap();
+    let mark = w.tmpdir.join("ran-once");
+    let cmd = format!(
+        "if [ ! -e {m} ]; then touch {m}; {ty} call --url {u} land '{{\"change\": \"{oid}\"}}' >/dev/null; fi; ./run_tests.sh",
+        m = mark.display(),
+        ty = bin().display(),
+        u = w.url
+    );
+    // The gate is the server's config: restart on a config that has it.
+    let w = World { url: restart_with(&w, &format!("[coordination]\nland_test = {}\n", toml_str(&cmd))), ..w };
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "TWO");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(l["land_test"]["rounds"], 2, "tested again on the new main: {l}");
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": oid})).unwrap();
+    assert_eq!(ch["state"], "landed");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour\nfive by o\n");
+    let mine = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert_eq!(mine["tested"]["main"], ch["landed_as"], "the proof names the main with o's land");
+    b.close();
+}
+
+fn toml_str(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// The world's data with a new `treeyard.toml`, served by a second server (the first one keeps
+/// running on the same data; tests use only the new URL afterwards).
+fn restart_with(w: &World, toml: &str) -> String {
+    let data = w._tmp.path().join("data");
+    std::fs::write(data.join("treeyard.toml"), toml).unwrap();
+    spawn_server(Arc::new(Repo::open(&data).unwrap()))
+}
+
+#[test]
+fn a_land_test_that_runs_too_long_fails() {
+    let w = gated("sleep 30", 1);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "slow");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let t0 = std::time::Instant::now();
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!((l["status"].as_str(), l["timed_out"].as_bool()), (Some("tests_failed"), Some(true)), "{l}");
+    assert!(t0.elapsed().as_secs() < 20);
+    b.close();
+}
+
+#[test]
+fn the_output_of_a_failed_land_test_is_capped() {
+    let w = gated("i=0; while [ $i -lt 5000 ]; do echo line $i; i=$((i+1)); done; exit 2", 60);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "noisy");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    let out = l["output"].as_str().unwrap();
+    assert!(out.len() <= treeyard::gate::OUTPUT_CAP && out.ends_with("line 4999\n"), "{}", out.len());
+    assert!(l["output_bytes"].as_u64().unwrap() > 40_000);
+    b.close();
+}
+
+#[test]
+fn two_changes_that_pass_alone_but_not_together() {
+    let w = gated("! (grep -q 'by a' lib.txt && grep -q 'by b' lib.txt)", 60);
+    let mut a = w.bridge("agent-a");
+    let mut b = w.bridge("agent-b");
+    let (ca, da) = start(&mut a, "one by a");
+    let (cb, db) = start(&mut b, "five by b");
+    edit(&da, "lib.txt", "one\n", "one by a\n");
+    edit(&db, "lib.txt", "five\n", "five by b\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "tests_failed", "the merged result fails: {l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one by a\ntwo\nthree\nfour\nfive\n");
+    assert!(std::fs::read_to_string(db.join("lib.txt")).unwrap().contains("one by a"), "dir holds the tested tree");
+    a.close();
+    b.close();
+}
+
+#[test]
+fn the_server_refuses_a_land_without_a_proof_for_this_main() {
+    let w = gated("true", 60);
+    let c = |op: &str, p: Value| treeyard::client::call(&w.url, op, p).unwrap();
+    let ch = c("open_change", json!({"agent": "x", "intent": "x"}));
+    let id = ch["id"].as_str().unwrap();
+    let ap =
+        c("apply", json!({"change": id, "edits": [{"path": "lib.txt", "replace": {"old": "two\n", "new": "TWO\n"}}]}));
+    let l = c("land", json!({"change": id}));
+    assert_eq!(l["status"], "untested", "{l}");
+    let stale = json!({"command": "true", "main": "0".repeat(64), "head": ap["head"]});
+    assert_eq!(c("land", json!({"change": id, "tested": stale}))["status"], "main_moved");
+    let ok = json!({"command": "true", "main": c("change", json!({"change": id}))["base"], "head": ap["head"]});
+    assert_eq!(c("land", json!({"change": id, "tested": ok}))["status"], "landed");
+}
+
+#[test]
+fn without_a_land_test_nothing_changes() {
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "TWO");
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert!(ch.get("land_test").is_none());
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed");
+    assert!(
+        l.get("land_test").is_none()
+            && treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap().get("tested").is_none()
+    );
+    b.close();
+}
+
+#[test]
+fn the_api_mode_runs_the_land_test_in_its_checkout() {
+    let w = gated("./run_tests.sh", 60);
+    let mut b = Bridge::with_tools(&w.url, "agent-a", &w.src, &w.tmpdir, "agent");
+    let ap = b.tool(
+        "apply",
+        json!({"intent": "two", "edits": [{"path": "lib.txt", "replace": {"old": "two\n", "new": "Two\n"}}]}),
+    );
+    let id = ap["id"].as_str().unwrap().to_string();
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "tests_failed", "{l}");
+    b.tool("apply", json!({"change": id, "edits": [{"path": "lib.txt", "replace": {"old": "Two\n", "new": "TWO\n"}}]}));
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert_eq!(ch["tested"]["command"], "./run_tests.sh");
     b.close();
 }

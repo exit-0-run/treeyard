@@ -20,7 +20,7 @@ use std::path::Path;
 
 use crate::lean::{Lean, prune};
 use crate::workspace::{self, Place};
-use crate::{client, conflict_view, rpc};
+use crate::{client, conflict_view, gate, rpc};
 
 /// Untracked directories that `sync` never sends (caches and build output of common tools), on
 /// top of the repository's `.gitignore` rules. Tracked files in them are still sent.
@@ -361,6 +361,8 @@ struct Synced {
     /// Conflicted files edited in a dir older than the conflict: not sent, copies kept here.
     stale: Vec<String>,
     stale_dir: Option<std::path::PathBuf>,
+    /// The repository's land test, from the `change` reply (`land_test`), if any.
+    gate: Option<Value>,
 }
 
 impl Synced {
@@ -429,6 +431,7 @@ fn send(url: &str, p: &Place, change: &str, resolve: &BTreeMap<String, String>) 
     if resolve.values().any(|c| c == "main") {
         ch = client::call(url, "change", json!({"change": change}))?;
     }
+    out.gate = ch.get("land_test").cloned();
     let conflicts = kinds(&ch);
     // dir holds the change's head (else it was written before the change moved, a refresh failed).
     let current = ch["head"].as_str() == Some(mark.head.as_str());
@@ -669,7 +672,30 @@ fn land(
             req[k] = x.clone();
         }
     }
-    let mut v = client::call(url, "land", req)?;
+    let gate = s.gate.as_ref().and_then(|g| gate::Gate::of(&json!({"land_test": g})));
+    let mut v = match &gate {
+        None => client::call(url, "land", req)?,
+        Some(g) => {
+            // Rebase, write dir to exactly that tree, test it, land with the proof.
+            let mut prepare = || -> Result<Option<Value>> {
+                let rb = client::call(url, "rebase", json!({"change": change}))?;
+                if rb["conflicted"] == true {
+                    return Ok(Some(json!({"status": "conflict", "change": rb})));
+                }
+                let co = refresh(url, p, change, &[]);
+                if let Some(e) = co.get("error") {
+                    anyhow::bail!("the land test did not run: {e}");
+                }
+                let left = unsent(p, &p.load()?)?;
+                if !left.is_empty() {
+                    return Ok(Some(json!({"status": "refused", "change": change, "unsent": left,
+                        "advice": "files in dir changed while land ran: land again"})));
+                }
+                Ok(None)
+            };
+            gate::land(url, change, g, &p.dir, &req, &mut prepare)?
+        }
+    };
     let co = refresh(url, p, change, &[]);
     lean.shape("land", &mut v);
     let status = v["status"].as_str().unwrap_or_default().to_string();
@@ -694,6 +720,7 @@ fn land(
             }
         }
         "undoes" => v["advice"] = json!(HOLD_ADVICE),
+        "tests_failed" | "untested" => {}
         "landed" | "already_on_main" => v["note"] = json!(LANDED_NOTE),
         _ => {}
     }

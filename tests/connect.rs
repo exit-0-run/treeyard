@@ -166,7 +166,7 @@ fn connect_initialises_serves_on_loopback_and_runs_twice_without_change() {
 #[test]
 fn connect_writes_project_scoped_config_for_three_harnesses() {
     let env = Env::new(&[]);
-    env.run(&["connect", "--harness", "all", "--agents", "3"]);
+    env.run(&["connect", "--api", "--harness", "all", "--agents", "3"]);
     let port = env.state()["port"].as_u64().unwrap();
     let read = |p: &str| normalise(&std::fs::read_to_string(env.repo.join(p)).unwrap(), &env, port);
     assert_eq!(
@@ -246,6 +246,9 @@ TREEYARD_URL = "http://127.0.0.1:PORT"
     one.run(&["connect", "--harness", "codex"]);
     let p1 = one.state()["port"].as_u64().unwrap();
     let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
+    assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1", "--tools", "native"]"#), "{toml}");
+    one.run(&["connect", "--harness", "codex", "--api"]);
+    let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
     assert!(toml.contains(r#"args = ["mcp", "--agent", "codex-1", "--tools", "agent"]"#), "{toml}");
     one.run(&["connect", "--harness", "codex", "--all-tools"]);
     let toml = normalise(&std::fs::read_to_string(one.repo.join(".codex/config.toml")).unwrap(), &one, p1);
@@ -262,7 +265,7 @@ fn instruction_block_leaves_the_rest_of_the_file_byte_identical() {
     let agents = "# Agents\n\nRun `make test`.";
     let claude = "# Claude\n\n@AGENTS.md\n";
     let env = Env::new(&[("AGENTS.md", agents), ("CLAUDE.md", claude)]);
-    env.run(&["connect", "--harness", "codex"]);
+    env.run(&["connect", "--api", "--harness", "codex"]);
     for (f, orig) in [("AGENTS.md", agents), ("CLAUDE.md", claude)] {
         let now = std::fs::read_to_string(env.repo.join(f)).unwrap();
         assert!(now.starts_with(orig), "{f} keeps its bytes before the block:\n{now}");
@@ -276,7 +279,7 @@ fn instruction_block_leaves_the_rest_of_the_file_byte_identical() {
         assert_eq!(body, treeyard::connect::INSTRUCTIONS, "{f}: the block is the constant");
     }
     // More agents and one more harness: still one block per file.
-    env.run(&["connect", "--harness", "codex,claude", "--agents", "2"]);
+    env.run(&["connect", "--api", "--harness", "codex,claude", "--agents", "2"]);
     for f in ["AGENTS.md", "CLAUDE.md"] {
         let now = std::fs::read_to_string(env.repo.join(f)).unwrap();
         assert_eq!(now.matches(treeyard::connect::MD_START).count(), 1, "{f}: one block after a second connect");
@@ -302,10 +305,14 @@ fn the_bench_blocks_are_the_constants() {
 }
 
 #[test]
-fn connect_native_writes_the_native_tool_set_and_block_and_back() {
+fn connect_is_native_by_default_and_switches_to_api_and_back() {
     let agents = "# Agents\n";
     let env = Env::new(&[("AGENTS.md", agents)]);
-    env.run(&["connect", "--harness", "claude,codex", "--native", "--no-mirror"]);
+    env.run(&["connect", "--harness", "claude,codex", "--no-mirror"]);
+    let native_cfg = std::fs::read(env.repo.join(".mcp.json")).unwrap();
+    // `--native` is accepted and changes nothing.
+    env.run(&["connect", "--native"]);
+    assert_eq!(std::fs::read(env.repo.join(".mcp.json")).unwrap(), native_cfg);
     let mcp: Value = serde_json::from_slice(&std::fs::read(env.repo.join(".mcp.json")).unwrap()).unwrap();
     let args: Vec<&str> =
         mcp["mcpServers"]["treeyard"]["args"].as_array().unwrap().iter().map(|a| a.as_str().unwrap()).collect();
@@ -319,16 +326,51 @@ fn connect_native_writes_the_native_tool_set_and_block_and_back() {
         assert_eq!(body, treeyard::connect::NATIVE_INSTRUCTIONS, "{f}");
     }
     assert_eq!(env.state()["native"], true);
+    assert!(env.run(&["connect", "status"]).contains("mode: native"));
     assert!(env.cmd(&["connect", "--native", "--all-tools"]).output().unwrap().status.code() != Some(0));
-    // Connect again without --native: the normal tool set and block, byte for byte.
-    env.run(&["connect"]);
+    assert!(env.cmd(&["connect", "--native", "--api"]).output().unwrap().status.code() != Some(0));
+    // `--api`: the API tool set and block, byte for byte.
+    env.run(&["connect", "--api"]);
+    assert!(env.run(&["connect", "status"]).contains("mode: api"));
     let now = std::fs::read_to_string(env.repo.join("AGENTS.md")).unwrap();
     assert!(now.contains(treeyard::connect::INSTRUCTIONS), "{now}");
     let mcp: Value = serde_json::from_slice(&std::fs::read(env.repo.join(".mcp.json")).unwrap()).unwrap();
     assert!(mcp["mcpServers"]["treeyard"]["args"].as_array().unwrap().iter().any(|a| a == "agent"));
+    // And back: native again.
+    env.run(&["connect"]);
+    assert_eq!(std::fs::read(env.repo.join(".mcp.json")).unwrap(), native_cfg);
     env.run(&["disconnect"]);
     assert_eq!(std::fs::read_to_string(env.repo.join("AGENTS.md")).unwrap(), agents);
     assert!(env.user_dirs_empty());
+}
+
+#[test]
+fn connect_sets_and_clears_the_land_test() {
+    let env = Env::new(&[]);
+    env.run(&[
+        "connect",
+        "--harness",
+        "claude",
+        "--no-mirror",
+        "--land-test",
+        "make test",
+        "--land-test-timeout",
+        "120",
+    ]);
+    let pid = env.state()["pid"].as_u64().unwrap();
+    let st = env.run(&["connect", "status", "--json"]);
+    let st: Value = serde_json::from_str(&st).unwrap();
+    assert_eq!(st["land_test"], "make test");
+    let url = st["url"].as_str().unwrap().to_string();
+    let ch = treeyard::client::call(&url, "open_change", json!({"agent": "a", "intent": "x"})).unwrap();
+    let ch = treeyard::client::call(&url, "change", json!({"change": ch["id"]})).unwrap();
+    assert_eq!(ch["land_test"], json!({"command": "make test", "timeout_s": 120}), "the server reads it");
+    // The same flag again: nothing to restart.
+    env.run(&["connect", "--land-test", "make test"]);
+    assert_eq!(env.state()["pid"].as_u64(), Some(pid));
+    env.run(&["connect", "--no-land-test"]);
+    assert!(env.run(&["connect", "status"]).contains("land test: none"));
+    env.run(&["disconnect"]);
 }
 
 fn undo_case(extra: &[(&str, &str)], purge: bool) {

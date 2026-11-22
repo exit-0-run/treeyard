@@ -340,6 +340,16 @@ fn entry_json(e: &Option<Entry>) -> Value {
     }
 }
 
+/// A client's proof for `land_gated`: the land test passed on `head`, based on `main`.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TestedProof {
+    pub command: String,
+    pub main: String,
+    pub head: String,
+    pub seconds: Option<f64>,
+}
+
 impl Inner {
     pub fn main(&self) -> Result<String> {
         self.store.get_ref("main")?.context("no main ref")
@@ -508,6 +518,7 @@ impl Inner {
             group: None,
             stacked_on,
             undid: None,
+            tested: None,
             reverts: None,
         };
         self.store.put_change(&ch)?;
@@ -1181,6 +1192,60 @@ impl Inner {
         }
     }
 
+    /// `land_undo` behind the land test of `[coordination] land_test`. Without one, `tested` is
+    /// ignored. With one, the land goes on only with a proof that the command passed on exactly
+    /// what lands: `tested.main` is main now, the change is based on it and `tested.head` is its
+    /// head. Checked under the repo lock with the land itself, so main cannot move in between.
+    /// Otherwise: status `untested` (no proof) or `main_moved` (the proof is for another tree).
+    pub fn land_gated(&mut self, id: &str, undo: Undo, tested: Option<TestedProof>) -> Result<Value> {
+        let Some(command) = self.cfg.coordination.land_test.clone() else {
+            return self.land_undo(id, undo);
+        };
+        let ch = self.change(id)?;
+        // Landed, abandoned or empty: the plain answers (repeat, error) without a test.
+        if ch.state != ChangeState::Open || (ch.head == ch.base && ch.predecessors.is_empty()) {
+            return self.land_undo(id, undo);
+        }
+        if self.cfg.landing.mode == Mode::Queue {
+            bail!(
+                "[coordination] land_test needs landing mode direct or optimistic (a queued land lands on a later main)"
+            );
+        }
+        let main = self.main()?;
+        let Some(t) = tested else {
+            return Ok(json!({
+                "status": "untested", "change": id, "land_test": command,
+                "advice": "This repository lands only what passed its land test on the rebased change \
+                ([coordination] land_test). Land through the treeyard stdio bridge: it rebases, runs the test in \
+                the change's directory and lands what passed.",
+            }));
+        };
+        if t.command != command {
+            return Ok(json!({"status": "untested", "change": id, "land_test": command,
+                "advice": format!("the proof is for command {:?}, the land test is {command:?}", t.command)}));
+        }
+        if t.main != main || ch.base != main || t.head != ch.head {
+            let advice = if t.head != ch.head {
+                "the change moved after it was tested: test it again"
+            } else {
+                "main moved after the test: rebase, test again, land again"
+            };
+            return Ok(
+                json!({"status": "main_moved", "change": id, "main": main, "tested_main": t.main, "advice": advice}),
+            );
+        }
+        let mut ch = self.open_change_mut(id)?;
+        ch.tested = Some(Tested {
+            command,
+            main,
+            head: t.head,
+            ms: (t.seconds.unwrap_or(0.0).max(0.0) * 1000.0) as u64,
+            time: now(),
+        });
+        self.store.put_change(&ch)?;
+        self.land_undo(id, undo)
+    }
+
     /// Rebases onto main when needed and moves main to the change's head. Conflicts come back
     /// as typed tasks and leave main untouched. No `undoes` hold (revert, human push).
     pub fn land_direct(&mut self, id: &str) -> Result<Value> {
@@ -1659,6 +1724,7 @@ impl Inner {
                 group: None,
                 stacked_on: vec![],
                 undid: None,
+                tested: None,
                 reverts: None,
             };
             self.store.put_change(&ch)?;
@@ -1828,6 +1894,9 @@ impl Inner {
         }
         if let Some(u) = &ch.undid {
             out["undid"] = json!(u);
+        }
+        if let Some(t) = &ch.tested {
+            out["tested"] = json!(t);
         }
         if !ch.conflicts.is_empty() {
             out["resolve"] = json!(cv::help(&ch.id));

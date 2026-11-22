@@ -104,10 +104,25 @@ enum Cmd {
         /// agent tool set.
         #[arg(long)]
         all_tools: bool,
-        /// Native mode (`treeyard mcp --tools native`): each agent edits and tests a directory of
-        /// its own with its normal tools; `sync` and `land` send the result. Its own instruction block.
-        #[arg(long, conflicts_with = "all_tools")]
+        /// Native mode, the default (`treeyard mcp --tools native`): each agent edits and tests a
+        /// directory of its own with its normal tools; `sync` and `land` send the result. Accepted
+        /// for old scripts; it changes nothing.
+        #[arg(long, conflicts_with_all = ["all_tools", "api"])]
         native: bool,
+        /// API mode: agents edit through `apply` (`treeyard mcp --tools agent`, or every operation
+        /// with --all-tools) and the API instruction block, instead of native mode.
+        #[arg(long)]
+        api: bool,
+        /// A command that must pass on the rebased change before `land` puts it on main
+        /// (`[coordination] land_test` of the server; the bridge runs it in the change's directory).
+        #[arg(long, value_name = "CMD", conflicts_with = "no_land_test")]
+        land_test: Option<String>,
+        /// Remove the land test.
+        #[arg(long)]
+        no_land_test: bool,
+        /// Seconds the land test may run (default 600).
+        #[arg(long, value_name = "S")]
+        land_test_timeout: Option<u64>,
     },
     /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
     Disconnect {
@@ -739,7 +754,20 @@ fn main() -> Result<()> {
             mcp::run(&url, agent, tools)?;
             drop(held);
         }
-        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror, all_tools, native } => {
+        Cmd::Connect {
+            cmd,
+            harness,
+            agents,
+            port,
+            mirror,
+            no_mirror,
+            all_tools,
+            native: _,
+            api,
+            land_test,
+            no_land_test,
+            land_test_timeout,
+        } => {
             let here = std::env::current_dir()?;
             match cmd {
                 Some(ConnectCmd::Status { json }) => {
@@ -757,7 +785,9 @@ fn main() -> Result<()> {
                         port,
                         mirror: (mirror || no_mirror).then_some(mirror),
                         all_tools,
-                        native,
+                        native: !(api || all_tools),
+                        land_test: if no_land_test { Some(None) } else { land_test.map(Some) },
+                        land_test_timeout_s: land_test_timeout,
                     };
                     connect::connect(&here, &o)?;
                 }

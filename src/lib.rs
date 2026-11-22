@@ -15,6 +15,7 @@ pub mod cow;
 pub mod daemon;
 pub mod drivers;
 pub mod failpoint;
+pub mod gate;
 pub mod git;
 pub mod githttp;
 pub mod history;

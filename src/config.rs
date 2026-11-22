@@ -17,6 +17,8 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 # continuous_rebase = true       # rebase open changes onto main after every land
 # keep_conflicted = true         # a conflicted change still rebases; land waits until it is resolved
 # hold_undoes = false            # land even when it removes lines another agent landed (default: hold, status undoes)
+# land_test = "make test"        # land only what passed this command on the rebased change (the bridge runs it)
+# land_test_timeout_s = 600
 
 # Merge drivers run only where the line merge conflicts; first matching rule wins.
 # [merge]
@@ -124,11 +126,26 @@ pub struct Coordination {
     /// A land that removes lines another agent landed (`undoes`) does not land: status `undoes`,
     /// until the lines are back or the owner lands with `undo` and a `reason`. Default on.
     pub hold_undoes: bool,
+    /// A shell command that must pass on the exact tree a `land` puts on main (the change rebased
+    /// onto that main). `land` then needs a `tested` proof for the current main and head; the
+    /// stdio bridge runs the command and gives it. None: no gate.
+    pub land_test: Option<String>,
+    /// Seconds the bridge lets `land_test` run (default 600).
+    pub land_test_timeout_s: Option<u64>,
 }
+
+/// Default seconds for `land_test`.
+pub const LAND_TEST_TIMEOUT_S: u64 = 600;
 
 impl Default for Coordination {
     fn default() -> Self {
-        Self { continuous_rebase: false, keep_conflicted: false, hold_undoes: true }
+        Self {
+            continuous_rebase: false,
+            keep_conflicted: false,
+            hold_undoes: true,
+            land_test: None,
+            land_test_timeout_s: None,
+        }
     }
 }
 
@@ -227,7 +244,12 @@ impl Config {
             return Ok(Self::default());
         }
         let text = std::fs::read_to_string(&path)?;
-        let cfg: Config = toml::from_str(&text).with_context(|| format!("reading {}", path.display()))?;
+        Self::parse_text(&text, &path)
+    }
+
+    /// Parses and checks the text of a `treeyard.toml` (`path` names it in errors).
+    pub fn parse_text(text: &str, path: &Path) -> Result<Self> {
+        let cfg: Config = toml::from_str(text).with_context(|| format!("reading {}", path.display()))?;
         cfg.drivers()?;
         if let Some(s) = &cfg.merge.syntax
             && !["off", "auto", "mergiraf"].contains(&s.as_str())

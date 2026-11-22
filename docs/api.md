@@ -300,6 +300,7 @@ Land a change on main: rebases on the server if main moved. Returns status lande
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
 | `reason` | string | no | why the task removes those lines; required with undo = true |
+| `tested` | object | no | with [coordination] land_test: {command, main, head, seconds?}, the proof that the land test passed on this head rebased onto this main (the stdio bridge sends it); else status untested or main_moved |
 | `undo` | boolean | no | land although the change removes lines other agents landed (status undoes); needs reason |
 
 ```sh
