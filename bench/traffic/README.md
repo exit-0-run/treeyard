@@ -27,3 +27,25 @@ set pace, the same stream for git and for TreeYard native mode. Its header descr
   has no advantage; say what blocks it.
 - One machine plays the server, the shared repository and every agent, so the agents' own processes
   compete for its cores. The load average is recorded with every level.
+
+## Step 1b: how long the test before entry takes. Settings written before the run
+
+Series 2 (a 2 s test) clogged both arms alike. Step 1b repeats it with tests of 2, 10, 30, 60 and
+120 s (`--test-s`, a `sleep` of that length in both arms), to find the ceiling per test length.
+
+- Same repository, change, pace (mean 30 s before each change) and share of hot files (half).
+- Agents: 1, 2, 5, 10, 20, 50 for tests of 2, 10 and 30 s; 1, 2, 5, 10, 20 for 60 and 120 s (a run
+  at 50 agents would only repeat a clogged level for an hour).
+- Length of a level: 180 s, or 6 test lengths when that is longer; then twice the test length plus
+  60 s to finish what is ready.
+- The five test lengths run at the same time on the one machine (the test is a `sleep`, so they
+  wait far more than they compute). Load average is recorded.
+- **Ceiling**: the highest number of changes entering main per hour over the levels, per arm and
+  test length. Compared with 3600 / test length.
+- **Clog point**: the first level where the median wait is over 5 times the median with 1 agent,
+  or retries are more than changes that entered. In real agents: the changes per hour offered at
+  that level, divided by 28 (a real agent of the heavy runs delivers about 28 changes an hour).
+  The offered rate of a scripted agent is 3600 / (30 + test length) per hour at best.
+- Reading: the ceiling follows 3600 / test length in both arms: a test before entry sets the
+  throughput, not the tool. An arm with a ceiling over 1.5 times the other's at some test length:
+  an advantage there, reported with its level.

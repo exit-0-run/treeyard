@@ -132,7 +132,10 @@ class Level:
         rng = random.Random(self.a.seed_n * 100003 + i)
         d, k = self.dirs[i], 0
         while time.time() < self.stop_new:
-            git("fetch", "-q", "origin", cwd=d)
+            if git("fetch", "-q", "origin", cwd=d, check=False).returncode:
+                self.err("fetch failed before a new change")
+                time.sleep(1)
+                continue
             git("reset", "-q", "--hard", "origin/main", cwd=d)
             time.sleep(rng.expovariate(1 / self.a.think))
             k += 1
@@ -142,14 +145,21 @@ class Level:
             git("commit", "-q", "-am", name, cwd=d)
             ready, retries, conflicts, landed = time.time(), 0, 0, None
             while time.time() < self.deadline:
-                git("fetch", "-q", "origin", cwd=d)
-                r = git("rebase", "origin/main", cwd=d, check=False)
-                if r.returncode:
-                    conflicts += 1
-                    for f in git("diff", "--name-only", "--diff-filter=U", cwd=d).stdout.split():
-                        strip_markers(d / f)
-                        git("add", f, cwd=d)
-                    git("rebase", "--continue", cwd=d)
+                try:
+                    git("fetch", "-q", "origin", cwd=d)
+                    r = git("rebase", "origin/main", cwd=d, check=False)
+                    if r.returncode:
+                        conflicts += 1
+                        for f in git("diff", "--name-only", "--diff-filter=U", cwd=d).stdout.split():
+                            strip_markers(d / f)
+                            git("add", f, cwd=d)
+                        git("rebase", "--continue", cwd=d)
+                except RuntimeError as e:  # a git command failed under load: note it, clean up, try again
+                    self.err(str(e)[:300])
+                    git("rebase", "--abort", cwd=d, check=False)
+                    retries += 1
+                    time.sleep(0.2)
+                    continue
                 if self.a.test_s:
                     time.sleep(self.a.test_s)
                 if git("push", "-q", "origin", "HEAD:main", cwd=d, check=False).returncode == 0:
