@@ -1,0 +1,396 @@
+diff --git a/networkx/readwrite/_encoding.py b/networkx/readwrite/_encoding.py
+new file mode 100644
+index 0000000..246ecc3
+--- /dev/null
++++ b/networkx/readwrite/_encoding.py
+@@ -0,0 +1,63 @@
++"""Byte order marks and encoding detection for the line formats."""
++
++import codecs
++import re
++
++__all__ = []
++
++_BOMS = (
++    (codecs.BOM_UTF8, "utf-8"),
++    (codecs.BOM_UTF16_LE, "utf-16-le"),
++    (codecs.BOM_UTF16_BE, "utf-16-be"),
++)
++
++
++def _canonical(encoding):
++    return codecs.lookup(encoding).name
++
++
++def decoded_lines(f, encoding="utf-8"):
++    """The lines of the open file `f` as text, line ends kept.
++
++    A UTF-8 byte order mark at the start is skipped when the encoding is
++    UTF-8. With ``encoding=None`` the encoding comes from the byte order mark
++    (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when there is none.
++    """
++    if encoding is None:
++        data = f.read()
++        if isinstance(data, str):
++            return iter(_lines(data.removeprefix("﻿")))
++        encoding = "utf-8"
++        for bom, name in _BOMS:
++            if data.startswith(bom):
++                data, encoding = data[len(bom) :], name
++                break
++        return iter(_lines(data.decode(encoding)))
++    utf8 = _canonical(encoding) == "utf-8"
++
++    def gen():
++        first = True
++        for line in f:
++            if not isinstance(line, str):
++                line = line.decode(encoding)
++            if first and utf8:
++                line = line.removeprefix("﻿")
++            first = False
++            yield line
++
++    return gen()
++
++
++def _lines(text):
++    return re.findall(r"[^\n]*\n|[^\n]+\Z", text)
++
++
++def bom_bytes(encoding):
++    """The byte order mark of `encoding` for ``bom=True``."""
++    name = _canonical(encoding)
++    for bom, bom_name in _BOMS:
++        if name == bom_name:
++            return bom
++    raise ValueError(
++        f"bom=True needs the encoding utf-8, utf-16-le or utf-16-be, not {encoding!r}"
++    )
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 160bd0d..c8d8b9e 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -54,16 +54,24 @@ Sorted output
+ With ``sort=True`` the ``generate_*`` and ``write_*`` functions write the
+ nodes, the neighbours of each node and parallel edges in the order of their
+ ``str``, an undirected edge from the end that sorts first. Two graphs with
+ the same nodes and edges then give the same lines, whatever the order in
+ which they were built.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import graph_class, header_line
+ from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+@@ -153,11 +161,18 @@ def generate_adjlist(G, delimiter=" ", sort=False):
+         yield delimiter.join(nodes)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_adjlist(
+-    G, path, comments="#", delimiter=" ", encoding="utf-8", header=False, sort=False
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    encoding="utf-8",
++    header=False,
++    sort=False,
++    bom=False,
+ ):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+     Parameters
+@@ -183,10 +198,13 @@ def write_adjlist(
+        same type.
+     sort : bool, optional (default=False)
+        If True, write nodes, neighbours and parallel edges in the order of
+        their ``str`` (an undirected edge from the end that sorts first), so
+        the output does not depend on the order in which the graph was built.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -246,10 +264,12 @@ def write_adjlist(
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
++    if bom:
++        path.write(bom_bytes(encoding))
+     path.write(header.encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter, sort=sort):
+         line += "\n"
+         path.write(line.encode(encoding))
+@@ -437,11 +457,11 @@ def read_adjlist(
+ 
+     See Also
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     try:
+         return parse_adjlist(
+             lines,
+             comments=comments,
+             delimiter=delimiter,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index d5b8470..0ff9589 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -67,10 +67,17 @@ Number format
+ ``float_format`` (a format spec such as ``".3g"``) sets how the
+ ``generate_*`` and ``write_*`` functions write float values of edge data:
+ ``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
+ ``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
+ before.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -80,10 +87,11 @@ __all__ = [
+     "write_weighted_edgelist",
+ ]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text, value_text
+ from networkx.readwrite._header import graph_class, header_line
+ from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+@@ -197,10 +205,11 @@ def write_edgelist(
+     data=True,
+     encoding="utf-8",
+     header=False,
+     sort=False,
+     float_format=None,
++    bom=False,
+ ):
+     """Write graph as a list of edges.
+ 
+     Parameters
+     ----------
+@@ -231,10 +240,13 @@ def write_edgelist(
+        the output does not depend on the order in which the graph was built.
+     float_format : str, optional (default=None)
+        A format spec such as ``".3g"``: float values of the edge data are
+        written as ``format(value, float_format)``. Other values are
+        written as before.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+@@ -295,10 +307,12 @@ def write_edgelist(
+     --------
+     read_edgelist
+     write_weighted_edgelist
+     """
+ 
++    if bom:
++        path.write(bom_bytes(encoding))
+     if header:
+         path.write((header_line(G, comments) + "\n").encode(encoding))
+     for line in generate_edgelist(
+         G, delimiter, data, sort=sort, float_format=float_format
+     ):
+@@ -479,10 +493,13 @@ def read_edgelist(
+        Tuples specifying dictionary key names and types for edge data
+     edgetype : int, float, str, Python type, optional OBSOLETE
+        Convert edge data from strings to specified type and use as 'weight'
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
+@@ -549,11 +566,11 @@ def read_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     try:
+         return parse_edgelist(
+             lines,
+             comments=comments,
+             delimiter=delimiter,
+@@ -573,10 +590,11 @@ def write_weighted_edgelist(
+     delimiter=" ",
+     encoding="utf-8",
+     header=False,
+     sort=False,
+     float_format=None,
++    bom=False,
+ ):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+     ----------
+@@ -598,10 +616,13 @@ def write_weighted_edgelist(
+        the output does not depend on the order in which the graph was built.
+     float_format : str, optional (default=None)
+        A format spec such as ``".3g"``: float values of the edge data are
+        written as ``format(value, float_format)``. Other values are
+        written as before.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -630,10 +651,11 @@ def write_weighted_edgelist(
+         data=("weight",),
+         encoding=encoding,
+         header=header,
+         sort=sort,
+         float_format=float_format,
++        bom=bom,
+     )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_weighted_edgelist(
+@@ -664,10 +686,13 @@ def read_weighted_edgelist(
+        of the type the header names.
+     nodetype : int, float, str, Python type, optional
+        Convert node data from strings to specified type
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+     G : graph
+        A networkx Graph or other type specified with create_using
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 42974f3..0484b51 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -65,10 +65,17 @@ Number format
+ ``float_format`` (a format spec such as ``".3g"``) sets how the
+ ``generate_*`` and ``write_*`` functions write float values of edge data:
+ ``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
+ ``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
+ before.
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+@@ -76,10 +83,11 @@ __all__ = [
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text
+ from networkx.readwrite._header import graph_class, header_line
+ from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+@@ -219,10 +227,11 @@ def write_multiline_adjlist(
+     comments="#",
+     encoding="utf-8",
+     header=False,
+     sort=False,
+     float_format=None,
++    bom=False,
+ ):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+     ----------
+@@ -251,10 +260,13 @@ def write_multiline_adjlist(
+        the output does not depend on the order in which the graph was built.
+     float_format : str, optional (default=None)
+        A format spec such as ``".3g"``: float values of the edge data are
+        written as ``format(value, float_format)``. Other values are
+        written as before.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -312,10 +324,12 @@ def write_multiline_adjlist(
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
++    if bom:
++        path.write(bom_bytes(encoding))
+     path.write(header.encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(
+         G, delimiter, sort=sort, float_format=float_format
+     ):
+@@ -546,11 +560,11 @@ def read_multiline_adjlist(
+ 
+     See Also
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     try:
+         return parse_multiline_adjlist(
+             lines,
+             comments=comments,
+             delimiter=delimiter,

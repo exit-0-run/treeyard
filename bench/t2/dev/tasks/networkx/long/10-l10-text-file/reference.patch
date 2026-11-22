@@ -1,0 +1,184 @@
+diff --git a/networkx/readwrite/_textfile.py b/networkx/readwrite/_textfile.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_textfile.py
+@@ -0,0 +1,38 @@
++"""The bytes of the line formats: decoding the lines of a file and encoding
++the lines written to one.
++
++The ``read_*`` functions of the edge list, adjacency list and multiline
++adjacency list read every line through :meth:`TextFile.read_lines`, and the
++``write_*`` functions write every line (comment lines included) through
++:meth:`TextFile.write_lines`.
++"""
++
++__all__ = ["TextFile"]
++
++
++class TextFile:
++    """How lines are read from and written to a file of a line format.
++
++    Parameters
++    ----------
++    encoding : str, optional (default="utf-8")
++        The text encoding of the file.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, encoding="utf-8"):
++        self.encoding = encoding
++
++    def read_lines(self, f):
++        """The lines of the open file `f` as text, each with its line end."""
++        encoding = self.encoding
++        return (line if isinstance(line, str) else line.decode(encoding) for line in f)
++
++    def write_lines(self, f, lines):
++        """Writes each of `lines` (text without line ends) to the binary file
++        `f`, followed by a line end."""
++        encoding = self.encoding
++        for line in lines:
++            line += "\n"
++            f.write(line.encode(encoding))
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,11 +20,19 @@
+ 
+      a b c # source target target
+      d e
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -188,11 +196,9 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for line in generate_adjlist(G, delimiter):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    TextFile(encoding).write_lines(
++        path, [*header.split("\n")[:-1], *generate_adjlist(G, delimiter)]
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -363,7 +369,7 @@
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_adjlist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,13 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+@@ -37,6 +44,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -209,9 +217,7 @@
+     write_weighted_edgelist
+     """
+ 
+-    for line in generate_edgelist(G, delimiter, data):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    TextFile(encoding).write_lines(path, generate_edgelist(G, delimiter, data))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -443,7 +449,7 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_edgelist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,13 @@
+      c
+      d 1
+      e
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+@@ -33,6 +40,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -213,11 +221,9 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for multiline in generate_multiline_adjlist(G, delimiter):
+-        multiline += "\n"
+-        path.write(multiline.encode(encoding))
++    TextFile(encoding).write_lines(
++        path, [*header.split("\n")[:-1], *generate_multiline_adjlist(G, delimiter)]
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -422,7 +428,7 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,

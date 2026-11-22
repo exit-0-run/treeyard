@@ -1,0 +1,305 @@
+diff --git a/networkx/readwrite/_encoding.py b/networkx/readwrite/_encoding.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_encoding.py
+@@ -0,0 +1,63 @@
++"""Byte order marks and encoding detection for the line formats."""
++
++import codecs
++import re
++
++__all__ = []
++
++_BOMS = (
++    (codecs.BOM_UTF8, "utf-8"),
++    (codecs.BOM_UTF16_LE, "utf-16-le"),
++    (codecs.BOM_UTF16_BE, "utf-16-be"),
++)
++
++
++def _canonical(encoding):
++    return codecs.lookup(encoding).name
++
++
++def decoded_lines(f, encoding="utf-8"):
++    """The lines of the open file `f` as text, line ends kept.
++
++    A UTF-8 byte order mark at the start is skipped when the encoding is
++    UTF-8. With ``encoding=None`` the encoding comes from the byte order mark
++    (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when there is none.
++    """
++    if encoding is None:
++        data = f.read()
++        if isinstance(data, str):
++            return iter(_lines(data.removeprefix("﻿")))
++        encoding = "utf-8"
++        for bom, name in _BOMS:
++            if data.startswith(bom):
++                data, encoding = data[len(bom) :], name
++                break
++        return iter(_lines(data.decode(encoding)))
++    utf8 = _canonical(encoding) == "utf-8"
++
++    def gen():
++        first = True
++        for line in f:
++            if not isinstance(line, str):
++                line = line.decode(encoding)
++            if first and utf8:
++                line = line.removeprefix("﻿")
++            first = False
++            yield line
++
++    return gen()
++
++
++def _lines(text):
++    return re.findall(r"[^\n]*\n|[^\n]+\Z", text)
++
++
++def bom_bytes(encoding):
++    """The byte order mark of `encoding` for ``bom=True``."""
++    name = _canonical(encoding)
++    for bom, bom_name in _BOMS:
++        if name == bom_name:
++            return bom
++    raise ValueError(
++        f"bom=True needs the encoding utf-8, utf-16-le or utf-16-be, not {encoding!r}"
++    )
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,11 +20,19 @@
+ 
+      a b c # source target target
+      d e
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.utils import open_file
+ 
+ 
+@@ -107,7 +115,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8", bom=False):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+@@ -127,6 +135,9 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -188,6 +199,8 @@
+         + comments
+         + f" {G.name}\n"
+     )
++    if bom:
++        path.write(bom_bytes(encoding))
+     path.write(header.encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter):
+@@ -363,7 +376,7 @@
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     return parse_adjlist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,13 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = [
+@@ -37,6 +44,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.utils import open_file
+ 
+ 
+@@ -124,7 +132,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G, path, comments="#", delimiter=" ", data=True, encoding="utf-8", bom=False
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+@@ -145,6 +155,9 @@
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -209,6 +222,8 @@
+     write_weighted_edgelist
+     """
+ 
++    if bom:
++        path.write(bom_bytes(encoding))
+     for line in generate_edgelist(G, delimiter, data):
+         line += "\n"
+         path.write(line.encode(encoding))
+@@ -373,6 +388,9 @@
+        Convert edge data from strings to specified type and use as 'weight'
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+@@ -443,7 +461,7 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     return parse_edgelist(
+         lines,
+         comments=comments,
+@@ -454,7 +472,9 @@
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", bom=False
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+@@ -471,6 +491,9 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -500,6 +523,7 @@
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        bom=bom,
+     )
+ 
+ 
+@@ -530,6 +554,9 @@
+        Convert node data from strings to specified type
+     encoding: string, optional
+        Specify which encoding to use when reading file.
++       A UTF-8 byte order mark at the start of the file is skipped. With
++       ``encoding=None`` the encoding is taken from the byte order mark
++       (UTF-8, UTF-16 LE or UTF-16 BE), UTF-8 when the file has none.
+ 
+     Returns
+     -------
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,13 @@
+      c
+      d 1
+      e
++
++Encodings
++---------
++The ``read_*`` functions skip a UTF-8 byte order mark at the start of the
++file, and with ``encoding=None`` take the encoding from the byte order mark
++(UTF-8, UTF-16 LE or UTF-16 BE; UTF-8 when there is none). The ``write_*``
++functions write a byte order mark first with ``bom=True``.
+ """
+ 
+ __all__ = [
+@@ -33,6 +40,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.utils import open_file
+ 
+ 
+@@ -135,7 +143,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G, path, delimiter=" ", comments="#", encoding="utf-8", bom=False
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+@@ -154,6 +164,9 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    bom : bool, optional (default=False)
++       If True, write the byte order mark of `encoding` first (UTF-8,
++       UTF-16 LE or UTF-16 BE; another encoding raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -213,6 +226,8 @@
+         + comments
+         + f" {G.name}\n"
+     )
++    if bom:
++        path.write(bom_bytes(encoding))
+     path.write(header.encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(G, delimiter):
+@@ -422,7 +437,7 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = decoded_lines(path, encoding)
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,

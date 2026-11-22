@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 4,
+  "id": "l4-sorted-output",
+  "title": "Line formats: sorted output",
+  "files": [
+    "networkx/readwrite/_sorting.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l4_sorted_output.py"
+}

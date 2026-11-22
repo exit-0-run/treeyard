@@ -1,0 +1,8 @@
+| run | status | suite all | suite pinned | done | integration | merge/land conflicts | warned | reacted | legacy warned | legacy reacted | interv | lost | tests passed | tool calls | tokens | Claude tokens | Codex tokens | cost (Claude only) | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-networkx-long-r1-noop | done | green | green | 0/10 | 0/12 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.51 |
+| A-networkx-long-r1-oracle | done | green | green | 10/10 | 12/12 | 9 | 0 | 0 | - | - | 0 | 173 | 0 | 39 | 0 | - | - | 0.0 | 7.28 |
+| A2-networkx-long-r1-noop | done | green | green | 0/10 | 0/12 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.49 |
+| A2-networkx-long-r1-oracle | done | green | green | 10/10 | 12/12 | 0 | 0 | 0 | - | - | 0 | 173 | 0 | 38 | 0 | - | - | 0.0 | 14.67 |
+| A3-networkx-long-r1-noop | done | green | green | 0/10 | 0/12 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.78 |
+| A3-networkx-long-r1-oracle | done | green | green | 10/10 | 12/12 | 0 | 0 | 0 | - | - | 0 | 173 | 0 | 38 | 0 | - | - | 0.0 | 12.76 |

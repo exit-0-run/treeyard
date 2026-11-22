@@ -1,0 +1,353 @@
+diff --git a/networkx/exception.py b/networkx/exception.py
+--- a/networkx/exception.py
++++ b/networkx/exception.py
+@@ -8,6 +8,7 @@
+ 
+ __all__ = [
+     "HasACycle",
++    "LineParseError",
+     "NodeNotFound",
+     "PowerIterationFailedConvergence",
+     "ExceededMaxIterations",
+@@ -26,6 +27,43 @@
+ 
+ class NetworkXException(Exception):
+     """Base class for exceptions in NetworkX."""
++
++
++class LineParseError(NetworkXException, TypeError):
++    """Raised by the readers of the line formats (edge list, adjacency list,
++    multiline adjacency list) for a line they cannot read.
++
++    It is a :exc:`TypeError`, as the errors these readers raised before.
++
++    Attributes
++    ----------
++    message : str
++        What is wrong with the line.
++    lineno : int
++        The number of the line in the input, from 1; comment and blank lines
++        count.
++    line : str
++        The text of the line, without its line end.
++    filename : str or None
++        The name of the file, when the error comes from a ``read_*``
++        function that knows it.
++
++    ``str()`` of the error is ``"line <lineno>: <message>"``, or
++    ``"<filename>:<lineno>: <message>"`` when `filename` is set.
++    """
++
++    def __init__(self, message, lineno, line=None, filename=None):
++        super().__init__(message)
++        self.message = message
++        self.lineno = lineno
++        self.line = line.rstrip("\r\n") if isinstance(line, str) else line
++        self.filename = filename
++
++    def __str__(self):
++        where = (
++            f"{self.filename}:{self.lineno}" if self.filename else f"line {self.lineno}"
++        )
++        return f"{where}: {self.message}"
+ 
+ 
+ class NetworkXError(NetworkXException):
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,11 +20,21 @@
+ 
+      a b c # source target target
+      d e
++
++Errors
++------
++The ``parse_*`` and ``read_*`` functions raise
++:exc:`~networkx.LineParseError` (a ``TypeError``) for a line they cannot
++read. It says which line: ``line 3: Failed to convert ...``, and from a
++``read_*`` function with the file name, ``graph.txt:3: Failed to convert
++...``. Its attributes are `message`, `lineno` (from 1, comment and blank
++lines counted), `line` and `filename`.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.exception import LineParseError
+ from networkx.utils import open_file
+ 
+ 
+@@ -240,7 +250,8 @@
+ 
+     """
+     G = nx.empty_graph(0, create_using)
+-    for line in lines:
++    for lineno, line in enumerate(lines, 1):
++        text = line
+         p = line.find(comments)
+         if p >= 0:
+             line = line[:p]
+@@ -253,16 +264,18 @@
+             try:
+                 u = nodetype(u)
+             except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert node ({u}) to type {nodetype}"
++                raise LineParseError(
++                    f"Failed to convert node ({u}) to type {nodetype}", lineno, text
+                 ) from err
+         G.add_node(u)
+         if nodetype is not None:
+             try:
+                 vlist = list(map(nodetype, vlist))
+             except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}"
++                raise LineParseError(
++                    f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}",
++                    lineno,
++                    text,
+                 ) from err
+         G.add_edges_from([(u, v) for v in vlist])
+     return G
+@@ -364,10 +377,14 @@
+     write_adjlist
+     """
+     lines = (line.decode(encoding) for line in path)
+-    return parse_adjlist(
+-        lines,
+-        comments=comments,
+-        delimiter=delimiter,
+-        create_using=create_using,
+-        nodetype=nodetype,
+-    )
++    try:
++        return parse_adjlist(
++            lines,
++            comments=comments,
++            delimiter=delimiter,
++            create_using=create_using,
++            nodetype=nodetype,
++        )
++    except LineParseError as err:
++        err.filename = getattr(path, "name", None)
++        raise
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,15 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Errors
++------
++The ``parse_*`` and ``read_*`` functions raise
++:exc:`~networkx.LineParseError` (a ``TypeError``) for a line they cannot
++read. It says which line: ``line 3: Failed to convert ...``, and from a
++``read_*`` function with the file name, ``graph.txt:3: Failed to convert
++...``. Its attributes are `message`, `lineno` (from 1, comment and blank
++lines counted), `line` and `filename`.
+ """
+ 
+ __all__ = [
+@@ -37,6 +46,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.exception import LineParseError
+ from networkx.utils import open_file
+ 
+ 
+@@ -280,7 +290,8 @@
+     from ast import literal_eval
+ 
+     G = nx.empty_graph(0, create_using)
+-    for line in lines:
++    for lineno, line in enumerate(lines, 1):
++        text = line
+         if comments is not None:
+             p = line.find(comments)
+             if p >= 0:
+@@ -299,8 +310,8 @@
+                 u = nodetype(u)
+                 v = nodetype(v)
+             except Exception as err:
+-                raise TypeError(
+-                    f"Failed to convert nodes {u},{v} to type {nodetype}."
++                raise LineParseError(
++                    f"Failed to convert nodes {u},{v} to type {nodetype}.", lineno, text
+                 ) from err
+ 
+         if len(d) == 0 or data is False:
+@@ -315,8 +326,8 @@
+                     edgedata_str = " ".join(d)
+                 edgedata = dict(literal_eval(edgedata_str.strip()))
+             except Exception as err:
+-                raise TypeError(
+-                    f"Failed to convert edge data ({d}) to dictionary."
++                raise LineParseError(
++                    f"Failed to convert edge data ({d}) to dictionary.", lineno, text
+                 ) from err
+         else:
+             # convert edge data to dictionary with specified keys and type
+@@ -329,9 +340,11 @@
+                 try:
+                     edge_value = edge_type(edge_value)
+                 except Exception as err:
+-                    raise TypeError(
++                    raise LineParseError(
+                         f"Failed to convert {edge_key} data {edge_value} "
+-                        f"to type {edge_type}."
++                        f"to type {edge_type}.",
++                        lineno,
++                        text,
+                     ) from err
+                 edgedata.update({edge_key: edge_value})
+         G.add_edge(u, v, **edgedata)
+@@ -444,14 +457,18 @@
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+     lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
+-    return parse_edgelist(
+-        lines,
+-        comments=comments,
+-        delimiter=delimiter,
+-        create_using=create_using,
+-        nodetype=nodetype,
+-        data=data,
+-    )
++    try:
++        return parse_edgelist(
++            lines,
++            comments=comments,
++            delimiter=delimiter,
++            create_using=create_using,
++            nodetype=nodetype,
++            data=data,
++        )
++    except LineParseError as err:
++        err.filename = getattr(path, "name", None)
++        raise
+ 
+ 
+ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,15 @@
+      c
+      d 1
+      e
++
++Errors
++------
++The ``parse_*`` and ``read_*`` functions raise
++:exc:`~networkx.LineParseError` (a ``TypeError``) for a line they cannot
++read. It says which line: ``line 3: Failed to convert ...``, and from a
++``read_*`` function with the file name, ``graph.txt:3: Failed to convert
++...``. Its attributes are `message`, `lineno` (from 1, comment and blank
++lines counted), `line` and `filename`.
+ """
+ 
+ __all__ = [
+@@ -33,6 +42,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.exception import LineParseError
+ from networkx.utils import open_file
+ 
+ 
+@@ -268,7 +278,12 @@
+     from ast import literal_eval
+ 
+     G = nx.empty_graph(0, create_using)
++    lines = iter(lines)
++    lineno = 0
+     for line in lines:
++        lineno += 1
++        text = line
++        node_lineno = lineno
+         p = line.find(comments)
+         if p >= 0:
+             line = line[:p]
+@@ -278,22 +293,27 @@
+             (u, deg) = line.rstrip("\n").split(delimiter)
+             deg = int(deg)
+         except BaseException as err:
+-            raise TypeError(f"Failed to read node and degree on line ({line})") from err
++            raise LineParseError(
++                f"Failed to read node and degree on line ({line})", lineno, text
++            ) from err
+         if nodetype is not None:
+             try:
+                 u = nodetype(u)
+             except BaseException as err:
+-                raise TypeError(
+-                    f"Failed to convert node ({u}) to type {nodetype}"
++                raise LineParseError(
++                    f"Failed to convert node ({u}) to type {nodetype}", lineno, text
+                 ) from err
+         G.add_node(u)
++        node_text = text
+         for i in range(deg):
+             while True:
+                 try:
+                     line = next(lines)
+                 except StopIteration as err:
+                     msg = f"Failed to find neighbor for node ({u})"
+-                    raise TypeError(msg) from err
++                    raise LineParseError(msg, node_lineno, node_text) from err
++                lineno += 1
++                text = line
+                 p = line.find(comments)
+                 if p >= 0:
+                     line = line[:p]
+@@ -309,15 +329,17 @@
+                 try:
+                     v = nodetype(v)
+                 except BaseException as err:
+-                    raise TypeError(
+-                        f"Failed to convert node ({v}) to type {nodetype}"
++                    raise LineParseError(
++                        f"Failed to convert node ({v}) to type {nodetype}", lineno, text
+                     ) from err
+             if edgetype is not None:
+                 try:
+                     edgedata = {"weight": edgetype(data)}
+                 except BaseException as err:
+-                    raise TypeError(
+-                        f"Failed to convert edge data ({data}) to type {edgetype}"
++                    raise LineParseError(
++                        f"Failed to convert edge data ({data}) to type {edgetype}",
++                        lineno,
++                        text,
+                     ) from err
+             else:
+                 try:  # try to evaluate
+@@ -423,11 +445,15 @@
+     write_multiline_adjlist
+     """
+     lines = (line.decode(encoding) for line in path)
+-    return parse_multiline_adjlist(
+-        lines,
+-        comments=comments,
+-        delimiter=delimiter,
+-        create_using=create_using,
+-        nodetype=nodetype,
+-        edgetype=edgetype,
+-    )
++    try:
++        return parse_multiline_adjlist(
++            lines,
++            comments=comments,
++            delimiter=delimiter,
++            create_using=create_using,
++            nodetype=nodetype,
++            edgetype=edgetype,
++        )
++    except LineParseError as err:
++        err.filename = getattr(path, "name", None)
++        raise

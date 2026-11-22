@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 1,
+  "id": "l1-quoted-names",
+  "title": "Line formats: node names with spaces",
+  "files": [
+    "networkx/readwrite/_quote.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l1_quoted_names.py"
+}

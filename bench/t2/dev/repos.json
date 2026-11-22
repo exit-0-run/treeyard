@@ -12,5 +12,19 @@
     "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests", "--ignore=tests/test_deprecations.py"],
     "test_prefix": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
     "test_globs": ["tests/**"]
+  },
+  "networkx": {
+    "url": "https://github.com/networkx/networkx",
+    "rev": "49ca2290b80c1389eb4d8d8e49dcba73f8fec016",
+    "size": "medium",
+    "workdir": ".",
+    "setup": "one shared uv venv outside the tree (venv_packages); networkx 3.7 from PyPI is in it only for its entry points (the test backend nx_loopback), the tree is imported first through PYTHONPATH=.",
+    "venv_packages": ["pytest>=8,<10", "numpy==2.3.5", "scipy==1.16.3", "networkx==3.7"],
+    "env": {"PYTHONPATH": ".", "PYTHONDONTWRITEBYTECODE": "1"},
+    "test_path": "networkx/readwrite/tests/test_t2_{tid}.py",
+    "decide": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "{test}"],
+    "suite": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider", "--runslow", "networkx"],
+    "test_prefix": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
+    "test_globs": ["networkx/**/tests/**"]
   }
 }

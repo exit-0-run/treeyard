@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 6,
+  "id": "l6-byte-order-mark",
+  "title": "Line formats: byte order marks",
+  "files": [
+    "networkx/readwrite/_encoding.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l6_byte_order_mark.py"
+}

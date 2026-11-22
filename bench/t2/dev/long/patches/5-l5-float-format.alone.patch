@@ -1,0 +1,336 @@
+diff --git a/networkx/readwrite/_floats.py b/networkx/readwrite/_floats.py
+new file mode 100644
+index 0000000..82a84a3
+--- /dev/null
++++ b/networkx/readwrite/_floats.py
+@@ -0,0 +1,25 @@
++"""The text of edge data for the line formats, with ``float_format``."""
++
++__all__ = []
++
++
++def value_text(value, float_format=None):
++    """``str(value)``, or ``format(value, float_format)`` for a float when
++    `float_format` is given."""
++    if float_format is not None and isinstance(value, float):
++        return format(value, float_format)
++    return str(value)
++
++
++def data_text(data, float_format=None):
++    """The text of an edge data dict: ``str(dict(data))``; with
++    `float_format`, float values are written with it and keys and other values
++    with ``repr`` as ``str`` of a dict does."""
++    data = dict(data)
++    if float_format is None:
++        return str(data)
++    items = []
++    for key, value in data.items():
++        text = format(value, float_format) if isinstance(value, float) else repr(value)
++        items.append(f"{key!r}: {text}")
++    return "{" + ", ".join(items) + "}"
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index fe62ba8..932c602 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -23,10 +23,18 @@ Python dictionary as data::
+  1 2 {'weight':7, 'color':'green'}
+ 
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -35,14 +43,15 @@ __all__ = [
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._floats import data_text, value_text
+ from networkx.utils import open_file
+ 
+ 
+-def generate_edgelist(G, delimiter=" ", data=True):
++def generate_edgelist(G, delimiter=" ", data=True, float_format=None):
+     """Generate lines representing edges of `G` in edge list format.
+ 
+     Parameters
+     ----------
+     G : NetworkX graph
+@@ -53,10 +62,15 @@ def generate_edgelist(G, delimiter=" ", data=True):
+     data : bool or list of keys
+        If False generate no edge data.  If True use a dictionary
+        representation of edge data.  If a list of keys use a list of data
+        values corresponding to the keys.
+ 
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++
+     Yields
+     ------
+     str
+         A line of data in edge list format for an edge in `G`.
+ 
+@@ -105,11 +119,11 @@ def generate_edgelist(G, delimiter=" ", data=True):
+     --------
+     write_edgelist, read_edgelist
+     """
+     if data is True:
+         for u, v, d in G.edges(data=True):
+-            e = u, v, dict(d)
++            e = u, v, data_text(d, float_format)
+             yield delimiter.join(map(str, e))
+     elif data is False:
+         for u, v in G.edges(data=False):
+             e = u, v
+             yield delimiter.join(map(str, e))
+@@ -118,15 +132,23 @@ def generate_edgelist(G, delimiter=" ", data=True):
+             e = [u, v]
+             try:
+                 e.extend(d[k] for k in data)
+             except KeyError:
+                 pass  # missing data for this edge, should warn?
+-            yield delimiter.join(map(str, e))
++            yield delimiter.join(value_text(x, float_format) for x in e)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G,
++    path,
++    comments="#",
++    delimiter=" ",
++    data=True,
++    encoding="utf-8",
++    float_format=None,
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+     ----------
+     G : graph
+@@ -143,10 +165,14 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+        If True write a string representation of the edge data dictionary..
+        If a list (or other iterable) is provided, write the  keys specified
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile, gzip
+@@ -207,11 +233,11 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+     --------
+     read_edgelist
+     write_weighted_edgelist
+     """
+ 
+-    for line in generate_edgelist(G, delimiter, data):
++    for line in generate_edgelist(G, delimiter, data, float_format=float_format):
+         line += "\n"
+         path.write(line.encode(encoding))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -452,11 +478,13 @@ def read_edgelist(
+         nodetype=nodetype,
+         data=data,
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", float_format=None
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+     ----------
+     G : graph
+@@ -469,10 +497,14 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+        The character used to indicate the start of a comment
+     delimiter : string, optional
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -498,10 +530,11 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+         path,
+         comments=comments,
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        float_format=float_format,
+     )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def read_weighted_edgelist(
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 08e17d5..ef28262 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -21,33 +21,47 @@ adjacency list (anything following the # in a line is a comment)::
+      a 2
+      b
+      c
+      d 1
+      e
++
++Number format
++-------------
++``float_format`` (a format spec such as ``".3g"``) sets how the
++``generate_*`` and ``write_*`` functions write float values of edge data:
++``{'weight': 0.333}`` instead of ``{'weight': 0.3333333333333333}``, and
++``1 2 0.333`` for ``data=("weight",)``. Keys and other values are written as
++before.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._floats import data_text
+ from networkx.utils import open_file
+ 
+ 
+-def generate_multiline_adjlist(G, delimiter=" "):
++def generate_multiline_adjlist(G, delimiter=" ", float_format=None):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+ 
+     Parameters
+     ----------
+     G : NetworkX graph
+ 
+     delimiter : str, optional (default=" ")
+        Separator for node labels.
+ 
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
++
+     Yields
+     ------
+     str
+         A line of data in multiline adjacency list format for a node or one of
+         its neighbors in `G`.
+@@ -90,20 +104,20 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                 yield str(s) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+         else:  # directed single edges
+             for s, nbrs in G.adjacency():
+                 deg = len(nbrs)
+                 yield str(s) + delimiter + str(deg)
+                 for u, d in nbrs.items():
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+     else:  # undirected
+         if G.is_multigraph():
+             seen = set()  # helper dict used to avoid duplicate edges
+             for s, nbrs in G.adjacency():
+                 nbr_edges = [
+@@ -116,11 +130,11 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                 yield str(s) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+                 seen.add(s)
+         else:  # undirected single edges
+             seen = set()  # helper dict used to avoid duplicate edges
+             for s, nbrs in G.adjacency():
+                 nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
+@@ -128,16 +142,18 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                 yield str(s) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+                         yield str(u)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield str(u) + delimiter + data_text(d, float_format)
+                 seen.add(s)
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G, path, delimiter=" ", comments="#", encoding="utf-8", float_format=None
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+     ----------
+     G : NetworkX graph
+@@ -152,10 +168,14 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+     delimiter : string, optional
+        Separator for node labels
+ 
+     encoding : string, optional
+        Text encoding.
++    float_format : str, optional (default=None)
++       A format spec such as ``".3g"``: float values of the edge data are
++       written as ``format(value, float_format)``. Other values are
++       written as before.
+ 
+     Examples
+     --------
+     >>> from pathlib import Path
+     >>> import tempfile
+@@ -213,11 +233,13 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+         + comments
+         + f" {G.name}\n"
+     )
+     path.write(header.encode(encoding))
+ 
+-    for multiline in generate_multiline_adjlist(G, delimiter):
++    for multiline in generate_multiline_adjlist(
++        G, delimiter, float_format=float_format
++    ):
+         multiline += "\n"
+         path.write(multiline.encode(encoding))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)

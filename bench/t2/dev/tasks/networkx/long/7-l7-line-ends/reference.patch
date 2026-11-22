@@ -1,0 +1,300 @@
+diff --git a/networkx/readwrite/_newlines.py b/networkx/readwrite/_newlines.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_newlines.py
+@@ -0,0 +1,31 @@
++"""Line ends for the line formats: ``\\n``, ``\\r\\n`` or ``\\r``."""
++
++import re
++
++__all__ = []
++
++NEWLINES = ("\n", "\r\n", "\r")
++
++_END = re.compile(r"[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\Z")
++
++
++def split_line_ends(lines):
++    """The lines of `lines` (text pieces as a file yields them), split again at
++    every ``\\r\\n``, ``\\r`` or ``\\n``, each with its line end."""
++    rest = ""
++    for piece in lines:
++        text = rest + piece
++        rest = ""
++        parts = _END.findall(text)
++        if parts and parts[-1].endswith("\r") and text.endswith("\r"):
++            # a "\r" at the end of a piece may be the first half of "\r\n"
++            rest = parts.pop()
++        yield from parts
++    if rest:
++        yield rest
++
++
++def check_newline(newline):
++    """Raises ValueError unless `newline` is ``"\\n"``, ``"\\r\\n"`` or ``"\\r"``."""
++    if newline not in NEWLINES:
++        raise ValueError(f'newline must be "\\n", "\\r\\n" or "\\r", not {newline!r}')
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -20,11 +20,18 @@
+ 
+      a b c # source target target
+      d e
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+@@ -107,7 +114,7 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8", newline="\n"):
+     """Write graph G in single-line adjacency-list format to path.
+ 
+ 
+@@ -127,6 +134,9 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -188,10 +198,11 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
++    check_newline(newline)
++    path.write(header.replace("\n", newline).encode(encoding))
+ 
+     for line in generate_adjlist(G, delimiter):
+-        line += "\n"
++        line += newline
+         path.write(line.encode(encoding))
+ 
+ 
+@@ -246,7 +257,7 @@
+             line = line[:p]
+         if not len(line):
+             continue
+-        vlist = line.rstrip("\n").split(delimiter)
++        vlist = line.rstrip("\r\n").split(delimiter)
+         u = vlist.pop(0)
+         # convert types
+         if nodetype is not None:
+@@ -363,7 +374,7 @@
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(line.decode(encoding) for line in path)
+     return parse_adjlist(
+         lines,
+         comments=comments,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -25,6 +25,12 @@
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = [
+@@ -37,6 +43,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+@@ -124,7 +131,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="utf-8"):
++def write_edgelist(
++    G, path, comments="#", delimiter=" ", data=True, encoding="utf-8", newline="\n"
++):
+     """Write graph as a list of edges.
+ 
+     Parameters
+@@ -145,6 +154,9 @@
+        in the list.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -209,8 +221,9 @@
+     write_weighted_edgelist
+     """
+ 
++    check_newline(newline)
+     for line in generate_edgelist(G, delimiter, data):
+-        line += "\n"
++        line += newline
+         path.write(line.encode(encoding))
+ 
+ 
+@@ -288,7 +301,7 @@
+             if not line:
+                 continue
+         # split line, should have 2 or more
+-        s = line.rstrip("\n").split(delimiter)
++        s = line.rstrip("\r\n").split(delimiter)
+         if len(s) < 2:
+             continue
+         u = s.pop(0)
+@@ -443,7 +456,9 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = split_line_ends(
++        line if isinstance(line, str) else line.decode(encoding) for line in path
++    )
+     return parse_edgelist(
+         lines,
+         comments=comments,
+@@ -454,7 +469,9 @@
+     )
+ 
+ 
+-def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
++def write_weighted_edgelist(
++    G, path, comments="#", delimiter=" ", encoding="utf-8", newline="\n"
++):
+     """Write graph `G` as a list of edges with numeric weights.
+ 
+     Parameters
+@@ -471,6 +488,9 @@
+        The string used to separate values.  The default is whitespace.
+     encoding: string, optional
+        Specify which encoding to use when writing file.
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -500,6 +520,7 @@
+         delimiter=delimiter,
+         data=("weight",),
+         encoding=encoding,
++        newline=newline,
+     )
+ 
+ 
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -23,6 +23,12 @@
+      c
+      d 1
+      e
++
++Line ends
++---------
++The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
++line end is never part of a name or of edge data. The writers end each line
++with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
+ """
+ 
+ __all__ = [
+@@ -33,6 +39,7 @@
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._newlines import check_newline, split_line_ends
+ from networkx.utils import open_file
+ 
+ 
+@@ -135,7 +142,9 @@
+ 
+ 
+ @open_file(1, mode="wb")
+-def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
++def write_multiline_adjlist(
++    G, path, delimiter=" ", comments="#", encoding="utf-8", newline="\n"
++):
+     """Write the graph G in multiline adjacency list format to path
+ 
+     Parameters
+@@ -154,6 +163,9 @@
+ 
+     encoding : string, optional
+        Text encoding.
++    newline : str, optional (default="\\n")
++       The line end written after each line: ``"\\n"``, ``"\\r\\n"`` or
++       ``"\\r"`` (another value raises ``ValueError``).
+ 
+     Examples
+     --------
+@@ -213,10 +225,11 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
++    check_newline(newline)
++    path.write(header.replace("\n", newline).encode(encoding))
+ 
+     for multiline in generate_multiline_adjlist(G, delimiter):
+-        multiline += "\n"
++        multiline += newline
+         path.write(multiline.encode(encoding))
+ 
+ 
+@@ -275,7 +288,7 @@
+         if not line:
+             continue
+         try:
+-            (u, deg) = line.rstrip("\n").split(delimiter)
++            (u, deg) = line.rstrip("\r\n").split(delimiter)
+             deg = int(deg)
+         except BaseException as err:
+             raise TypeError(f"Failed to read node and degree on line ({line})") from err
+@@ -299,7 +312,7 @@
+                     line = line[:p]
+                 if line:
+                     break
+-            vlist = line.rstrip("\n").split(delimiter)
++            vlist = line.rstrip("\r\n").split(delimiter)
+             numb = len(vlist)
+             if numb < 1:
+                 continue  # isolated node
+@@ -422,7 +435,7 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = split_line_ends(line.decode(encoding) for line in path)
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,

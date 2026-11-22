@@ -1,0 +1,564 @@
+diff --git a/networkx/readwrite/_lineparser.py b/networkx/readwrite/_lineparser.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_lineparser.py
+@@ -0,0 +1,262 @@
++"""The parser of the line formats: edge list, adjacency list and multiline
++adjacency list.
++
++:func:`~networkx.readwrite.edgelist.parse_edgelist`,
++:func:`~networkx.readwrite.adjlist.parse_adjlist` and
++:func:`~networkx.readwrite.multiline_adjlist.parse_multiline_adjlist` are
++``LineParser(comments, delimiter, nodetype).parse_*(lines, ...)``. The steps
++that the three formats share (removing a comment, splitting a line,
++converting a node name) are methods, so a subclass can change one of them
++for all three formats.
++"""
++
++import networkx as nx
++from networkx.exception import LineParseError
++from networkx.readwrite._header import graph_class
++from networkx.readwrite._quote import split_names, strip_comment
++
++__all__ = ["LineParser"]
++
++
++class LineParser:
++    """Reads graphs from lines in the edge list, adjacency list and multiline
++    adjacency list formats.
++
++    Parameters
++    ----------
++    comments : str or None, optional (default="#")
++        The text that starts a comment; None for no comments.
++    delimiter : str or None, optional (default=None)
++        The text between the tokens of a line; None for runs of whitespace.
++    nodetype : callable or None, optional (default=None)
++        Converts the text of a node name to the node.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, comments="#", delimiter=None, nodetype=None):
++        self.comments = comments
++        self.delimiter = delimiter
++        self.nodetype = nodetype
++
++    def strip(self, line):
++        """`line` without its comment: the text from the first `comments`
++        string that is not inside a quoted name."""
++        return strip_comment(line, self.comments, self.delimiter)
++
++    def split(self, line, names=None):
++        """The tokens of a line whose comment is removed: the line end goes
++        and the rest is split at the delimiter. The first `names` tokens (all
++        when None) are node names and may be quoted."""
++        return split_names(line.rstrip("\r\n"), self.delimiter, names=names)
++
++    def node(self, text):
++        """The node of the name `text`: ``nodetype(text)``, or `text` when there
++        is no `nodetype`. An error of `nodetype` propagates; the ``parse_*``
++        methods turn it into the error they raise."""
++        nodetype = self.nodetype
++        if nodetype is None:
++            return text
++        return nodetype(text)
++
++    def parse_edgelist(self, lines, create_using=None, data=True):
++        """The graph of the edge list `lines`: what
++        :func:`~networkx.readwrite.edgelist.parse_edgelist` returns."""
++        comments, delimiter, nodetype = self.comments, self.delimiter, self.nodetype
++        from ast import literal_eval
++
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        for lineno, line in enumerate(lines, 1):
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    continue
++            text = line
++            if comments is not None:
++                line = self.strip(line)
++                if not line:
++                    continue
++            # split line, should have 2 or more; the two node names may be quoted
++            s = self.split(line, names=2)
++            if len(s) < 2:
++                continue
++            seen_data = True
++            u = s.pop(0)
++            v = s.pop(0)
++            d = s
++            if nodetype is not None:
++                try:
++                    u = self.node(u)
++                    v = self.node(v)
++                except Exception as err:
++                    raise LineParseError(
++                        f"Failed to convert nodes {u},{v} to type {nodetype}.",
++                        lineno,
++                        text,
++                    ) from err
++
++            if len(d) == 0 or data is False:
++                # no data or data type specified
++                edgedata = {}
++            elif data is True:
++                # no edge types specified
++                try:  # try to evaluate as dictionary
++                    if delimiter == ",":
++                        edgedata_str = ",".join(d)
++                    else:
++                        edgedata_str = " ".join(d)
++                    edgedata = dict(literal_eval(edgedata_str.strip()))
++                except Exception as err:
++                    raise LineParseError(
++                        f"Failed to convert edge data ({d}) to dictionary.",
++                        lineno,
++                        text,
++                    ) from err
++            else:
++                # convert edge data to dictionary with specified keys and type
++                if len(d) != len(data):
++                    raise IndexError(
++                        f"Edge data {d} and data_keys {data} are not the same length"
++                    )
++                edgedata = {}
++                for (edge_key, edge_type), edge_value in zip(data, d):
++                    try:
++                        edge_value = edge_type(edge_value)
++                    except Exception as err:
++                        raise LineParseError(
++                            f"Failed to convert {edge_key} data {edge_value} "
++                            f"to type {edge_type}.",
++                            lineno,
++                            text,
++                        ) from err
++                    edgedata.update({edge_key: edge_value})
++            G.add_edge(u, v, **edgedata)
++        return G
++
++    def parse_adjlist(self, lines, create_using=None):
++        """The graph of the adjacency list `lines`: what
++        :func:`~networkx.readwrite.adjlist.parse_adjlist` returns."""
++        comments, nodetype = self.comments, self.nodetype
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        for lineno, line in enumerate(lines, 1):
++            text = line
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    continue
++            line = self.strip(line)
++            if not len(line):
++                continue
++            seen_data = True
++            vlist = self.split(line)
++            u = vlist.pop(0)
++            # convert types
++            if nodetype is not None:
++                try:
++                    u = self.node(u)
++                except BaseException as err:
++                    raise LineParseError(
++                        f"Failed to convert node ({u}) to type {nodetype}", lineno, text
++                    ) from err
++            G.add_node(u)
++            if nodetype is not None:
++                try:
++                    vlist = list(map(self.node, vlist))
++                except BaseException as err:
++                    raise LineParseError(
++                        f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}",
++                        lineno,
++                        text,
++                    ) from err
++            G.add_edges_from([(u, v) for v in vlist])
++        return G
++
++    def parse_multiline_adjlist(self, lines, create_using=None, edgetype=None):
++        """The graph of the multiline adjacency list `lines`:
++        what
++        :func:`~networkx.readwrite.multiline_adjlist.parse_multiline_adjlist`
++        returns."""
++        comments, nodetype = self.comments, self.nodetype
++        from ast import literal_eval
++
++        G = nx.empty_graph(0, create_using)
++        seen_data = create_using is not None
++        lines = iter(lines)
++        lineno = 0
++        for line in lines:
++            lineno += 1
++            text = line
++            node_lineno = lineno
++            if not seen_data:
++                cls = graph_class(line, comments)
++                if cls is not None:
++                    G = nx.empty_graph(0, cls)
++                    continue
++            line = self.strip(line)
++            if not line:
++                continue
++            seen_data = True
++            try:
++                (u, deg) = self.split(line, names=1)
++                deg = int(deg)
++            except BaseException as err:
++                raise LineParseError(
++                    f"Failed to read node and degree on line ({line})", lineno, text
++                ) from err
++            if nodetype is not None:
++                try:
++                    u = self.node(u)
++                except BaseException as err:
++                    raise LineParseError(
++                        f"Failed to convert node ({u}) to type {nodetype}", lineno, text
++                    ) from err
++            G.add_node(u)
++            node_text = text
++            for i in range(deg):
++                while True:
++                    try:
++                        line = next(lines)
++                    except StopIteration as err:
++                        msg = f"Failed to find neighbor for node ({u})"
++                        raise LineParseError(msg, node_lineno, node_text) from err
++                    lineno += 1
++                    text = line
++                    line = self.strip(line)
++                    if line:
++                        break
++                vlist = self.split(line, names=1)
++                numb = len(vlist)
++                if numb < 1:
++                    continue  # isolated node
++                v = vlist.pop(0)
++                data = "".join(vlist)
++                if nodetype is not None:
++                    try:
++                        v = self.node(v)
++                    except BaseException as err:
++                        raise LineParseError(
++                            f"Failed to convert node ({v}) to type {nodetype}",
++                            lineno,
++                            text,
++                        ) from err
++                if edgetype is not None:
++                    try:
++                        edgedata = {"weight": edgetype(data)}
++                    except BaseException as err:
++                        raise LineParseError(
++                            f"Failed to convert edge data ({data}) to type {edgetype}",
++                            lineno,
++                            text,
++                        ) from err
++                else:
++                    try:  # try to evaluate
++                        edgedata = literal_eval(data)
++                    except:
++                        edgedata = {}
++                G.add_edge(u, v, **edgedata)
++
++        return G
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -69,6 +69,13 @@
+ The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
+ line end is never part of a name or of edge data. The writers end each line
+ with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+@@ -76,9 +83,10 @@
+ import networkx as nx
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+-from networkx.readwrite._header import graph_class, header_line
++from networkx.readwrite._header import header_line
++from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import quote_name
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+@@ -335,41 +343,7 @@
+     read_adjlist
+ 
+     """
+-    G = nx.empty_graph(0, create_using)
+-    seen_data = create_using is not None
+-    for lineno, line in enumerate(lines, 1):
+-        text = line
+-        if not seen_data:
+-            cls = graph_class(line, comments)
+-            if cls is not None:
+-                G = nx.empty_graph(0, cls)
+-                continue
+-        line = strip_comment(line, comments, delimiter)
+-        if not len(line):
+-            continue
+-        seen_data = True
+-        vlist = split_names(line.rstrip("\r\n"), delimiter)
+-        u = vlist.pop(0)
+-        # convert types
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-            except BaseException as err:
+-                raise LineParseError(
+-                    f"Failed to convert node ({u}) to type {nodetype}", lineno, text
+-                ) from err
+-        G.add_node(u)
+-        if nodetype is not None:
+-            try:
+-                vlist = list(map(nodetype, vlist))
+-            except BaseException as err:
+-                raise LineParseError(
+-                    f"Failed to convert nodes ({','.join(vlist)}) to type {nodetype}",
+-                    lineno,
+-                    text,
+-                ) from err
+-        G.add_edges_from([(u, v) for v in vlist])
+-    return G
++    return LineParser(comments, delimiter, nodetype).parse_adjlist(lines, create_using)
+ 
+ 
+ @open_file(0, mode="rb")
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -82,6 +82,13 @@
+ The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
+ line end is never part of a name or of edge data. The writers end each line
+ with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
+ """
+ 
+ __all__ = [
+@@ -97,9 +104,10 @@
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text, value_text
+-from networkx.readwrite._header import graph_class, header_line
++from networkx.readwrite._header import header_line
++from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import quote_name
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+@@ -399,73 +407,9 @@
+     --------
+     read_weighted_edgelist
+     """
+-    from ast import literal_eval
+-
+-    G = nx.empty_graph(0, create_using)
+-    seen_data = create_using is not None
+-    for lineno, line in enumerate(lines, 1):
+-        if not seen_data:
+-            cls = graph_class(line, comments)
+-            if cls is not None:
+-                G = nx.empty_graph(0, cls)
+-                continue
+-        text = line
+-        if comments is not None:
+-            line = strip_comment(line, comments, delimiter)
+-            if not line:
+-                continue
+-        # split line, should have 2 or more; the two node names may be quoted
+-        s = split_names(line.rstrip("\r\n"), delimiter, names=2)
+-        if len(s) < 2:
+-            continue
+-        seen_data = True
+-        u = s.pop(0)
+-        v = s.pop(0)
+-        d = s
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-                v = nodetype(v)
+-            except Exception as err:
+-                raise LineParseError(
+-                    f"Failed to convert nodes {u},{v} to type {nodetype}.", lineno, text
+-                ) from err
+-
+-        if len(d) == 0 or data is False:
+-            # no data or data type specified
+-            edgedata = {}
+-        elif data is True:
+-            # no edge types specified
+-            try:  # try to evaluate as dictionary
+-                if delimiter == ",":
+-                    edgedata_str = ",".join(d)
+-                else:
+-                    edgedata_str = " ".join(d)
+-                edgedata = dict(literal_eval(edgedata_str.strip()))
+-            except Exception as err:
+-                raise LineParseError(
+-                    f"Failed to convert edge data ({d}) to dictionary.", lineno, text
+-                ) from err
+-        else:
+-            # convert edge data to dictionary with specified keys and type
+-            if len(d) != len(data):
+-                raise IndexError(
+-                    f"Edge data {d} and data_keys {data} are not the same length"
+-                )
+-            edgedata = {}
+-            for (edge_key, edge_type), edge_value in zip(data, d):
+-                try:
+-                    edge_value = edge_type(edge_value)
+-                except Exception as err:
+-                    raise LineParseError(
+-                        f"Failed to convert {edge_key} data {edge_value} "
+-                        f"to type {edge_type}.",
+-                        lineno,
+-                        text,
+-                    ) from err
+-                edgedata.update({edge_key: edge_value})
+-        G.add_edge(u, v, **edgedata)
+-    return G
++    return LineParser(comments, delimiter, nodetype).parse_edgelist(
++        lines, create_using, data
++    )
+ 
+ 
+ @open_file(0, mode="rb")
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -80,6 +80,13 @@
+ The readers take lines that end with ``\\n``, ``\\r\\n`` or ``\\r``; the
+ line end is never part of a name or of edge data. The writers end each line
+ with `newline` (``"\\n"`` by default, ``"\\r\\n"`` for Windows files).
++
++Parsing
++-------
++The ``parse_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
++methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
++``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
+ """
+ 
+ __all__ = [
+@@ -93,9 +100,10 @@
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._floats import data_text
+-from networkx.readwrite._header import graph_class, header_line
++from networkx.readwrite._header import header_line
++from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name, split_names, strip_comment
++from networkx.readwrite._quote import quote_name
+ from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+@@ -398,83 +406,9 @@
+     [1, 2, 3, 5]
+ 
+     """
+-    from ast import literal_eval
+-
+-    G = nx.empty_graph(0, create_using)
+-    seen_data = create_using is not None
+-    lines = iter(lines)
+-    lineno = 0
+-    for line in lines:
+-        lineno += 1
+-        text = line
+-        node_lineno = lineno
+-        if not seen_data:
+-            cls = graph_class(line, comments)
+-            if cls is not None:
+-                G = nx.empty_graph(0, cls)
+-                continue
+-        line = strip_comment(line, comments, delimiter)
+-        if not line:
+-            continue
+-        seen_data = True
+-        try:
+-            (u, deg) = split_names(line.rstrip("\r\n"), delimiter, names=1)
+-            deg = int(deg)
+-        except BaseException as err:
+-            raise LineParseError(
+-                f"Failed to read node and degree on line ({line})", lineno, text
+-            ) from err
+-        if nodetype is not None:
+-            try:
+-                u = nodetype(u)
+-            except BaseException as err:
+-                raise LineParseError(
+-                    f"Failed to convert node ({u}) to type {nodetype}", lineno, text
+-                ) from err
+-        G.add_node(u)
+-        node_text = text
+-        for i in range(deg):
+-            while True:
+-                try:
+-                    line = next(lines)
+-                except StopIteration as err:
+-                    msg = f"Failed to find neighbor for node ({u})"
+-                    raise LineParseError(msg, node_lineno, node_text) from err
+-                lineno += 1
+-                text = line
+-                line = strip_comment(line, comments, delimiter)
+-                if line:
+-                    break
+-            vlist = split_names(line.rstrip("\r\n"), delimiter, names=1)
+-            numb = len(vlist)
+-            if numb < 1:
+-                continue  # isolated node
+-            v = vlist.pop(0)
+-            data = "".join(vlist)
+-            if nodetype is not None:
+-                try:
+-                    v = nodetype(v)
+-                except BaseException as err:
+-                    raise LineParseError(
+-                        f"Failed to convert node ({v}) to type {nodetype}", lineno, text
+-                    ) from err
+-            if edgetype is not None:
+-                try:
+-                    edgedata = {"weight": edgetype(data)}
+-                except BaseException as err:
+-                    raise LineParseError(
+-                        f"Failed to convert edge data ({data}) to type {edgetype}",
+-                        lineno,
+-                        text,
+-                    ) from err
+-            else:
+-                try:  # try to evaluate
+-                    edgedata = literal_eval(data)
+-                except:
+-                    edgedata = {}
+-            G.add_edge(u, v, **edgedata)
+-
+-    return G
++    return LineParser(comments, delimiter, nodetype).parse_multiline_adjlist(
++        lines, create_using, edgetype
++    )
+ 
+ 
+ @open_file(0, mode="rb")

@@ -1,0 +1,426 @@
+diff --git a/networkx/readwrite/_quote.py b/networkx/readwrite/_quote.py
+new file mode 100644
+index 0000000..df9e4a7
+--- /dev/null
++++ b/networkx/readwrite/_quote.py
+@@ -0,0 +1,131 @@
++"""Quoted node names for the line formats (edge list, adjacency lists).
++
++A node name that cannot be written as a bare token is written in double
++quotes. Inside the quotes a backslash is written as ``\\\\`` and a double
++quote as ``\\"``.
++"""
++
++__all__ = []
++
++
++def needs_quotes(name, delimiter=" "):
++    """True when the text `name` cannot be written as a bare token: it is
++    empty, or holds whitespace, the delimiter, ``#``, ``"`` or ``\\``."""
++    if name == "":
++        return True
++    if any(c.isspace() for c in name):
++        return True
++    if delimiter and delimiter in name:
++        return True
++    return any(c in name for c in '#"\\')
++
++
++def quote_name(node, delimiter=" "):
++    """The text of a node for a line format: ``str(node)``, in double quotes
++    when it needs them (see :func:`needs_quotes`)."""
++    name = str(node)
++    if not needs_quotes(name, delimiter):
++        return name
++    return '"' + name.replace("\\", "\\\\").replace('"', '\\"') + '"'
++
++
++def split_names(line, delimiter=None, names=None):
++    """Split `line` into tokens at `delimiter` (runs of whitespace when it is
++    None). The first `names` tokens (all when `names` is None) are node names
++    and may be quoted; they are returned unquoted. The remaining tokens are
++    split as ``str.split`` does.
++
++    Raises ``TypeError`` for a quote that is not closed, or for text right
++    after a closing quote.
++    """
++    tokens = []
++    i = 0
++    n = len(line)
++
++    def skip_delimiter(i):
++        if delimiter is None:
++            while i < n and line[i].isspace():
++                i += 1
++            return i
++        if line.startswith(delimiter, i):
++            return i + len(delimiter)
++        return i
++
++    if delimiter is None:
++        i = skip_delimiter(0)
++    while i < n and (names is None or len(tokens) < names):
++        if line[i] == '"':
++            j = i + 1
++            chars = []
++            while j < n and line[j] != '"':
++                if line[j] == "\\" and j + 1 < n:
++                    j += 1
++                chars.append(line[j])
++                j += 1
++            if j >= n:
++                raise TypeError(f"Unclosed quote in line ({line})")
++            j += 1
++            if j < n:
++                rest = line[j:]
++                at_delim = (
++                    rest[0].isspace()
++                    if delimiter is None
++                    else rest.startswith(delimiter)
++                )
++                if not at_delim:
++                    raise TypeError(f"Text after a closing quote in line ({line})")
++            tokens.append("".join(chars))
++            i = skip_delimiter(j)
++            if delimiter is not None and j == n:
++                break
++        else:
++            if delimiter is None:
++                j = i
++                while j < n and not line[j].isspace():
++                    j += 1
++            else:
++                j = line.find(delimiter, i)
++                if j < 0:
++                    j = n
++            tokens.append(line[i:j])
++            if j >= n:
++                i = n
++                break
++            i = skip_delimiter(j)
++            if delimiter is not None and i == n:
++                tokens.append("")
++                break
++    if i < n:
++        tokens.extend(line[i:].split(delimiter))
++    return tokens
++
++
++def strip_comment(line, comments="#", delimiter=None):
++    """`line` without its comment: the text from the first `comments` string
++    that is not inside a quoted name. A quoted name starts with ``"`` at the
++    start of a token."""
++    if comments is None:
++        return line
++    i = 0
++    n = len(line)
++    at_token_start = True
++    while i < n:
++        if line.startswith(comments, i):
++            return line[:i]
++        c = line[i]
++        if c == '"' and at_token_start:
++            j = i + 1
++            while j < n and line[j] != '"':
++                j += 2 if line[j] == "\\" else 1
++            i = j + 1
++            at_token_start = False
++            continue
++        if delimiter is None:
++            at_token_start = c.isspace()
++        else:
++            at_token_start = line.startswith(delimiter, i)
++            if at_token_start:
++                i += len(delimiter)
++                continue
++        i += 1
++    return line
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 0f0c210..2d1162a 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -18,15 +18,24 @@ between the source node and target node.
+ The graph with edges a-b, a-c, d-e can be represented as the following
+ adjacency list (anything following the # in a line is a comment)::
+ 
+      a b c # source target target
+      d e
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.utils import open_file
+ 
+ 
+ def generate_adjlist(G, delimiter=" "):
+     """Generate lines representing a graph in adjacency list format.
+@@ -91,18 +100,18 @@ def generate_adjlist(G, delimiter=" "):
+     """
+     seen = set()
+     directed = G.is_directed()
+     multigraph = G.is_multigraph()
+     for s, nbrs in G.adjacency():
+-        nodes = [str(s)]
++        nodes = [quote_name(s, delimiter)]
+         for t, data in nbrs.items():
+             if t in seen:
+                 continue
+             if multigraph and len(data) > 1:
+-                nodes.extend((str(t),) * len(data))
++                nodes.extend((quote_name(t, delimiter),) * len(data))
+             else:
+-                nodes.append(str(t))
++                nodes.append(quote_name(t, delimiter))
+         if not directed:
+             seen.add(s)
+         yield delimiter.join(nodes)
+ 
+ 
+@@ -239,16 +248,14 @@ def parse_adjlist(
+     read_adjlist
+ 
+     """
+     G = nx.empty_graph(0, create_using)
+     for line in lines:
+-        p = line.find(comments)
+-        if p >= 0:
+-            line = line[:p]
++        line = strip_comment(line, comments, delimiter)
+         if not len(line):
+             continue
+-        vlist = line.rstrip("\n").split(delimiter)
++        vlist = split_names(line.rstrip("\n"), delimiter)
+         u = vlist.pop(0)
+         # convert types
+         if nodetype is not None:
+             try:
+                 u = nodetype(u)
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index fe62ba8..aff0db7 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -23,10 +23,18 @@ Python dictionary as data::
+  1 2 {'weight':7, 'color':'green'}
+ 
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -35,10 +43,11 @@ __all__ = [
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.utils import open_file
+ 
+ 
+ def generate_edgelist(G, delimiter=" ", data=True):
+     """Generate lines representing edges of `G` in edge list format.
+@@ -105,19 +114,19 @@ def generate_edgelist(G, delimiter=" ", data=True):
+     --------
+     write_edgelist, read_edgelist
+     """
+     if data is True:
+         for u, v, d in G.edges(data=True):
+-            e = u, v, dict(d)
++            e = quote_name(u, delimiter), quote_name(v, delimiter), dict(d)
+             yield delimiter.join(map(str, e))
+     elif data is False:
+         for u, v in G.edges(data=False):
+-            e = u, v
++            e = quote_name(u, delimiter), quote_name(v, delimiter)
+             yield delimiter.join(map(str, e))
+     else:
+         for u, v, d in G.edges(data=True):
+-            e = [u, v]
++            e = [quote_name(u, delimiter), quote_name(v, delimiter)]
+             try:
+                 e.extend(d[k] for k in data)
+             except KeyError:
+                 pass  # missing data for this edge, should warn?
+             yield delimiter.join(map(str, e))
+@@ -280,17 +289,15 @@ def parse_edgelist(
+     from ast import literal_eval
+ 
+     G = nx.empty_graph(0, create_using)
+     for line in lines:
+         if comments is not None:
+-            p = line.find(comments)
+-            if p >= 0:
+-                line = line[:p]
++            line = strip_comment(line, comments, delimiter)
+             if not line:
+                 continue
+-        # split line, should have 2 or more
+-        s = line.rstrip("\n").split(delimiter)
++        # split line, should have 2 or more; the two node names may be quoted
++        s = split_names(line.rstrip("\n"), delimiter, names=2)
+         if len(s) < 2:
+             continue
+         u = s.pop(0)
+         v = s.pop(0)
+         d = s
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 08e17d5..3564817 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -21,20 +21,29 @@ adjacency list (anything following the # in a line is a comment)::
+      a 2
+      b
+      c
+      d 1
+      e
++
++Node names with spaces
++----------------------
++A node name (``str(node)``) that is empty or holds whitespace, the
++delimiter, ``#``, ``"`` or ``\\`` is written in double quotes, with
++``\\`` and ``"`` escaped by a backslash (``"New York"``, ``"say \\"hi\\""``).
++Readers take a token that starts with ``"`` as one quoted name, so such
++graphs round-trip. Edge data is written and read as before.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._quote import quote_name, split_names, strip_comment
+ from networkx.utils import open_file
+ 
+ 
+ def generate_multiline_adjlist(G, delimiter=" "):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+@@ -85,25 +94,25 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                     (u, data)
+                     for u, datadict in nbrs.items()
+                     for key, data in datadict.items()
+                 ]
+                 deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
++                yield quote_name(s, delimiter) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+-                        yield str(u)
++                        yield quote_name(u, delimiter)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield quote_name(u, delimiter) + delimiter + str(d)
+         else:  # directed single edges
+             for s, nbrs in G.adjacency():
+                 deg = len(nbrs)
+-                yield str(s) + delimiter + str(deg)
++                yield quote_name(s, delimiter) + delimiter + str(deg)
+                 for u, d in nbrs.items():
+                     if d is None:
+-                        yield str(u)
++                        yield quote_name(u, delimiter)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield quote_name(u, delimiter) + delimiter + str(d)
+     else:  # undirected
+         if G.is_multigraph():
+             seen = set()  # helper dict used to avoid duplicate edges
+             for s, nbrs in G.adjacency():
+                 nbr_edges = [
+@@ -111,28 +120,28 @@ def generate_multiline_adjlist(G, delimiter=" "):
+                     for u, datadict in nbrs.items()
+                     if u not in seen
+                     for key, data in datadict.items()
+                 ]
+                 deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
++                yield quote_name(s, delimiter) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+-                        yield str(u)
++                        yield quote_name(u, delimiter)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield quote_name(u, delimiter) + delimiter + str(d)
+                 seen.add(s)
+         else:  # undirected single edges
+             seen = set()  # helper dict used to avoid duplicate edges
+             for s, nbrs in G.adjacency():
+                 nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
+                 deg = len(nbr_edges)
+-                yield str(s) + delimiter + str(deg)
++                yield quote_name(s, delimiter) + delimiter + str(deg)
+                 for u, d in nbr_edges:
+                     if d is None:
+-                        yield str(u)
++                        yield quote_name(u, delimiter)
+                     else:
+-                        yield str(u) + delimiter + str(d)
++                        yield quote_name(u, delimiter) + delimiter + str(d)
+                 seen.add(s)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-8"):
+@@ -267,17 +276,15 @@ def parse_multiline_adjlist(
+     """
+     from ast import literal_eval
+ 
+     G = nx.empty_graph(0, create_using)
+     for line in lines:
+-        p = line.find(comments)
+-        if p >= 0:
+-            line = line[:p]
++        line = strip_comment(line, comments, delimiter)
+         if not line:
+             continue
+         try:
+-            (u, deg) = line.rstrip("\n").split(delimiter)
++            (u, deg) = split_names(line.rstrip("\n"), delimiter, names=1)
+             deg = int(deg)
+         except BaseException as err:
+             raise TypeError(f"Failed to read node and degree on line ({line})") from err
+         if nodetype is not None:
+             try:
+@@ -292,16 +299,14 @@ def parse_multiline_adjlist(
+                 try:
+                     line = next(lines)
+                 except StopIteration as err:
+                     msg = f"Failed to find neighbor for node ({u})"
+                     raise TypeError(msg) from err
+-                p = line.find(comments)
+-                if p >= 0:
+-                    line = line[:p]
++                line = strip_comment(line, comments, delimiter)
+                 if line:
+                     break
+-            vlist = line.rstrip("\n").split(delimiter)
++            vlist = split_names(line.rstrip("\n"), delimiter, names=1)
+             numb = len(vlist)
+             if numb < 1:
+                 continue  # isolated node
+             v = vlist.pop(0)
+             data = "".join(vlist)

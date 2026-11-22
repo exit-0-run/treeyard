@@ -578,3 +578,135 @@ python3 bench/t2/t2.py solo --scratch S --repo click --set hard --rep 1 --harnes
 
 Free checks on `hard` ([`checks-hard/`](checks-hard/)): oracle 13/13 (`solo-oracle.txt`), noop 0/13
 (`solo-noop.txt`), and the 13 commands of `--harness real --dry-run` (`solo-dry-run.txt`, prompts left out).
+
+## Long set (10 Claude Code agents, networkx, long work)
+
+On `hard` one Claude Code agent did each click task alone in 22 to 81 s, and the click suite takes 4 s.
+`long` asks whether plain git loses time or work when agents work for a long time. It needs a repository
+whose suite takes minutes (real long work is partly waiting for tests, and the preamble makes every agent
+run `t2-test` before it finishes) and tasks that need reading of several modules. Defined in
+[`taskdefs_long.py`](taskdefs_long.py) with its data in [`long/`](long/), generated to `tasks/networkx/long/`
+with `tasks/MANIFEST-long.json`. Free checks: [`checks-long/`](checks-long/).
+
+### Repository
+
+[networkx/networkx](https://github.com/networkx/networkx) 3.7, commit
+`49ca2290b80c1389eb4d8d8e49dcba73f8fec016`, BSD-3-Clause, 122 k lines of Python under `networkx/` without
+its tests (78 k lines of tests). The venv holds pytest, numpy 2.3.5, scipy 1.16.3 and networkx 3.7 from
+PyPI; the last is there only for its entry points (the test backend `nx_loopback`, without which the
+suite stops at startup), and the tree is imported first through `PYTHONPATH=.`. The suite is
+`pytest networkx` (`repos.json`, entry `networkx`), with `--runslow` (the 9 tests marked
+slow run too; without it the suite is shorter). No test is deselected: three timed runs and the validate
+and rehearsal runs were all green, offline.
+
+Suite timings on this machine (taken while other measurements had just stopped; the load average was 10
+to 17, so an idle machine is somewhat faster):
+
+| Candidate | Command | Runs |
+|---|---|---|
+| networkx 3.7 | `pytest networkx` | 51 s, 40 s (9066 passed, 63 skipped, 741 xfailed) |
+| networkx 3.7 | `pytest --doctest-modules networkx` | 41 s, 2 doctests fail (drawing) |
+| networkx 3.7 | `pytest --runslow networkx` (chosen) | 62 s, 70 s, 65 s (9075 passed, 54 skipped, 741 xfailed) |
+| sqlglot 30.33.0 | `python -m unittest` | 33 s (1716 tests, 2 errors without optional packages) |
+
+None of the candidates reaches the 2 to 4 minutes asked for: the suite of `long` takes about one minute
+alone, and more when 10 agents run it at once.
+
+### Tasks
+
+All ten work on the text formats of `networkx/readwrite`: edge list (`edgelist.py`), adjacency list
+(`adjlist.py`) and multiline adjacency list (`multiline_adjlist.py`). Ids `l1` to `l10`, `k` is the
+reference order. Every task changes the three format modules (and its own helper module), so every pair
+meets in the same three files.
+
+| k | Id | Change | Files of the reference | Lines | Sits on / moves |
+|---|---|---|---|---|---|
+| 1 | `l1-quoted-names` | names with spaces, the delimiter, `#`, quotes are written in double quotes and read back | _quote.py (new), the 3 modules | 220 | R1, R2 |
+| 2 | `l2-graph-header` | `write_*(header=True)` writes `# networkx-graph: directed=.. multigraph=..`; readers build that type | _header.py (new), the 3 modules | 167 | R1, R3 |
+| 3 | `l3-line-errors` | `nx.LineParseError` (a `TypeError`) with `lineno`, `line`, `filename` | exception.py, the 3 modules | 184 | R1 (and the read functions) |
+| 4 | `l4-sorted-output` | `sort=True` writes nodes, neighbours and keys in `str` order | _sorting.py (new), the 3 modules | 124 | R2 |
+| 5 | `l5-float-format` | `float_format=".3g"` for float edge data | _floats.py (new), edgelist.py, multiline_adjlist.py | 106 | R2 |
+| 6 | `l6-byte-order-mark` | readers skip a UTF-8 BOM, `encoding=None` detects UTF-8/16 by BOM, `write_*(bom=True)` | _encoding.py (new), the 3 modules | 132 | R3 |
+| 7 | `l7-line-ends` | readers take `\n`, `\r\n`, `\r`; `write_*(newline=)` | _newlines.py (new), the 3 modules | 108 | R1, R3 |
+| 8 | `l8-line-parser` | refactor R1: the bodies of the 3 `parse_*` into `LineParser` (`strip`, `split`, `node`, one method per format) | _lineparser.py (new), the 3 modules | 399 | moves the code of l1, l2, l3, l7 |
+| 9 | `l9-line-writer` | refactor R2: the bodies of the 3 `generate_*` into `LineWriter` (`name`, one method per format) | _linewriter.py (new), the 3 modules | 247 | moves the code of l1, l4, l5 |
+| 10 | `l10-text-file` | refactor R3: decoding and encoding of the `read_*`/`write_*` into `TextFile` (`read_lines`, `write_lines`) | _textfile.py (new), the 3 modules | 88 | moves the code of l2, l6, l7 |
+
+Lines: `+` and `-` lines of `reference.patch` (the task alone on the pin; docstrings and module docs
+included, no tests). Kept names: R1 keeps `parse_edgelist`, `parse_adjlist`, `parse_multiline_adjlist`; R2
+the three `generate_*`; R3 the eight `read_*`/`write_*` functions, all with their signatures, named in a
+"Keep ..." sentence of the prompt. Each refactor prompt has the rule that makes a feature left in the old
+place fail: every argument of the functions is an argument of the method or the class (R1, R2), every
+line goes through `strip`/`split`/`node` or `name` (R1, R2), every line read or written goes through
+`read_lines` or one call of `write_lines`, and every option about the bytes of the file is a `TextFile`
+option (R3).
+
+How they were sized: from the solo times of `hard` (100 to 250 changed lines in 22 to 81 s), the
+reference sizes alone would give 1 to 3 minutes. What makes the work long here is the rest: each task
+needs the three format modules read (about 1 600 lines) and the same change made three times in three
+slightly different copies, its own tests for three formats, and `t2-test` (the whole suite, about a minute) at
+least once and in practice two to four times. The references are 88 to 399 lines, below the 300 to 700
+that was aimed for: bigger tasks of this kind would need padding. My estimate of solo time is in the
+report, not measured.
+
+### Integration tests
+
+| Id | Tasks (k) | Checks | Rests on |
+|---|---|---|---|
+| `i1-parser-quoted-names` | l8, l1 (8, 1) | `LineParser().parse_*` read quoted names, `strip` keeps a `#` in quotes | l8: the methods return what the functions return, `strip` as the functions strip; l1 |
+| `i2-parser-graph-header` | l8, l2 (8, 2) | `LineParser().parse_*` build the type of the header | l8; l2 |
+| `i3-parser-line-errors` | l8, l3 (8, 3) | `LineParser(nodetype=int).parse_*` raise `LineParseError` with the line number | l8: the methods raise what the functions raise; l3 |
+| `i4-parser-line-ends` | l8, l7 (8, 7) | `LineParser(delimiter=",").split("a,b\r\n")` and the methods drop `\r\n` and `\r` | l8: `split` as the functions split; l7 |
+| `i5-writer-quoted-names` | l9, l1 (9, 1) | `LineWriter().name("New York")` is quoted, the methods quote | l9: `name` as the functions write a node; l1 |
+| `i6-writer-sorted-output` | l9, l4 (9, 4) | `LineWriter(sort=True)` sorts | l9: every option of the functions is a `LineWriter` option; l4 |
+| `i7-writer-float-format` | l9, l5 (9, 5) | `LineWriter(float_format=".2f")` formats floats | l9: as i6; l5 |
+| `i8-file-graph-header` | l10, l2 (10, 2) | the header line goes through `TextFile.write_lines` | l10: every line, comment lines included, in one `write_lines` call; l2 |
+| `i9-file-byte-order-mark` | l10, l6 (10, 6) | `TextFile(encoding=None).read_lines` skips a UTF-16 BOM, `TextFile(bom=True)` writes one | l10: `read_lines` as the readers read, byte options are `TextFile` options; l6 |
+| `i10-file-line-ends` | l10, l7 (10, 7) | `TextFile(newline="\r\n")`, `read_lines` splits at `\r` | l10: as i9; l7 |
+| `i11-header-with-bom` | l2, l6 (2, 6) | `write_*(header=True, bom=True, encoding="utf-16-le")` and reading it back with `encoding=None` builds the type | l2: the first line; l6: the BOM before anything else |
+| `i12-header-line-ends` | l2, l7 (2, 7) | `write_*(header=True, newline="\r")`: the header ends with `\r` and is read back | l2; l7: every line, comment lines included, ends with `newline` |
+
+In git all 45 of the 45 pairs of reference patches conflict: every task edits the module docstrings, the
+imports and the same functions of the same three files.
+
+### How the reference applies
+
+The refactors come last: steps 1 to 7 add the features one after the other (`<k>-<id>.step.patch`), steps
+8 to 10 move the combined code into the new classes. The steps were written for the git arms; they do not
+keep other tasks' lines word for word when they move them, so arms B and BN hold the refactor lands
+(`undoes`) and their oracle runs do not reach the full score. B and BN are not rehearsed on this set.
+`without-<k>.patch` for every k: the feature steps without task k merged in order (by a token-level
+three-way merge, the same way the reference steps were made), then the three refactors applied by the
+same generator that made steps 8 to 10 (`refactor.py`, not in the kit; the trees are in the patches). On
+each of these trees exactly the hidden test of the missing task and the integration tests that need it
+fail; every other hidden and integration test passes, and the readwrite tests pass.
+
+### Set-level settings (`tasks/networkx/long/set.json`)
+
+- Agents 10, every slot `claude`.
+- Limits: `max_turns` 600, `max_tokens` 40 M, `timeout_s` 7200, `claude_budget_usd` 15.0. Reasons: a task
+  should take an agent 15 to 30 minutes of work, plus suite runs of about a minute each that get slower with
+  10 agents testing at once, plus an arm A hand-back
+  that resumes the session within the same limits. Two hours and 600 turns leave room for that and still
+  stop a runaway agent. The `heavy` Claude agents used 0.27 to 0.40 USD each; tasks of several times the
+  work with long contexts may use 1 to 4 USD. Worst case 10 x 15 = 150 USD of Claude per run.
+
+| Rehearsal (oracle, noop) | Tasks on main | Integration | Conflicts | Interventions | Suite all / pinned |
+|---|---|---|---|---|---|
+| A oracle | 10/10 | 12/12 | 9 (hand-backs) | 0 | green / green |
+| A2 oracle | 10/10 | 12/12 | 0 (9 integrate retries) | 0 | green / green |
+| A3 oracle | 10/10 | 12/12 | 0 (9 integrate retries) | 0 | green / green |
+| A, A2, A3 noop | 0/10 | 0/12 | 0 | 0 | green / green |
+
+Arms B and BN were not rehearsed to completion here (see the report of the change).
+
+### Commands
+
+```sh
+python3 bench/t2/t2.py setup --scratch S --repo networkx
+python3 bench/t2/t2.py generate --scratch S --repo networkx
+python3 bench/t2/t2.py validate --scratch S --repo networkx --set long --results D    # D/validate-long.txt
+python3 bench/t2/t2.py rehearse --scratch S --repo networkx --set long --arms A,A2,A3 --results D
+python3 bench/t2/t2.py solo --scratch S --repo networkx --set long --rep 1 --harness oracle --results D
+python3 bench/t2/t2.py run --scratch S --arm A3 --repo networkx --set long --rep 1 --harness real --dry-run
+```

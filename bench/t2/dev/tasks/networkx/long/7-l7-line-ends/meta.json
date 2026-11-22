@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 7,
+  "id": "l7-line-ends",
+  "title": "Line formats: line ends",
+  "files": [
+    "networkx/readwrite/_newlines.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l7_line_ends.py"
+}

@@ -1,0 +1,441 @@
+diff --git a/networkx/readwrite/_linewriter.py b/networkx/readwrite/_linewriter.py
+new file mode 100644
+index 0000000..2557cdf
+--- /dev/null
++++ b/networkx/readwrite/_linewriter.py
+@@ -0,0 +1,171 @@
++"""The writer of the line formats: edge list, adjacency list and multiline
++adjacency list.
++
++:func:`~networkx.readwrite.edgelist.generate_edgelist`,
++:func:`~networkx.readwrite.adjlist.generate_adjlist` and
++:func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist` are
++``LineWriter(delimiter, ...).<format>(G, ...)``. The text of a node name is
++one method, so a subclass can change it for all three formats.
++"""
++
++from networkx.readwrite._floats import data_text, value_text
++from networkx.readwrite._quote import quote_name
++from networkx.readwrite._sorting import sorted_graph
++
++__all__ = ["LineWriter"]
++
++
++class LineWriter:
++    """Writes graphs as lines in the edge list, adjacency list and multiline
++    adjacency list formats.
++
++    Parameters
++    ----------
++    delimiter : str, optional (default=" ")
++        The text written between the tokens of a line.
++    sort : bool, optional (default=False)
++        Write nodes, neighbours and parallel edges in the order of their
++        ``str`` (see ``sort`` of the ``generate_*`` functions).
++    float_format : str or None, optional (default=None)
++        The format spec of float edge data values (see ``float_format`` of
++        the ``generate_*`` functions).
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, delimiter=" ", sort=False, float_format=None):
++        self.delimiter = delimiter
++        self.sort = sort
++        self.float_format = float_format
++
++    def name(self, node):
++        """The text of a node in a line: ``str(node)``, in double quotes when
++        it needs them (see the ``generate_*`` functions)."""
++        return quote_name(node, self.delimiter)
++
++    def edgelist(self, G, data=True):
++        """The lines of `G` in edge list format: what
++        :func:`~networkx.readwrite.edgelist.generate_edgelist` yields."""
++        delimiter = self.delimiter
++        if self.sort:
++            G = sorted_graph(G)
++        if data is True:
++            for u, v, d in G.edges(data=True):
++                e = (
++                    self.name(u),
++                    self.name(v),
++                    data_text(d, self.float_format),
++                )
++                yield delimiter.join(map(str, e))
++        elif data is False:
++            for u, v in G.edges(data=False):
++                e = self.name(u), self.name(v)
++                yield delimiter.join(map(str, e))
++        else:
++            for u, v, d in G.edges(data=True):
++                e = [self.name(u), self.name(v)]
++                try:
++                    e.extend(d[k] for k in data)
++                except KeyError:
++                    pass  # missing data for this edge, should warn?
++                yield delimiter.join(value_text(x, self.float_format) for x in e)
++
++    def adjlist(self, G):
++        """The lines of `G` in adjacency list format: what
++        :func:`~networkx.readwrite.adjlist.generate_adjlist` yields."""
++        delimiter = self.delimiter
++        if self.sort:
++            G = sorted_graph(G)
++        seen = set()
++        directed = G.is_directed()
++        multigraph = G.is_multigraph()
++        for s, nbrs in G.adjacency():
++            nodes = [self.name(s)]
++            for t, data in nbrs.items():
++                if t in seen:
++                    continue
++                if multigraph and len(data) > 1:
++                    nodes.extend((self.name(t),) * len(data))
++                else:
++                    nodes.append(self.name(t))
++            if not directed:
++                seen.add(s)
++            yield delimiter.join(nodes)
++
++    def multiline_adjlist(self, G):
++        """The lines of `G` in multiline adjacency list format: what
++        :func:`~networkx.readwrite.multiline_adjlist.generate_multiline_adjlist`
++        yields."""
++        delimiter = self.delimiter
++        if self.sort:
++            G = sorted_graph(G)
++        if G.is_directed():
++            if G.is_multigraph():
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield self.name(s) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield self.name(u)
++                        else:
++                            yield (
++                                self.name(u)
++                                + delimiter
++                                + data_text(d, self.float_format)
++                            )
++            else:  # directed single edges
++                for s, nbrs in G.adjacency():
++                    deg = len(nbrs)
++                    yield self.name(s) + delimiter + str(deg)
++                    for u, d in nbrs.items():
++                        if d is None:
++                            yield self.name(u)
++                        else:
++                            yield (
++                                self.name(u)
++                                + delimiter
++                                + data_text(d, self.float_format)
++                            )
++        else:  # undirected
++            if G.is_multigraph():
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [
++                        (u, data)
++                        for u, datadict in nbrs.items()
++                        if u not in seen
++                        for key, data in datadict.items()
++                    ]
++                    deg = len(nbr_edges)
++                    yield self.name(s) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield self.name(u)
++                        else:
++                            yield (
++                                self.name(u)
++                                + delimiter
++                                + data_text(d, self.float_format)
++                            )
++                    seen.add(s)
++            else:  # undirected single edges
++                seen = set()  # helper dict used to avoid duplicate edges
++                for s, nbrs in G.adjacency():
++                    nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
++                    deg = len(nbr_edges)
++                    yield self.name(s) + delimiter + str(deg)
++                    for u, d in nbr_edges:
++                        if d is None:
++                            yield self.name(u)
++                        else:
++                            yield (
++                                self.name(u)
++                                + delimiter
++                                + data_text(d, self.float_format)
++                            )
++                    seen.add(s)
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 743bde6..78531e2 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -74,22 +74,28 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++The ``generate_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
++methods: ``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name
+-from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+ def generate_adjlist(G, delimiter=" ", sort=False):
+     """Generate lines representing a graph in adjacency list format.
+@@ -155,27 +161,11 @@ def generate_adjlist(G, delimiter=" ", sort=False):
+     valid in node names.
+ 
+     NB: This option is not available for data that isn't user-generated.
+ 
+     """
+-    if sort:
+-        G = sorted_graph(G)
+-    seen = set()
+-    directed = G.is_directed()
+-    multigraph = G.is_multigraph()
+-    for s, nbrs in G.adjacency():
+-        nodes = [quote_name(s, delimiter)]
+-        for t, data in nbrs.items():
+-            if t in seen:
+-                continue
+-            if multigraph and len(data) > 1:
+-                nodes.extend((quote_name(t, delimiter),) * len(data))
+-            else:
+-                nodes.append(quote_name(t, delimiter))
+-        if not directed:
+-            seen.add(s)
+-        yield delimiter.join(nodes)
++    return LineWriter(delimiter, sort=sort).adjlist(G)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_adjlist(
+     G,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index 16e4a09..5238161 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -87,10 +87,17 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++The ``generate_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
++methods: ``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -101,16 +108,14 @@ __all__ = [
+ ]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+-from networkx.readwrite._floats import data_text, value_text
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name
+-from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+ def generate_edgelist(G, delimiter=" ", data=True, sort=False, float_format=None):
+     """Generate lines representing edges of `G` in edge list format.
+@@ -185,32 +190,11 @@ def generate_edgelist(G, delimiter=" ", data=True, sort=False, float_format=None
+ 
+     See Also
+     --------
+     write_edgelist, read_edgelist
+     """
+-    if sort:
+-        G = sorted_graph(G)
+-    if data is True:
+-        for u, v, d in G.edges(data=True):
+-            e = (
+-                quote_name(u, delimiter),
+-                quote_name(v, delimiter),
+-                data_text(d, float_format),
+-            )
+-            yield delimiter.join(map(str, e))
+-    elif data is False:
+-        for u, v in G.edges(data=False):
+-            e = quote_name(u, delimiter), quote_name(v, delimiter)
+-            yield delimiter.join(map(str, e))
+-    else:
+-        for u, v, d in G.edges(data=True):
+-            e = [quote_name(u, delimiter), quote_name(v, delimiter)]
+-            try:
+-                e.extend(d[k] for k in data)
+-            except KeyError:
+-                pass  # missing data for this edge, should warn?
+-            yield delimiter.join(value_text(x, float_format) for x in e)
++    return LineWriter(delimiter, sort=sort, float_format=float_format).edgelist(G, data)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_edgelist(
+     G,
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index d577730..32d87e1 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -85,10 +85,17 @@ Parsing
+ -------
+ The ``parse_*`` functions of the edge list, adjacency list and multiline
+ adjacency list are :class:`~networkx.readwrite._lineparser.LineParser`
+ methods: ``parse_edgelist(lines, comments, delimiter, ...)`` is
+ ``LineParser(comments, delimiter, nodetype).parse_edgelist(lines, ...)``.
++
++Writing
++-------
++The ``generate_*`` functions of the edge list, adjacency list and multiline
++adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
++methods: ``generate_adjlist(G, delimiter, ...)`` is
++``LineWriter(delimiter, ...).adjlist(G)``.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+@@ -97,16 +104,14 @@ __all__ = [
+ ]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
+ from networkx.readwrite._encoding import bom_bytes, decoded_lines
+-from networkx.readwrite._floats import data_text
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
++from networkx.readwrite._linewriter import LineWriter
+ from networkx.readwrite._newlines import check_newline, split_line_ends
+-from networkx.readwrite._quote import quote_name
+-from networkx.readwrite._sorting import sorted_graph
+ from networkx.utils import open_file
+ 
+ 
+ def generate_multiline_adjlist(G, delimiter=" ", sort=False, float_format=None):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+@@ -158,82 +163,13 @@ def generate_multiline_adjlist(G, delimiter=" ", sort=False, float_format=None):
+ 
+     See Also
+     --------
+     write_multiline_adjlist, read_multiline_adjlist
+     """
+-    if sort:
+-        G = sorted_graph(G)
+-    if G.is_directed():
+-        if G.is_multigraph():
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-        else:  # directed single edges
+-            for s, nbrs in G.adjacency():
+-                deg = len(nbrs)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbrs.items():
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-    else:  # undirected
+-        if G.is_multigraph():
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [
+-                    (u, data)
+-                    for u, datadict in nbrs.items()
+-                    if u not in seen
+-                    for key, data in datadict.items()
+-                ]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-                seen.add(s)
+-        else:  # undirected single edges
+-            seen = set()  # helper dict used to avoid duplicate edges
+-            for s, nbrs in G.adjacency():
+-                nbr_edges = [(u, d) for u, d in nbrs.items() if u not in seen]
+-                deg = len(nbr_edges)
+-                yield quote_name(s, delimiter) + delimiter + str(deg)
+-                for u, d in nbr_edges:
+-                    if d is None:
+-                        yield quote_name(u, delimiter)
+-                    else:
+-                        yield (
+-                            quote_name(u, delimiter)
+-                            + delimiter
+-                            + data_text(d, float_format)
+-                        )
+-                seen.add(s)
++    return LineWriter(
++        delimiter, sort=sort, float_format=float_format
++    ).multiline_adjlist(G)
+ 
+ 
+ @open_file(1, mode="wb")
+ def write_multiline_adjlist(
+     G,

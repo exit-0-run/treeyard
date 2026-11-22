@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 10,
+  "id": "l10-text-file",
+  "title": "Refactor: the bytes of the line formats in one class",
+  "files": [
+    "networkx/readwrite/_textfile.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l10_text_file.py"
+}

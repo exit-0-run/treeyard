@@ -1,0 +1,231 @@
+diff --git a/networkx/readwrite/_textfile.py b/networkx/readwrite/_textfile.py
+new file mode 100644
+index 0000000..b6a625f
+--- /dev/null
++++ b/networkx/readwrite/_textfile.py
+@@ -0,0 +1,38 @@
++"""The bytes of the line formats: decoding the lines of a file and encoding
++the lines written to one.
++
++The ``read_*`` functions of the edge list, adjacency list and multiline
++adjacency list read every line through :meth:`TextFile.read_lines`, and the
++``write_*`` functions write every line (comment lines included) through
++:meth:`TextFile.write_lines`.
++"""
++
++__all__ = ["TextFile"]
++
++
++class TextFile:
++    """How lines are read from and written to a file of a line format.
++
++    Parameters
++    ----------
++    encoding : str, optional (default="utf-8")
++        The text encoding of the file.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, encoding="utf-8"):
++        self.encoding = encoding
++
++    def read_lines(self, f):
++        """The lines of the open file `f` as text, each with its line end."""
++        encoding = self.encoding
++        return (line if isinstance(line, str) else line.decode(encoding) for line in f)
++
++    def write_lines(self, f, lines):
++        """Writes each of `lines` (text without line ends) to the binary file
++        `f`, followed by a line end."""
++        encoding = self.encoding
++        for line in lines:
++            line += "\n"
++            f.write(line.encode(encoding))
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+index 0f0c210..0b293c0 100644
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -18,15 +18,23 @@ between the source node and target node.
+ The graph with edges a-b, a-c, d-e can be represented as the following
+ adjacency list (anything following the # in a line is a comment)::
+ 
+      a b c # source target target
+      d e
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+ def generate_adjlist(G, delimiter=" "):
+     """Generate lines representing a graph in adjacency list format.
+@@ -186,15 +194,13 @@ def write_adjlist(G, path, comments="#", delimiter=" ", encoding="utf-8"):
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for line in generate_adjlist(G, delimiter):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    TextFile(encoding).write_lines(
++        path, [*header.split("\n")[:-1], *generate_adjlist(G, delimiter)]
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_adjlist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None
+@@ -361,11 +367,11 @@ def read_adjlist(
+ 
+     See Also
+     --------
+     write_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_adjlist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+index fe62ba8..16b76be 100644
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -23,10 +23,17 @@ Python dictionary as data::
+  1 2 {'weight':7, 'color':'green'}
+ 
+ Arbitrary data::
+ 
+  1 2 7 green
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+     "generate_edgelist",
+     "write_edgelist",
+@@ -35,10 +42,11 @@ __all__ = [
+     "read_weighted_edgelist",
+     "write_weighted_edgelist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+ def generate_edgelist(G, delimiter=" ", data=True):
+     """Generate lines representing edges of `G` in edge list format.
+@@ -207,13 +215,11 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+     --------
+     read_edgelist
+     write_weighted_edgelist
+     """
+ 
+-    for line in generate_edgelist(G, delimiter, data):
+-        line += "\n"
+-        path.write(line.encode(encoding))
++    TextFile(encoding).write_lines(path, generate_edgelist(G, delimiter, data))
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_edgelist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None, data=True
+@@ -441,11 +447,11 @@ def read_edgelist(
+     Notes
+     -----
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = (line if isinstance(line, str) else line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_edgelist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+index 08e17d5..e6b21b9 100644
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -21,20 +21,28 @@ adjacency list (anything following the # in a line is a comment)::
+      a 2
+      b
+      c
+      d 1
+      e
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+     "generate_multiline_adjlist",
+     "write_multiline_adjlist",
+     "parse_multiline_adjlist",
+     "read_multiline_adjlist",
+ ]
+ 
+ import networkx as nx
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+ def generate_multiline_adjlist(G, delimiter=" "):
+     """Generate lines representing the graph `G` in multiline adjacency list format.
+@@ -211,15 +219,13 @@ def write_multiline_adjlist(G, path, delimiter=" ", comments="#", encoding="utf-
+         + comments
+         + f" GMT {time.asctime(time.gmtime())}\n"
+         + comments
+         + f" {G.name}\n"
+     )
+-    path.write(header.encode(encoding))
+-
+-    for multiline in generate_multiline_adjlist(G, delimiter):
+-        multiline += "\n"
+-        path.write(multiline.encode(encoding))
++    TextFile(encoding).write_lines(
++        path, [*header.split("\n")[:-1], *generate_multiline_adjlist(G, delimiter)]
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+ def parse_multiline_adjlist(
+     lines, comments="#", delimiter=None, create_using=None, nodetype=None, edgetype=None
+@@ -420,11 +426,11 @@ def read_multiline_adjlist(
+ 
+     See Also
+     --------
+     write_multiline_adjlist
+     """
+-    lines = (line.decode(encoding) for line in path)
++    lines = TextFile(encoding).read_lines(path)
+     return parse_multiline_adjlist(
+         lines,
+         comments=comments,
+         delimiter=delimiter,
+         create_using=create_using,

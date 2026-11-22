@@ -1,0 +1,14 @@
+{
+  "repo": "networkx",
+  "set": "long",
+  "k": 2,
+  "id": "l2-graph-header",
+  "title": "Line formats: a header line with the graph type",
+  "files": [
+    "networkx/readwrite/_header.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py"
+  ],
+  "test": "networkx/readwrite/tests/test_t2_l2_graph_header.py"
+}

@@ -1,0 +1,241 @@
+diff --git a/networkx/readwrite/_textfile.py b/networkx/readwrite/_textfile.py
+new file mode 100644
+--- /dev/null
++++ b/networkx/readwrite/_textfile.py
+@@ -0,0 +1,51 @@
++"""The bytes of the line formats: decoding the lines of a file and encoding
++the lines written to one.
++
++The ``read_*`` functions of the edge list, adjacency list and multiline
++adjacency list read every line through :meth:`TextFile.read_lines`, and the
++``write_*`` functions write every line (comment and header lines included)
++through :meth:`TextFile.write_lines`.
++"""
++
++from networkx.readwrite._encoding import bom_bytes, decoded_lines
++from networkx.readwrite._newlines import check_newline, split_line_ends
++
++__all__ = ["TextFile"]
++
++
++class TextFile:
++    """How lines are read from and written to a file of a line format.
++
++    Parameters
++    ----------
++    encoding : str or None, optional (default="utf-8")
++        The text encoding of the file.
++    bom : bool, optional (default=False)
++        Write the byte order mark of `encoding` first.
++    newline : str, optional (default="\\n")
++        The line end written after each line.
++
++    .. versionadded:: 3.8
++    """
++
++    def __init__(self, encoding="utf-8", bom=False, newline="\n"):
++        self.encoding = encoding
++        self.bom = bom
++        self.newline = newline
++
++    def read_lines(self, f):
++        """The lines of the open file `f` as text, each with its line end."""
++        encoding = self.encoding
++        return split_line_ends(decoded_lines(f, self.encoding))
++
++    def write_lines(self, f, lines):
++        """Writes each of `lines` (text without line ends) to the binary file
++        `f`, followed by the line end."""
++        encoding = self.encoding
++        newline = self.newline
++        check_newline(newline)
++        if self.bom:
++            f.write(bom_bytes(encoding))
++        for line in lines:
++            line += newline
++            f.write(line.encode(encoding))
+diff --git a/networkx/readwrite/adjlist.py b/networkx/readwrite/adjlist.py
+--- a/networkx/readwrite/adjlist.py
++++ b/networkx/readwrite/adjlist.py
+@@ -83,17 +83,23 @@
+ adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
+ methods: ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding, ...).write_lines(file, lines)``.
+ """
+ 
+ __all__ = ["generate_adjlist", "write_adjlist", "parse_adjlist", "read_adjlist"]
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
+-from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._linewriter import LineWriter
+-from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -275,14 +281,9 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    if bom:
+-        path.write(bom_bytes(encoding))
+-    check_newline(newline)
+-    path.write(header.replace("\n", newline).encode(encoding))
+-
+-    for line in generate_adjlist(G, delimiter, sort=sort):
+-        line += newline
+-        path.write(line.encode(encoding))
++    TextFile(encoding, bom=bom, newline=newline).write_lines(
++        path, [*header.split("\n")[:-1], *generate_adjlist(G, delimiter, sort=sort)]
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -435,7 +436,7 @@
+     --------
+     write_adjlist
+     """
+-    lines = split_line_ends(decoded_lines(path, encoding))
++    lines = TextFile(encoding).read_lines(path)
+     try:
+         return parse_adjlist(
+             lines,
+diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
+--- a/networkx/readwrite/edgelist.py
++++ b/networkx/readwrite/edgelist.py
+@@ -96,6 +96,13 @@
+ adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
+ methods: ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding, ...).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+@@ -107,13 +114,14 @@
+     "write_weighted_edgelist",
+ ]
+ 
++import itertools
++
+ import networkx as nx
+ from networkx.exception import LineParseError
+-from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._linewriter import LineWriter
+-from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -311,17 +319,10 @@
+     read_edgelist
+     write_weighted_edgelist
+     """
+-
+-    check_newline(newline)
+-    if bom:
+-        path.write(bom_bytes(encoding))
++    lines = generate_edgelist(G, delimiter, data, sort=sort, float_format=float_format)
+     if header:
+-        path.write((header_line(G, comments) + newline).encode(encoding))
+-    for line in generate_edgelist(
+-        G, delimiter, data, sort=sort, float_format=float_format
+-    ):
+-        line += newline
+-        path.write(line.encode(encoding))
++        lines = itertools.chain([header_line(G, comments)], lines)
++    TextFile(encoding, bom=bom, newline=newline).write_lines(path, lines)
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -508,7 +509,7 @@
+     Since nodes must be hashable, the function nodetype must return hashable
+     types (e.g. int, float, str, frozenset - or tuples of those, etc.)
+     """
+-    lines = split_line_ends(decoded_lines(path, encoding))
++    lines = TextFile(encoding).read_lines(path)
+     try:
+         return parse_edgelist(
+             lines,
+diff --git a/networkx/readwrite/multiline_adjlist.py b/networkx/readwrite/multiline_adjlist.py
+--- a/networkx/readwrite/multiline_adjlist.py
++++ b/networkx/readwrite/multiline_adjlist.py
+@@ -94,6 +94,13 @@
+ adjacency list are :class:`~networkx.readwrite._linewriter.LineWriter`
+ methods: ``generate_adjlist(G, delimiter, ...)`` is
+ ``LineWriter(delimiter, ...).adjlist(G)``.
++
++Files
++-----
++The ``read_*`` and ``write_*`` functions read and write the lines of a file
++through :class:`~networkx.readwrite._textfile.TextFile`:
++``TextFile(encoding).read_lines(file)`` and
++``TextFile(encoding, ...).write_lines(file, lines)``.
+ """
+ 
+ __all__ = [
+@@ -105,11 +112,10 @@
+ 
+ import networkx as nx
+ from networkx.exception import LineParseError
+-from networkx.readwrite._encoding import bom_bytes, decoded_lines
+ from networkx.readwrite._header import header_line
+ from networkx.readwrite._lineparser import LineParser
+ from networkx.readwrite._linewriter import LineWriter
+-from networkx.readwrite._newlines import check_newline, split_line_ends
++from networkx.readwrite._textfile import TextFile
+ from networkx.utils import open_file
+ 
+ 
+@@ -281,16 +287,15 @@
+         + comments
+         + f" {G.name}\n"
+     )
+-    if bom:
+-        path.write(bom_bytes(encoding))
+-    check_newline(newline)
+-    path.write(header.replace("\n", newline).encode(encoding))
+-
+-    for multiline in generate_multiline_adjlist(
+-        G, delimiter, sort=sort, float_format=float_format
+-    ):
+-        multiline += newline
+-        path.write(multiline.encode(encoding))
++    TextFile(encoding, bom=bom, newline=newline).write_lines(
++        path,
++        [
++            *header.split("\n")[:-1],
++            *generate_multiline_adjlist(
++                G, delimiter, sort=sort, float_format=float_format
++            ),
++        ],
++    )
+ 
+ 
+ @nx._dispatchable(graphs=None, returns_graph=True)
+@@ -444,7 +449,7 @@
+     --------
+     write_multiline_adjlist
+     """
+-    lines = split_line_ends(decoded_lines(path, encoding))
++    lines = TextFile(encoding).read_lines(path)
+     try:
+         return parse_multiline_adjlist(
+             lines,
