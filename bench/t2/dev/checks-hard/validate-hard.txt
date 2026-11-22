@@ -1,0 +1,38 @@
+click hard 1 h1-prompt-text: pinned fail (0.35 s), reference pass (0.27 s), suite with the reference alone pass, 5 files, 189 diff lines -> ok
+click hard 2 h2-help-items: pinned fail (0.34 s), reference pass (0.31 s), suite with the reference alone pass, 4 files, 282 diff lines -> ok
+click hard 3 h3-secrets: pinned fail (0.31 s), reference pass (0.32 s), suite with the reference alone pass, 8 files, 151 diff lines -> ok
+click hard 4 h5-prompt-attempts: pinned fail (0.33 s), reference pass (0.29 s), suite with the reference alone pass, 7 files, 154 diff lines -> ok
+click hard 5 h6-option-groups: pinned fail (0.4 s), reference pass (0.24 s), suite with the reference alone pass, 3 files, 153 diff lines -> ok
+click hard 6 h7-byte-size: pinned fail (0.32 s), reference pass (0.24 s), suite with the reference alone pass, 7 files, 175 diff lines -> ok
+click hard 7 h8-choice-menu: pinned fail (0.25 s), reference pass (0.23 s), suite with the reference alone pass, 5 files, 148 diff lines -> ok
+click hard 8 h9-help-theme: pinned fail (0.26 s), reference pass (0.22 s), suite with the reference alone pass, 5 files, 152 diff lines -> ok
+click hard 9 h10-help-markdown: pinned fail (0.23 s), reference pass (0.23 s), suite with the reference alone pass, 5 files, 164 diff lines -> ok
+click hard 10 h11-prompter: pinned fail (0.29 s), reference pass (0.23 s), suite with the reference alone pass, 5 files, 353 diff lines -> ok
+click hard 11 h12-option-prompt: pinned fail (0.26 s), reference pass (0.23 s), suite with the reference alone pass, 3 files, 185 diff lines -> ok
+click hard 12 h13-help-formatter: pinned fail (0.26 s), reference pass (0.22 s), suite with the reference alone pass, 5 files, 633 diff lines -> ok
+click hard 13 h14-default-text: pinned fail (0.25 s), reference pass (0.22 s), suite with the reference alone pass, 5 files, 192 diff lines -> ok
+click hard all 13 (resolved-1..13): suite pass (3.44 s), tests 13/13 pass, integration 21/21 pass -> ok
+click hard integration i1-prompt-text-enum-names (tasks 1 and 7): pin fails, only 1 fails, all but 1 fails, only 7 fails, all but 7 fails; the partner's own test all but 1 passes, all but 7 passes -> ok
+click hard integration i2-hidden-default-item (tasks 2 and 3): pin fails, only 2 fails, all but 2 fails, only 3 fails, all but 3 fails; the partner's own test all but 2 passes, all but 3 passes -> ok
+click hard integration i3-group-headings-themed (tasks 5 and 8): pin fails, only 5 fails, all but 5 fails, only 8 fails, all but 8 fails; the partner's own test all but 5 passes, all but 8 passes -> ok
+click hard integration i4-markdown-hidden-default (tasks 3 and 9): pin fails, only 3 fails, all but 3 fails, only 9 fails, all but 9 fails; the partner's own test all but 3 passes, all but 9 passes -> ok
+click hard integration i5-markdown-byte-size (tasks 6 and 9): pin fails, only 6 fails, all but 6 fails, only 9 fails, all but 9 fails; the partner's own test all but 6 passes, all but 9 passes -> ok
+click hard integration i6-markdown-option-groups (tasks 5 and 9): pin fails, only 5 fails, all but 5 fails, only 9 fails, all but 9 fails; the partner's own test all but 5 passes, all but 9 passes -> ok
+click hard integration i7-prompt-text-byte-size (tasks 1 and 6): pin fails, only 1 fails, all but 1 fails, only 6 fails, all but 6 fails; the partner's own test all but 1 passes, all but 6 passes -> ok
+click hard integration i8-markdown-with-a-theme (tasks 8 and 9): pin fails, only 8 fails, all but 8 fails, only 9 fails, all but 9 fails; the partner's own test all but 8 passes, all but 9 passes -> ok
+click hard integration i9-markdown-custom-item (tasks 2 and 9): pin fails, only 2 fails, all but 2 fails, only 9 fails, all but 9 fails; the partner's own test all but 2 passes, all but 9 passes -> ok
+click hard integration i10-prompter-secret (tasks 10 and 3): pin fails, only 10 fails, all but 10 fails, only 3 fails, all but 3 fails; the partner's own test all but 10 passes, all but 3 passes -> ok
+click hard integration i11-prompter-attempts (tasks 10 and 4): pin fails, only 10 fails, all but 10 fails, only 4 fails, all but 4 fails; the partner's own test all but 10 passes, all but 4 passes -> ok
+click hard integration i12-prompter-choice-menu (tasks 10 and 7): pin fails, only 10 fails, all but 10 fails, only 7 fails, all but 7 fails; the partner's own test all but 10 passes, all but 7 passes -> ok
+click hard integration i13-option-prompt-attempts (tasks 11 and 4): pin fails, only 11 fails, all but 11 fails, only 4 fails, all but 4 fails; the partner's own test all but 11 passes, all but 4 passes -> ok
+click hard integration i14-option-prompt-menu (tasks 11 and 7): pin fails, only 11 fails, all but 11 fails, only 7 fails, all but 7 fails; the partner's own test all but 11 passes, all but 7 passes -> ok
+click hard integration i15-option-prompt-secret (tasks 11 and 3): pin fails, only 11 fails, all but 11 fails, only 3 fails, all but 3 fails; the partner's own test all but 11 passes, all but 3 passes -> ok
+click hard integration i16-help-formatter-groups (tasks 12 and 5): pin fails, only 12 fails, all but 12 fails, only 5 fails, all but 5 fails; the partner's own test all but 12 passes, all but 5 passes -> ok
+click hard integration i17-help-formatter-theme (tasks 12 and 8): pin fails, only 12 fails, all but 12 fails, only 8 fails, all but 8 fails; the partner's own test all but 12 passes, all but 8 passes -> ok
+click hard integration i18-help-formatter-markdown (tasks 12 and 9): pin fails, only 12 fails, all but 12 fails, only 9 fails, all but 9 fails; the partner's own test all but 12 passes, all but 9 passes -> ok
+click hard integration i19-default-text-hidden (tasks 13 and 3): pin fails, only 13 fails, all but 13 fails, only 3 fails, all but 3 fails; the partner's own test all but 13 passes, all but 3 passes -> ok
+click hard integration i20-default-text-byte-size (tasks 13 and 6): pin fails, only 13 fails, all but 13 fails, only 6 fails, all but 6 fails; the partner's own test all but 13 passes, all but 6 passes -> ok
+click hard integration i21-default-text-enum (tasks 13 and 7): pin fails, only 13 fails, all but 13 fails, only 7 fails, all but 7 fails; the partner's own test all but 13 passes, all but 7 passes -> ok
+click hard: 33 of 78 pairs of reference patches conflict in git: 1-10, 1-11, 1-13, 1-3, 1-4, 1-6, 1-7, 10-11, 10-13, 2-12, 2-13, 2-3, 2-6, 2-8, 2-9, 3-10, 3-11, 3-13, 3-4, 3-7, 4-10, 4-11, 4-7, 5-11, 5-12, 6-13, 6-7, 7-10, 7-11, 7-13, 8-12, 8-9, 9-12
+click hard: tasks that fail on the pin and pass with the reference: 13/13; agents 13, slots claude,claude,claude,claude,claude,claude,claude,claude,claude,claude,claude,claude,claude, limits {"claude_budget_usd": 8.0, "max_tokens": 20000000, "max_turns": 300, "timeout_s": 3600}
+validate hard: ok
