@@ -1,0 +1,228 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -338,6 +338,11 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: MarkdownHelpFormatter
++   :members: write_title, split_help
++```
++
++```{eval-rst}
+ .. autofunction:: wrap_text
+ ```
+ 
+diff --git a/docs/documentation.md b/docs/documentation.md
+--- a/docs/documentation.md
++++ b/docs/documentation.md
+@@ -438,3 +438,39 @@
+ the page is laid out exactly as without a theme. As with any styled output, the codes are removed when the help is not
+ written to a terminal, unless colors are forced with `color=True`. A custom {class}`HelpFormatter` gets the theme as its
+ `theme` argument and as {attr}`HelpFormatter.theme`, and {meth}`HelpTheme.apply` styles a text as one of the parts.
++
++## Help Pages as Markdown
++
++{meth}`Command.get_help_markdown` returns the help page of a command as Markdown, for reference docs that stay in sync
++with the code. The command formats its help as usual, with a {class}`MarkdownHelpFormatter` instead of the terminal
++formatter, so every section of `--help` is there, in the same order, including sections that a custom
++{meth}`Command.format_help` writes.
++
++```python
++@click.command()
++@click.option("--count", default=1, show_default=True, help="Number of greetings.")
++@click.argument("name")
++def hello(count, name):
++    """Say hello."""
++
++with click.Context(hello, info_name="hello") as ctx:
++    print(hello.get_help_markdown(ctx))
++```
++
++```markdown
++# hello
++
++Usage: `hello [OPTIONS] NAME`
++
++Say hello.
++
++## Options
++
++| Name | Description | Details |
++| --- | --- | --- |
++| `--count INTEGER` | Number of greetings. | default: 1 |
++| `--help` | Show this message and exit. |  |
++```
++
++The `Details` column holds the items of the bracket at the end of the help line, as `--help` shows them. Style codes
++are removed, long texts are not wrapped, and `|` is escaped.
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -40,6 +40,7 @@
+ from .exceptions import UsageError as UsageError
+ from .formatting import HelpFormatter as HelpFormatter
+ from .formatting import HelpTheme as HelpTheme
++from .formatting import MarkdownHelpFormatter as MarkdownHelpFormatter
+ from .formatting import wrap_text as wrap_text
+ from .globals import get_current_context as get_current_context
+ from .termui import clear as clear
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -36,6 +36,7 @@
+ from .formatting import HelpFormatter
+ from .formatting import HelpTheme
+ from .formatting import join_options
++from .formatting import MarkdownHelpFormatter
+ from .globals import pop_context
+ from .globals import push_context
+ from .parser import _OptionParser
+@@ -1289,6 +1290,25 @@
+         self.format_help(ctx, formatter)
+         return formatter.getvalue().rstrip("\n")
+ 
++    def get_help_markdown(self, ctx: Context) -> str:
++        """The help page as Markdown: a ``# <command path>`` title, then
++        the sections of :meth:`get_help` written by a
++        :class:`MarkdownHelpFormatter`. Useful to generate reference docs.
++
++        .. code-block:: python
++
++            with click.Context(cli, info_name="cli") as ctx:
++                Path("docs/cli.md").write_text(cli.get_help_markdown(ctx))
++
++        .. versionadded:: 8.6
++        """
++        formatter = MarkdownHelpFormatter(
++            width=ctx.terminal_width, max_width=ctx.max_content_width
++        )
++        formatter.write_title(ctx.command_path)
++        self.format_help(ctx, formatter)
++        return formatter.getvalue()
++
+     def get_short_help_str(self, limit: int = 45) -> str:
+         """Gets short help for the command or makes it by shortening the
+         long help string.
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -1,10 +1,12 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
++import re
+ import typing as t
+ from contextlib import contextmanager
+ from gettext import gettext as _
+ 
++from ._compat import strip_ansi
+ from ._compat import term_len
+ from .parser import _split_opt
+ 
+@@ -411,6 +413,105 @@
+     return f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
+ 
+ 
++class MarkdownHelpFormatter(HelpFormatter):
++    """Writes a help page as Markdown instead of terminal text. The command
++    formats its help as usual (:meth:`Command.format_help`), so every
++    section of ``--help`` is in the Markdown, in the same order:
++
++    -   the usage line becomes ``Usage: `cli [OPTIONS] NAME```,
++    -   texts (the help of the command, the epilog) become paragraphs,
++    -   a section heading becomes ``## Options``,
++    -   a definition list (options, arguments, commands) becomes a table
++        with the columns ``Name``, ``Description`` and ``Details``. The
++        name is code, the details are the items of the bracket at the end
++        of the help line (``default: 1; required``).
++
++    Blocks are separated by one blank line. Style codes are removed, text
++    is not wrapped, and ``|`` in a cell is escaped.
++
++    .. versionadded:: 8.6
++    """
++
++    _bracket = re.compile(r"(?s)^(?:(.*?)\s{2,})?\[([^\[\]]*)\]$")
++
++    def __init__(
++        self,
++        indent_increment: int = 2,
++        width: int | None = None,
++        max_width: int | None = None,
++        **kwargs: t.Any,
++    ) -> None:
++        super().__init__(indent_increment, width, max_width, **kwargs)
++        self.blocks: list[str] = []
++
++    def write(self, string: str) -> None:
++        """Raw text written by custom help code becomes a block of its own."""
++        text = strip_ansi(string).strip("\n")
++
++        if text.strip():
++            self.blocks.append(text)
++
++    def write_title(self, title: str) -> None:
++        """Writes the ``# title`` line, such as the command path."""
++        self.blocks.append(f"# {strip_ansi(title)}")
++
++    def write_usage(self, prog: str, args: str = "", prefix: str | None = None) -> None:
++        if prefix is None:
++            prefix = _("Usage:")
++
++        usage = f"{prog} {args}".strip()
++        self.blocks.append(f"{strip_ansi(prefix).strip()} `{strip_ansi(usage)}`")
++
++    def write_heading(self, heading: str) -> None:
++        self.blocks.append(f"## {strip_ansi(heading)}")
++
++    def write_paragraph(self) -> None:
++        pass
++
++    def write_text(self, text: str) -> None:
++        lines = [line for line in strip_ansi(text).splitlines() if line != "\b"]
++        paragraphs = "\n".join(line.strip() for line in lines).split("\n\n")
++
++        for paragraph in paragraphs:
++            if paragraph.strip():
++                self.blocks.append(paragraph.strip())
++
++    def write_dl(
++        self,
++        rows: cabc.Iterable[tuple[str, str]],
++        col_max: int = 30,
++        col_spacing: int = 2,
++        **kwargs: t.Any,
++    ) -> None:
++        lines = ["| Name | Description | Details |", "| --- | --- | --- |"]
++
++        for first, second in rows:
++            help, details = self.split_help(second)
++            name = f"`{self._cell(first)}`" if first else ""
++            lines.append(f"| {name} | {self._cell(help)} | {self._cell(details)} |")
++
++        self.blocks.append("\n".join(lines))
++
++    def split_help(self, text: str) -> tuple[str, str]:
++        """Splits a help line into its text and the items of the bracket at
++        its end: ``("The name.", "default: x; required")``.
++        """
++        text = strip_ansi(text).strip()
++        match = self._bracket.match(text)
++
++        if match is None:
++            return text, ""
++
++        return (match.group(1) or "").strip(), match.group(2).strip()
++
++    @staticmethod
++    def _cell(text: str) -> str:
++        return " ".join(strip_ansi(text).split()).replace("|", "\\|")
++
++    def getvalue(self) -> str:
++        return "\n\n".join(self.blocks) + "\n" if self.blocks else ""
++
++
+ def join_options(options: cabc.Iterable[str]) -> tuple[str, bool]:
+     """Given a list of option strings this joins them in the most appropriate
+     way and returns them in the form ``(formatted_string,

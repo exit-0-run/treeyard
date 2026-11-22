@@ -1,0 +1,323 @@
+diff --git a/docs/api.md b/docs/api.md
+index b8f0c45..e1bf374 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -255,10 +255,14 @@ classes and functions.
+ 
+ ```{eval-rst}
+ .. autoclass:: FloatRange
+ ```
+ 
++```{eval-rst}
++.. autoclass:: ByteSize
++```
++
+ ```{eval-rst}
+ .. autoclass:: DateTime
+ ```
+ 
+ ```{eval-rst}
+diff --git a/docs/parameter-types.md b/docs/parameter-types.md
+index 262c19b..8fee20c 100644
+--- a/docs/parameter-types.md
++++ b/docs/parameter-types.md
+@@ -121,10 +121,15 @@ The supported parameter {ref}`click-api-types` are
+   convert to `False`.
+ 
+ - {data}`click.UUID`: A parameter that accepts UUID values. This is not automatically guessed but represented as
+   {class}`uuid.UUID`.
+ 
++```{eval-rst}
++*   .. autoclass:: ByteSize
++       :noindex:
++```
++
+ ```{eval-rst}
+ *   .. autoclass:: Choice
+        :noindex:
+ ```
+ 
+@@ -208,10 +213,33 @@ When `type` is given a callable Click does not recognize, that callable is calle
+ string coming from the command line, and a `ValueError` it raises is reported as a bad
+ parameter. A container is rarely useful there, because calling it on a string splits the
+ string: `set` turns `"git"` into `{"g", "i", "t"}`. Pass a {class}`ParamType` instead,
+ as described in [](#how-to-implement-custom-types).
+ 
++### Byte Sizes
++
++The {class}`ByteSize` type converts a size such as `512`, `10MB`, `1.5 GiB` or `2k` to a number of bytes. Units of
++1000 (`KB`, `MB`, `GB`, `TB`, or just `K`, `M`, `G`, `T`) and of 1024 (`KiB`, `MiB`, `GiB`, `TiB`) are accepted in any
++letter case. `min` and `max` work as in {class}`IntRange` and can be sizes too.
++
++```{eval-rst}
++.. click:example::
++
++    @click.command()
++    @click.option("--cache", type=click.ByteSize(max="1GiB"), default=10 * 1024**2, show_default=True)
++    def serve(cache):
++        click.echo(f"cache: {cache} bytes")
++
++.. click:run::
++
++    invoke(serve, args=["--help"])
++    invoke(serve, args=["--cache", "64MiB"])
++```
++
++The help shows the default and the range in binary units, `[default: 10 MiB; x<=1 GiB]`, and so does a prompt for a
++size. A custom type can show its values the same way by overriding {meth}`ParamType.format_value`.
++
+ ## How to Implement Custom Types
+ 
+ To implement a custom type, you need to subclass the {class}`ParamType` class. For simple cases, passing a Python
+ function that fails with a `ValueError` is also supported, though discouraged. Override the {meth}`~ParamType.convert`
+ method to convert the value from a string to the correct type.
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+index 641aaf6..691236e 100644
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -54,10 +54,11 @@ from .termui import prompt as prompt
+ from .termui import PromptText as PromptText
+ from .termui import secho as secho
+ from .termui import style as style
+ from .termui import unstyle as unstyle
+ from .types import BOOL as BOOL
++from .types import ByteSize as ByteSize
+ from .types import Choice as Choice
+ from .types import DateTime as DateTime
+ from .types import File as File
+ from .types import FLOAT as FLOAT
+ from .types import FloatRange as FloatRange
+diff --git a/src/click/_prompt.py b/src/click/_prompt.py
+index 24c775b..fffd652 100644
+--- a/src/click/_prompt.py
++++ b/src/click/_prompt.py
+@@ -11,25 +11,32 @@ from __future__ import annotations
+ import io
+ import typing as t
+ from gettext import gettext as _
+ 
+ from .types import Choice
++from .types import ParamType
+ from .utils import _LazyFile
+ 
+ V = t.TypeVar("V")
+ 
+ 
+-def _format_default(default: V) -> V | str:
++def _format_default(default: V, type: object | None = None) -> V | str:
+     """The default as a prompt shows it: an open file by its name, anything
+     else as it is.
++
++    A value of a :class:`ParamType` is shown as its
++    :meth:`~ParamType.format_value` text.
+     """
+     if isinstance(default, (io.IOBase, _LazyFile)):
+         name = getattr(default, "name", None)
+ 
+         if name is not None:
+             return str(name)
+ 
++    if isinstance(type, ParamType):
++        return type.format_value(default)
++
+     return default
+ 
+ 
+ class PromptText:
+     """The text of one prompt, built from its parts.
+@@ -113,11 +120,11 @@ class PromptText:
+             return ""
+ 
+         if self.hide_default:
+             return " [{hidden}]".format(hidden=_("(hidden)"))
+ 
+-        return f" [{_format_default(self.default)}]"
++        return f" [{_format_default(self.default, self.type)}]"
+ 
+     def render(self) -> str:
+         """The whole text: the question, the choices, the default and the
+         suffix.
+         """
+diff --git a/src/click/core.py b/src/click/core.py
+index 9f1421e..b6b32a7 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -3595,11 +3595,13 @@ class Option(Parameter):
+             return None
+ 
+         if show_default_is_str:
+             default_string = f"({self.show_default})"
+         elif isinstance(default_value, (list, tuple)):
+-            default_string = ", ".join(str(d) for d in default_value)
++            default_string = ", ".join(
++                str(self.type.format_value(d)) for d in default_value
++            )
+         elif isinstance(default_value, enum.Enum):
+             default_string = default_value.name
+         elif inspect.isfunction(default_value):
+             default_string = _("(dynamic)")
+         elif self.is_bool_flag and self.secondary_opts:
+@@ -3611,11 +3613,11 @@ class Option(Parameter):
+         elif self.is_bool_flag and not self.secondary_opts and not default_value:
+             default_string = ""
+         elif isinstance(default_value, str) and default_value == "":
+             default_string = '""'
+         else:
+-            default_string = str(default_value)
++            default_string = str(self.type.format_value(default_value))
+ 
+         # The default of a hidden input is a secret: show that there is
+         # one, never its value. A ``show_default`` string is not the value.
+         if self.hide_input and not show_default_is_str and default_string:
+             default_string = _("(hidden)")
+diff --git a/src/click/types.py b/src/click/types.py
+index 51c580d..a45945b 100644
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -167,10 +167,19 @@ class ParamType(t.Generic[_ValueT_co, _InputT_contra], abc.ABC):
+         return None
+ 
+     def get_metavar(self, param: Parameter, ctx: Context) -> str | None:
+         """Returns the metavar default for this param if it provides one."""
+ 
++    def format_value(self, value: t.Any) -> str:
++        """The text that help pages and prompts show for a value of this
++        type, such as the default of an option (``[default: ...]``) or of
++        a prompt (``Size [...]: ``). The default is ``str(value)``.
++
++        .. versionadded:: 8.6
++        """
++        return str(value)
++
+     def get_missing_message(self, param: Parameter, ctx: Context | None) -> str | None:
+         """Optionally might return extra information about a missing
+         parameter.
+ 
+         .. versionadded:: 2.0
+@@ -882,10 +891,126 @@ class FloatRange(_NumberRangeBase[float, float], FloatParamType):
+         # open float range doesn't seem to be particularly useful. It's
+         # left up to the user to write a callback to do it if needed.
+         raise RuntimeError("Clamping is not supported for open bounds.")
+ 
+ 
++_SIZE_UNITS: dict[str, int] = {
++    "": 1,
++    "b": 1,
++    "k": 1000,
++    "kb": 1000,
++    "m": 1000**2,
++    "mb": 1000**2,
++    "g": 1000**3,
++    "gb": 1000**3,
++    "t": 1000**4,
++    "tb": 1000**4,
++    "kib": 1024,
++    "mib": 1024**2,
++    "gib": 1024**3,
++    "tib": 1024**4,
++}
++
++_SIZE_NAMES = (("TiB", 1024**4), ("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024))
++
++
++def _format_size(size: int) -> str:
++    """A number of bytes in the largest binary unit it reaches, with at
++    most one decimal: ``512 B``, ``1.5 KiB``, ``10 MiB``.
++    """
++    for unit, factor in _SIZE_NAMES:
++        if abs(size) >= factor:
++            text = f"{size / factor:.1f}"
++
++            if text.endswith(".0"):
++                text = text[:-2]
++
++            return f"{text} {unit}"
++
++    return f"{size} B"
++
++
++class ByteSize(_NumberRangeBase[t.Any, int], IntParamType):
++    """A size in bytes, converted to an ``int``. It accepts a plain number
++    of bytes (``"512"``) or a number with a unit, with or without a space
++    between, in any letter case: ``B``; ``K``/``KB``, ``M``/``MB``,
++    ``G``/``GB``, ``T``/``TB`` (powers of 1000); ``KiB``, ``MiB``,
++    ``GiB``, ``TiB`` (powers of 1024). A fraction is rounded down to whole
++    bytes: ``"1.5KiB"`` is ``1536``.
++
++    ``min`` and ``max`` bound the size like an :class:`IntRange`, and may
++    be given as sizes too (``max="1GiB"``). Help pages and prompts show
++    sizes in binary units: a default of ``10485760`` shows as ``10 MiB``,
++    the range as ``x<=1 GiB``.
++
++    .. versionadded:: 8.6
++    """
++
++    name = "size"
++
++    def __init__(
++        self,
++        min: int | str | None = None,
++        max: int | str | None = None,
++        min_open: bool = False,
++        max_open: bool = False,
++        clamp: bool = False,
++    ) -> None:
++        super().__init__(
++            min=None if min is None else self._parse(min, None, None),
++            max=None if max is None else self._parse(max, None, None),
++            min_open=min_open,
++            max_open=max_open,
++            clamp=clamp,
++        )
++
++    def _parse(self, value: t.Any, param: Parameter | None, ctx: Context | None) -> int:
++        import re
++        from decimal import Decimal
++
++        if isinstance(value, int) and not isinstance(value, bool):
++            return value
++
++        match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]*)\s*", str(value))
++        unit = match.group(2).lower() if match is not None else None
++
++        if match is None or unit not in _SIZE_UNITS:
++            self.fail(
++                _("{value!r} is not a valid size.").format(value=value), param, ctx
++            )
++
++        return int(Decimal(match.group(1)) * _SIZE_UNITS[unit])
++
++    def convert(self, value: t.Any, param: Parameter | None, ctx: Context | None) -> int:
++        return super().convert(self._parse(value, param, ctx), param, ctx)
++
++    def format_value(self, value: t.Any) -> str:
++        if isinstance(value, int) and not isinstance(value, bool):
++            return _format_size(value)
++
++        return str(value)
++
++    def _describe_range(self) -> str:
++        if self.min is None and self.max is None:
++            return ""
++
++        if self.min is None:
++            op = "<" if self.max_open else "<="
++            return f"x{op}{_format_size(self.max)}"  # type: ignore[arg-type]
++
++        if self.max is None:
++            op = ">" if self.min_open else ">="
++            return f"x{op}{_format_size(self.min)}"
++
++        lop = "<" if self.min_open else "<="
++        rop = "<" if self.max_open else "<="
++        return f"{_format_size(self.min)}{lop}x{rop}{_format_size(self.max)}"
++
++    def _clamp(self, bound: int, dir: t.Literal[1, -1], open: bool) -> int:
++        return bound if not open else bound + dir
++
++
+ class BoolParamType(ParamType[bool]):
+     name = "boolean"
+ 
+     bool_states: dict[str, bool] = {
+         "1": True,

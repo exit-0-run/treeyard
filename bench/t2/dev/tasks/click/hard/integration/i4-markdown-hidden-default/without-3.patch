@@ -1,0 +1,3170 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -89,6 +89,16 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: PromptText
++    :members:
++```
++
++```{eval-rst}
++.. autoclass:: Prompter
++    :members:
++```
++
++```{eval-rst}
+ .. autofunction:: progressbar
+ ```
+ 
+@@ -253,6 +263,10 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: ByteSize
++```
++
++```{eval-rst}
+ .. autoclass:: DateTime
+ ```
+ 
+@@ -303,11 +317,25 @@
+ .. autoexception:: BadArgumentUsage
+ ```
+ 
++```{eval-rst}
++.. autoexception:: TooManyAttempts
++```
++
+ ## Formatting
+ 
+ ```{eval-rst}
+ .. autoclass:: HelpFormatter
+    :members:
++```
++
++```{eval-rst}
++.. autoclass:: HelpTheme
++   :members: apply
++```
++
++```{eval-rst}
++.. autoclass:: MarkdownHelpFormatter
++   :members: write_title, split_help
+ ```
+ 
+ ```{eval-rst}
+diff --git a/docs/documentation.md b/docs/documentation.md
+--- a/docs/documentation.md
++++ b/docs/documentation.md
+@@ -191,6 +191,22 @@
+    invoke(dots, args=['--help'])
+ ```
+ 
++## How Defaults Are Shown
++
++The help bracket and prompts show a default through two functions of the module `click._default_text`:
++`default_help_text(option, ctx)` is the text of the `default` item of the option's help bracket (`2` in
++`[default: 2]`), or `None` when the help shows no default, and `default_prompt_text(value, type)` is the text that a
++prompt shows between the brackets for its default value (`alice` in `Name [alice]: `).
++
++```python
++from click._default_text import default_help_text, default_prompt_text
++
++opt = click.Option(["--n"], default=2, show_default=True)
++ctx = click.Context(click.Command("cli", params=[opt]))
++assert default_help_text(opt, ctx) == "2"
++assert default_prompt_text("alice") == "alice"
++```
++
+ ## Showing Environment Variables
+ 
+ To control the appearance of environment variables pass `show_envvar`.
+@@ -206,6 +222,36 @@
+ .. click:run::
+     invoke(greet, args=['--help'])
+ ```
++
++## The Option Help Bracket
++
++The bracket at the end of an option's help line, such as `[env var: NAME; default: 1; required]`, is built from items.
++{attr}`Option.help_extra_keys` lists their keys in the order they are shown. Each key has a method
++`get_help_extra_<key>(ctx)` that returns its value, or `None` to leave the item out, and
++{meth}`Option.format_help_extra_item` turns a value into the text in the bracket.
++
++A subclass adds an item by adding its key and writing its method. An item of a new key is shown as `<key>: <value>`:
++
++```python
++class UnitOption(click.Option):
++    help_extra_keys = (*click.Option.help_extra_keys, "unit")
++
++    def __init__(self, *args, unit=None, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.unit = unit
++
++    def get_help_extra_unit(self, ctx):
++        return self.unit
++
++@click.command()
++@click.option("--timeout", cls=UnitOption, unit="s", default=30, show_default=True)
++def cli(timeout):
++    ...
++```
++
++The help line of `--timeout` ends with `[default: 30; unit: s]`. To change how an item is shown, override
++`get_help_extra_<key>` (its value) or `format_help_extra_item` (its text). {func}`click.formatting.append_help_extra`
++appends the bracket to a help text in the same form, for parameter classes of your own.
+ 
+ ## Click's Wrapping Behavior
+ 
+@@ -324,6 +370,45 @@
+    This mirrors the conventional utility-argument syntax for optional arguments and operands ([POSIX §12.1](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html), [`man-pages(7)`](https://man7.org/linux/man-pages/man7/man-pages.7.html)), where a bracketed expression followed by `...` denotes zero or more occurrences. A subcommand name is a positional operand, so Click brackets it under the same rule.
+ ```
+ 
++## Option Groups
++
++A command with many options is easier to read when related options are listed together. Give an option a
++`help_group`, and the help page lists it in a section of that name, after the `Options` section that holds the options
++without a group (`--help` among them):
++
++```{eval-rst}
++.. click:example::
++
++    @click.command(help_group_order=["Network", "Output"])
++    @click.option("--verbose", is_flag=True, help="Say more.")
++    @click.option("--color", is_flag=True, help="Use colors.", help_group="Output")
++    @click.option("--host", default="localhost", help="Server host.", help_group="Network")
++    @click.option("--port", type=int, default=80, help="Server port.", help_group="Network")
++    def serve(verbose, color, host, port):
++        pass
++
++.. click:run::
++
++    invoke(serve, args=["--help"])
++```
++
++The groups follow `help_group_order` of the command; groups that are not listed there follow in the order their first
++option appears. The second column starts at the same place in every section, so the page reads as one table.
++{meth}`Command.get_help_groups` returns the rows of each section, for a custom {meth}`Command.format_options`.
++
++The subcommands of a {class}`Group` can be grouped the same way: a command with `help_group="Admin"` is listed in an
++`Admin` section after the `Commands` section, and the group's `help_group_order` orders these sections too.
++
++```python
++@click.group(help_group_order=["Admin"])
++def cli():
++    pass
++
++@cli.command(help_group="Admin")
++def migrate():
++    """Migrate the database."""
++```
++
+ ## Help Parameter Customization
+ 
+ Help parameters are automatically added by Click for any command. The default is `--help` but can be overridden by the context setting {attr}`~Context.help_option_names`. Click resolves conflicts automatically: an option reusing one of the help option names takes it over, and the default help parameter is dropped once all its names are taken. A parameter merely named `help`, like `click.argument("help")`, does not disable it: both keep working independently.
+@@ -345,3 +430,86 @@
+ .. click:run::
+     invoke(cli, ['-h'])
+ ```
++
++## Help Themes
++
++A {class}`HelpTheme` styles parts of the help page with {func}`style`: the section headings, the option, argument and
++command names in the first column, the `Usage:` prefix, and the bracket at the end of an option's help line. Set it with
++the `help_theme` context setting; subcommands inherit it from their group.
++
++```python
++THEME = click.HelpTheme(
++    heading={"fg": "yellow", "bold": True},
++    option={"fg": "cyan"},
++    usage={"bold": True},
++    extra={"dim": True},
++)
++
++@click.group(context_settings={"help_theme": THEME})
++def cli():
++    pass
++```
++
++Each field takes the keyword arguments of {func}`style`, or `None` to leave that part plain. Styles take no columns, so
++the page is laid out exactly as without a theme. As with any styled output, the codes are removed when the help is not
++written to a terminal, unless colors are forced with `color=True`. A custom {class}`HelpFormatter` gets the theme as its
++`theme` argument and as {attr}`HelpFormatter.theme`, and {meth}`HelpTheme.apply` styles a text as one of the parts.
++
++## Help Pages as Markdown
++
++{meth}`Command.get_help_markdown` returns the help page of a command as Markdown, for reference docs that stay in sync
++with the code. The command formats its help as usual, with a {class}`MarkdownHelpFormatter` instead of the terminal
++formatter, so every section of `--help` is there, in the same order, including sections that a custom
++{meth}`Command.format_help` writes.
++
++```python
++@click.command()
++@click.option("--count", default=1, show_default=True, help="Number of greetings.")
++@click.argument("name")
++def hello(count, name):
++    """Say hello."""
++
++with click.Context(hello, info_name="hello") as ctx:
++    print(hello.get_help_markdown(ctx))
++```
++
++```markdown
++# hello
++
++Usage: `hello [OPTIONS] NAME`
++
++Say hello.
++
++## Options
++
++| Name | Description | Details |
++| --- | --- | --- |
++| `--count INTEGER` | Number of greetings. | default: 1 |
++| `--help` | Show this message and exit. |  |
++```
++
++The `Details` column holds the items of the bracket at the end of the help line, as `--help` shows them. Style codes
++are removed, long texts are not wrapped, and `|` is escaped.
++
++## Custom Help Formatters
++
++Help pages are written by a {class}`HelpFormatter`. The class and the helpers it lays out text with (`wrap_text`,
++`measure_table`, `iter_rows`) live in the module `click._help_formatter`; `click.HelpFormatter` and the names in
++`click.formatting` are the same objects, so code that imports them from either place keeps working. To change how help
++pages look, subclass the formatter and set it as the context's `formatter_class`:
++
++```python
++class WideFormatter(click.HelpFormatter):
++    def write_dl(self, rows, col_max=40, col_spacing=4):
++        super().write_dl(rows, col_max, col_spacing)
++
++class WideContext(click.Context):
++    formatter_class = WideFormatter
++
++@click.command()
++@click.option("--name", help="The name.")
++def hello(name):
++    pass
++
++hello.context_class = WideContext
++```
+diff --git a/docs/exceptions.md b/docs/exceptions.md
+--- a/docs/exceptions.md
++++ b/docs/exceptions.md
+@@ -108,6 +108,19 @@
+   the parameter name if possible.
+ - {exc}`FileError` this is an error that is raised by the
+   {class}`FileType` if Click encounters issues opening the file.
++- {exc}`TooManyAttempts` is raised by {func}`prompt` and {func}`confirm`
++  when the user gave `max_attempts` invalid answers in a row (or an
++  option's `prompt_attempts`). It exits with code 1 and the message
++  `Error: Gave up after 3 invalid answers.`; its `attempts` and
++  `last_error` attributes hold the count and the last error message.
++  Catch it around a prompt to fall back to a default instead:
++
++  ```python
++  try:
++      size = click.prompt("Size", type=int, max_attempts=3)
++  except click.TooManyAttempts:
++      size = 10
++  ```
+ 
+ (help-page-exit-codes)=
+ 
+diff --git a/docs/parameter-types.md b/docs/parameter-types.md
+--- a/docs/parameter-types.md
++++ b/docs/parameter-types.md
+@@ -122,6 +122,11 @@
+ 
+ - {data}`click.UUID`: A parameter that accepts UUID values. This is not automatically guessed but represented as
+   {class}`uuid.UUID`.
++
++```{eval-rst}
++*   .. autoclass:: ByteSize
++       :noindex:
++```
+ 
+ ```{eval-rst}
+ *   .. autoclass:: Choice
+@@ -205,6 +210,29 @@
+ string: `set` turns `"git"` into `{"g", "i", "t"}`. Pass a {class}`ParamType` instead,
+ as described in [](#how-to-implement-custom-types).
+ 
++### Byte Sizes
++
++The {class}`ByteSize` type converts a size such as `512`, `10MB`, `1.5 GiB` or `2k` to a number of bytes. Units of
++1000 (`KB`, `MB`, `GB`, `TB`, or just `K`, `M`, `G`, `T`) and of 1024 (`KiB`, `MiB`, `GiB`, `TiB`) are accepted in any
++letter case. `min` and `max` work as in {class}`IntRange` and can be sizes too.
++
++```{eval-rst}
++.. click:example::
++
++    @click.command()
++    @click.option("--cache", type=click.ByteSize(max="1GiB"), default=10 * 1024**2, show_default=True)
++    def serve(cache):
++        click.echo(f"cache: {cache} bytes")
++
++.. click:run::
++
++    invoke(serve, args=["--help"])
++    invoke(serve, args=["--cache", "64MiB"])
++```
++
++The help shows the default and the range in binary units, `[default: 10 MiB; x<=1 GiB]`, and so does a prompt for a
++size. A custom type can show its values the same way by overriding {meth}`ParamType.format_value`.
++
+ ## How to Implement Custom Types
+ 
+ To implement a custom type, you need to subclass the {class}`ParamType` class. For simple cases, passing a Python
+diff --git a/docs/prompts.md b/docs/prompts.md
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -107,6 +107,69 @@
+ If `required=True`, then the option will still prompt if it is not given, but it will also prompt if only the flag is
+ given.
+ 
++## Limiting Attempts
++
++By default a prompt asks again until the answer is valid. `max_attempts` gives up after that many invalid answers and
++raises {exc}`TooManyAttempts`, which ends a command with exit code 1. Until then each error line says how many attempts
++are left:
++
++```console
++$ order
++Quantity: many
++Error: 'many' is not a valid integer. (2 attempts left)
++Quantity: lots
++Error: 'lots' is not a valid integer. (1 attempt left)
++Quantity: all
++Error: 'all' is not a valid integer.
++Error: Gave up after 3 invalid answers.
++```
++
++```python
++quantity = click.prompt("Quantity", type=int, max_attempts=3)
++```
++
++{func}`confirm` takes the same parameter, and an option that prompts takes `prompt_attempts`:
++
++```python
++@click.command()
++@click.option("--quantity", type=int, prompt=True, prompt_attempts=3)
++def order(quantity):
++    ...
++```
++
++A confirmation that does not match counts as an invalid answer. An empty answer to a prompt without a default does not
++count: the prompt asks again.
++
++## Choice Menus
++
++A prompt for a {class}`Choice` lists the choices after the text, `Region (eu, us, ap): `. Choices built from an enum
++are listed by member name, and an enum default is shown by name too. For long names, or when users prefer to type a
++number, `choice_menu=True` shows a numbered menu, one choice per line, before the prompt, and accepts the number of a
++choice as well as the choice itself:
++
++```console
++  1) eu
++  2) us
++  3) ap
++Region (1-3) [2]: 3
++```
++
++```python
++region = click.prompt("Region", type=click.Choice(["eu", "us", "ap"]), default="us", choice_menu=True)
++```
++
++A default that is one of the choices is shown as its number. An answer that is itself one of the choices selects that
++choice, so choices that are numbers (`["10", "20"]`) keep working; any other number gets the error
++`Error: 9 is not a number of the menu (1-3).` and the prompt asks again. An option that prompts takes
++`prompt_menu=True` for the same menu:
++
++```python
++@click.command()
++@click.option("--region", type=click.Choice(["eu", "us", "ap"]), prompt=True, prompt_menu=True)
++def deploy(region):
++    ...
++```
++
+ ## Confirmation Prompts
+ 
+ To ask if a user wants to continue with an action, the {func}`confirm` function comes in handy. By default, it returns
+@@ -122,6 +185,60 @@
+ 
+ ```python
+ click.confirm('Do you want to continue?', abort=True)
++```
++
++## The Text of a Prompt
++
++{func}`prompt` and {func}`confirm` build the text they show with {class}`PromptText`: the question, then the choices
++of a {class}`Choice` type in parentheses, then the default in brackets, then the suffix.
++
++```python
++>>> click.PromptText("Group by", type=click.Choice(["day", "week"]), show_default=True, default="day").render()
++'Group by (day, week) [day]: '
++>>> click.PromptText.for_confirm("Continue?", default=True).render()
++'Continue? [Y/n]: '
++```
++
++Each part comes from its own method (`choices_part`, `default_part`), so a subclass can change one part and keep the
++others. This is useful to show the same text in your own messages, for example in a log of what was asked.
++
++## How a Prompt Asks
++
++{func}`prompt` and {func}`confirm` hand their arguments to the class {class}`Prompter`:
++`click.prompt(...)` is `click.Prompter(...).ask()`, and `click.confirm(...)` is `click.Prompter.confirm(...)`. A
++`Prompter` reads each answer with {meth}`Prompter.read`, which a subclass can change:
++
++```python
++class LoggedPrompter(click.Prompter):
++    def read(self, text):
++        answer = super().read(text)
++        log.debug("answer to %r: %r", text, answer)
++        return answer
++
++port = LoggedPrompter("Port", type=int).ask()
++```
++
++## Custom Option Prompts
++
++An option asks its prompt through the class in its `prompt_class` attribute, by default
++`click._option_prompt.OptionPrompt`. `OptionPrompt(option, ctx).ask()` computes the default once
++(`get_default()`), then calls {func}`confirm` with `confirm_kwargs(default)` for a boolean flag, or {func}`prompt`
++with `prompt_kwargs(default)` for any other option. A subclass changes one step and keeps the rest:
++
++```python
++from click._option_prompt import OptionPrompt
++
++class ErrPrompt(OptionPrompt):
++    def prompt_kwargs(self, default):
++        return {**super().prompt_kwargs(default), "err": True}
++
++class ErrOption(click.Option):
++    prompt_class = ErrPrompt
++
++@click.command()
++@click.option("--name", prompt=True, cls=ErrOption)
++def hello(name):
++    click.echo(f"Hello {name}!")
+ ```
+ 
+ ## Dynamic Defaults for Prompts
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -36,9 +36,12 @@
+ from .exceptions import MissingParameter as MissingParameter
+ from .exceptions import NoSuchCommand as NoSuchCommand
+ from .exceptions import NoSuchOption as NoSuchOption
++from .exceptions import TooManyAttempts as TooManyAttempts
+ from .exceptions import UsageError as UsageError
+-from .formatting import HelpFormatter as HelpFormatter
+-from .formatting import wrap_text as wrap_text
++from ._help_formatter import HelpFormatter as HelpFormatter
++from ._help_formatter import wrap_text as wrap_text
++from .formatting import HelpTheme as HelpTheme
++from .formatting import MarkdownHelpFormatter as MarkdownHelpFormatter
+ from .globals import get_current_context as get_current_context
+ from .termui import clear as clear
+ from .termui import confirm as confirm
+@@ -50,10 +53,13 @@
+ from .termui import pause as pause
+ from .termui import progressbar as progressbar
+ from .termui import prompt as prompt
++from .termui import Prompter as Prompter
++from .termui import PromptText as PromptText
+ from .termui import secho as secho
+ from .termui import style as style
+ from .termui import unstyle as unstyle
+ from .types import BOOL as BOOL
++from .types import ByteSize as ByteSize
+ from .types import Choice as Choice
+ from .types import DateTime as DateTime
+ from .types import File as File
+diff --git a/src/click/_default_text.py b/src/click/_default_text.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_default_text.py
+@@ -0,0 +1,124 @@
++"""The text of a default value: what the help bracket of an option and the
++brackets of a prompt show for it.
++
++:meth:`Option.get_help_extra <click.Option.get_help_extra>` takes the
++``default`` item from :func:`default_help_text`, and :func:`click.prompt`
++shows :func:`default_prompt_text` between the brackets of its default, so
++both rules live here.
++"""
++
++from __future__ import annotations
++
++import enum
++import inspect
++import io
++import typing as t
++from gettext import gettext as _
++
++from ._utils import UNSET
++from .parser import _split_opt
++from .types import ParamType
++from .utils import _LazyFile
++
++if t.TYPE_CHECKING:
++    from .core import Context
++    from .core import Option
++
++
++def default_help_text(option: Option, ctx: Context) -> str | None:
++    """The text of the ``default`` item of an option's help bracket (``2``
++    in ``[default: 2]``), or ``None`` when the help shows no default.
++
++    The default is shown when the option's ``show_default`` (or else the
++    context's) says so. A ``show_default`` string is shown in parentheses
++    instead of the value. A value shows as the type's
++    :meth:`~click.ParamType.format_value` text.
++
++    .. versionadded:: 8.6
++    """
++    # The rules read the option the way its own methods do.
++    self = option
++
++    # Temporarily enable resilient parsing to avoid type casting
++    # failing for the default. Might be possible to extend this to
++    # help formatting in general.
++    resilient = ctx.resilient_parsing
++    ctx.resilient_parsing = True
++
++    try:
++        default_value = self.get_default(ctx, call=False)
++    finally:
++        ctx.resilient_parsing = resilient
++
++    show_default = False
++    show_default_is_str = False
++
++    if self.show_default is not None:
++        if isinstance(self.show_default, str):
++            show_default_is_str = show_default = True
++        else:
++            show_default = self.show_default
++    elif ctx.show_default is not None:
++        show_default = ctx.show_default
++
++    if not show_default_is_str and not (
++        show_default and (default_value not in (None, UNSET))
++    ):
++        return None
++
++    if show_default_is_str:
++        default_string = f"({self.show_default})"
++    elif isinstance(default_value, (list, tuple)):
++        default_string = ", ".join(
++            str(self.type.format_value(d)) for d in default_value
++        )
++    elif isinstance(default_value, enum.Enum):
++        default_string = default_value.name
++    elif inspect.isfunction(default_value):
++        default_string = _("(dynamic)")
++    elif self.is_bool_flag and self.secondary_opts:
++        # For boolean flags that have distinct True/False opts,
++        # use the opt without prefix instead of the value.
++        default_string = _split_opt(
++            (self.opts if default_value else self.secondary_opts)[0]
++        )[1]
++    elif self.is_bool_flag and not self.secondary_opts and not default_value:
++        default_string = ""
++    elif isinstance(default_value, str) and default_value == "":
++        default_string = '""'
++    else:
++        default_string = str(self.type.format_value(default_value))
++
++    return default_string or None
++
++
++def default_prompt_text(default: t.Any, type: t.Any | None = None) -> str:
++    """The text that a prompt shows between the brackets for its default
++    (``alice`` in ``Name [alice]: ``): an enum member by its name, an open
++    file by its name, a value of a :class:`ParamType` as its
++    :meth:`~ParamType.format_value` text, ``str()`` of anything else.
++
++    :param default: the default of the prompt.
++    :param type: the ``type`` of the prompt, a :class:`ParamType` or
++        ``None``.
++
++    .. versionadded:: 8.6
++    """
++    return str(_prompt_default(default, type))
++
++
++def _prompt_default(default: t.Any, type: t.Any | None = None) -> t.Any:
++    """The rules of :func:`default_prompt_text`, before ``str()``."""
++    if isinstance(default, enum.Enum):
++        return default.name
++
++    if isinstance(default, (io.IOBase, _LazyFile)):
++        name = getattr(default, "name", None)
++
++        if name is not None:
++            return str(name)
++
++    if isinstance(type, ParamType):
++        return type.format_value(default)
++
++    return default
+diff --git a/src/click/_help_formatter.py b/src/click/_help_formatter.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_help_formatter.py
+@@ -0,0 +1,394 @@
++"""The text help pages are written with: :class:`HelpFormatter` and the
++helpers it lays out text with. :mod:`click.formatting` keeps every one of
++these names, for code that imports them from there.
++"""
++
++from __future__ import annotations
++
++import collections.abc as cabc
++import typing as t
++from contextlib import contextmanager
++from gettext import gettext as _
++
++from ._compat import term_len
++
++
++def measure_table(rows: cabc.Iterable[tuple[str, str]]) -> tuple[int, ...]:
++    widths: dict[int, int] = {}
++
++    for row in rows:
++        for idx, col in enumerate(row):
++            widths[idx] = max(widths.get(idx, 0), term_len(col))
++
++    return tuple(y for x, y in sorted(widths.items()))
++
++
++def iter_rows(
++    rows: cabc.Iterable[tuple[str, str]], col_count: int
++) -> cabc.Iterator[tuple[str, ...]]:
++    for row in rows:
++        yield row + ("",) * (col_count - len(row))
++
++
++def wrap_text(
++    text: str,
++    width: int = 78,
++    initial_indent: str = "",
++    subsequent_indent: str = "",
++    preserve_paragraphs: bool = False,
++) -> str:
++    """A helper function that intelligently wraps text.  By default, it
++    assumes that it operates on a single paragraph of text but if the
++    `preserve_paragraphs` parameter is provided it will intelligently
++    handle paragraphs (defined by two empty lines).
++
++    If paragraphs are handled, a paragraph can be prefixed with an empty
++    line containing the ``\\b`` character (``\\x08``) to indicate that
++    no rewrapping should happen in that block.
++
++    :param text: the text that should be rewrapped.
++    :param width: the maximum width for the text.
++    :param initial_indent: the initial indent that should be placed on the
++                           first line as a string.
++    :param subsequent_indent: the indent string that should be placed on
++                              each consecutive line.
++    :param preserve_paragraphs: if this flag is set then the wrapping will
++                                intelligently handle paragraphs.
++
++    .. versionchanged:: 8.4.0
++        Width is measured in visible characters. ANSI escape sequences in
++        ``text``, ``initial_indent``, or ``subsequent_indent`` no longer
++        count toward the width budget, so styled input wraps based on what
++        the user sees instead of raw byte length.
++    """
++    from ._textwrap import TextWrapper
++
++    text = text.expandtabs()
++    wrapper = TextWrapper(
++        width,
++        initial_indent=initial_indent,
++        subsequent_indent=subsequent_indent,
++        replace_whitespace=False,
++    )
++    if not preserve_paragraphs:
++        return wrapper.fill(text)
++
++    p: list[tuple[int, bool, str]] = []
++    buf: list[str] = []
++    indent = None
++
++    def _flush_par() -> None:
++        if not buf:
++            return
++        if buf[0].strip() == "\b":
++            p.append((indent or 0, True, "\n".join(buf[1:])))
++        else:
++            p.append((indent or 0, False, " ".join(buf)))
++        del buf[:]
++
++    for line in text.splitlines():
++        if not line:
++            _flush_par()
++            indent = None
++        else:
++            if indent is None:
++                orig_len = term_len(line)
++                line = line.lstrip()
++                indent = orig_len - term_len(line)
++            buf.append(line)
++    _flush_par()
++
++    rv = []
++    for indent, raw, text in p:
++        with wrapper.extra_indent(" " * indent):
++            if raw:
++                rv.append(wrapper.indent_only(text))
++            else:
++                rv.append(wrapper.fill(text))
++
++    return "\n\n".join(rv)
++
++
++class HelpTheme:
++    """The styles of a help page. Each field is a dict of keyword
++    arguments for :func:`click.style`, such as ``{"fg": "cyan",
++    "bold": True}``, or ``None`` to leave that part as it is.
++
++    :param heading: section headings, colon included (``Options:``).
++    :param option: the first column of the option, argument and command
++        lists (``--name TEXT``).
++    :param usage: the ``Usage:`` prefix of the usage line.
++    :param extra: the bracket at the end of an option's help line
++        (``[default: 1; required]``).
++
++    Styles take no columns: widths and wrapping are the same as without
++    a theme. Like all styles they are removed when the output is not a
++    terminal, unless colors are forced.
++
++    .. versionadded:: 8.6
++    """
++
++    _parts: t.ClassVar[tuple[str, ...]] = ("heading", "option", "usage", "extra")
++
++    heading: cabc.Mapping[str, t.Any] | None
++    option: cabc.Mapping[str, t.Any] | None
++    usage: cabc.Mapping[str, t.Any] | None
++    extra: cabc.Mapping[str, t.Any] | None
++
++    def __init__(
++        self,
++        heading: cabc.Mapping[str, t.Any] | None = None,
++        option: cabc.Mapping[str, t.Any] | None = None,
++        usage: cabc.Mapping[str, t.Any] | None = None,
++        extra: cabc.Mapping[str, t.Any] | None = None,
++    ) -> None:
++        self.heading = heading
++        self.option = option
++        self.usage = usage
++        self.extra = extra
++
++    def __eq__(self, other: object) -> bool:
++        if not isinstance(other, HelpTheme):
++            return NotImplemented
++
++        return all(getattr(self, p) == getattr(other, p) for p in self._parts)
++
++    def __repr__(self) -> str:
++        parts = ", ".join(
++            f"{p}={getattr(self, p)!r}" for p in self._parts if getattr(self, p)
++        )
++        return f"HelpTheme({parts})"
++
++    def apply(self, part: str, text: str) -> str:
++        """Styles ``text`` as the part named ``part`` (a field name). Text
++        of a part without a style is returned as it is.
++        """
++        styles = getattr(self, part)
++
++        if not styles or not text:
++            return text
++
++        from .termui import style
++
++        return style(text, **styles)
++
++
++class HelpFormatter:
++    """This class helps with formatting text-based help pages.  It's
++    usually just needed for very special internal cases, but it's also
++    exposed so that developers can write their own fancy outputs.
++
++    At present, it always writes into memory.
++
++    :param indent_increment: the additional increment for each level.
++    :param width: the width for the text.  This defaults to the terminal
++                  width clamped to a maximum of 78.
++    :param theme: the styles of headings, option names, the usage prefix
++                  and help brackets, see :class:`HelpTheme`. The default
++                  styles nothing.
++
++    .. versionchanged:: 8.6
++        Added the ``theme`` parameter.
++
++    .. versionchanged:: 8.6
++        Lives in ``click._help_formatter``; ``click.formatting.HelpFormatter``
++        is the same class.
++    """
++
++    indent_increment: int
++    width: int
++    current_indent: int
++    buffer: list[str]
++    theme: HelpTheme
++
++    def __init__(
++        self,
++        indent_increment: int = 2,
++        width: int | None = None,
++        max_width: int | None = None,
++        theme: HelpTheme | None = None,
++    ) -> None:
++        self.indent_increment = indent_increment
++        if max_width is None:
++            max_width = 80
++        if width is None:
++            import shutil
++
++            from . import formatting
++
++            # The test system sets it in ``click.formatting``.
++            width = formatting.FORCED_WIDTH
++            if width is None:
++                width = max(min(shutil.get_terminal_size().columns, max_width) - 2, 50)
++        self.width = width
++        self.current_indent = 0
++        self.buffer = []
++        self.theme = theme if theme is not None else HelpTheme()
++
++    def write(self, string: str) -> None:
++        """Writes a unicode string into the internal buffer."""
++        self.buffer.append(string)
++
++    def indent(self) -> None:
++        """Increases the indentation."""
++        self.current_indent += self.indent_increment
++
++    def dedent(self) -> None:
++        """Decreases the indentation."""
++        self.current_indent -= self.indent_increment
++
++    def write_usage(self, prog: str, args: str = "", prefix: str | None = None) -> None:
++        """Writes a usage line into the buffer.
++
++        :param prog: the program name.
++        :param args: whitespace separated list of arguments.
++        :param prefix: The prefix for the first line. Defaults to
++            ``"Usage: "``.
++        """
++        if prefix is None:
++            prefix = "{usage} ".format(usage=self.theme.apply("usage", _("Usage:")))
++
++        usage_prefix = f"{prefix:>{self.current_indent}}{prog} "
++        text_width = self.width - self.current_indent
++
++        if not args:
++            # Without args, the prefix's trailing space and the wrap_text
++            # call that would normally place args on the line are both
++            # unnecessary. Emit just the prefix line.
++            self.write(usage_prefix.rstrip(" "))
++            self.write("\n")
++            return
++
++        if text_width >= (term_len(usage_prefix) + 20):
++            # The arguments will fit to the right of the prefix.
++            indent = " " * term_len(usage_prefix)
++            self.write(
++                wrap_text(
++                    args,
++                    text_width,
++                    initial_indent=usage_prefix,
++                    subsequent_indent=indent,
++                )
++            )
++        else:
++            # The prefix is too long, put the arguments on the next line.
++            self.write(usage_prefix)
++            self.write("\n")
++            indent = " " * (max(self.current_indent, term_len(prefix)) + 4)
++            self.write(
++                wrap_text(
++                    args, text_width, initial_indent=indent, subsequent_indent=indent
++                )
++            )
++
++        self.write("\n")
++
++    def write_heading(self, heading: str) -> None:
++        """Writes a heading into the buffer, in the heading style of the
++        :attr:`theme`.
++        """
++        text = self.theme.apply("heading", f"{heading}:")
++        self.write(f"{'':>{self.current_indent}}{text}\n")
++
++    def write_paragraph(self) -> None:
++        """Writes a paragraph into the buffer."""
++        if self.buffer:
++            self.write("\n")
++
++    def write_text(self, text: str) -> None:
++        """Writes re-indented text into the buffer.  This rewraps and
++        preserves paragraphs.
++        """
++        indent = " " * self.current_indent
++        self.write(
++            wrap_text(
++                text,
++                self.width,
++                initial_indent=indent,
++                subsequent_indent=indent,
++                preserve_paragraphs=True,
++            )
++        )
++        self.write("\n")
++
++    def write_dl(
++        self,
++        rows: cabc.Iterable[tuple[str, str]],
++        col_max: int = 30,
++        col_spacing: int = 2,
++        first_col_width: int | None = None,
++    ) -> None:
++        """Writes a definition list into the buffer.  This is how options
++        and commands are usually formatted.
++
++        :param rows: a list of two item tuples for the terms and values.
++        :param col_max: the maximum width of the first column.
++        :param col_spacing: the number of spaces between the first and
++                            second column.
++        :param first_col_width: the width of the first column, instead of
++            the width of its widest term. Several lists written with the
++            same width line up. It is still capped at ``col_max``.
++
++        .. versionchanged:: 8.6
++            Added the ``first_col_width`` parameter.
++        """
++        rows = list(rows)
++        widths = measure_table(rows)
++        if len(widths) != 2:
++            raise TypeError("Expected two columns for definition list")
++
++        if first_col_width is not None:
++            widths = (first_col_width, widths[1])
++
++        first_col = min(widths[0], col_max) + col_spacing
++
++        for first, second in iter_rows(rows, len(widths)):
++            self.write(f"{'':>{self.current_indent}}{self.theme.apply('option', first)}")
++            if not second:
++                self.write("\n")
++                continue
++            if term_len(first) <= first_col - col_spacing:
++                self.write(" " * (first_col - term_len(first)))
++            else:
++                self.write("\n")
++                self.write(" " * (first_col + self.current_indent))
++
++            text_width = max(self.width - first_col - 2, 10)
++            wrapped_text = wrap_text(second, text_width, preserve_paragraphs=True)
++            lines = wrapped_text.splitlines()
++
++            if lines:
++                self.write(f"{lines[0]}\n")
++
++                for line in lines[1:]:
++                    self.write(f"{'':>{first_col + self.current_indent}}{line}\n")
++            else:
++                self.write("\n")
++
++    @contextmanager
++    def section(self, name: str) -> cabc.Generator[None]:
++        """Helpful context manager that writes a paragraph, a heading,
++        and the indents.
++
++        :param name: the section name that is written as heading.
++        """
++        self.write_paragraph()
++        self.write_heading(name)
++        self.indent()
++        try:
++            yield
++        finally:
++            self.dedent()
++
++    @contextmanager
++    def indentation(self) -> cabc.Generator[None]:
++        """A context manager that increases the indentation."""
++        self.indent()
++        try:
++            yield
++        finally:
++            self.dedent()
++
++    def getvalue(self) -> str:
++        """Returns the buffer contents."""
++        return "".join(self.buffer)
+diff --git a/src/click/_option_prompt.py b/src/click/_option_prompt.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_option_prompt.py
+@@ -0,0 +1,119 @@
++"""How an :class:`~click.Option` prompts for its value.
++
++:meth:`Option.consume_value <click.Option.consume_value>` asks through
++``option.prompt_class(option, ctx).ask()``; :class:`OptionPrompt` is the
++default class. Its steps are methods, so a subclass can change one of
++them (the default offered, the arguments of the prompt) and keep the
++others.
++"""
++
++from __future__ import annotations
++
++import typing as t
++
++from . import termui
++from ._utils import UNSET
++
++if t.TYPE_CHECKING:
++    from .core import Context
++    from .core import Option
++
++
++class OptionPrompt:
++    """The prompt of one option in one context.
++
++    :param option: the option that prompts.
++    :param ctx: the context of the command that is being invoked.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(self, option: Option, ctx: Context) -> None:
++        self.option = option
++        self.ctx = ctx
++
++    def get_default(self) -> t.Any:
++        """The default that the prompt offers, computed before anything is
++        asked to lock in the value. For a boolean flag it is ``None`` when
++        there is no default (the user must answer), else a ``bool``.
++        """
++        default = self.option.get_default(self.ctx)
++
++        # A boolean flag can use a simplified [y/n] confirmation prompt.
++        if self.option.is_bool_flag:
++            # If we have no boolean default, we force the user to explicitly provide
++            # one.
++            if default in (UNSET, None):
++                return None
++            # Nothing prevent you to declare an option that is simultaneously:
++            # 1) auto-detected as a boolean flag,
++            # 2) allowed to prompt, and
++            # 3) still declare a non-boolean default.
++            # This forced casting into a boolean is necessary to align any non-boolean
++            # default to the prompt, which is going to be a [y/n]-style confirmation
++            # because the option is still a boolean flag. That way, instead of [y/n], we
++            # get [Y/n] or [y/N] depending on the truthy value of the default.
++            return bool(default)
++
++        return default
++
++    def confirm_kwargs(self, default: bool | None) -> dict[str, t.Any]:
++        """The keyword arguments of :func:`click.confirm` for a boolean
++        flag, given the default from :meth:`get_default`.
++        """
++        return _confirm_kwargs(self.option, default)
++
++    def prompt_kwargs(self, default: t.Any) -> dict[str, t.Any]:
++        """The keyword arguments of :func:`click.prompt` for an option that
++        is not a boolean flag, given the default from :meth:`get_default`.
++        """
++        return _prompt_kwargs(self.option, self.ctx, default)
++
++    def ask(self) -> t.Any:
++        """Prompt and return the processed value: :func:`click.confirm`
++        for a boolean flag, :func:`click.prompt` for any other option.
++        """
++        assert self.option.prompt is not None
++        default = self.get_default()
++
++        if self.option.is_bool_flag:
++            return termui.confirm(self.option.prompt, **self.confirm_kwargs(default))
++
++        return termui.prompt(self.option.prompt, **self.prompt_kwargs(default))
++
++
++# The two calls as ``Option.prompt_for_value`` made them, with the option as
++# ``self``; ``confirm`` and ``prompt`` here only collect their arguments.
++
++
++def _confirm_kwargs(self: Option, default: bool | None) -> dict[str, t.Any]:
++    def confirm(text: str | None, default: bool | None, **kwargs: t.Any) -> dict[str, t.Any]:
++        return {"default": default, **kwargs}
++
++    return confirm(self.prompt, default, max_attempts=self.prompt_attempts)
++
++
++def _prompt_kwargs(self: Option, ctx: Context, default: t.Any) -> dict[str, t.Any]:
++    def prompt(text: str | None, **kwargs: t.Any) -> dict[str, t.Any]:
++        return kwargs
++
++    # If show_default is given, provide this to `prompt` as well,
++    # otherwise we use `prompt`'s default behavior
++    prompt_kwargs: t.Any = {}
++    if self.show_default is not None:
++        prompt_kwargs["show_default"] = self.show_default
++
++    return prompt(
++        self.prompt,
++        # Use ``None`` to inform the prompt() function to reiterate until a valid
++        # value is provided by the user if we have no default.
++        default=self._hide_unset(default),
++        type=self.type,
++        hide_input=self.hide_input,
++        show_choices=self.show_choices,
++        confirmation_prompt=self.confirmation_prompt,
++        value_proc=lambda x: self.process_value(ctx, x),
++        max_attempts=self.prompt_attempts,
++        choice_menu=self.prompt_menu,
++        **prompt_kwargs,
++    )
+diff --git a/src/click/_prompt.py b/src/click/_prompt.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_prompt.py
+@@ -0,0 +1,137 @@
++"""The text of a prompt: what :func:`click.prompt` and :func:`click.confirm`
++show before they read an answer.
++
++The text is built from parts (the question, the choices, the default and the
++suffix) by :class:`PromptText`. Each part has its own method, so a subclass
++can change one part and keep the others.
++"""
++
++from __future__ import annotations
++
++import typing as t
++
++from ._default_text import default_prompt_text
++from .types import Choice
++
++V = t.TypeVar("V")
++
++
++def _format_default(default: V, type: object | None = None) -> V | str:
++    """The default as a prompt shows it: an open file by its name, anything
++    else as it is.
++
++    A value of a :class:`ParamType` is shown as its
++    :meth:`~ParamType.format_value` text, an enum member by its name.
++
++    Kept for code that calls it: the text is
++    :func:`~click._default_text.default_prompt_text`.
++    """
++    return default_prompt_text(default, type)
++
++
++class PromptText:
++    """The text of one prompt, built from its parts.
++
++    ``PromptText("Name", ": ", default="alice").render()`` is
++    ``"Name [alice]: "``, exactly the text that
++    ``click.prompt("Name", default="alice")`` shows.
++
++    :param text: the question.
++    :param suffix: written after everything else, such as ``": "``.
++    :param show_default: show the default in brackets. A string is shown
++        in parentheses instead of the default itself.
++    :param default: the default value.
++    :param show_choices: list the choices of a :class:`Choice` type.
++    :param type: the type of the value that is asked for.
++    :param choice_menu: the choices of a :class:`Choice` type are shown as
++        a numbered menu: the text shows the range of numbers, ``(1-3)``,
++        and a default that is one of the choices as its number.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(
++        self,
++        text: str,
++        suffix: str = ": ",
++        show_default: bool | str = False,
++        default: object | None = None,
++        show_choices: bool = True,
++        type: object | None = None,
++        choice_menu: bool = False,
++    ) -> None:
++        self.text = text
++        self.suffix = suffix
++        self.show_default = show_default
++        self.default = default
++        self.show_choices = show_choices
++        self.type = type
++        self.choice_menu = choice_menu
++
++    @classmethod
++    def for_confirm(
++        cls,
++        text: str,
++        default: bool | None = False,
++        suffix: str = ": ",
++        show_default: bool = True,
++    ) -> PromptText:
++        """The text of a yes/no question, as :func:`click.confirm` asks it:
++        the default is shown as ``y/n``, ``Y/n`` or ``y/N``.
++        """
++        if default is None:
++            hint = "y/n"
++        elif default:
++            hint = "Y/n"
++        else:
++            hint = "y/N"
++
++        return cls(text, suffix, show_default, hint)
++
++    def choices_part(self) -> str:
++        """The choices of a :class:`Choice` type in parentheses, with a
++        leading space, or ``""``.
++        """
++        if self.type is None or not (self.show_choices or self.choice_menu):
++            return ""
++
++        if not isinstance(self.type, Choice):
++            return ""
++
++        if self.choice_menu:
++            # The menu lists the choices; the prompt asks for a number.
++            return f" (1-{len(self.type.choices)})"
++
++        return f" ({', '.join(map(str, map(self.type.format_choice, self.type.choices)))})"
++
++    def default_part(self) -> str:
++        """The default in brackets, with a leading space, or ``""``."""
++        if not self.show_default:
++            return ""
++
++        if isinstance(self.show_default, str):
++            return f" [({self.show_default})]"
++
++        if self.default is None:
++            return ""
++
++        if (
++            self.choice_menu
++            and isinstance(self.type, Choice)
++            and self.default in self.type.choices
++        ):
++            return f" [{self.type.choices.index(self.default) + 1}]"
++
++        return f" [{_format_default(self.default, self.type)}]"
++
++    def render(self) -> str:
++        """The whole text: the question, the choices, the default and the
++        suffix.
++        """
++        return f"{self.text}{self.choices_part()}{self.default_part()}{self.suffix}"
++
++    def __str__(self) -> str:
++        return self.render()
++
++    def __repr__(self) -> str:
++        return f"<{type(self).__name__} {self.render()!r}>"
+diff --git a/src/click/_prompter.py b/src/click/_prompter.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_prompter.py
+@@ -0,0 +1,295 @@
++"""The prompt loops: what :func:`click.prompt` and :func:`click.confirm` do
++after they have built their text, from reading an answer to returning a
++value.
++
++:class:`Prompter` holds the settings of one prompt. :func:`click.prompt`
++is ``Prompter(...).ask()`` and :func:`click.confirm` is
++``Prompter.confirm(...)``, so a subclass can change how an answer is
++read and keep the rest.
++"""
++
++from __future__ import annotations
++
++import sys
++import typing as t
++from contextlib import redirect_stdout
++from gettext import gettext as _
++from gettext import ngettext
++
++from . import _compat
++from . import termui
++from ._compat import strip_ansi
++from ._prompt import PromptText
++from .exceptions import Abort
++from .exceptions import BadParameter
++from .exceptions import TooManyAttempts
++from .exceptions import UsageError
++from .globals import resolve_color_default
++from .types import Choice
++from .types import convert_type
++from .types import ParamType
++from .utils import echo
++
++
++class Prompter:
++    """One prompt for a value: its settings and its loop.
++
++    The parameters are those of :func:`click.prompt`, in the same order and
++    with the same meaning; ``click.prompt(...)`` is
++    ``Prompter(...).ask()``.
++
++    The answers are read with :func:`click.termui.visible_prompt_func` or
++    :func:`click.termui.hidden_prompt_func`, looked up each time an answer
++    is read, so code that replaces them (such as :class:`click.testing.CliRunner`)
++    still works.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(
++        self,
++        text: str,
++        default: t.Any | None = None,
++        hide_input: bool = False,
++        confirmation_prompt: bool | str = False,
++        type: ParamType[t.Any] | t.Any | None = None,
++        value_proc: t.Callable[[str], t.Any] | None = None,
++        prompt_suffix: str = ": ",
++        show_default: bool | str = True,
++        err: bool = False,
++        show_choices: bool = True,
++        max_attempts: int | None = None,
++        choice_menu: bool = False,
++    ) -> None:
++        self.text = text
++        self.default = default
++        self.hide_input = hide_input
++        self.confirmation_prompt = confirmation_prompt
++        self.type = type
++        self.value_proc = value_proc
++        self.prompt_suffix = prompt_suffix
++        self.show_default = show_default
++        self.err = err
++        self.show_choices = show_choices
++        self.max_attempts = max_attempts
++        self.choice_menu = choice_menu
++
++    @staticmethod
++    def readline(func: t.Callable[[str], str], text: str, err: bool) -> str:
++        """Call a prompt function, passing the full prompt so readline can
++        handle line editing and cursor positioning correctly.
++
++        The prompt is handed to *func* (such as :func:`input`) rather than
++        written through :func:`echo`, so it has to strip ANSI color and style
++        codes itself when the destination stream does not support them.
++        Without this the prompt would keep codes that :func:`echo` removes
++        from the rest of the output.
++        """
++        stream = sys.stderr if err else sys.stdout
++
++        # Look up ``should_strip_ansi`` on the module so that ``CliRunner``,
++        # which patches it there during test isolation, is honored.
++        if _compat.should_strip_ansi(stream, resolve_color_default()):
++            text = strip_ansi(text)
++
++        if err:
++            with redirect_stdout(sys.stderr):
++                return func(text)
++        return func(text)
++
++    def read(self, text: str) -> str:
++        """Read one answer to ``text``, hidden when :attr:`hide_input` is
++        set. An interrupt or the end of the input raises :exc:`Abort`.
++        """
++        f = termui.hidden_prompt_func if self.hide_input else termui.visible_prompt_func
++        try:
++            return type(self).readline(f, text, self.err)
++        except (KeyboardInterrupt, EOFError):
++            # getpass doesn't print a newline if the user aborts input with ^C.
++            # Allegedly this behavior is inherited from getpass(3).
++            # A doc bug has been filed at https://bugs.python.org/issue24711
++            if self.hide_input:
++                echo(None, err=self.err)
++            raise Abort() from None
++
++    def ask(self) -> t.Any:
++        """Ask until the answer is valid and return the converted value."""
++        # The loop works on the settings as local names, as it did inside
++        # :func:`click.prompt`.
++        text = self.text
++        default = self.default
++        hide_input = self.hide_input
++        confirmation_prompt = self.confirmation_prompt
++        type = self.type
++        value_proc = self.value_proc
++        prompt_suffix = self.prompt_suffix
++        show_default = self.show_default
++        err = self.err
++        show_choices = self.show_choices
++        max_attempts = self.max_attempts
++        choice_menu = self.choice_menu
++        _mask_hidden_input = termui._mask_hidden_input
++
++        if value_proc is None:
++            value_proc = convert_type(type, default)
++
++        menu = choice_menu and isinstance(type, Choice)
++
++        if menu:
++            value_proc = _menu_value_proc(t.cast("Choice[t.Any]", type), value_proc)
++
++            for number, choice in enumerate(type.choices, 1):  # type: ignore[union-attr]
++                echo(f"  {number}) {type.format_choice(choice)}", err=err)  # type: ignore[union-attr]
++
++        prompt = PromptText(
++            text,
++            prompt_suffix,
++            show_default,
++            default,
++            show_choices,
++            type,
++            choice_menu=menu,
++        ).render()
++        attempts = _Attempts(max_attempts, err)
++
++        if confirmation_prompt:
++            if confirmation_prompt is True:
++                confirmation_prompt = _("Repeat for confirmation")
++
++            confirmation_prompt = PromptText(confirmation_prompt, prompt_suffix).render()
++
++        while True:
++            while True:
++                value = self.read(prompt)
++                if value:
++                    break
++                elif default is not None:
++                    # Defaults of any type are accepted and round trip through
++                    # value_proc like typed input, so the annotation is only
++                    # accurate for typed input.
++                    value = t.cast("str", default)
++                    break
++            try:
++                result = value_proc(value)
++            except UsageError as e:
++                message = _mask_hidden_input(e.message, value) if hide_input else e.message
++                attempts.failed(message)
++                continue
++            if not confirmation_prompt:
++                return result
++            while True:
++                value2 = self.read(confirmation_prompt)
++                is_empty = not value and not value2
++                if value2 or is_empty:
++                    break
++            if value == value2:
++                return result
++            attempts.failed(_("The two entered values do not match."))
++
++    @classmethod
++    def confirm(
++        cls,
++        text: str,
++        default: bool | None = False,
++        abort: bool = False,
++        prompt_suffix: str = ": ",
++        show_default: bool = True,
++        err: bool = False,
++        max_attempts: int | None = None,
++    ) -> bool:
++        """Ask a yes/no question; the parameters are those of
++        :func:`click.confirm`, and ``click.confirm(...)`` is
++        ``Prompter.confirm(...)``.
++        """
++        prompt = PromptText.for_confirm(text, default, prompt_suffix, show_default).render()
++
++        attempts = _Attempts(max_attempts, err)
++
++        while True:
++            try:
++                value = (
++                    cls.readline(termui.visible_prompt_func, prompt, err)
++                    .lower()
++                    .strip()
++                )
++            except (KeyboardInterrupt, EOFError):
++                raise Abort() from None
++            if value in ("y", "yes"):
++                rv = True
++            elif value in ("n", "no"):
++                rv = False
++            elif default is not None and value == "":
++                rv = default
++            else:
++                attempts.failed(_("invalid input"))
++                continue
++            break
++        if abort and not rv:
++            raise Abort()
++        return rv
++
++
++class _Attempts:
++    """Counts the invalid answers of one prompt and writes their error
++    lines; raises :exc:`TooManyAttempts` after the last one allowed.
++    """
++
++    def __init__(self, max_attempts: int | None, err: bool) -> None:
++        if max_attempts is not None and max_attempts < 1:
++            raise ValueError("'max_attempts' must be at least 1.")
++
++        self.max_attempts = max_attempts
++        self.err = err
++        self.count = 0
++
++    def failed(self, message: str) -> None:
++        self.count += 1
++        line = _("Error: {message}").format(message=message)
++
++        if self.max_attempts is None:
++            echo(line, err=self.err)
++            return
++
++        left = self.max_attempts - self.count
++
++        if left <= 0:
++            echo(line, err=self.err)
++            raise TooManyAttempts(self.count, message)
++
++        hint = ngettext(
++            "{left} attempt left", "{left} attempts left", left
++        ).format(left=left)
++        echo(f"{line} ({hint})", err=self.err)
++
++
++def _menu_value_proc(
++    type: Choice[t.Any], value_proc: t.Callable[[str], t.Any]
++) -> t.Callable[[str], t.Any]:
++    """Wraps the conversion of a menu prompt. An answer that is one of the
++    choices is that choice (so choices that are numbers still work);
++    otherwise the number of a choice selects it. Any other number is not
++    on the menu.
++    """
++
++    def convert(value: str) -> t.Any:
++        if not isinstance(value, str):
++            return value_proc(value)
++
++        try:
++            return value_proc(value)
++        except UsageError:
++            choice = type.choice_from_number(value)
++
++            if choice is not None:
++                return value_proc(choice)
++
++            if value.strip().isdigit():
++                raise BadParameter(
++                    _("{number} is not a number of the menu (1-{count}).").format(
++                        number=value.strip(), count=len(type.choices)
++                    )
++                ) from None
++
++            raise
++
++    return convert
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -22,6 +22,10 @@
+ 
+ from . import types
+ from ._utils import FLAG_NEEDS_VALUE
++from ._compat import term_len
++from ._default_text import default_help_text
++from ._help_formatter import HelpFormatter
++from ._option_prompt import OptionPrompt
+ from ._utils import UNSET
+ from .exceptions import Abort
+ from .exceptions import BadParameter
+@@ -31,14 +35,14 @@
+ from .exceptions import NoArgsIsHelpError
+ from .exceptions import NoSuchCommand
+ from .exceptions import UsageError
+-from .formatting import HelpFormatter
++from .formatting import append_help_extra
++from .formatting import HelpTheme
+ from .formatting import join_options
++from .formatting import MarkdownHelpFormatter
+ from .globals import pop_context
+ from .globals import push_context
+ from .parser import _OptionParser
+ from .parser import _split_opt
+-from .termui import confirm
+-from .termui import prompt
+ from .termui import style
+ from .utils import _detect_program_name
+ from .utils import _expand_args
+@@ -280,6 +284,13 @@
+         value is not set, it defaults to the value from the parent
+         context. ``Command.show_default`` overrides this default for the
+         specific command.
++    :param help_theme: the :class:`HelpTheme` of help pages: styles for
++        headings, option names, the usage prefix and help brackets. It
++        defaults to the theme of the parent context; without one help
++        pages are not styled.
++
++    .. versionchanged:: 8.6
++        Added the ``help_theme`` parameter.
+ 
+     .. versionchanged:: 8.2
+         The ``protected_args`` attribute is deprecated and will be removed in
+@@ -336,6 +347,7 @@
+     auto_envvar_prefix: str | None
+     color: bool | None
+     show_default: bool | None
++    help_theme: HelpTheme | None
+     _close_callbacks: list[t.Callable[[], t.Any]]
+     _depth: int
+     _parameter_source: dict[str, ParameterSource]
+@@ -360,6 +372,7 @@
+         token_normalize_func: t.Callable[[str], str] | None = None,
+         color: bool | None = None,
+         show_default: bool | None = None,
++        help_theme: HelpTheme | None = None,
+     ) -> None:
+         #: the parent context or `None` if none exists.
+         self.parent = parent
+@@ -507,6 +520,14 @@
+         #: Show option default values when formatting help text.
+         self.show_default = show_default
+ 
++        if help_theme is None and parent is not None:
++            help_theme = parent.help_theme
++
++        #: The styles of help pages, or ``None`` for plain help pages.
++        #:
++        #: .. versionadded:: 8.6
++        self.help_theme = help_theme
++
+         self._close_callbacks = []
+         self._depth = 0
+         self._parameter_source = {}
+@@ -642,11 +663,21 @@
+         To quickly customize the formatter class used without overriding
+         this method, set the :attr:`formatter_class` attribute.
+ 
++        .. versionchanged:: 8.6
++            Passes :attr:`help_theme` to the formatter, when it is set.
++
+         .. versionchanged:: 8.0
+             Added the :attr:`formatter_class` attribute.
+         """
++        # Only pass a theme when there is one, so formatter classes that do
++        # not know the parameter keep working.
++        extra: dict[str, t.Any] = {}
++
++        if self.help_theme is not None:
++            extra["theme"] = self.help_theme
++
+         return self.formatter_class(
+-            width=self.terminal_width, max_width=self.max_content_width
++            width=self.terminal_width, max_width=self.max_content_width, **extra
+         )
+ 
+     def with_resource(self, context_manager: AbstractContextManager[V]) -> V:
+@@ -984,6 +1015,16 @@
+                         indicating that the command is deprecated and highlights
+                         its deprecation in --help. The message can be customized
+                         by using a string as the value.
++    :param help_group: the name of a section of the parent group's help
++        page to list this command in, such as ``"Admin"``. Commands
++        without a group are listed under ``Commands``.
++    :param help_group_order: the order of the option groups on the help
++        page (see the ``help_group`` of :class:`Option`), and of the
++        command groups of a :class:`Group`. Groups that are not listed
++        follow in the order their first option or command appears.
++
++    .. versionchanged:: 8.6
++        Added the ``help_group`` and ``help_group_order`` parameters.
+ 
+     .. versionchanged:: 8.2
+         This is the base class for all commands, not ``BaseCommand``.
+@@ -1032,6 +1073,8 @@
+     no_args_is_help: bool
+     hidden: bool
+     deprecated: bool | str
++    help_group: str | None
++    help_group_order: tuple[str, ...]
+ 
+     def __init__(
+         self,
+@@ -1047,6 +1090,8 @@
+         no_args_is_help: bool = False,
+         hidden: bool = False,
+         deprecated: bool | str = False,
++        help_group: str | None = None,
++        help_group_order: cabc.Sequence[str] | None = None,
+     ) -> None:
+         #: the name the command thinks it has.  Upon registering a command
+         #: on a :class:`Group` the group will default the command name
+@@ -1076,6 +1121,10 @@
+         self.no_args_is_help = no_args_is_help
+         self.hidden = hidden
+         self.deprecated = deprecated
++        #: The section of the parent group's help page for this command.
++        self.help_group = help_group
++        #: The order of the option and command groups on the help page.
++        self.help_group_order = tuple(help_group_order or ())
+ 
+     def to_info_dict(self, ctx: Context) -> dict[str, t.Any]:
+         return {
+@@ -1240,6 +1289,25 @@
+         self.format_help(ctx, formatter)
+         return formatter.getvalue().rstrip("\n")
+ 
++    def get_help_markdown(self, ctx: Context) -> str:
++        """The help page as Markdown: a ``# <command path>`` title, then
++        the sections of :meth:`get_help` written by a
++        :class:`MarkdownHelpFormatter`. Useful to generate reference docs.
++
++        .. code-block:: python
++
++            with click.Context(cli, info_name="cli") as ctx:
++                Path("docs/cli.md").write_text(cli.get_help_markdown(ctx))
++
++        .. versionadded:: 8.6
++        """
++        formatter = MarkdownHelpFormatter(
++            width=ctx.terminal_width, max_width=ctx.max_content_width
++        )
++        formatter.write_title(ctx.command_path)
++        self.format_help(ctx, formatter)
++        return formatter.getvalue()
++
+     def get_short_help_str(self, limit: int = 45) -> str:
+         """Gets short help for the command or makes it by shortening the
+         long help string.
+@@ -1294,16 +1362,54 @@
+                 formatter.write_text(text)
+ 
+     def format_options(self, ctx: Context, formatter: HelpFormatter) -> None:
+-        """Writes all the options into the formatter if they exist."""
+-        opts = []
++        """Writes all the options into the formatter if they exist.
++
++        Options without a ``help_group`` go in the ``Options`` section.
++        Each group gets a section of its own after it, headed by the group
++        name, in the order of :meth:`get_help_groups`. The second column
++        starts at the same place in all these sections.
++
++        .. versionchanged:: 8.6
++            Options are grouped by their ``help_group``.
++        """
++        groups = self.get_help_groups(ctx)
++
++        if not groups:
++            return
++
++        first_width = max(
++            term_len(first) for rows in groups.values() for first, _second in rows
++        )
++
++        for name, rows in groups.items():
++            with formatter.section(_("Options") if name is None else name):
++                formatter.write_dl(rows, first_col_width=first_width)
++
++    def get_help_groups(
++        self, ctx: Context
++    ) -> dict[str | None, list[tuple[str, str]]]:
++        """The help records of the options, by help group: ``None`` for the
++        options without a group first, then the groups named in
++        :attr:`help_group_order`, then the other groups in the order their
++        first option appears. Groups without a shown option are left out.
++
++        .. versionadded:: 8.6
++        """
++        found: dict[str | None, list[tuple[str, str]]] = {}
++
+         for param in self.get_params(ctx):
++            if isinstance(param, Argument):
++                continue
++
+             rv = param.get_help_record(ctx)
+-            if rv is not None and not isinstance(param, Argument):
+-                opts.append(rv)
+-
+-        if opts:
+-            with formatter.section(_("Options")):
+-                formatter.write_dl(opts)
++
++            if rv is not None:
++                group = getattr(param, "help_group", None)
++                found.setdefault(group, []).append(rv)
++
++        order: list[str | None] = [None, *self.help_group_order]
++        order.extend(name for name in found if name not in order)
++        return {name: found[name] for name in order if name in found}
+ 
+     def format_arguments(self, ctx: Context, formatter: HelpFormatter) -> None:
+         """Writes all arguments into the formatter, if at least one is documented.
+@@ -1994,14 +2100,23 @@
+         if len(commands):
+             limit = formatter.width - 6 - max(len(cmd[0]) for cmd in commands)
+ 
+-            rows = []
++            # Commands without a help group first, under "Commands", then
++            # one section per group, ordered like the option groups.
++            groups: dict[str | None, list[tuple[str, str]]] = {}
+             for subcommand, cmd in commands:
+                 help = cmd.get_short_help_str(limit)
+-                rows.append((subcommand, help))
+-
+-            if rows:
+-                with formatter.section(_("Commands")):
+-                    formatter.write_dl(rows)
++                groups.setdefault(cmd.help_group, []).append((subcommand, help))
++
++            order: list[str | None] = [None, *self.help_group_order]
++            order.extend(name for name in groups if name not in order)
++            first_width = max(term_len(name) for name, _cmd in commands)
++
++            for name in order:
++                if name not in groups:
++                    continue
++
++                with formatter.section(_("Commands") if name is None else name):
++                    formatter.write_dl(groups[name], first_col_width=first_width)
+ 
+     def parse_args(self, ctx: Context, args: list[str]) -> list[str]:
+         if not args and self.no_args_is_help and not ctx.resilient_parsing:
+@@ -2916,6 +3031,11 @@
+         without a value.
+     :param hide_input: If this is ``True`` then the input on the prompt
+         will be hidden from the user. This is useful for password input.
++    :param prompt_attempts: Give up after this many invalid answers to the
++        prompt: the command fails with :exc:`TooManyAttempts` (exit code 1)
++        instead of asking again. Only valid with ``prompt``.
++    :param prompt_menu: Prompt for a :class:`Choice` with a numbered menu
++        of the choices (see ``choice_menu`` of :func:`prompt`).
+     :param is_flag: forces this option to act as a flag.  The default is
+                     auto detection.
+     :param flag_value: which value should be used for this flag if it's
+@@ -2932,7 +3052,14 @@
+                                context.
+     :param help: the help string.
+     :param hidden: hide this option from help outputs.
++    :param help_group: the name of a section of the help page to list
++        this option in, such as ``"Network"``. Options without a group
++        are listed under ``Options``. See ``help_group_order`` of
++        :class:`Command`.
+     :param attrs: Other command arguments described in :class:`Parameter`.
++
++    .. versionchanged:: 8.6
++        Added the ``help_group`` parameter.
+ 
+     .. versionchanged:: 8.4.0
+         Non-basic ``flag_value`` types (not ``str``, ``int``, ``float``, or
+@@ -2962,10 +3089,19 @@
+ 
+     param_type_name = "option"
+ 
++    #: The class that asks the prompt of this option, see
++    #: :class:`~click._option_prompt.OptionPrompt`. A subclass changes how
++    #: its options prompt by setting a subclass of it here.
++    #:
++    #: .. versionadded:: 8.6
++    prompt_class: t.ClassVar[type[OptionPrompt]] = OptionPrompt
++
+     prompt: str | None
+     confirmation_prompt: bool | str
+     prompt_required: bool
+     hide_input: bool
++    prompt_attempts: int | None
++    prompt_menu: bool
+     hidden: bool
+ 
+     _flag_needs_value: bool
+@@ -2979,6 +3115,20 @@
+     show_default: bool | str | None
+     show_choices: bool
+     show_envvar: bool
++    help_group: str | None
++
++    #: The keys of the bracket at the end of the help line, in the order
++    #: they are shown. Each key has a method ``get_help_extra_<key>`` that
++    #: returns its value, or ``None`` to leave it out. A subclass adds an
++    #: item by adding its key here and writing that method.
++    #:
++    #: .. versionadded:: 8.6
++    help_extra_keys: t.ClassVar[tuple[str, ...]] = (
++        "envvars",
++        "default",
++        "range",
++        "required",
++    )
+ 
+     def __init__(
+         self,
+@@ -2988,6 +3138,8 @@
+         confirmation_prompt: bool | str = False,
+         prompt_required: bool = True,
+         hide_input: bool = False,
++        prompt_attempts: int | None = None,
++        prompt_menu: bool = False,
+         is_flag: bool | None = None,
+         flag_value: t.Any = UNSET,
+         multiple: bool = False,
+@@ -2999,6 +3151,7 @@
+         show_choices: bool = True,
+         show_envvar: bool = False,
+         deprecated: bool | str = False,
++        help_group: str | None = None,
+         **attrs: t.Any,
+     ) -> None:
+         super().__init__(
+@@ -3026,6 +3179,8 @@
+         self.confirmation_prompt = confirmation_prompt
+         self.prompt_required = prompt_required
+         self.hide_input = hide_input
++        self.prompt_attempts = prompt_attempts
++        self.prompt_menu = prompt_menu
+         self.hidden = hidden
+ 
+         # Phase 2: flag-kind inference.
+@@ -3053,6 +3208,7 @@
+         self.show_default = show_default
+         self.show_choices = show_choices
+         self.show_envvar = show_envvar
++        self.help_group = help_group
+ 
+         # Phase 5: validate. Raises on illegal kwarg combinations.
+         self._validate(prompt, deprecated)
+@@ -3191,6 +3347,13 @@
+             raise TypeError("Secondary flag is not valid for non-boolean flag.")
+         if self.is_bool_flag and self.hide_input and self.prompt is not None:
+             raise TypeError("'prompt' with 'hide_input' is not valid for boolean flag.")
++        if self.prompt_attempts is not None:
++            if self.prompt is None:
++                raise TypeError("'prompt_attempts' is only valid with 'prompt'.")
++            if self.prompt_attempts < 1:
++                raise ValueError("'prompt_attempts' must be at least 1.")
++        if self.prompt_menu and not isinstance(self.type, types.Choice):
++            raise TypeError("'prompt_menu' is only valid with a 'Choice' type.")
+         if self.count:
+             if self.multiple:
+                 raise TypeError("'count' is not valid with 'multiple'.")
+@@ -3399,158 +3562,133 @@
+         if self.hidden:
+             return None
+ 
+-        help = self.help or ""
+-
+-        extra = self.get_help_extra(ctx)
+-        extra_items = []
+-        if "envvars" in extra:
+-            extra_items.append(
+-                _("env var: {var}").format(var=", ".join(extra["envvars"]))
+-            )
+-        if "default" in extra:
+-            extra_items.append(_("default: {default}").format(default=extra["default"]))
+-        if "range" in extra:
+-            extra_items.append(extra["range"])
+-        if "required" in extra:
+-            extra_items.append(_(extra["required"]))
+-
+-        if extra_items:
+-            extra_str = "; ".join(extra_items)
+-            help = f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
+-
+-        return self.get_help_spec(ctx), help
++        items = self.format_help_extra(ctx, self.get_help_extra(ctx))
++        return self.get_help_spec(ctx), append_help_extra(
++            self.help or "", items, theme=ctx.help_theme)
+ 
+     def get_help_extra(self, ctx: Context) -> types.OptionHelpExtra:
+-        extra: types.OptionHelpExtra = {}
+-
+-        if self.show_envvar:
+-            envvar = self.envvar
+-
+-            if not envvar and (
+-                self.allow_from_autoenv
+-                and ctx.auto_envvar_prefix is not None
+-                and self.name
+-            ):
+-                envvar = f"{ctx.auto_envvar_prefix}_{self.name.upper()}"
+-
+-            if envvar:
+-                if isinstance(envvar, str):
+-                    extra["envvars"] = (envvar,)
+-                else:
+-                    extra["envvars"] = tuple(str(d) for d in envvar)
+-
+-        # Temporarily enable resilient parsing to avoid type casting
+-        # failing for the default. Might be possible to extend this to
+-        # help formatting in general.
+-        resilient = ctx.resilient_parsing
+-        ctx.resilient_parsing = True
+-
+-        try:
+-            default_value = self.get_default(ctx, call=False)
+-        finally:
+-            ctx.resilient_parsing = resilient
+-
+-        show_default = False
+-        show_default_is_str = False
+-
+-        if self.show_default is not None:
+-            if isinstance(self.show_default, str):
+-                show_default_is_str = show_default = True
+-            else:
+-                show_default = self.show_default
+-        elif ctx.show_default is not None:
+-            show_default = ctx.show_default
+-
+-        if show_default_is_str or (
+-            show_default and (default_value not in (None, UNSET))
++        """The items of the bracket at the end of the option's help line, as
++        a dict. Each key of :attr:`help_extra_keys` gets its value from the
++        method ``get_help_extra_<key>``; a key whose method returns ``None``
++        is left out.
++
++        .. versionchanged:: 8.6
++            Built from the ``get_help_extra_<key>`` methods.
++        """
++        extra: dict[str, t.Any] = {}
++
++        for key in self.help_extra_keys:
++            value = getattr(self, f"get_help_extra_{key}")(ctx)
++
++            if value is not None:
++                extra[key] = value
++
++        return t.cast(types.OptionHelpExtra, extra)
++
++    def get_help_extra_envvars(self, ctx: Context) -> tuple[str, ...] | None:
++        """The environment variables of the option, when :attr:`show_envvar`
++        is set: the ``envvar`` of the option, else the one built from
++        :attr:`Context.auto_envvar_prefix`.
++
++        .. versionadded:: 8.6
++        """
++        if not self.show_envvar:
++            return None
++
++        envvar = self.envvar
++
++        if not envvar and (
++            self.allow_from_autoenv
++            and ctx.auto_envvar_prefix is not None
++            and self.name
+         ):
+-            if show_default_is_str:
+-                default_string = f"({self.show_default})"
+-            elif isinstance(default_value, (list, tuple)):
+-                default_string = ", ".join(str(d) for d in default_value)
+-            elif isinstance(default_value, enum.Enum):
+-                default_string = default_value.name
+-            elif inspect.isfunction(default_value):
+-                default_string = _("(dynamic)")
+-            elif self.is_bool_flag and self.secondary_opts:
+-                # For boolean flags that have distinct True/False opts,
+-                # use the opt without prefix instead of the value.
+-                default_string = _split_opt(
+-                    (self.opts if default_value else self.secondary_opts)[0]
+-                )[1]
+-            elif self.is_bool_flag and not self.secondary_opts and not default_value:
+-                default_string = ""
+-            elif isinstance(default_value, str) and default_value == "":
+-                default_string = '""'
+-            else:
+-                default_string = str(default_value)
+-
+-            if default_string:
+-                extra["default"] = default_string
+-
+-        if (
+-            isinstance(self.type, types._NumberRangeBase)
+-            # skip count with default range type
+-            and not (self.count and self.type.min == 0 and self.type.max is None)
+-        ):
+-            range_str = self.type._describe_range()
+-
+-            if range_str:
+-                extra["range"] = range_str
+-
+-        if self.required:
+-            extra["required"] = "required"
+-
+-        return extra
++            envvar = f"{ctx.auto_envvar_prefix}_{self.name.upper()}"
++
++        if not envvar:
++            return None
++
++        if isinstance(envvar, str):
++            return (envvar,)
++
++        return tuple(str(d) for d in envvar)
++
++    def get_help_extra_default(self, ctx: Context) -> str | None:
++        """The default as the help shows it, or ``None`` when it is not
++        shown (see :attr:`show_default` and :attr:`Context.show_default`).
++
++        .. versionadded:: 8.6
++        """
++        return default_help_text(self, ctx)
++
++    def get_help_extra_range(self, ctx: Context) -> str | None:
++        """The description of a range type, such as ``1<=x<=5``.
++
++        .. versionadded:: 8.6
++        """
++        if not isinstance(self.type, types._NumberRangeBase):
++            return None
++
++        # skip count with default range type
++        if self.count and self.type.min == 0 and self.type.max is None:
++            return None
++
++        return self.type._describe_range() or None
++
++    def get_help_extra_required(self, ctx: Context) -> str | None:
++        """``"required"`` for a required option.
++
++        .. versionadded:: 8.6
++        """
++        return "required" if self.required else None
++
++    def format_help_extra(self, ctx: Context, extra: types.OptionHelpExtra) -> list[str]:
++        """The texts of the bracket items, in the order of
++        :attr:`help_extra_keys`. Keys of ``extra`` that are not in
++        :attr:`help_extra_keys` are not shown.
++
++        .. versionadded:: 8.6
++        """
++        values = t.cast("dict[str, t.Any]", extra)
++        return [
++            self.format_help_extra_item(key, values[key])
++            for key in self.help_extra_keys
++            if key in values
++        ]
++
++    def format_help_extra_item(self, key: str, value: t.Any) -> str:
++        """The text of one bracket item: ``env var: A, B``, ``default: 1``,
++        the bare range, ``required``. An item of another key is shown as
++        ``<key>: <value>``, a tuple or list value joined with ``, ``.
++
++        .. versionadded:: 8.6
++        """
++        if key == "envvars":
++            return _("env var: {var}").format(var=", ".join(value))
++
++        if key == "default":
++            return _("default: {default}").format(default=value)
++
++        if key == "range":
++            return str(value)
++
++        if key == "required":
++            return _(value)
++
++        if isinstance(value, (list, tuple)):
++            value = ", ".join(str(v) for v in value)
++
++        return f"{key}: {value}"
+ 
+     def prompt_for_value(self, ctx: Context) -> t.Any:
+         """This is an alternative flow that can be activated in the full
+         value processing if a value does not exist.  It will prompt the
+         user until a valid value exists and then returns the processed
+         value as result.
+-        """
+-        assert self.prompt is not None
+-
+-        # Calculate the default before prompting anything to lock in the value before
+-        # attempting any user interaction.
+-        default = self.get_default(ctx)
+-
+-        # A boolean flag can use a simplified [y/n] confirmation prompt.
+-        if self.is_bool_flag:
+-            # If we have no boolean default, we force the user to explicitly provide
+-            # one.
+-            if default in (UNSET, None):
+-                default = None
+-            # Nothing prevent you to declare an option that is simultaneously:
+-            # 1) auto-detected as a boolean flag,
+-            # 2) allowed to prompt, and
+-            # 3) still declare a non-boolean default.
+-            # This forced casting into a boolean is necessary to align any non-boolean
+-            # default to the prompt, which is going to be a [y/n]-style confirmation
+-            # because the option is still a boolean flag. That way, instead of [y/n], we
+-            # get [Y/n] or [y/N] depending on the truthy value of the default.
+-            else:
+-                default = bool(default)
+-            return confirm(self.prompt, default)
+-
+-        # If show_default is given, provide this to `prompt` as well,
+-        # otherwise we use `prompt`'s default behavior
+-        prompt_kwargs: t.Any = {}
+-        if self.show_default is not None:
+-            prompt_kwargs["show_default"] = self.show_default
+-
+-        return prompt(
+-            self.prompt,
+-            # Use ``None`` to inform the prompt() function to reiterate until a valid
+-            # value is provided by the user if we have no default.
+-            default=self._hide_unset(default),
+-            type=self.type,
+-            hide_input=self.hide_input,
+-            show_choices=self.show_choices,
+-            confirmation_prompt=self.confirmation_prompt,
+-            value_proc=lambda x: self.process_value(ctx, x),
+-            **prompt_kwargs,
+-        )
++
++        Kept for code that calls it: the prompt is asked by
++        :attr:`prompt_class`.
++        """
++        return self.prompt_class(self, ctx).ask()
+ 
+     def resolve_envvar_value(self, ctx: Context) -> str | None:
+         """:class:`Option` resolves its environment variable the same way as
+@@ -3644,7 +3782,7 @@
+         if value is FLAG_NEEDS_VALUE:
+             # If the option allows for a prompt, start an interaction with the user.
+             if self.prompt is not None and not ctx.resilient_parsing:
+-                value = self.prompt_for_value(ctx)
++                value = self.prompt_class(self, ctx).ask()
+                 source = ParameterSource.PROMPT
+             # Else the flag takes its activation value (resolves UNSET).
+             else:
+@@ -3675,7 +3813,7 @@
+             and (self.required or self.prompt_required)
+             and not ctx.resilient_parsing
+         ):
+-            value = self.prompt_for_value(ctx)
++            value = self.prompt_class(self, ctx).ask()
+             source = ParameterSource.PROMPT
+ 
+         return value, source
+diff --git a/src/click/exceptions.py b/src/click/exceptions.py
+--- a/src/click/exceptions.py
++++ b/src/click/exceptions.py
+@@ -359,6 +359,33 @@
+         )
+ 
+ 
++class TooManyAttempts(ClickException):
++    """Raised by :func:`click.prompt` and :func:`click.confirm` when the
++    user gave ``max_attempts`` invalid answers in a row. Inside a command
++    it ends the program with exit code 1 and the message
++    ``Error: Gave up after 3 invalid answers.``
++
++    :param attempts: the number of invalid answers.
++    :param last_error: the error message of the last invalid answer.
++
++    .. versionadded:: 8.6
++    """
++
++    exit_code: t.ClassVar[int] = 1
++
++    def __init__(self, attempts: int, last_error: str | None = None) -> None:
++        message = ngettext(
++            "Gave up after {attempts} invalid answer.",
++            "Gave up after {attempts} invalid answers.",
++            attempts,
++        ).format(attempts=attempts)
++        super().__init__(message)
++        #: The number of invalid answers.
++        self.attempts = attempts
++        #: The error message of the last invalid answer.
++        self.last_error = last_error
++
++
+ class Abort(RuntimeError):
+     """An internal signalling exception that signals Click to abort."""
+ 
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -1,302 +1,147 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
+-from contextlib import contextmanager
++import re
++import typing as t
+ from gettext import gettext as _
+ 
+-from ._compat import term_len
++from ._compat import strip_ansi
++
++# The help formatter and its helpers live in ``_help_formatter``; these names
++# are kept for code that imports them from here.
++from ._help_formatter import HelpFormatter as HelpFormatter
++from ._help_formatter import HelpTheme as HelpTheme
++from ._help_formatter import iter_rows as iter_rows
++from ._help_formatter import measure_table as measure_table
++from ._help_formatter import wrap_text as wrap_text
+ from .parser import _split_opt
+ 
+ # Can force a width.  This is used by the test system
+ FORCED_WIDTH: int | None = None
+ 
+ 
+-def measure_table(rows: cabc.Iterable[tuple[str, str]]) -> tuple[int, ...]:
+-    widths: dict[int, int] = {}
++def append_help_extra(help: str, items: cabc.Sequence[str],
++                      theme: HelpTheme | None = None) -> str:
++    """Appends the bracket of extra items to a help text, the way option
++    help lines show it: ``"Name.  [default: x; required]"``. Without
++    items the help text is returned as it is; without a help text the
++    bracket stands alone.
+ 
+-    for row in rows:
+-        for idx, col in enumerate(row):
+-            widths[idx] = max(widths.get(idx, 0), term_len(col))
++    :param help: the help text, may be empty.
++    :param items: the texts of the items, in order.
++    :param theme: the bracket gets the ``extra`` style of this theme.
+ 
+-    return tuple(y for x, y in sorted(widths.items()))
++    .. versionadded:: 8.6
++    """
++    if not items:
++        return help
++
++    extra_str = "; ".join(items)
++
++    if theme is not None:
++        bracket = theme.apply("extra", f"[{extra_str}]")
++        return f"{help}  {bracket}" if help else bracket
++
++    return f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
+ 
+ 
+-def iter_rows(
+-    rows: cabc.Iterable[tuple[str, str]], col_count: int
+-) -> cabc.Iterator[tuple[str, ...]]:
+-    for row in rows:
+-        yield row + ("",) * (col_count - len(row))
++class MarkdownHelpFormatter(HelpFormatter):
++    """Writes a help page as Markdown instead of terminal text. The command
++    formats its help as usual (:meth:`Command.format_help`), so every
++    section of ``--help`` is in the Markdown, in the same order:
+ 
++    -   the usage line becomes ``Usage: `cli [OPTIONS] NAME```,
++    -   texts (the help of the command, the epilog) become paragraphs,
++    -   a section heading becomes ``## Options``,
++    -   a definition list (options, arguments, commands) becomes a table
++        with the columns ``Name``, ``Description`` and ``Details``. The
++        name is code, the details are the items of the bracket at the end
++        of the help line (``default: 1; required``).
+ 
+-def wrap_text(
+-    text: str,
+-    width: int = 78,
+-    initial_indent: str = "",
+-    subsequent_indent: str = "",
+-    preserve_paragraphs: bool = False,
+-) -> str:
+-    """A helper function that intelligently wraps text.  By default, it
+-    assumes that it operates on a single paragraph of text but if the
+-    `preserve_paragraphs` parameter is provided it will intelligently
+-    handle paragraphs (defined by two empty lines).
++    Blocks are separated by one blank line. Style codes are removed, text
++    is not wrapped, and ``|`` in a cell is escaped.
+ 
+-    If paragraphs are handled, a paragraph can be prefixed with an empty
+-    line containing the ``\\b`` character (``\\x08``) to indicate that
+-    no rewrapping should happen in that block.
+-
+-    :param text: the text that should be rewrapped.
+-    :param width: the maximum width for the text.
+-    :param initial_indent: the initial indent that should be placed on the
+-                           first line as a string.
+-    :param subsequent_indent: the indent string that should be placed on
+-                              each consecutive line.
+-    :param preserve_paragraphs: if this flag is set then the wrapping will
+-                                intelligently handle paragraphs.
+-
+-    .. versionchanged:: 8.4.0
+-        Width is measured in visible characters. ANSI escape sequences in
+-        ``text``, ``initial_indent``, or ``subsequent_indent`` no longer
+-        count toward the width budget, so styled input wraps based on what
+-        the user sees instead of raw byte length.
+-    """
+-    from ._textwrap import TextWrapper
+-
+-    text = text.expandtabs()
+-    wrapper = TextWrapper(
+-        width,
+-        initial_indent=initial_indent,
+-        subsequent_indent=subsequent_indent,
+-        replace_whitespace=False,
+-    )
+-    if not preserve_paragraphs:
+-        return wrapper.fill(text)
+-
+-    p: list[tuple[int, bool, str]] = []
+-    buf: list[str] = []
+-    indent = None
+-
+-    def _flush_par() -> None:
+-        if not buf:
+-            return
+-        if buf[0].strip() == "\b":
+-            p.append((indent or 0, True, "\n".join(buf[1:])))
+-        else:
+-            p.append((indent or 0, False, " ".join(buf)))
+-        del buf[:]
+-
+-    for line in text.splitlines():
+-        if not line:
+-            _flush_par()
+-            indent = None
+-        else:
+-            if indent is None:
+-                orig_len = term_len(line)
+-                line = line.lstrip()
+-                indent = orig_len - term_len(line)
+-            buf.append(line)
+-    _flush_par()
+-
+-    rv = []
+-    for indent, raw, text in p:
+-        with wrapper.extra_indent(" " * indent):
+-            if raw:
+-                rv.append(wrapper.indent_only(text))
+-            else:
+-                rv.append(wrapper.fill(text))
+-
+-    return "\n\n".join(rv)
+-
+-
+-class HelpFormatter:
+-    """This class helps with formatting text-based help pages.  It's
+-    usually just needed for very special internal cases, but it's also
+-    exposed so that developers can write their own fancy outputs.
+-
+-    At present, it always writes into memory.
+-
+-    :param indent_increment: the additional increment for each level.
+-    :param width: the width for the text.  This defaults to the terminal
+-                  width clamped to a maximum of 78.
++    .. versionadded:: 8.6
+     """
+ 
+-    indent_increment: int
+-    width: int
+-    current_indent: int
+-    buffer: list[str]
++    _bracket = re.compile(r"(?s)^(?:(.*?)\s{2,})?\[([^\[\]]*)\]$")
+ 
+     def __init__(
+         self,
+         indent_increment: int = 2,
+         width: int | None = None,
+         max_width: int | None = None,
++        **kwargs: t.Any,
+     ) -> None:
+-        self.indent_increment = indent_increment
+-        if max_width is None:
+-            max_width = 80
+-        if width is None:
+-            import shutil
+-
+-            width = FORCED_WIDTH
+-            if width is None:
+-                width = max(min(shutil.get_terminal_size().columns, max_width) - 2, 50)
+-        self.width = width
+-        self.current_indent = 0
+-        self.buffer = []
++        super().__init__(indent_increment, width, max_width, **kwargs)
++        self.blocks: list[str] = []
+ 
+     def write(self, string: str) -> None:
+-        """Writes a unicode string into the internal buffer."""
+-        self.buffer.append(string)
++        """Raw text written by custom help code becomes a block of its own."""
++        text = strip_ansi(string).strip("\n")
+ 
+-    def indent(self) -> None:
+-        """Increases the indentation."""
+-        self.current_indent += self.indent_increment
++        if text.strip():
++            self.blocks.append(text)
+ 
+-    def dedent(self) -> None:
+-        """Decreases the indentation."""
+-        self.current_indent -= self.indent_increment
++    def write_title(self, title: str) -> None:
++        """Writes the ``# title`` line, such as the command path."""
++        self.blocks.append(f"# {strip_ansi(title)}")
+ 
+     def write_usage(self, prog: str, args: str = "", prefix: str | None = None) -> None:
+-        """Writes a usage line into the buffer.
++        if prefix is None:
++            prefix = _("Usage:")
+ 
+-        :param prog: the program name.
+-        :param args: whitespace separated list of arguments.
+-        :param prefix: The prefix for the first line. Defaults to
+-            ``"Usage: "``.
+-        """
+-        if prefix is None:
+-            prefix = "{usage} ".format(usage=_("Usage:"))
+-
+-        usage_prefix = f"{prefix:>{self.current_indent}}{prog} "
+-        text_width = self.width - self.current_indent
+-
+-        if not args:
+-            # Without args, the prefix's trailing space and the wrap_text
+-            # call that would normally place args on the line are both
+-            # unnecessary. Emit just the prefix line.
+-            self.write(usage_prefix.rstrip(" "))
+-            self.write("\n")
+-            return
+-
+-        if text_width >= (term_len(usage_prefix) + 20):
+-            # The arguments will fit to the right of the prefix.
+-            indent = " " * term_len(usage_prefix)
+-            self.write(
+-                wrap_text(
+-                    args,
+-                    text_width,
+-                    initial_indent=usage_prefix,
+-                    subsequent_indent=indent,
+-                )
+-            )
+-        else:
+-            # The prefix is too long, put the arguments on the next line.
+-            self.write(usage_prefix)
+-            self.write("\n")
+-            indent = " " * (max(self.current_indent, term_len(prefix)) + 4)
+-            self.write(
+-                wrap_text(
+-                    args, text_width, initial_indent=indent, subsequent_indent=indent
+-                )
+-            )
+-
+-        self.write("\n")
++        usage = f"{prog} {args}".strip()
++        self.blocks.append(f"{strip_ansi(prefix).strip()} `{strip_ansi(usage)}`")
+ 
+     def write_heading(self, heading: str) -> None:
+-        """Writes a heading into the buffer."""
+-        self.write(f"{'':>{self.current_indent}}{heading}:\n")
++        self.blocks.append(f"## {strip_ansi(heading)}")
+ 
+     def write_paragraph(self) -> None:
+-        """Writes a paragraph into the buffer."""
+-        if self.buffer:
+-            self.write("\n")
++        pass
+ 
+     def write_text(self, text: str) -> None:
+-        """Writes re-indented text into the buffer.  This rewraps and
+-        preserves paragraphs.
+-        """
+-        indent = " " * self.current_indent
+-        self.write(
+-            wrap_text(
+-                text,
+-                self.width,
+-                initial_indent=indent,
+-                subsequent_indent=indent,
+-                preserve_paragraphs=True,
+-            )
+-        )
+-        self.write("\n")
++        lines = [line for line in strip_ansi(text).splitlines() if line != "\b"]
++        paragraphs = "\n".join(line.strip() for line in lines).split("\n\n")
++
++        for paragraph in paragraphs:
++            if paragraph.strip():
++                self.blocks.append(paragraph.strip())
+ 
+     def write_dl(
+         self,
+         rows: cabc.Iterable[tuple[str, str]],
+         col_max: int = 30,
+         col_spacing: int = 2,
++        **kwargs: t.Any,
+     ) -> None:
+-        """Writes a definition list into the buffer.  This is how options
+-        and commands are usually formatted.
++        lines = ["| Name | Description | Details |", "| --- | --- | --- |"]
+ 
+-        :param rows: a list of two item tuples for the terms and values.
+-        :param col_max: the maximum width of the first column.
+-        :param col_spacing: the number of spaces between the first and
+-                            second column.
++        for first, second in rows:
++            help, details = self.split_help(second)
++            name = f"`{self._cell(first)}`" if first else ""
++            lines.append(f"| {name} | {self._cell(help)} | {self._cell(details)} |")
++
++        self.blocks.append("\n".join(lines))
++
++    def split_help(self, text: str) -> tuple[str, str]:
++        """Splits a help line into its text and the items of the bracket at
++        its end: ``("The name.", "default: x; required")``.
+         """
+-        rows = list(rows)
+-        widths = measure_table(rows)
+-        if len(widths) != 2:
+-            raise TypeError("Expected two columns for definition list")
++        text = strip_ansi(text).strip()
++        match = self._bracket.match(text)
+ 
+-        first_col = min(widths[0], col_max) + col_spacing
++        if match is None:
++            return text, ""
+ 
+-        for first, second in iter_rows(rows, len(widths)):
+-            self.write(f"{'':>{self.current_indent}}{first}")
+-            if not second:
+-                self.write("\n")
+-                continue
+-            if term_len(first) <= first_col - col_spacing:
+-                self.write(" " * (first_col - term_len(first)))
+-            else:
+-                self.write("\n")
+-                self.write(" " * (first_col + self.current_indent))
++        return (match.group(1) or "").strip(), match.group(2).strip()
+ 
+-            text_width = max(self.width - first_col - 2, 10)
+-            wrapped_text = wrap_text(second, text_width, preserve_paragraphs=True)
+-            lines = wrapped_text.splitlines()
+-
+-            if lines:
+-                self.write(f"{lines[0]}\n")
+-
+-                for line in lines[1:]:
+-                    self.write(f"{'':>{first_col + self.current_indent}}{line}\n")
+-            else:
+-                self.write("\n")
+-
+-    @contextmanager
+-    def section(self, name: str) -> cabc.Generator[None]:
+-        """Helpful context manager that writes a paragraph, a heading,
+-        and the indents.
+-
+-        :param name: the section name that is written as heading.
+-        """
+-        self.write_paragraph()
+-        self.write_heading(name)
+-        self.indent()
+-        try:
+-            yield
+-        finally:
+-            self.dedent()
+-
+-    @contextmanager
+-    def indentation(self) -> cabc.Generator[None]:
+-        """A context manager that increases the indentation."""
+-        self.indent()
+-        try:
+-            yield
+-        finally:
+-            self.dedent()
++    @staticmethod
++    def _cell(text: str) -> str:
++        return " ".join(strip_ansi(text).split()).replace("|", "\\|")
+ 
+     def getvalue(self) -> str:
+-        """Returns the buffer contents."""
+-        return "".join(self.buffer)
++        return "\n\n".join(self.blocks) + "\n" if self.blocks else ""
+ 
+ 
+ def join_options(options: cabc.Iterable[str]) -> tuple[str, bool]:
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -2,26 +2,21 @@
+ 
+ import collections.abc as cabc
+ import inspect
+-import io
+ import itertools
+ import os
+ import re
+ import sys
+ import typing as t
+ from contextlib import AbstractContextManager
+-from contextlib import redirect_stdout
+ from gettext import gettext as _
+ 
+-from . import _compat
++from ._prompt import _format_default as _format_default
++from ._prompt import PromptText as PromptText
++from ._prompter import Prompter as Prompter
+ from ._compat import isatty
+ from ._compat import strip_ansi
+-from .exceptions import Abort
+-from .exceptions import UsageError
+ from .globals import resolve_color_default
+-from .types import Choice
+-from .types import convert_type
+ from .types import ParamType
+-from .utils import _LazyFile
+ from .utils import echo
+ 
+ if t.TYPE_CHECKING:
+@@ -83,26 +78,10 @@
+ 
+ 
+ def _readline_prompt(func: t.Callable[[str], str], text: str, err: bool) -> str:
+-    """Call a prompt function, passing the full prompt so readline can
+-    handle line editing and cursor positioning correctly.
+-
+-    The prompt is handed to *func* (such as :func:`input`) rather than
+-    written through :func:`echo`, so it has to strip ANSI color and style
+-    codes itself when the destination stream does not support them. Without
+-    this the prompt would keep codes that :func:`echo` removes from the
+-    rest of the output.
+-    """
+-    stream = sys.stderr if err else sys.stdout
+-
+-    # Look up ``should_strip_ansi`` on the module so that ``CliRunner``,
+-    # which patches it there during test isolation, is honored.
+-    if _compat.should_strip_ansi(stream, resolve_color_default()):
+-        text = strip_ansi(text)
+-
+-    if err:
+-        with redirect_stdout(sys.stderr):
+-            return func(text)
+-    return func(text)
++    """Call a prompt function with the full prompt. Kept for code that
++    calls it: the work is done by :meth:`Prompter.readline`.
++    """
++    return Prompter.readline(func, text, err)
+ 
+ 
+ def _build_prompt(
+@@ -112,27 +91,13 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    choice_menu: bool = False,
+ ) -> str:
+-    prompt = text
+-    if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
+-    default_preview = ""
+-    if show_default:
+-        if isinstance(show_default, str):
+-            default_preview = f" [({show_default})]"
+-        elif default is not None:
+-            default_preview = f" [{_format_default(default)}]"
+-    return f"{prompt}{default_preview}{suffix}"
+-
+-
+-def _format_default(default: V) -> V | str:
+-    if isinstance(default, (io.IOBase, _LazyFile)):
+-        name = getattr(default, "name", None)
+-
+-        if name is not None:
+-            return str(name)
+-
+-    return default
++    """The text of a prompt. Kept for code that calls it: the text is built
++    by :class:`PromptText`.
++    """
++    return PromptText(text, suffix, show_default, default, show_choices, type,
++                      choice_menu=choice_menu).render()
+ 
+ 
+ @t.overload
+@@ -147,6 +112,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
++    choice_menu: bool = False,
+ ) -> str: ...
+ 
+ 
+@@ -162,6 +129,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
++    choice_menu: bool = False,
+ ) -> V: ...
+ 
+ 
+@@ -176,6 +145,8 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
++    choice_menu: bool = False,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -205,6 +176,33 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++                         Enum members are listed by their name.
++    :param max_attempts: give up after this many invalid answers (a value
++                         the type rejects, or a confirmation that does not
++                         match) and raise :exc:`TooManyAttempts`. Each error
++                         line before the last says how many attempts are
++                         left. An empty answer without a default does not
++                         count. ``None`` asks until the answer is valid.
++    :param choice_menu: With a :class:`Choice` type, show the choices as a
++                        numbered menu, one per line, before the first
++                        prompt, and accept the number of a choice as well
++                        as the choice itself. The prompt then shows the
++                        range of numbers, ``Region (1-3): ``, and a default
++                        that is one of the choices as its number. An answer
++                        that is itself a choice is that choice, so choices
++                        that are numbers keep working; another number gives
++                        the error ``9 is not a number of the menu (1-3).``
++
++    The text of the prompt is built by :class:`PromptText`, and the
++    prompt is asked by :class:`Prompter`: ``prompt(...)`` is
++    ``Prompter(...).ask()``.
++
++    .. versionchanged:: 8.6
++        Added the ``max_attempts`` parameter.
++
++    .. versionchanged:: 8.6
++        Added the ``choice_menu`` parameter. Enum choices and an enum
++        default are shown by name.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -232,58 +230,20 @@
+ 
+     """
+ 
+-    def prompt_func(text: str) -> str:
+-        f = hidden_prompt_func if hide_input else visible_prompt_func
+-        try:
+-            return _readline_prompt(f, text, err)
+-        except (KeyboardInterrupt, EOFError):
+-            # getpass doesn't print a newline if the user aborts input with ^C.
+-            # Allegedly this behavior is inherited from getpass(3).
+-            # A doc bug has been filed at https://bugs.python.org/issue24711
+-            if hide_input:
+-                echo(None, err=err)
+-            raise Abort() from None
+-
+-    if value_proc is None:
+-        value_proc = convert_type(type, default)
+-
+-    prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
+-    )
+-
+-    if confirmation_prompt:
+-        if confirmation_prompt is True:
+-            confirmation_prompt = _("Repeat for confirmation")
+-
+-        confirmation_prompt = _build_prompt(confirmation_prompt, prompt_suffix)
+-
+-    while True:
+-        while True:
+-            value = prompt_func(prompt)
+-            if value:
+-                break
+-            elif default is not None:
+-                # Defaults of any type are accepted and round trip through
+-                # value_proc like typed input, so the annotation is only
+-                # accurate for typed input.
+-                value = t.cast("str", default)
+-                break
+-        try:
+-            result = value_proc(value)
+-        except UsageError as e:
+-            message = _mask_hidden_input(e.message, value) if hide_input else e.message
+-            echo(_("Error: {message}").format(message=message), err=err)
+-            continue
+-        if not confirmation_prompt:
+-            return result
+-        while True:
+-            value2 = prompt_func(confirmation_prompt)
+-            is_empty = not value and not value2
+-            if value2 or is_empty:
+-                break
+-        if value == value2:
+-            return result
+-        echo(_("Error: The two entered values do not match."), err=err)
++    return Prompter(
++        text,
++        default,
++        hide_input,
++        confirmation_prompt,
++        type,
++        value_proc,
++        prompt_suffix,
++        show_default,
++        err,
++        show_choices,
++        max_attempts,
++        choice_menu,
++    ).ask()
+ 
+ 
+ def confirm(
+@@ -293,6 +253,7 @@
+     prompt_suffix: str = ": ",
+     show_default: bool = True,
+     err: bool = False,
++    max_attempts: int | None = None,
+ ) -> bool:
+     """Prompts for confirmation (yes/no question).
+ 
+@@ -308,6 +269,14 @@
+     :param show_default: shows or hides the default value in the prompt.
+     :param err: if set to true the file defaults to ``stderr`` instead of
+                 ``stdout``, the same as with echo.
++    :param max_attempts: give up after this many invalid answers and raise
++                         :exc:`TooManyAttempts`, as :func:`prompt` does.
++
++    The text of the question is built by :meth:`PromptText.for_confirm`,
++    and the question is asked by :meth:`Prompter.confirm`.
++
++    .. versionchanged:: 8.6
++        Added the ``max_attempts`` parameter.
+ 
+     .. versionchanged:: 8.3.1
+         A space is no longer appended to the prompt.
+@@ -318,31 +287,9 @@
+     .. versionadded:: 4.0
+         Added the ``err`` parameter.
+     """
+-    prompt = _build_prompt(
+-        text,
+-        prompt_suffix,
+-        show_default,
+-        "y/n" if default is None else ("Y/n" if default else "y/N"),
++    return Prompter.confirm(
++        text, default, abort, prompt_suffix, show_default, err, max_attempts
+     )
+-
+-    while True:
+-        try:
+-            value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+-        except (KeyboardInterrupt, EOFError):
+-            raise Abort() from None
+-        if value in ("y", "yes"):
+-            rv = True
+-        elif value in ("n", "no"):
+-            rv = False
+-        elif default is not None and value == "":
+-            rv = default
+-        else:
+-            echo(_("Error: invalid input"), err=err)
+-            continue
+-        break
+-    if abort and not rv:
+-        raise Abort()
+-    return rv
+ 
+ 
+ def get_pager_file(
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -168,6 +168,15 @@
+ 
+     def get_metavar(self, param: Parameter, ctx: Context) -> str | None:
+         """Returns the metavar default for this param if it provides one."""
++
++    def format_value(self, value: t.Any) -> str:
++        """The text that help pages and prompts show for a value of this
++        type, such as the default of an option (``[default: ...]``) or of
++        a prompt (``Size [...]: ``). The default is ``str(value)``.
++
++        .. versionadded:: 8.6
++        """
++        return str(value)
+ 
+     def get_missing_message(self, param: Parameter, ctx: Context | None) -> str | None:
+         """Optionally might return extra information about a missing
+@@ -423,6 +432,35 @@
+ 
+         return normed_value
+ 
++    def format_choice(self, choice: t.Any) -> str:
++        """The text that prompts show for one choice: the name of an enum
++        member, ``str()`` of anything else.
++
++        .. versionadded:: 8.6
++        """
++        if isinstance(choice, enum.Enum):
++            return choice.name
++
++        return str(choice)
++
++    def choice_from_number(self, answer: str) -> _ValueT_co | None:
++        """The choice that a numbered menu answer selects: ``"1"`` is the
++        first choice. ``None`` when the answer is not a number of the menu.
++
++        .. versionadded:: 8.6
++        """
++        text = answer.strip()
++
++        if not text.isdigit():
++            return None
++
++        number = int(text)
++
++        if not 1 <= number <= len(self.choices):
++            return None
++
++        return self.choices[number - 1]
++
+     def get_metavar(self, param: Parameter, ctx: Context) -> str | None:
+         if param.param_type_name == "option" and not param.show_choices:  # type: ignore[attr-defined]
+             choice_metavars = [
+@@ -814,6 +852,122 @@
+         # open float range doesn't seem to be particularly useful. It's
+         # left up to the user to write a callback to do it if needed.
+         raise RuntimeError("Clamping is not supported for open bounds.")
++
++
++_SIZE_UNITS: dict[str, int] = {
++    "": 1,
++    "b": 1,
++    "k": 1000,
++    "kb": 1000,
++    "m": 1000**2,
++    "mb": 1000**2,
++    "g": 1000**3,
++    "gb": 1000**3,
++    "t": 1000**4,
++    "tb": 1000**4,
++    "kib": 1024,
++    "mib": 1024**2,
++    "gib": 1024**3,
++    "tib": 1024**4,
++}
++
++_SIZE_NAMES = (("TiB", 1024**4), ("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024))
++
++
++def _format_size(size: int) -> str:
++    """A number of bytes in the largest binary unit it reaches, with at
++    most one decimal: ``512 B``, ``1.5 KiB``, ``10 MiB``.
++    """
++    for unit, factor in _SIZE_NAMES:
++        if abs(size) >= factor:
++            text = f"{size / factor:.1f}"
++
++            if text.endswith(".0"):
++                text = text[:-2]
++
++            return f"{text} {unit}"
++
++    return f"{size} B"
++
++
++class ByteSize(_NumberRangeBase[t.Any, int], IntParamType):
++    """A size in bytes, converted to an ``int``. It accepts a plain number
++    of bytes (``"512"``) or a number with a unit, with or without a space
++    between, in any letter case: ``B``; ``K``/``KB``, ``M``/``MB``,
++    ``G``/``GB``, ``T``/``TB`` (powers of 1000); ``KiB``, ``MiB``,
++    ``GiB``, ``TiB`` (powers of 1024). A fraction is rounded down to whole
++    bytes: ``"1.5KiB"`` is ``1536``.
++
++    ``min`` and ``max`` bound the size like an :class:`IntRange`, and may
++    be given as sizes too (``max="1GiB"``). Help pages and prompts show
++    sizes in binary units: a default of ``10485760`` shows as ``10 MiB``,
++    the range as ``x<=1 GiB``.
++
++    .. versionadded:: 8.6
++    """
++
++    name = "size"
++
++    def __init__(
++        self,
++        min: int | str | None = None,
++        max: int | str | None = None,
++        min_open: bool = False,
++        max_open: bool = False,
++        clamp: bool = False,
++    ) -> None:
++        super().__init__(
++            min=None if min is None else self._parse(min, None, None),
++            max=None if max is None else self._parse(max, None, None),
++            min_open=min_open,
++            max_open=max_open,
++            clamp=clamp,
++        )
++
++    def _parse(self, value: t.Any, param: Parameter | None, ctx: Context | None) -> int:
++        import re
++        from decimal import Decimal
++
++        if isinstance(value, int) and not isinstance(value, bool):
++            return value
++
++        match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]*)\s*", str(value))
++        unit = match.group(2).lower() if match is not None else None
++
++        if match is None or unit not in _SIZE_UNITS:
++            self.fail(
++                _("{value!r} is not a valid size.").format(value=value), param, ctx
++            )
++
++        return int(Decimal(match.group(1)) * _SIZE_UNITS[unit])
++
++    def convert(self, value: t.Any, param: Parameter | None, ctx: Context | None) -> int:
++        return super().convert(self._parse(value, param, ctx), param, ctx)
++
++    def format_value(self, value: t.Any) -> str:
++        if isinstance(value, int) and not isinstance(value, bool):
++            return _format_size(value)
++
++        return str(value)
++
++    def _describe_range(self) -> str:
++        if self.min is None and self.max is None:
++            return ""
++
++        if self.min is None:
++            op = "<" if self.max_open else "<="
++            return f"x{op}{_format_size(self.max)}"  # type: ignore[arg-type]
++
++        if self.max is None:
++            op = ">" if self.min_open else ">="
++            return f"x{op}{_format_size(self.min)}"
++
++        lop = "<" if self.min_open else "<="
++        rop = "<" if self.max_open else "<="
++        return f"{_format_size(self.min)}{lop}x{rop}{_format_size(self.max)}"
++
++    def _clamp(self, bound: int, dir: t.Literal[1, -1], open: bool) -> int:
++        return bound if not open else bound + dir
+ 
+ 
+ class BoolParamType(ParamType[bool]):
+@@ -1431,6 +1585,12 @@
+ 
+ 
+ class OptionHelpExtra(t.TypedDict, total=False):
++    """The items of the bracket at the end of an option's help line, as
++    :meth:`Option.get_help_extra` returns them. The keys and their order
++    are :attr:`Option.help_extra_keys`; a subclass of :class:`Option` can
++    add keys of its own.
++    """
++
+     envvars: tuple[str, ...]
+     default: str
+     range: str

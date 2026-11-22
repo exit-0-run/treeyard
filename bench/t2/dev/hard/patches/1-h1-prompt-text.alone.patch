@@ -1,0 +1,330 @@
+diff --git a/docs/api.md b/docs/api.md
+index df62cf5..1539144 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -86,10 +86,15 @@ classes and functions.
+ 
+ ```{eval-rst}
+ .. autofunction:: confirm
+ ```
+ 
++```{eval-rst}
++.. autoclass:: PromptText
++    :members:
++```
++
+ ```{eval-rst}
+ .. autofunction:: progressbar
+ ```
+ 
+ ```{eval-rst}
+diff --git a/docs/prompts.md b/docs/prompts.md
+index f11b416..9509692 100644
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -122,10 +122,25 @@ There is also the option to make the function automatically abort the execution
+ 
+ ```python
+ click.confirm('Do you want to continue?', abort=True)
+ ```
+ 
++## The Text of a Prompt
++
++{func}`prompt` and {func}`confirm` build the text they show with {class}`PromptText`: the question, then the choices
++of a {class}`Choice` type in parentheses, then the default in brackets, then the suffix.
++
++```python
++>>> click.PromptText("Group by", type=click.Choice(["day", "week"]), show_default=True, default="day").render()
++'Group by (day, week) [day]: '
++>>> click.PromptText.for_confirm("Continue?", default=True).render()
++'Continue? [Y/n]: '
++```
++
++Each part comes from its own method (`choices_part`, `default_part`), so a subclass can change one part and keep the
++others. This is useful to show the same text in your own messages, for example in a log of what was asked.
++
+ ## Dynamic Defaults for Prompts
+ 
+ The `auto_envvar_prefix` and `default_map` options for the context allow the program to read option values from the
+ environment or a configuration file. However, this overrides the prompting mechanism, so that the user does not get the
+ option to change the value interactively.
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+index a34ab02..4790ca9 100644
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -48,10 +48,11 @@ from .termui import get_pager_file as get_pager_file
+ from .termui import getchar as getchar
+ from .termui import launch as launch
+ from .termui import pause as pause
+ from .termui import progressbar as progressbar
+ from .termui import prompt as prompt
++from .termui import PromptText as PromptText
+ from .termui import secho as secho
+ from .termui import style as style
+ from .termui import unstyle as unstyle
+ from .types import BOOL as BOOL
+ from .types import Choice as Choice
+diff --git a/src/click/_prompt.py b/src/click/_prompt.py
+new file mode 100644
+index 0000000..d738f17
+--- /dev/null
++++ b/src/click/_prompt.py
+@@ -0,0 +1,122 @@
++"""The text of a prompt: what :func:`click.prompt` and :func:`click.confirm`
++show before they read an answer.
++
++The text is built from parts (the question, the choices, the default and the
++suffix) by :class:`PromptText`. Each part has its own method, so a subclass
++can change one part and keep the others.
++"""
++
++from __future__ import annotations
++
++import io
++import typing as t
++
++from .types import Choice
++from .utils import _LazyFile
++
++V = t.TypeVar("V")
++
++
++def _format_default(default: V) -> V | str:
++    """The default as a prompt shows it: an open file by its name, anything
++    else as it is.
++    """
++    if isinstance(default, (io.IOBase, _LazyFile)):
++        name = getattr(default, "name", None)
++
++        if name is not None:
++            return str(name)
++
++    return default
++
++
++class PromptText:
++    """The text of one prompt, built from its parts.
++
++    ``PromptText("Name", ": ", default="alice").render()`` is
++    ``"Name [alice]: "``, exactly the text that
++    ``click.prompt("Name", default="alice")`` shows.
++
++    :param text: the question.
++    :param suffix: written after everything else, such as ``": "``.
++    :param show_default: show the default in brackets. A string is shown
++        in parentheses instead of the default itself.
++    :param default: the default value.
++    :param show_choices: list the choices of a :class:`Choice` type.
++    :param type: the type of the value that is asked for.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(
++        self,
++        text: str,
++        suffix: str = ": ",
++        show_default: bool | str = False,
++        default: object | None = None,
++        show_choices: bool = True,
++        type: object | None = None,
++    ) -> None:
++        self.text = text
++        self.suffix = suffix
++        self.show_default = show_default
++        self.default = default
++        self.show_choices = show_choices
++        self.type = type
++
++    @classmethod
++    def for_confirm(
++        cls,
++        text: str,
++        default: bool | None = False,
++        suffix: str = ": ",
++        show_default: bool = True,
++    ) -> PromptText:
++        """The text of a yes/no question, as :func:`click.confirm` asks it:
++        the default is shown as ``y/n``, ``Y/n`` or ``y/N``.
++        """
++        if default is None:
++            hint = "y/n"
++        elif default:
++            hint = "Y/n"
++        else:
++            hint = "y/N"
++
++        return cls(text, suffix, show_default, hint)
++
++    def choices_part(self) -> str:
++        """The choices of a :class:`Choice` type in parentheses, with a
++        leading space, or ``""``.
++        """
++        if self.type is None or not self.show_choices:
++            return ""
++
++        if not isinstance(self.type, Choice):
++            return ""
++
++        return f" ({', '.join(map(str, self.type.choices))})"
++
++    def default_part(self) -> str:
++        """The default in brackets, with a leading space, or ``""``."""
++        if not self.show_default:
++            return ""
++
++        if isinstance(self.show_default, str):
++            return f" [({self.show_default})]"
++
++        if self.default is None:
++            return ""
++
++        return f" [{_format_default(self.default)}]"
++
++    def render(self) -> str:
++        """The whole text: the question, the choices, the default and the
++        suffix.
++        """
++        return f"{self.text}{self.choices_part()}{self.default_part()}{self.suffix}"
++
++    def __str__(self) -> str:
++        return self.render()
++
++    def __repr__(self) -> str:
++        return f"<{type(self).__name__} {self.render()!r}>"
+diff --git a/src/click/termui.py b/src/click/termui.py
+index 8fe0085..bd863f5 100644
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -1,29 +1,28 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
+ import inspect
+-import io
+ import itertools
+ import os
+ import re
+ import sys
+ import typing as t
+ from contextlib import AbstractContextManager
+ from contextlib import redirect_stdout
+ from gettext import gettext as _
+ 
+ from . import _compat
++from ._prompt import _format_default as _format_default
++from ._prompt import PromptText as PromptText
+ from ._compat import isatty
+ from ._compat import strip_ansi
+ from .exceptions import Abort
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+-from .types import Choice
+ from .types import convert_type
+ from .types import ParamType
+-from .utils import _LazyFile
+ from .utils import echo
+ 
+ if t.TYPE_CHECKING:
+     from ._termui_impl import ProgressBar
+ 
+@@ -111,30 +110,14 @@ def _build_prompt(
+     show_default: bool | str = False,
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
+ ) -> str:
+-    prompt = text
+-    if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
+-    default_preview = ""
+-    if show_default:
+-        if isinstance(show_default, str):
+-            default_preview = f" [({show_default})]"
+-        elif default is not None:
+-            default_preview = f" [{_format_default(default)}]"
+-    return f"{prompt}{default_preview}{suffix}"
+-
+-
+-def _format_default(default: V) -> V | str:
+-    if isinstance(default, (io.IOBase, _LazyFile)):
+-        name = getattr(default, "name", None)
+-
+-        if name is not None:
+-            return str(name)
+-
+-    return default
++    """The text of a prompt. Kept for code that calls it: the text is built
++    by :class:`PromptText`.
++    """
++    return PromptText(text, suffix, show_default, default, show_choices, type).render()
+ 
+ 
+ @t.overload
+ def prompt(
+     text: str,
+@@ -204,10 +187,12 @@ def prompt(
+     :param show_choices: Show or hide choices if the passed type is a Choice.
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
+ 
++    The text of the prompt is built by :class:`PromptText`.
++
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+         ``value_proc``, or ``default`` instead of being ``Any``. Runtime
+         behavior is unchanged.
+ 
+@@ -245,19 +230,19 @@ def prompt(
+             raise Abort() from None
+ 
+     if value_proc is None:
+         value_proc = convert_type(type, default)
+ 
+-    prompt = _build_prompt(
++    prompt = PromptText(
+         text, prompt_suffix, show_default, default, show_choices, type
+-    )
++    ).render()
+ 
+     if confirmation_prompt:
+         if confirmation_prompt is True:
+             confirmation_prompt = _("Repeat for confirmation")
+ 
+-        confirmation_prompt = _build_prompt(confirmation_prompt, prompt_suffix)
++        confirmation_prompt = PromptText(confirmation_prompt, prompt_suffix).render()
+ 
+     while True:
+         while True:
+             value = prompt_func(prompt)
+             if value:
+@@ -307,25 +292,22 @@ def confirm(
+     :param prompt_suffix: a suffix that should be added to the prompt.
+     :param show_default: shows or hides the default value in the prompt.
+     :param err: if set to true the file defaults to ``stderr`` instead of
+                 ``stdout``, the same as with echo.
+ 
++    The text of the question is built by :meth:`PromptText.for_confirm`.
++
+     .. versionchanged:: 8.3.1
+         A space is no longer appended to the prompt.
+ 
+     .. versionchanged:: 8.0
+         Repeat until input is given if ``default`` is ``None``.
+ 
+     .. versionadded:: 4.0
+         Added the ``err`` parameter.
+     """
+-    prompt = _build_prompt(
+-        text,
+-        prompt_suffix,
+-        show_default,
+-        "y/n" if default is None else ("Y/n" if default else "y/N"),
+-    )
++    prompt = PromptText.for_confirm(text, default, prompt_suffix, show_default).render()
+ 
+     while True:
+         try:
+             value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+         except (KeyboardInterrupt, EOFError):

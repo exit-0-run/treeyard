@@ -1,0 +1,477 @@
+diff --git a/docs/api.md b/docs/api.md
+index df62cf5..832dc6a 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -86,10 +86,15 @@ classes and functions.
+ 
+ ```{eval-rst}
+ .. autofunction:: confirm
+ ```
+ 
++```{eval-rst}
++.. autoclass:: Prompter
++    :members:
++```
++
+ ```{eval-rst}
+ .. autofunction:: progressbar
+ ```
+ 
+ ```{eval-rst}
+diff --git a/docs/prompts.md b/docs/prompts.md
+index f11b416..3398949 100644
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -122,10 +122,26 @@ There is also the option to make the function automatically abort the execution
+ 
+ ```python
+ click.confirm('Do you want to continue?', abort=True)
+ ```
+ 
++## How a Prompt Asks
++
++{func}`prompt` and {func}`confirm` hand their arguments to the class {class}`Prompter`:
++`click.prompt(...)` is `click.Prompter(...).ask()`, and `click.confirm(...)` is `click.Prompter.confirm(...)`. A
++`Prompter` reads each answer with {meth}`Prompter.read`, which a subclass can change:
++
++```python
++class LoggedPrompter(click.Prompter):
++    def read(self, text):
++        answer = super().read(text)
++        log.debug("answer to %r: %r", text, answer)
++        return answer
++
++port = LoggedPrompter("Port", type=int).ask()
++```
++
+ ## Dynamic Defaults for Prompts
+ 
+ The `auto_envvar_prefix` and `default_map` options for the context allow the program to read option values from the
+ environment or a configuration file. However, this overrides the prompting mechanism, so that the user does not get the
+ option to change the value interactively.
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+index a34ab02..302097c 100644
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -48,10 +48,11 @@ from .termui import get_pager_file as get_pager_file
+ from .termui import getchar as getchar
+ from .termui import launch as launch
+ from .termui import pause as pause
+ from .termui import progressbar as progressbar
+ from .termui import prompt as prompt
++from .termui import Prompter as Prompter
+ from .termui import secho as secho
+ from .termui import style as style
+ from .termui import unstyle as unstyle
+ from .types import BOOL as BOOL
+ from .types import Choice as Choice
+diff --git a/src/click/_prompter.py b/src/click/_prompter.py
+new file mode 100644
+index 0000000..eae3827
+--- /dev/null
++++ b/src/click/_prompter.py
+@@ -0,0 +1,206 @@
++"""The prompt loops: what :func:`click.prompt` and :func:`click.confirm` do
++after they have built their text, from reading an answer to returning a
++value.
++
++:class:`Prompter` holds the settings of one prompt. :func:`click.prompt`
++is ``Prompter(...).ask()`` and :func:`click.confirm` is
++``Prompter.confirm(...)``, so a subclass can change how an answer is
++read and keep the rest.
++"""
++
++from __future__ import annotations
++
++import sys
++import typing as t
++from contextlib import redirect_stdout
++from gettext import gettext as _
++
++from . import _compat
++from . import termui
++from ._compat import strip_ansi
++from .exceptions import Abort
++from .exceptions import UsageError
++from .globals import resolve_color_default
++from .types import convert_type
++from .types import ParamType
++from .utils import echo
++
++
++class Prompter:
++    """One prompt for a value: its settings and its loop.
++
++    The parameters are those of :func:`click.prompt`, in the same order and
++    with the same meaning; ``click.prompt(...)`` is
++    ``Prompter(...).ask()``.
++
++    The answers are read with :func:`click.termui.visible_prompt_func` or
++    :func:`click.termui.hidden_prompt_func`, looked up each time an answer
++    is read, so code that replaces them (such as :class:`click.testing.CliRunner`)
++    still works.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(
++        self,
++        text: str,
++        default: t.Any | None = None,
++        hide_input: bool = False,
++        confirmation_prompt: bool | str = False,
++        type: ParamType[t.Any] | t.Any | None = None,
++        value_proc: t.Callable[[str], t.Any] | None = None,
++        prompt_suffix: str = ": ",
++        show_default: bool | str = True,
++        err: bool = False,
++        show_choices: bool = True,
++    ) -> None:
++        self.text = text
++        self.default = default
++        self.hide_input = hide_input
++        self.confirmation_prompt = confirmation_prompt
++        self.type = type
++        self.value_proc = value_proc
++        self.prompt_suffix = prompt_suffix
++        self.show_default = show_default
++        self.err = err
++        self.show_choices = show_choices
++
++    @staticmethod
++    def readline(func: t.Callable[[str], str], text: str, err: bool) -> str:
++        """Call a prompt function, passing the full prompt so readline can
++        handle line editing and cursor positioning correctly.
++
++        The prompt is handed to *func* (such as :func:`input`) rather than
++        written through :func:`echo`, so it has to strip ANSI color and style
++        codes itself when the destination stream does not support them.
++        Without this the prompt would keep codes that :func:`echo` removes
++        from the rest of the output.
++        """
++        stream = sys.stderr if err else sys.stdout
++
++        # Look up ``should_strip_ansi`` on the module so that ``CliRunner``,
++        # which patches it there during test isolation, is honored.
++        if _compat.should_strip_ansi(stream, resolve_color_default()):
++            text = strip_ansi(text)
++
++        if err:
++            with redirect_stdout(sys.stderr):
++                return func(text)
++        return func(text)
++
++    def read(self, text: str) -> str:
++        """Read one answer to ``text``, hidden when :attr:`hide_input` is
++        set. An interrupt or the end of the input raises :exc:`Abort`.
++        """
++        f = termui.hidden_prompt_func if self.hide_input else termui.visible_prompt_func
++        try:
++            return type(self).readline(f, text, self.err)
++        except (KeyboardInterrupt, EOFError):
++            # getpass doesn't print a newline if the user aborts input with ^C.
++            # Allegedly this behavior is inherited from getpass(3).
++            # A doc bug has been filed at https://bugs.python.org/issue24711
++            if self.hide_input:
++                echo(None, err=self.err)
++            raise Abort() from None
++
++    def ask(self) -> t.Any:
++        """Ask until the answer is valid and return the converted value."""
++        default = self.default
++        value_proc = self.value_proc
++
++        if value_proc is None:
++            value_proc = convert_type(self.type, default)
++
++        prompt = termui._build_prompt(
++            self.text,
++            self.prompt_suffix,
++            self.show_default,
++            default,
++            self.show_choices,
++            self.type,
++        )
++        confirmation_prompt = self.confirmation_prompt
++
++        if confirmation_prompt:
++            if confirmation_prompt is True:
++                confirmation_prompt = _("Repeat for confirmation")
++
++            confirmation_prompt = termui._build_prompt(
++                confirmation_prompt, self.prompt_suffix
++            )
++
++        while True:
++            while True:
++                value = self.read(prompt)
++                if value:
++                    break
++                elif default is not None:
++                    # Defaults of any type are accepted and round trip through
++                    # value_proc like typed input, so the annotation is only
++                    # accurate for typed input.
++                    value = t.cast("str", default)
++                    break
++            try:
++                result = value_proc(value)
++            except UsageError as e:
++                message = (
++                    termui._mask_hidden_input(e.message, value)
++                    if self.hide_input
++                    else e.message
++                )
++                echo(_("Error: {message}").format(message=message), err=self.err)
++                continue
++            if not confirmation_prompt:
++                return result
++            while True:
++                value2 = self.read(confirmation_prompt)
++                is_empty = not value and not value2
++                if value2 or is_empty:
++                    break
++            if value == value2:
++                return result
++            echo(_("Error: The two entered values do not match."), err=self.err)
++
++    @classmethod
++    def confirm(
++        cls,
++        text: str,
++        default: bool | None = False,
++        abort: bool = False,
++        prompt_suffix: str = ": ",
++        show_default: bool = True,
++        err: bool = False,
++    ) -> bool:
++        """Ask a yes/no question; the parameters are those of
++        :func:`click.confirm`, and ``click.confirm(...)`` is
++        ``Prompter.confirm(...)``.
++        """
++        prompt = termui._build_prompt(
++            text,
++            prompt_suffix,
++            show_default,
++            "y/n" if default is None else ("Y/n" if default else "y/N"),
++        )
++
++        while True:
++            try:
++                value = (
++                    cls.readline(termui.visible_prompt_func, prompt, err)
++                    .lower()
++                    .strip()
++                )
++            except (KeyboardInterrupt, EOFError):
++                raise Abort() from None
++            if value in ("y", "yes"):
++                rv = True
++            elif value in ("n", "no"):
++                rv = False
++            elif default is not None and value == "":
++                rv = default
++            else:
++                echo(_("Error: invalid input"), err=err)
++                continue
++            break
++        if abort and not rv:
++            raise Abort()
++        return rv
+diff --git a/src/click/termui.py b/src/click/termui.py
+index 8fe0085..466c6dc 100644
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -7,21 +7,17 @@ import itertools
+ import os
+ import re
+ import sys
+ import typing as t
+ from contextlib import AbstractContextManager
+-from contextlib import redirect_stdout
+ from gettext import gettext as _
+ 
+-from . import _compat
++from ._prompter import Prompter as Prompter
+ from ._compat import isatty
+ from ._compat import strip_ansi
+-from .exceptions import Abort
+-from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
+-from .types import convert_type
+ from .types import ParamType
+ from .utils import _LazyFile
+ from .utils import echo
+ 
+ if t.TYPE_CHECKING:
+@@ -81,30 +77,14 @@ def hidden_prompt_func(prompt: str) -> str:
+ 
+     return getpass.getpass(prompt)
+ 
+ 
+ def _readline_prompt(func: t.Callable[[str], str], text: str, err: bool) -> str:
+-    """Call a prompt function, passing the full prompt so readline can
+-    handle line editing and cursor positioning correctly.
+-
+-    The prompt is handed to *func* (such as :func:`input`) rather than
+-    written through :func:`echo`, so it has to strip ANSI color and style
+-    codes itself when the destination stream does not support them. Without
+-    this the prompt would keep codes that :func:`echo` removes from the
+-    rest of the output.
++    """Call a prompt function with the full prompt. Kept for code that
++    calls it: the work is done by :meth:`Prompter.readline`.
+     """
+-    stream = sys.stderr if err else sys.stdout
+-
+-    # Look up ``should_strip_ansi`` on the module so that ``CliRunner``,
+-    # which patches it there during test isolation, is honored.
+-    if _compat.should_strip_ansi(stream, resolve_color_default()):
+-        text = strip_ansi(text)
+-
+-    if err:
+-        with redirect_stdout(sys.stderr):
+-            return func(text)
+-    return func(text)
++    return Prompter.readline(func, text, err)
+ 
+ 
+ def _build_prompt(
+     text: str,
+     suffix: str,
+@@ -204,10 +184,13 @@ def prompt(
+     :param show_choices: Show or hide choices if the passed type is a Choice.
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
+ 
++    The prompt is asked by :class:`Prompter`: ``prompt(...)`` is
++    ``Prompter(...).ask()``.
++
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+         ``value_proc``, or ``default`` instead of being ``Any``. Runtime
+         behavior is unchanged.
+ 
+@@ -230,62 +213,22 @@ def prompt(
+     .. versionadded:: 4.0
+         Added the `err` parameter.
+ 
+     """
+ 
+-    def prompt_func(text: str) -> str:
+-        f = hidden_prompt_func if hide_input else visible_prompt_func
+-        try:
+-            return _readline_prompt(f, text, err)
+-        except (KeyboardInterrupt, EOFError):
+-            # getpass doesn't print a newline if the user aborts input with ^C.
+-            # Allegedly this behavior is inherited from getpass(3).
+-            # A doc bug has been filed at https://bugs.python.org/issue24711
+-            if hide_input:
+-                echo(None, err=err)
+-            raise Abort() from None
+-
+-    if value_proc is None:
+-        value_proc = convert_type(type, default)
+-
+-    prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
+-    )
+-
+-    if confirmation_prompt:
+-        if confirmation_prompt is True:
+-            confirmation_prompt = _("Repeat for confirmation")
+-
+-        confirmation_prompt = _build_prompt(confirmation_prompt, prompt_suffix)
+-
+-    while True:
+-        while True:
+-            value = prompt_func(prompt)
+-            if value:
+-                break
+-            elif default is not None:
+-                # Defaults of any type are accepted and round trip through
+-                # value_proc like typed input, so the annotation is only
+-                # accurate for typed input.
+-                value = t.cast("str", default)
+-                break
+-        try:
+-            result = value_proc(value)
+-        except UsageError as e:
+-            message = _mask_hidden_input(e.message, value) if hide_input else e.message
+-            echo(_("Error: {message}").format(message=message), err=err)
+-            continue
+-        if not confirmation_prompt:
+-            return result
+-        while True:
+-            value2 = prompt_func(confirmation_prompt)
+-            is_empty = not value and not value2
+-            if value2 or is_empty:
+-                break
+-        if value == value2:
+-            return result
+-        echo(_("Error: The two entered values do not match."), err=err)
++    return Prompter(
++        text,
++        default,
++        hide_input,
++        confirmation_prompt,
++        type,
++        value_proc,
++        prompt_suffix,
++        show_default,
++        err,
++        show_choices,
++    ).ask()
+ 
+ 
+ def confirm(
+     text: str,
+     default: bool | None = False,
+@@ -307,44 +250,22 @@ def confirm(
+     :param prompt_suffix: a suffix that should be added to the prompt.
+     :param show_default: shows or hides the default value in the prompt.
+     :param err: if set to true the file defaults to ``stderr`` instead of
+                 ``stdout``, the same as with echo.
+ 
++    The question is asked by :meth:`Prompter.confirm`.
++
+     .. versionchanged:: 8.3.1
+         A space is no longer appended to the prompt.
+ 
+     .. versionchanged:: 8.0
+         Repeat until input is given if ``default`` is ``None``.
+ 
+     .. versionadded:: 4.0
+         Added the ``err`` parameter.
+     """
+-    prompt = _build_prompt(
+-        text,
+-        prompt_suffix,
+-        show_default,
+-        "y/n" if default is None else ("Y/n" if default else "y/N"),
+-    )
+-
+-    while True:
+-        try:
+-            value = _readline_prompt(visible_prompt_func, prompt, err).lower().strip()
+-        except (KeyboardInterrupt, EOFError):
+-            raise Abort() from None
+-        if value in ("y", "yes"):
+-            rv = True
+-        elif value in ("n", "no"):
+-            rv = False
+-        elif default is not None and value == "":
+-            rv = default
+-        else:
+-            echo(_("Error: invalid input"), err=err)
+-            continue
+-        break
+-    if abort and not rv:
+-        raise Abort()
+-    return rv
++    return Prompter.confirm(text, default, abort, prompt_suffix, show_default, err)
+ 
+ 
+ def get_pager_file(
+     color: bool | None = None,
+ ) -> t.ContextManager[t.TextIO]:

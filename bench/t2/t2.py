@@ -58,9 +58,10 @@ VENV = "requests-venv"
 TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
 # Sets beyond the two of preregistration v3, defined in sibling modules `taskdefs_<name>.py` (only the
-# development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py). Their tasks/<repo>/<set>/set.json holds the set-level
-# settings: agent count, harness slots, limits, integration tests (`set_spec`).
-EXTRA_SETS = ("mixed", "heavy")
+# development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py, dev/taskdefs_hard.py). Their
+# tasks/<repo>/<set>/set.json holds the set-level settings: agent count, harness slots, limits, integration tests
+# (`set_spec`).
+EXTRA_SETS = ("mixed", "heavy", "hard")
 ARMS = ("A", "A2", "B", "BN")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 # BN: arm B connected in native mode (`connect --native`): each agent edits and tests a directory of its own
 # with its own tools and sends the result with the bridge's `sync` and `land`. Not in preregistration v3.

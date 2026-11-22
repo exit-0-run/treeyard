@@ -1,0 +1,17 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 4,
+  "id": "h5-prompt-attempts",
+  "title": "Prompts: give up after a number of invalid answers",
+  "files": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_h5_prompt_attempts.py"
+}

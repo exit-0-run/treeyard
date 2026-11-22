@@ -1,0 +1,280 @@
+diff --git a/docs/documentation.md b/docs/documentation.md
+--- a/docs/documentation.md
++++ b/docs/documentation.md
+@@ -191,6 +191,22 @@
+    invoke(dots, args=['--help'])
+ ```
+ 
++## How Defaults Are Shown
++
++The help bracket and prompts show a default through two functions of the module `click._default_text`:
++`default_help_text(option, ctx)` is the text of the `default` item of the option's help bracket (`2` in
++`[default: 2]`), or `None` when the help shows no default, and `default_prompt_text(value, type)` is the text that a
++prompt shows between the brackets for its default value (`alice` in `Name [alice]: `).
++
++```python
++from click._default_text import default_help_text, default_prompt_text
++
++opt = click.Option(["--n"], default=2, show_default=True)
++ctx = click.Context(click.Command("cli", params=[opt]))
++assert default_help_text(opt, ctx) == "2"
++assert default_prompt_text("alice") == "alice"
++```
++
+ ## Showing Environment Variables
+ 
+ To control the appearance of environment variables pass `show_envvar`.
+diff --git a/src/click/_default_text.py b/src/click/_default_text.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_default_text.py
+@@ -0,0 +1,130 @@
++"""The text of a default value: what the help bracket of an option and the
++brackets of a prompt show for it.
++
++:meth:`Option.get_help_extra <click.Option.get_help_extra>` takes the
++``default`` item from :func:`default_help_text`, and :func:`click.prompt`
++shows :func:`default_prompt_text` between the brackets of its default, so
++both rules live here.
++"""
++
++from __future__ import annotations
++
++import enum
++import inspect
++import io
++import typing as t
++from gettext import gettext as _
++
++from ._utils import UNSET
++from .parser import _split_opt
++from .types import ParamType
++from .utils import _LazyFile
++
++if t.TYPE_CHECKING:
++    from .core import Context
++    from .core import Option
++
++
++def default_help_text(option: Option, ctx: Context) -> str | None:
++    """The text of the ``default`` item of an option's help bracket (``2``
++    in ``[default: 2]``), or ``None`` when the help shows no default.
++
++    The default is shown when the option's ``show_default`` (or else the
++    context's) says so. A ``show_default`` string is shown in parentheses
++    instead of the value. The default of a hidden input shows as
++    ``(hidden)``, and a value as the type's
++    :meth:`~click.ParamType.format_value` text.
++
++    .. versionadded:: 8.6
++    """
++    # The rules read the option the way its own methods do.
++    self = option
++
++    # Temporarily enable resilient parsing to avoid type casting
++    # failing for the default. Might be possible to extend this to
++    # help formatting in general.
++    resilient = ctx.resilient_parsing
++    ctx.resilient_parsing = True
++
++    try:
++        default_value = self.get_default(ctx, call=False)
++    finally:
++        ctx.resilient_parsing = resilient
++
++    show_default = False
++    show_default_is_str = False
++
++    if self.show_default is not None:
++        if isinstance(self.show_default, str):
++            show_default_is_str = show_default = True
++        else:
++            show_default = self.show_default
++    elif ctx.show_default is not None:
++        show_default = ctx.show_default
++
++    if not show_default_is_str and not (
++        show_default and (default_value not in (None, UNSET))
++    ):
++        return None
++
++    if show_default_is_str:
++        default_string = f"({self.show_default})"
++    elif isinstance(default_value, (list, tuple)):
++        default_string = ", ".join(
++            str(self.type.format_value(d)) for d in default_value
++        )
++    elif isinstance(default_value, enum.Enum):
++        default_string = default_value.name
++    elif inspect.isfunction(default_value):
++        default_string = _("(dynamic)")
++    elif self.is_bool_flag and self.secondary_opts:
++        # For boolean flags that have distinct True/False opts,
++        # use the opt without prefix instead of the value.
++        default_string = _split_opt(
++            (self.opts if default_value else self.secondary_opts)[0]
++        )[1]
++    elif self.is_bool_flag and not self.secondary_opts and not default_value:
++        default_string = ""
++    elif isinstance(default_value, str) and default_value == "":
++        default_string = '""'
++    else:
++        default_string = str(self.type.format_value(default_value))
++
++    # The default of a hidden input is a secret: show that there is
++    # one, never its value. A ``show_default`` string is not the value.
++    if self.hide_input and not show_default_is_str and default_string:
++        default_string = _("(hidden)")
++
++    return default_string or None
++
++
++def default_prompt_text(default: t.Any, type: t.Any | None = None) -> str:
++    """The text that a prompt shows between the brackets for its default
++    (``alice`` in ``Name [alice]: ``): an enum member by its name, an open
++    file by its name, a value of a :class:`ParamType` as its
++    :meth:`~ParamType.format_value` text, ``str()`` of anything else.
++
++    :param default: the default of the prompt.
++    :param type: the ``type`` of the prompt, a :class:`ParamType` or
++        ``None``.
++
++    .. versionadded:: 8.6
++    """
++    return str(_prompt_default(default, type))
++
++
++def _prompt_default(default: t.Any, type: t.Any | None = None) -> t.Any:
++    """The rules of :func:`default_prompt_text`, before ``str()``."""
++    if isinstance(default, enum.Enum):
++        return default.name
++
++    if isinstance(default, (io.IOBase, _LazyFile)):
++        name = getattr(default, "name", None)
++
++        if name is not None:
++            return str(name)
++
++    if isinstance(type, ParamType):
++        return type.format_value(default)
++
++    return default
+diff --git a/src/click/_prompt.py b/src/click/_prompt.py
+--- a/src/click/_prompt.py
++++ b/src/click/_prompt.py
+@@ -8,14 +8,11 @@
+ 
+ from __future__ import annotations
+ 
+-import enum
+-import io
+ import typing as t
+ from gettext import gettext as _
+ 
++from ._default_text import default_prompt_text
+ from .types import Choice
+-from .types import ParamType
+-from .utils import _LazyFile
+ 
+ V = t.TypeVar("V")
+ 
+@@ -26,20 +23,11 @@
+ 
+     A value of a :class:`ParamType` is shown as its
+     :meth:`~ParamType.format_value` text, an enum member by its name.
++
++    Kept for code that calls it: the text is
++    :func:`~click._default_text.default_prompt_text`.
+     """
+-    if isinstance(default, enum.Enum):
+-        return default.name
+-
+-    if isinstance(default, (io.IOBase, _LazyFile)):
+-        name = getattr(default, "name", None)
+-
+-        if name is not None:
+-            return str(name)
+-
+-    if isinstance(type, ParamType):
+-        return type.format_value(default)
+-
+-    return default
++    return default_prompt_text(default, type)
+ 
+ 
+ class PromptText:
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -23,6 +23,7 @@
+ from . import types
+ from ._utils import FLAG_NEEDS_VALUE
+ from ._compat import term_len
++from ._default_text import default_help_text
+ from ._help_formatter import HelpFormatter
+ from ._option_prompt import OptionPrompt
+ from ._utils import UNSET
+@@ -3629,62 +3630,7 @@
+ 
+         .. versionadded:: 8.6
+         """
+-        # Temporarily enable resilient parsing to avoid type casting
+-        # failing for the default. Might be possible to extend this to
+-        # help formatting in general.
+-        resilient = ctx.resilient_parsing
+-        ctx.resilient_parsing = True
+-
+-        try:
+-            default_value = self.get_default(ctx, call=False)
+-        finally:
+-            ctx.resilient_parsing = resilient
+-
+-        show_default = False
+-        show_default_is_str = False
+-
+-        if self.show_default is not None:
+-            if isinstance(self.show_default, str):
+-                show_default_is_str = show_default = True
+-            else:
+-                show_default = self.show_default
+-        elif ctx.show_default is not None:
+-            show_default = ctx.show_default
+-
+-        if not show_default_is_str and not (
+-            show_default and (default_value not in (None, UNSET))
+-        ):
+-            return None
+-
+-        if show_default_is_str:
+-            default_string = f"({self.show_default})"
+-        elif isinstance(default_value, (list, tuple)):
+-            default_string = ", ".join(
+-                str(self.type.format_value(d)) for d in default_value
+-            )
+-        elif isinstance(default_value, enum.Enum):
+-            default_string = default_value.name
+-        elif inspect.isfunction(default_value):
+-            default_string = _("(dynamic)")
+-        elif self.is_bool_flag and self.secondary_opts:
+-            # For boolean flags that have distinct True/False opts,
+-            # use the opt without prefix instead of the value.
+-            default_string = _split_opt(
+-                (self.opts if default_value else self.secondary_opts)[0]
+-            )[1]
+-        elif self.is_bool_flag and not self.secondary_opts and not default_value:
+-            default_string = ""
+-        elif isinstance(default_value, str) and default_value == "":
+-            default_string = '""'
+-        else:
+-            default_string = str(self.type.format_value(default_value))
+-
+-        # The default of a hidden input is a secret: show that there is
+-        # one, never its value. A ``show_default`` string is not the value.
+-        if self.hide_input and not show_default_is_str and default_string:
+-            default_string = _("(hidden)")
+-
+-        return default_string or None
++        return default_help_text(self, ctx)
+ 
+     def get_help_extra_range(self, ctx: Context) -> str | None:
+         """The description of a range type, such as ``1<=x<=5``.

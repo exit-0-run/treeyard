@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 13,
+  "id": "h14-default-text",
+  "title": "Refactor: the text of a default",
+  "files": [
+    "docs/documentation.md",
+    "src/click/_default_text.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_h14_default_text.py"
+}

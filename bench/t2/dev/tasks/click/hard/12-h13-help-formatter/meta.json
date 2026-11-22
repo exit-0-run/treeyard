@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 12,
+  "id": "h13-help-formatter",
+  "title": "Refactor: the help formatter in its own module",
+  "files": [
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "src/click/formatting.py"
+  ],
+  "test": "tests/test_t2_h13_help_formatter.py"
+}

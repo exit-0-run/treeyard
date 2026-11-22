@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 10,
+  "id": "h11-prompter",
+  "title": "Refactor: the prompt loop",
+  "files": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompter.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_h11_prompter.py"
+}

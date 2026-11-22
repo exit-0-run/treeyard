@@ -1,0 +1,295 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -261,6 +261,15 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: Secret
++```
++
++```{eval-rst}
++.. autoclass:: SecretStr
++   :members: reveal
++```
++
++```{eval-rst}
+ .. autoclass:: ParamType
+    :members:
+ ```
+diff --git a/docs/option-decorators.md b/docs/option-decorators.md
+--- a/docs/option-decorators.md
++++ b/docs/option-decorators.md
+@@ -44,6 +44,25 @@
+         click.echo(f"encoded: to {codecs.encode(password, 'rot13')}")
+ ```
+ 
++### Secrets
++
++The default of an option with `hide_input=True` is never shown: the help shows `[default: (hidden)]` and the prompt
++`Password [(hidden)]: `. A `show_default` string is shown as given, since it is not the value. An error about a value
++given for such an option, from the prompt, the command line or an environment variable, shows `'***'` in place of the
++value: `Error: Invalid value for '--pin': '***' is not a valid integer.`
++
++For values that must not leak after they are read either, use the {class}`Secret` type. The value is a
++{class}`SecretStr`: echoing it, logging it or formatting it in a message shows `***`, and
++{meth}`SecretStr.reveal` returns the real value. An option of this type always hides its input.
++
++```python
++@click.command()
++@click.option("--token", type=click.Secret(), prompt=True)
++def login(token):
++    click.echo(f"Logging in with {token}")  # Logging in with ***
++    connect(token.reveal())
++```
++
+ ## Confirmation Option
+ 
+ For dangerous operations, it's very useful to be able to ask a user for confirmation. This can be done by adding a
+diff --git a/docs/parameter-types.md b/docs/parameter-types.md
+--- a/docs/parameter-types.md
++++ b/docs/parameter-types.md
+@@ -150,6 +150,11 @@
+ 
+ ```{eval-rst}
+ *   .. autoclass:: Path
++       :noindex:
++```
++
++```{eval-rst}
++*   .. autoclass:: Secret
+        :noindex:
+ ```
+ 
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -63,6 +63,8 @@
+ from .types import IntRange as IntRange
+ from .types import ParamType as ParamType
+ from .types import Path as Path
++from .types import Secret as Secret
++from .types import SecretStr as SecretStr
+ from .types import STRING as STRING
+ from .types import Tuple as Tuple
+ from .types import UNPROCESSED as UNPROCESSED
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -37,6 +37,7 @@
+ from .globals import push_context
+ from .parser import _OptionParser
+ from .parser import _split_opt
++from .termui import _mask_hidden_input
+ from .termui import confirm
+ from .termui import prompt
+ from .termui import style
+@@ -2916,6 +2917,11 @@
+         without a value.
+     :param hide_input: If this is ``True`` then the input on the prompt
+         will be hidden from the user. This is useful for password input.
++        The default of such an option is never shown: the help and the
++        prompt show ``(hidden)`` in its place, and :meth:`to_info_dict`
++        reports it as ``(hidden)``. An error about a value that was given
++        for it shows ``'***'`` in place of the value. An option of type
++        :class:`Secret` always hides its input.
+     :param is_flag: forces this option to act as a flag.  The default is
+                     auto detection.
+     :param flag_value: which value should be used for this flag if it's
+@@ -3037,6 +3043,10 @@
+         # when this option is a flag or a count.
+         self.type = self._pick_type(type, flag_value, count, self.is_flag)
+ 
++        # A secret is never shown: its input is hidden like a password's.
++        if isinstance(self.type, types.Secret):
++            self.hide_input = True
++
+         # Phase 4: store the raw ``flag_value`` and ``count`` settings.
+         # ``self.flag_value`` and ``self.default`` deliberately keep the :data:`UNSET`
+         # sentinel when the user didn't pass them. Auto-derived values are resolved
+@@ -3217,6 +3227,8 @@
+             count=self.count,
+             hidden=self.hidden,
+         )
++        if self.hide_input and info_dict["default"] is not None:
++            info_dict["default"] = _("(hidden)")
+         return info_dict
+ 
+     def get_default(
+@@ -3485,6 +3497,11 @@
+             else:
+                 default_string = str(default_value)
+ 
++            # The default of a hidden input is a secret: show that there is
++            # one, never its value. A ``show_default`` string is not the value.
++            if self.hide_input and not show_default_is_str and default_string:
++                default_string = _("(hidden)")
++
+             if default_string:
+                 extra["default"] = default_string
+ 
+@@ -3692,7 +3709,14 @@
+             return value
+ 
+         # in the normal case, rely on Parameter.process_value
+-        return super().process_value(ctx, value)
++        try:
++            return super().process_value(ctx, value)
++        except BadParameter as e:
++            # The value of a hidden input must not show up in its error
++            # message either, whether it came from a prompt or not.
++            if self.hide_input and isinstance(value, str) and value:
++                e.message = _mask_hidden_input(e.message, value)
++            raise
+ 
+ 
+ class Argument(Parameter):
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -21,6 +21,7 @@
+ from .types import Choice
+ from .types import convert_type
+ from .types import ParamType
++from .types import Secret
+ from .utils import _LazyFile
+ from .utils import echo
+ 
+@@ -112,6 +113,7 @@
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    hide_default: bool = False,
+ ) -> str:
+     prompt = text
+     if type is not None and show_choices and isinstance(type, Choice):
+@@ -120,6 +122,8 @@
+     if show_default:
+         if isinstance(show_default, str):
+             default_preview = f" [({show_default})]"
++        elif default is not None and hide_default:
++            default_preview = " [{hidden}]".format(hidden=_("(hidden)"))
+         elif default is not None:
+             default_preview = f" [{_format_default(default)}]"
+     return f"{prompt}{default_preview}{suffix}"
+@@ -187,7 +191,9 @@
+     :param default: the default value to use if no input happens.  If this
+                     is not given it will prompt until it's aborted.
+     :param hide_input: if this is set to true then the input value will
+-                       be hidden.
++                       be hidden, and a default is shown as ``(hidden)``
++                       instead of its value. A :class:`Secret` type always
++                       hides the input.
+     :param confirmation_prompt: Prompt a second time to confirm the
+         value. Can be set to a string instead of ``True`` to customize
+         the message.
+@@ -206,6 +212,9 @@
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
+ 
++    .. versionchanged:: 8.6
++        The default of a hidden input is shown as ``(hidden)``.
++
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+         ``value_proc``, or ``default`` instead of being ``Any``. Runtime
+@@ -244,11 +253,20 @@
+                 echo(None, err=err)
+             raise Abort() from None
+ 
++    if isinstance(type, Secret):
++        hide_input = True
++
+     if value_proc is None:
+         value_proc = convert_type(type, default)
+ 
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        hide_default=hide_input,
+     )
+ 
+     if confirmation_prompt:
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -513,6 +513,74 @@
+             matched = (c for c in str_choices if c.lower().startswith(incomplete))
+ 
+         return [CompletionItem(c) for c in matched]
++
++
++class SecretStr:
++    """A string that keeps its value out of output: ``str()`` and ``repr()``
++    show ``***``, so echoing it, logging it or putting it in an error
++    message does not leak it. :meth:`reveal` returns the value.
++
++    Two secrets are equal when their values are equal. A secret is true
++    when its value is not empty, and its ``len`` is that of its value.
++
++    .. versionadded:: 8.6
++    """
++
++    __slots__ = ("_value",)
++
++    def __init__(self, value: str) -> None:
++        self._value = str(value)
++
++    def reveal(self) -> str:
++        """The value of the secret."""
++        return self._value
++
++    def __str__(self) -> str:
++        return "***"
++
++    def __repr__(self) -> str:
++        return "SecretStr('***')"
++
++    def __eq__(self, other: object) -> bool:
++        if isinstance(other, SecretStr):
++            return self._value == other._value
++
++        return NotImplemented
++
++    def __hash__(self) -> int:
++        return hash(self._value)
++
++    def __len__(self) -> int:
++        return len(self._value)
++
++    def __bool__(self) -> bool:
++        return bool(self._value)
++
++
++class Secret(ParamType[SecretStr]):
++    """A text value that must not be shown: a password, a token, a key.
++    The value is a :class:`SecretStr`. An option of this type hides its
++    input when it prompts and never shows its default, the same as an
++    option with ``hide_input=True``.
++
++    .. versionadded:: 8.6
++    """
++
++    name = "secret"
++
++    def convert(
++        self, value: t.Any, param: Parameter | None, ctx: Context | None
++    ) -> SecretStr:
++        if isinstance(value, SecretStr):
++            return value
++
++        return SecretStr(STRING.convert(value, param, ctx))
++
++    def get_metavar(self, param: Parameter, ctx: Context) -> str | None:
++        return "SECRET"
++
++    def __repr__(self) -> str:
++        return "SECRET"
+ 
+ 
+ class DateTimeInfoDict(ParamTypeInfoDict):

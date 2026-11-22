@@ -1,0 +1,13 @@
+# A byte size parameter type
+
+Add a parameter type `click.ByteSize` to `src/click/types.py` (exported from `click`, an `autoclass` entry in the Types section of `docs/api.md` after `FloatRange`, in the list of types of `docs/parameter-types.md`, and a section "Byte Sizes" there with an example). It converts a size to a number of bytes (an `int`), and it is a range type like `IntRange`.
+
+- Accepted: a whole number of bytes (`"512"`, or an `int`), or a number (fractions allowed) followed by a unit, with or without a space, in any letter case, with spaces around ignored: `B`; `K`/`KB`, `M`/`MB`, `G`/`GB`, `T`/`TB` (powers of 1000); `KiB`, `MiB`, `GiB`, `TiB` (powers of 1024). A fraction of a byte is rounded down: `"1.5KiB"` is 1536, `"1.9B"` is 1. Anything else (negative numbers included) fails with `'<value>' is not a valid size.` (the value as given, in `repr` form).
+- `ByteSize(min=None, max=None, min_open=False, max_open=False, clamp=False)` bounds the size as `IntRange` does; `min` and `max` may be sizes (`max="1GiB"`) and are stored as bytes. The name of the type is `"size"` (so the metavar is `SIZE`).
+- Sizes are shown in binary units: the largest of TiB, GiB, MiB, KiB that the size reaches, with at most one decimal and no `.0` (`1.5 KiB`, `10 MiB`, `1 GiB`), else bytes (`512 B`). The range description uses that form: `repr(click.ByteSize(min=1024, max="10MiB"))` is `<ByteSize 1 KiB<=x<=10 MiB>`, the help bracket shows `x<=1 GiB`, the error `... is not in the range x<=1 GiB.`
+- A `ByteSize` without `min` and without `max` has no range item in the help bracket at all: not `x>=0`, although negative sizes are rejected, and not any other range text. For example `click.Option(["--any"], type=click.ByteSize()).get_help_extra(ctx)` is `{}`, and its help line has no bracket.
+- Help pages and prompts show values through a new method `ParamType.format_value(value) -> str`: the text for a value of the type, `str(value)` by default. `ByteSize.format_value` shows an `int` as a size (`10485760` as `10 MiB`) and anything else with `str()`. The `default` item of an option's help uses it for the default (each element for a list or tuple default, joined with `, `), and `click.prompt` uses it for the default it shows when `type` is a `ParamType`: `click.prompt("Size", type=click.ByteSize(), default=10485760)` shows `Size [10 MiB]: `.
+
+An option `--cache` with `type=click.ByteSize(max="1GiB"), default=10 * 1024**2, show_default=True` shows `[default: 10 MiB; x<=1 GiB]`. Document `format_value` in the section on custom types too.
+
+Keep the existing behaviour otherwise. Finish the work completely.

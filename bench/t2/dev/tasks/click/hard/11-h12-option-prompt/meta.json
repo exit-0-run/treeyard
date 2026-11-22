@@ -1,0 +1,13 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 11,
+  "id": "h12-option-prompt",
+  "title": "Refactor: how an option prompts",
+  "files": [
+    "docs/prompts.md",
+    "src/click/_option_prompt.py",
+    "src/click/core.py"
+  ],
+  "test": "tests/test_t2_h12_option_prompt.py"
+}

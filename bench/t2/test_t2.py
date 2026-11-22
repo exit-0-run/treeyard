@@ -1249,7 +1249,7 @@ class DevMixedTests(unittest.TestCase):
         self.assertEqual((spec["agents"], len(spec["mix"]), spec["mix"].count("claude"), spec["mix"].count("codex")), (10, 10, 6, 4))
         self.assertEqual(spec["limits"], MIXED_LIMITS)
         self.assertEqual(len(k.task_dirs("click", "mixed")), 10)
-        self.assertEqual(k.sets_of("click"), ["mixed", "heavy"])
+        self.assertEqual(k.sets_of("click"), ["mixed", "heavy", "hard"])
         pairs = {it["id"]: it["pair"] for it in spec["integration"]}
         self.assertEqual(len(pairs), 6)
         for it in spec["integration"]:
@@ -1283,7 +1283,7 @@ class DevMixedTests(unittest.TestCase):
             r = subprocess.run([sys.executable, str(kit / "t2.py"), "generate", "--scratch", os.environ["T2_SCRATCH"], "--repo", "click"],
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr)
-            for man in ("MANIFEST.json", "MANIFEST-mixed.json", "MANIFEST-heavy.json"):
+            for man in ("MANIFEST.json", "MANIFEST-mixed.json", "MANIFEST-heavy.json", "MANIFEST-hard.json"):
                 self.assertEqual((kit / "dev" / "tasks" / man).read_text(), (k.DEV / "tasks" / man).read_text(), man)
                 for rel in json.loads((k.DEV / "tasks" / man).read_text()):
                     self.assertEqual((kit / rel).read_bytes(), (k.HERE / rel).read_bytes(), rel)
@@ -1345,6 +1345,75 @@ class DevHeavyTests(unittest.TestCase):
         self.assertEqual(ops, [{"op": "create", "file": "n.py", "text": "a\nb\n"},
                                {"op": "replace", "file": "f", "old": "x\ny\nz\n", "new": "x\nY\nz\n"},
                                {"op": "replace", "file": "f", "old": "p\nr\n", "new": "p\nq\nr\n"}])
+
+
+class DevHardTests(unittest.TestCase):
+    """The `hard` set of the development set (dev/taskdefs_hard.py, dev/hard/, dev/tasks/click/hard)."""
+
+    def setUp(self):
+        self.saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        k.select_kit(["click"])
+
+    def tearDown(self):
+        for n, v in self.saved.items():
+            setattr(k, n, v)
+
+    def td(self):
+        return [m for m in k.extra_taskdefs() if "hard" in m.SETS][0]
+
+    def heavy(self):
+        return [m for m in k.extra_taskdefs() if "heavy" in m.SETS][0]
+
+    def test_files_match_their_manifest(self):
+        manifest = json.loads((k.DEV / "tasks" / "MANIFEST-hard.json").read_text())
+        self.assertEqual(sum(1 for p in manifest if p.endswith("prompt.md")), 13)
+        for rel, digest in manifest.items():
+            self.assertTrue(rel.startswith("dev/tasks/click/hard/"), rel)
+            self.assertEqual(k.sha256(k.HERE / rel), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", (k.HERE / rel).read_text().lower(), rel)
+
+    def test_set_json(self):
+        spec = k.set_spec(k.TASKS_DIR, "click", "hard")
+        self.assertEqual((spec["agents"], spec["mix"]), (13, ["claude"] * 13))
+        self.assertGreaterEqual(spec["limits"]["timeout_s"], 1800)
+        self.assertEqual(len(spec["integration"]), 21)
+        for it in spec["integration"]:
+            d = k.TASKS_DIR / "click" / "hard" / "integration" / it["id"]
+            self.assertTrue((d / "hidden" / it["test"]).is_file())
+            for p in it["pair"]:
+                self.assertTrue((d / f"without-{p}.patch").is_file(), (it["id"], p))
+
+    def test_heavy_tasks_are_kept_without_the_control(self):
+        hard = {t["id"]: t for t in self.td().TASKS["click"]["hard"]}
+        heavy = {t["id"]: t for t in self.heavy().TASKS["click"]["heavy"]}
+        self.assertEqual(sorted(set(heavy) - set(hard)), ["h4-nushell"])
+        for tid, t in heavy.items():
+            if tid == "h4-nushell":
+                continue
+            self.assertEqual(hard[tid]["test"], t["test"], tid)
+            self.assertEqual(hard[tid]["edits"], t["edits"], tid)
+            if tid != "h7-byte-size":
+                self.assertEqual(hard[tid]["prompt"], t["prompt"], tid)
+        h7 = hard["h7-byte-size"]["prompt"]
+        self.assertIn("\n- A `ByteSize` without `min` and without `max` has no range item", h7)
+
+    def test_each_new_refactor_has_three_integration_partners(self):
+        spec = k.set_spec(k.TASKS_DIR, "click", "hard")
+        ids = self.td().IDS
+        for tid in ("h11-prompter", "h12-option-prompt", "h13-help-formatter", "h14-default-text"):
+            kk = ids.index(tid) + 1
+            partners = {p for it in spec["integration"] for p in it["pair"] if kk in it["pair"] and p != kk}
+            self.assertGreaterEqual(len(partners), 3, tid)
+            self.assertRegex(self.td().PROMPTS[tid][1], r"\n\nKeep ", tid)
+
+    def test_refactors_come_last_and_step_on_the_features(self):
+        tasks = self.td().TASKS["click"]["hard"]
+        self.assertEqual([t["id"] for t in tasks[-4:]],
+                         ["h11-prompter", "h12-option-prompt", "h13-help-formatter", "h14-default-text"])
+        for t in tasks[-4:]:
+            self.assertIn("combined_edits", t, t["id"])
+        self.assertEqual(sorted(self.td().WITHOUT["click"]["hard"]), list(range(1, 14)))
 
 
 if __name__ == "__main__":

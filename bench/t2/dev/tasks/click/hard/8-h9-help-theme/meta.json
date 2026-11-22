@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "hard",
+  "k": 8,
+  "id": "h9-help-theme",
+  "title": "Help pages: themes",
+  "files": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py"
+  ],
+  "test": "tests/test_t2_h9_help_theme.py"
+}

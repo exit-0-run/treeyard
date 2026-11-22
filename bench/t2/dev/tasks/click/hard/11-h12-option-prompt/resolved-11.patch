@@ -1,0 +1,266 @@
+diff --git a/docs/prompts.md b/docs/prompts.md
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -218,6 +218,29 @@
+ port = LoggedPrompter("Port", type=int).ask()
+ ```
+ 
++## Custom Option Prompts
++
++An option asks its prompt through the class in its `prompt_class` attribute, by default
++`click._option_prompt.OptionPrompt`. `OptionPrompt(option, ctx).ask()` computes the default once
++(`get_default()`), then calls {func}`confirm` with `confirm_kwargs(default)` for a boolean flag, or {func}`prompt`
++with `prompt_kwargs(default)` for any other option. A subclass changes one step and keeps the rest:
++
++```python
++from click._option_prompt import OptionPrompt
++
++class ErrPrompt(OptionPrompt):
++    def prompt_kwargs(self, default):
++        return {**super().prompt_kwargs(default), "err": True}
++
++class ErrOption(click.Option):
++    prompt_class = ErrPrompt
++
++@click.command()
++@click.option("--name", prompt=True, cls=ErrOption)
++def hello(name):
++    click.echo(f"Hello {name}!")
++```
++
+ ## Dynamic Defaults for Prompts
+ 
+ The `auto_envvar_prefix` and `default_map` options for the context allow the program to read option values from the
+diff --git a/src/click/_option_prompt.py b/src/click/_option_prompt.py
+new file mode 100644
+--- /dev/null
++++ b/src/click/_option_prompt.py
+@@ -0,0 +1,119 @@
++"""How an :class:`~click.Option` prompts for its value.
++
++:meth:`Option.consume_value <click.Option.consume_value>` asks through
++``option.prompt_class(option, ctx).ask()``; :class:`OptionPrompt` is the
++default class. Its steps are methods, so a subclass can change one of
++them (the default offered, the arguments of the prompt) and keep the
++others.
++"""
++
++from __future__ import annotations
++
++import typing as t
++
++from . import termui
++from ._utils import UNSET
++
++if t.TYPE_CHECKING:
++    from .core import Context
++    from .core import Option
++
++
++class OptionPrompt:
++    """The prompt of one option in one context.
++
++    :param option: the option that prompts.
++    :param ctx: the context of the command that is being invoked.
++
++    .. versionadded:: 8.6
++    """
++
++    def __init__(self, option: Option, ctx: Context) -> None:
++        self.option = option
++        self.ctx = ctx
++
++    def get_default(self) -> t.Any:
++        """The default that the prompt offers, computed before anything is
++        asked to lock in the value. For a boolean flag it is ``None`` when
++        there is no default (the user must answer), else a ``bool``.
++        """
++        default = self.option.get_default(self.ctx)
++
++        # A boolean flag can use a simplified [y/n] confirmation prompt.
++        if self.option.is_bool_flag:
++            # If we have no boolean default, we force the user to explicitly provide
++            # one.
++            if default in (UNSET, None):
++                return None
++            # Nothing prevent you to declare an option that is simultaneously:
++            # 1) auto-detected as a boolean flag,
++            # 2) allowed to prompt, and
++            # 3) still declare a non-boolean default.
++            # This forced casting into a boolean is necessary to align any non-boolean
++            # default to the prompt, which is going to be a [y/n]-style confirmation
++            # because the option is still a boolean flag. That way, instead of [y/n], we
++            # get [Y/n] or [y/N] depending on the truthy value of the default.
++            return bool(default)
++
++        return default
++
++    def confirm_kwargs(self, default: bool | None) -> dict[str, t.Any]:
++        """The keyword arguments of :func:`click.confirm` for a boolean
++        flag, given the default from :meth:`get_default`.
++        """
++        return _confirm_kwargs(self.option, default)
++
++    def prompt_kwargs(self, default: t.Any) -> dict[str, t.Any]:
++        """The keyword arguments of :func:`click.prompt` for an option that
++        is not a boolean flag, given the default from :meth:`get_default`.
++        """
++        return _prompt_kwargs(self.option, self.ctx, default)
++
++    def ask(self) -> t.Any:
++        """Prompt and return the processed value: :func:`click.confirm`
++        for a boolean flag, :func:`click.prompt` for any other option.
++        """
++        assert self.option.prompt is not None
++        default = self.get_default()
++
++        if self.option.is_bool_flag:
++            return termui.confirm(self.option.prompt, **self.confirm_kwargs(default))
++
++        return termui.prompt(self.option.prompt, **self.prompt_kwargs(default))
++
++
++# The two calls as ``Option.prompt_for_value`` made them, with the option as
++# ``self``; ``confirm`` and ``prompt`` here only collect their arguments.
++
++
++def _confirm_kwargs(self: Option, default: bool | None) -> dict[str, t.Any]:
++    def confirm(text: str | None, default: bool | None, **kwargs: t.Any) -> dict[str, t.Any]:
++        return {"default": default, **kwargs}
++
++    return confirm(self.prompt, default, max_attempts=self.prompt_attempts)
++
++
++def _prompt_kwargs(self: Option, ctx: Context, default: t.Any) -> dict[str, t.Any]:
++    def prompt(text: str | None, **kwargs: t.Any) -> dict[str, t.Any]:
++        return kwargs
++
++    # If show_default is given, provide this to `prompt` as well,
++    # otherwise we use `prompt`'s default behavior
++    prompt_kwargs: t.Any = {}
++    if self.show_default is not None:
++        prompt_kwargs["show_default"] = self.show_default
++
++    return prompt(
++        self.prompt,
++        # Use ``None`` to inform the prompt() function to reiterate until a valid
++        # value is provided by the user if we have no default.
++        default=self._hide_unset(default),
++        type=self.type,
++        hide_input=self.hide_input,
++        show_choices=self.show_choices,
++        confirmation_prompt=self.confirmation_prompt,
++        value_proc=lambda x: self.process_value(ctx, x),
++        max_attempts=self.prompt_attempts,
++        choice_menu=self.prompt_menu,
++        **prompt_kwargs,
++    )
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -23,6 +23,7 @@
+ from . import types
+ from ._utils import FLAG_NEEDS_VALUE
+ from ._compat import term_len
++from ._option_prompt import OptionPrompt
+ from ._utils import UNSET
+ from .exceptions import Abort
+ from .exceptions import BadParameter
+@@ -42,8 +43,6 @@
+ from .parser import _OptionParser
+ from .parser import _split_opt
+ from .termui import _mask_hidden_input
+-from .termui import confirm
+-from .termui import prompt
+ from .termui import style
+ from .utils import _detect_program_name
+ from .utils import _expand_args
+@@ -3095,6 +3094,13 @@
+ 
+     param_type_name = "option"
+ 
++    #: The class that asks the prompt of this option, see
++    #: :class:`~click._option_prompt.OptionPrompt`. A subclass changes how
++    #: its options prompt by setting a subclass of it here.
++    #:
++    #: .. versionadded:: 8.6
++    prompt_class: t.ClassVar[type[OptionPrompt]] = OptionPrompt
++
+     prompt: str | None
+     confirmation_prompt: bool | str
+     prompt_required: bool
+@@ -3744,51 +3750,11 @@
+         value processing if a value does not exist.  It will prompt the
+         user until a valid value exists and then returns the processed
+         value as result.
+-        """
+-        assert self.prompt is not None
+-
+-        # Calculate the default before prompting anything to lock in the value before
+-        # attempting any user interaction.
+-        default = self.get_default(ctx)
+-
+-        # A boolean flag can use a simplified [y/n] confirmation prompt.
+-        if self.is_bool_flag:
+-            # If we have no boolean default, we force the user to explicitly provide
+-            # one.
+-            if default in (UNSET, None):
+-                default = None
+-            # Nothing prevent you to declare an option that is simultaneously:
+-            # 1) auto-detected as a boolean flag,
+-            # 2) allowed to prompt, and
+-            # 3) still declare a non-boolean default.
+-            # This forced casting into a boolean is necessary to align any non-boolean
+-            # default to the prompt, which is going to be a [y/n]-style confirmation
+-            # because the option is still a boolean flag. That way, instead of [y/n], we
+-            # get [Y/n] or [y/N] depending on the truthy value of the default.
+-            else:
+-                default = bool(default)
+-            return confirm(self.prompt, default, max_attempts=self.prompt_attempts)
+-
+-        # If show_default is given, provide this to `prompt` as well,
+-        # otherwise we use `prompt`'s default behavior
+-        prompt_kwargs: t.Any = {}
+-        if self.show_default is not None:
+-            prompt_kwargs["show_default"] = self.show_default
+-
+-        return prompt(
+-            self.prompt,
+-            # Use ``None`` to inform the prompt() function to reiterate until a valid
+-            # value is provided by the user if we have no default.
+-            default=self._hide_unset(default),
+-            type=self.type,
+-            hide_input=self.hide_input,
+-            show_choices=self.show_choices,
+-            confirmation_prompt=self.confirmation_prompt,
+-            value_proc=lambda x: self.process_value(ctx, x),
+-            max_attempts=self.prompt_attempts,
+-            choice_menu=self.prompt_menu,
+-            **prompt_kwargs,
+-        )
++
++        Kept for code that calls it: the prompt is asked by
++        :attr:`prompt_class`.
++        """
++        return self.prompt_class(self, ctx).ask()
+ 
+     def resolve_envvar_value(self, ctx: Context) -> str | None:
+         """:class:`Option` resolves its environment variable the same way as
+@@ -3882,7 +3848,7 @@
+         if value is FLAG_NEEDS_VALUE:
+             # If the option allows for a prompt, start an interaction with the user.
+             if self.prompt is not None and not ctx.resilient_parsing:
+-                value = self.prompt_for_value(ctx)
++                value = self.prompt_class(self, ctx).ask()
+                 source = ParameterSource.PROMPT
+             # Else the flag takes its activation value (resolves UNSET).
+             else:
+@@ -3913,7 +3879,7 @@
+             and (self.required or self.prompt_required)
+             and not ctx.resilient_parsing
+         ):
+-            value = self.prompt_for_value(ctx)
++            value = self.prompt_class(self, ctx).ask()
+             source = ParameterSource.PROMPT
+ 
+         return value, source
