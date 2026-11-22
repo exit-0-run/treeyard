@@ -5,6 +5,10 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Fixed
+- A bridge killed in the middle of a land (also by `SIGKILL`) no longer leaves its land test running:
+  the test runs under a shell guard that kills its process group when the bridge's pipe closes.
+
 ## [0.2.0] - 2026-11-22
 
 Everything since 0.1.3: `treeyard connect` and the agent tool set, the bridge's `checkout`, the

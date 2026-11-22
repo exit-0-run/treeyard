@@ -725,3 +725,42 @@ fn the_api_mode_runs_the_land_test_in_its_checkout() {
     assert_eq!(ch["tested"]["command"], "./run_tests.sh");
     b.close();
 }
+
+// ---- the bridge's death (job of the traffic runs) ---------------------------------------------
+
+/// True while a process with this pid exists (`kill -0`).
+fn alive(pid: &str) -> bool {
+    Command::new("kill").args(["-0", pid]).stderr(Stdio::null()).status().unwrap().success()
+}
+
+#[test]
+fn a_killed_bridge_leaves_no_land_test_running() {
+    // A harness that gives up on a bridge kills it (SIGKILL) in the middle of a land; the land
+    // test ran in a process group of its own and lived on after the bridge.
+    let marks = tempfile::tempdir().unwrap();
+    let pidf = marks.path().join("test.pid");
+    let w = gated(&format!("sleep 60 & echo $! > {}; wait", pidf.display()), 120);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "slow");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let msg = json!({"jsonrpc": "2.0", "id": 99, "method": "tools/call", "params": {"name": "land", "arguments": {"change": id}}});
+    writeln!(b.stdin, "{msg}").unwrap();
+    let t0 = std::time::Instant::now();
+    let pid = loop {
+        if let Ok(p) = std::fs::read_to_string(&pidf)
+            && !p.trim().is_empty()
+        {
+            break p.trim().to_string();
+        }
+        assert!(t0.elapsed().as_secs() < 30, "the land test never started");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    assert!(alive(&pid));
+    b.child.kill().unwrap();
+    b.child.wait().unwrap();
+    let t1 = std::time::Instant::now();
+    while alive(&pid) && t1.elapsed().as_secs() < 10 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert!(!alive(&pid), "the land test outlived its bridge");
+}

@@ -51,16 +51,32 @@ pub struct Run {
     pub seconds: f64,
 }
 
+/// The shell around the land test: the test runs in the background of a group leader that also
+/// watches its stdin, a pipe from the bridge that the bridge never writes. When the bridge dies
+/// for any reason (SIGKILL included) the pipe closes and the watcher kills the whole group, so no
+/// test outlives the bridge that started it. The exit status is the test's.
+const GUARD: &str = r#"exec 3<&0 </dev/null
+sh -c "$1" 3<&- &
+c=$!
+{ read -r _ <&3; kill -KILL 0; } &
+w=$!
+wait "$c"
+s=$?
+kill "$w" 2>/dev/null
+exit "$s""#;
+
 /// Runs `command` with `sh -c` in `dir`, output to `log`, killed (with its process group) after
-/// `timeout`.
+/// `timeout`, or as soon as this process dies (`GUARD`).
 pub fn run(command: &str, dir: &Path, timeout: Duration, log: &Path) -> Result<Run> {
     let t0 = Instant::now();
     let out = std::fs::File::create(log).with_context(|| format!("create {}", log.display()))?;
     let mut child = Command::new("sh")
         .arg("-c")
+        .arg(GUARD)
+        .arg("treeyard-land-test")
         .arg(command)
         .current_dir(dir)
-        .stdin(Stdio::null())
+        .stdin(Stdio::piped())
         .stdout(out.try_clone()?)
         .stderr(out)
         .env("TREEYARD_LAND_TEST", "1")
@@ -81,20 +97,26 @@ pub fn run(command: &str, dir: &Path, timeout: Duration, log: &Path) -> Result<R
         }
         std::thread::sleep(Duration::from_millis(50));
     };
+    // The pipe closes here: a watcher still alive kills what is left of the group.
+    drop(child.stdin.take());
     let mut f = std::fs::File::open(log)?;
     let bytes = f.metadata()?.len();
     let start = bytes.saturating_sub(OUTPUT_CAP as u64);
     f.seek(SeekFrom::Start(start))?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf)?;
-    let mut tail = String::from_utf8_lossy(&buf).into_owned();
-    if start > 0
-        && let Some(i) = tail.find('\n')
-    {
-        tail = tail[i + 1..].to_string();
-    }
+    let tail = tail_lines(&buf, start > 0);
     let passed = status.is_some_and(|s| s.success());
     Ok(Run { passed, timed_out, code: status.and_then(|s| s.code()), tail, bytes, seconds: t0.elapsed().as_secs_f64() })
+}
+
+/// The text of the end of an output; `cut` drops the first, partial line.
+pub fn tail_lines(buf: &[u8], cut: bool) -> String {
+    let mut tail = String::from_utf8_lossy(buf).into_owned();
+    if cut && let Some(i) = tail.find('\n') {
+        tail = tail[i + 1..].to_string();
+    }
+    tail
 }
 
 /// What `land` needs from the caller: `prepare` rebases the change onto main and writes the
