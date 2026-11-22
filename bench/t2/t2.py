@@ -94,6 +94,15 @@ def treeyard_bin():
     return Path(os.environ.get("T2_TREEYARD") or ROOT / "target" / "debug" / "treeyard")
 
 
+def binary_id(path):
+    """The treeyard binary a run used: its sha256 and `--version` (empty when it does not exist)."""
+    path = Path(path)
+    if not path.is_file():
+        return {"treeyard_sha256": None, "treeyard_version": None}
+    r = subprocess.run([str(path), "--version"], capture_output=True, text=True)
+    return {"treeyard_sha256": sha256(path), "treeyard_version": r.stdout.strip() or None}
+
+
 class Stop(Exception):
     """An anomaly: the whole run stops with a non-zero exit and a reason line."""
 
@@ -3110,6 +3119,8 @@ class Run:
         if not adir or not adir.exists():
             return
         for box in (adir / "box").glob("*") if (adir / "box").exists() else []:
+            if self.arm == "BN":
+                self.keep_start_dirs(box)
             for sub in ("home", "tmp", "venv", "target", "cargo"):
                 p = box / sub
                 if p.is_symlink() or p.is_file():
@@ -3124,6 +3135,24 @@ class Run:
         shutil.move(str(adir), str(dst))
         if self.made_root and self.made_root.exists() and not any(self.made_root.iterdir()):
             self.made_root.rmdir()
+
+    def keep_start_dirs(self, box):
+        """Arm BN: each `start` directory of the agent (and its manifest, follow-up and stale copies) goes to
+        `box/start/` before TMPDIR is deleted, without build caches, so unsent edits can be audited."""
+        root = box / "tmp" / f"treeyard-checkouts-{os.getuid()}"
+        if not root.is_dir():
+            return
+        dst = box / "start"
+        skip = shutil.ignore_patterns(*KIT_IGNORE_DIRS, "*.pyc", "*.pyo", ".DS_Store")
+        for p in sorted(root.iterdir()):
+            try:
+                if p.is_dir() and not p.is_symlink():
+                    shutil.copytree(p, dst / p.name, symlinks=True, ignore=skip)
+                elif p.is_file() and p.name.endswith(".native.json"):
+                    dst.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(p, dst / p.name)
+            except OSError as e:
+                self.note(f"start dir not archived: {p.name}: {e}")
 
     def scrub(self, text):
         """Run files are published: local paths become placeholders."""
@@ -3151,6 +3180,7 @@ class Run:
         service = None
         try:
             self.setup()
+            result.update(binary_id(self.ty if Path(self.ty).exists() else treeyard_bin()))
             result["agent_area"] = "system temp dir" if self.made_root else ("--agent-root" if self.agent_root_arg else "scratch")
             result["agents"] = [{"k": a["k"], "agent": a["agent"], "harness": a["harness"], "id": a["id"],
                                  "prompt_sha256": sha_text(self.prompt(a))} for a in self.agents]
@@ -3538,6 +3568,62 @@ def recount_metrics(runs_dir, results_dirs, out_dir=None):
     return rows
 
 
+def main_health(scratch, run, repo, s, tasks_dir=None, spec=None):
+    """Every state of main in a finished run (`<run>/final`, first-parent commits after the pin): the hidden
+    tests of the tasks and the set's integration tests at each commit. A test that passed at one commit and
+    fails at a later one is a break (`breaks`: test, from, to; `transient` when it passes again later).
+    Reads the run directory only; works in a clone in the system temp directory."""
+    tasks_dir = tasks_dir or TASKS_DIR
+    spec = spec or REPOS[repo]
+    final = Path(run) / "final"
+    commits = git("rev-list", "--first-parent", "--reverse", f"{spec['rev']}..HEAD", cwd=final).stdout.split()
+    tests = []
+    for td in sorted((p for p in (tasks_dir / repo / s).iterdir() if p.is_dir() and p.name.split("-")[0].isdigit()),
+                     key=lambda p: int(p.name.split("-")[0])):
+        m = json.loads((td / "meta.json").read_text())
+        tests.append((m["id"], td / "hidden" / m["test"], m["test"], m))
+    for it in set_spec(tasks_dir, repo, s)["integration"]:
+        src = tasks_dir / repo / s / "integration" / it["id"] / "hidden" / it["test"]
+        tests.append((it["id"], src, it["test"], {"repo": repo, "test": it["test"]}))
+    work = Path(tempfile.mkdtemp(prefix="t2-health-"))
+    wt = work / "tree"
+    rows = []
+    try:
+        git("clone", "-q", "--no-checkout", str(final), str(wt), cwd=work)
+        for c in commits:
+            git("checkout", "-q", "-f", "--detach", c, cwd=wt)
+            git("clean", "-fdxq", cwd=wt)
+            passed = {}
+            for tid, src, rel, m in tests:
+                dst = wt / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dst)
+                ok, _, _ = run_cmd_spec(spec, spec["decide"], wt, scratch, m)
+                passed[tid] = ok
+                git("checkout", "-q", "-f", c, "--", ".", cwd=wt)
+                git("clean", "-fdxq", cwd=wt)
+            subject = git("log", "-1", "--format=%s", c, cwd=wt).stdout.strip()
+            rows.append({"commit": c[:12], "subject": subject, "passed": passed})
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    breaks = []
+    for tid, *_ in tests:
+        seq = [r["passed"][tid] for r in rows]
+        for i in range(1, len(seq)):
+            if seq[i - 1] and not seq[i]:
+                back = next((j for j in range(i + 1, len(seq)) if seq[j]), None)
+                breaks.append({"test": tid, "from": rows[i]["commit"], "subject": rows[i]["subject"],
+                               "to": rows[back]["commit"] if back is not None else None, "transient": back is not None})
+    ids = [t[0] for t in tests]
+    print("| commit | subject | " + " | ".join(ids) + " |")
+    print("|---" * (len(ids) + 2) + "|")
+    for r in rows:
+        print(f"| {r['commit']} | {r['subject'][:50]} | " + " | ".join("ok" if r["passed"][i] else "FAIL" for i in ids) + " |")
+    for b in breaks:
+        print(f"break: {b['test']} at {b['from']} ({b['subject'][:60]})" + (f", passes again at {b['to']}" if b["transient"] else ", never again"))
+    return {"rows": rows, "breaks": breaks}
+
+
 def recount(runs_dir, results_dirs=()):
     """Tokens of old runs from their transcripts, counted the old way and the new way (`parse_line`).
     Prints one row per run directory and the B / A ratio per set; changes no file."""
@@ -3683,6 +3769,11 @@ def main(argv=None):
     p.add_argument("--only", action="append")
     p = sub.add_parser("budget")
     p.add_argument("--pilot", required=True, type=Path)
+    p = sub.add_parser("health", help="hidden and integration tests at every state of main of a finished run")
+    p.add_argument("--scratch", required=True, type=Path)
+    p.add_argument("--run", required=True, type=Path, help="the runner's directory of the run (it holds final/)")
+    p.add_argument("--repo", required=True, choices=list(REPOS) + list(DEV_REPOS))
+    p.add_argument("--set", required=True, choices=list(SETS) + list(EXTRA_SETS))
     p = sub.add_parser("recount", help="tokens of old runs from their transcripts: old count against new")
     p.add_argument("--runs", required=True, type=Path, help="a directory of run directories (agent-N.jsonl)")
     p.add_argument("--results", action="append", type=Path, help="run files to show the recorded total from")
@@ -3707,6 +3798,9 @@ def main(argv=None):
     if a.cmd == "budget":
         budget(a.pilot)
         return
+    if a.cmd == "health":
+        select_kit([a.repo])
+        return main_health(a.scratch.resolve(), a.run.resolve(), a.repo, a.set)
     if a.cmd == "recount":
         if a.metrics:
             if not a.results:

@@ -94,6 +94,11 @@ cwd, server, metrics, hand-back and stops. What differs:
   `agent_land_conflicts` and `land_refused` count conflict and markers-left replies (per agent in
   `warnings`). `undoes_held` (per agent `lands[].undoes_held_changes`) counts the distinct changes held by
   the agent's land or the runner's; `undoes_held_runner` is the runner's alone, what arm B counts.
+- Every run file records the binary: `treeyard_sha256`, `treeyard_version`. Arm BN archives each start
+  directory (with its manifest and stale copies, without caches) in `agents/box/agent-<k>/start/`.
+- `health --scratch S --run S/t2/runner/<run> --repo R --set SET` runs the hidden and integration tests at
+  every first-parent commit of the run's final main (in a clone in the temp directory) and lists the
+  breaks: a test that passed and fails at a later commit, transient when it passes again.
 - `recount --metrics --runs S/t2/runner --results DIR [--out DIR2]` counts these again for finished arm B
   and BN runs from their run files and transcripts, without a run: one row per run (with the recorded
   values), and with `--out` the recounted run files (the originals stay; `false_alarms` keeps its value).

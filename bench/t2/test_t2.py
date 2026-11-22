@@ -286,6 +286,12 @@ class ArmBNTests(StubBase):
         ev = k.tool_events("claude", (self.tmp / "run" / "agent-2.jsonl").read_text().splitlines())
         self.assertEqual([e["op"] for e in ev if e["op"]], ["start", "sync"])
         self.assertTrue(res["warned"] >= 1, "sync replies carry the collisions")
+        self.assertEqual(res["treeyard_sha256"], k.sha256(k.treeyard_bin()), "the binary the run used")
+        self.assertTrue(res["treeyard_version"].startswith("treeyard "), res["treeyard_version"])
+        # every start directory is in the archive, without caches
+        starts = list((self.tmp / "run" / "agents" / "box").glob("agent-*/start/ch_*"))
+        self.assertEqual(len([p for p in starts if p.is_dir()]), 5, starts)
+        self.assertTrue(all((p / "a.txt").is_file() for p in starts if p.is_dir()))
 
     @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
     def test_codex_dialect_leaves_markers_and_the_land_is_refused(self):
@@ -371,6 +377,25 @@ class ArmBNTests(StubBase):
             os.environ.pop("T2_DRY", None)
             k.sh([str(r.ty), "disconnect", "--purge"], cwd=r.repo_dir, check=False)
             r.archive()
+
+
+class HealthTests(StubBase):
+    def test_a_transient_break_on_main_is_found(self):
+        spec, tasks = oracle_world(self.tmp / "w")
+        final = self.tmp / "run" / "final"
+        k.git("clone", "-q", spec["local_src"], str(final), cwd=self.tmp)
+        k.git("config", "user.email", "t@example.com", cwd=final)
+        k.git("config", "user.name", "t", cwd=final)
+        f = final / "a.txt"
+        for lines, msg in ((["task 1", "line 2"], "one"), (["line 1", "task 2"], "two drops one"), (["task 1", "task 2"], "one back")):
+            f.write_text("".join(x + "\n" for x in lines + ["line 3", "line 4", "line 5"]))
+            k.git("commit", "-q", "-am", msg, cwd=final)
+        before = k.git("status", "--porcelain", cwd=final).stdout
+        with contextlib.redirect_stdout(io.StringIO()):
+            h = k.main_health(self.tmp, self.tmp / "run", "mini", "colliding", tasks_dir=tasks, spec=spec)
+        self.assertEqual([r["passed"]["t1"] for r in h["rows"]], [True, False, True])
+        self.assertEqual([(b["test"], b["subject"], b["transient"]) for b in h["breaks"]], [("t1", "two drops one", True)])
+        self.assertEqual(k.git("status", "--porcelain", cwd=final).stdout, before, "the run directory is only read")
 
 
 class ArmBUndoesTests(StubBase):
