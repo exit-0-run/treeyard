@@ -1,0 +1,1122 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "live_tokens": 952350,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 914944,
+   "tokens_fresh_in": 82405,
+   "tokens_in": 997349,
+   "tokens_out": 6502,
+   "tool_calls": 27,
+   "turns": 27,
+   "wall_s": 184.45
+  },
+  {
+   "cost_usd": 0.286417,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 33942,
+   "tokens_cached_in": 376914,
+   "tokens_fresh_in": 33966,
+   "tokens_in": 410880,
+   "tokens_out": 11291,
+   "tool_calls": 18,
+   "turns": 19,
+   "wall_s": 67.33
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "live_tokens": 833519,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 768384,
+   "tokens_fresh_in": 105697,
+   "tokens_in": 874081,
+   "tokens_out": 9535,
+   "tool_calls": 20,
+   "turns": 20,
+   "wall_s": 235.56
+  },
+  {
+   "cost_usd": 0.215745,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 29268,
+   "tokens_cached_in": 321530,
+   "tokens_fresh_in": 29288,
+   "tokens_in": 350818,
+   "tokens_out": 6648,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 50.25
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "live_tokens": 430448,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 414976,
+   "tokens_fresh_in": 51039,
+   "tokens_in": 466015,
+   "tokens_out": 3745,
+   "tool_calls": 12,
+   "turns": 12,
+   "wall_s": 100.15
+  },
+  {
+   "cost_usd": 0.291688,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 36271,
+   "tokens_cached_in": 504284,
+   "tokens_fresh_in": 36299,
+   "tokens_in": 540583,
+   "tokens_out": 9612,
+   "tool_calls": 22,
+   "turns": 23,
+   "wall_s": 69.52
+  },
+  {
+   "cost_usd": 0.404204,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 47140,
+   "tokens_cached_in": 903342,
+   "tokens_fresh_in": 47180,
+   "tokens_in": 950522,
+   "tokens_out": 12523,
+   "tool_calls": 29,
+   "turns": 30,
+   "wall_s": 89.67
+  },
+  {
+   "cost_usd": 0.290074,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 37990,
+   "tokens_cached_in": 406898,
+   "tokens_fresh_in": 38012,
+   "tokens_in": 444910,
+   "tokens_out": 9738,
+   "tool_calls": 17,
+   "turns": 18,
+   "wall_s": 67.38
+  },
+  {
+   "cost_usd": 0.560623,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 62092,
+   "tokens_cached_in": 1344049,
+   "tokens_fresh_in": 62142,
+   "tokens_in": 1406191,
+   "tokens_out": 17775,
+   "tool_calls": 32,
+   "turns": 33,
+   "wall_s": 124.23
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "live_tokens": 1003820,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 1008768,
+   "tokens_fresh_in": 37128,
+   "tokens_in": 1045896,
+   "tokens_out": 5859,
+   "tool_calls": 28,
+   "turns": 28,
+   "wall_s": 166.17
+  }
+ ],
+ "agents": [
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "3b35555103fb94e5bbc0307afd57e9ea97049c91610340b16be0d37e7afde39a"
+  },
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "083e92c3f57b3c5c689380392dd3974a845e18ceda65b7e6ade2a227d394ddcf"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "1ffe9c3171fe23700ae02c58dd49c42b40994858fde0a334a3d808ec88240b81"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "c2684f6e6dd44d5354cc611d0e851f6c06cf46b3a971f7838517b8b29e644a1b"
+  },
+  {
+   "agent": "codex-3",
+   "harness": "codex",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "2359ab5b47f4377b327f0531455889b341f9641d821aa2e7873559a191091e98"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "a58414610dfb4688ef99f2596024ace7834b517033e3f9f6b111816b41264fc7"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "f76df827ab86dd7a6fa2e0c6ae8186a1a5125764406e33b8b5a0b8819b0e0143"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "0df552a2a68331c80cc1266ac3db07e8ec5f11093e5ae9bfa90a433fd5c40caf"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "f91184df99ebd62be4777bb1221faaae6a58fe09d6997474aa1cd17247b6097b"
+  },
+  {
+   "agent": "codex-4",
+   "harness": "codex",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "3b2959e94b11079f1672171a9a3054ccd98cf84f7d1e9469fdcf03366adc7513"
+  }
+ ],
+ "arm": "B",
+ "arm_block_sha256": "d2e43d9915f0d380773b3378ad66d36b3561668fba0445923fc5530325752ab4",
+ "block_sha256": "d2e43d9915f0d380773b3378ad66d36b3561668fba0445923fc5530325752ab4",
+ "by_harness": {
+  "claude": {
+   "agents": 6,
+   "cost_usd": 2.048751,
+   "tokens_cache_write": 246703,
+   "tokens_cached_in": 3857017,
+   "tokens_fresh_in": 246887,
+   "tokens_in": 4103904,
+   "tokens_out": 67587,
+   "tool_calls": 131,
+   "turns": 137
+  },
+  "codex": {
+   "agents": 4,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 3107072,
+   "tokens_fresh_in": 276269,
+   "tokens_in": 3383341,
+   "tokens_out": 25641,
+   "tool_calls": 87,
+   "turns": 87
+  }
+ },
+ "cost_usd": 2.048751,
+ "cost_usd_claude_only": 2.048751,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": false,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 9,
+ "guard": {
+  "1": {
+   "added": 197,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 47,
+   "test_added": 27
+  },
+  "10": {
+   "added": 167,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 47
+  },
+  "2": {
+   "added": 145,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 37,
+   "test_added": 17
+  },
+  "3": {
+   "added": 186,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 10,
+   "test_added": 61
+  },
+  "4": {
+   "added": 184,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 2,
+   "test_added": 38
+  },
+  "5": {
+   "added": 139,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 26
+  },
+  "6": {
+   "added": 157,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 14,
+   "test_added": 43
+  },
+  "7": {
+   "added": 247,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 6,
+   "test_added": 73
+  },
+  "8": {
+   "added": 200,
+   "files": 5,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 58
+  },
+  "9": {
+   "added": 196,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 6,
+   "test_added": 54
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 1,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_4bf58939cc7d",
+     "error": "Error: change ch_4bf58939cc7d is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_5149e47e530c",
+     "error": "Error: change ch_5149e47e530c is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_0dbb6ca3db27",
+     "error": "Error: change ch_0dbb6ca3db27 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_48382bff4718",
+     "error": "Error: change ch_48382bff4718 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_0d98cdee149b",
+     "error": "Error: change ch_0d98cdee149b is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_0d1063d5cd8e",
+     "error": "Error: change ch_0d1063d5cd8e is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_f1d6c9fb092f",
+     "error": "Error: change ch_f1d6c9fb092f is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_4c49175487fb",
+     "error": "Error: change ch_4c49175487fb is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_af606d280ebb",
+     "error": "Error: change ch_af606d280ebb is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_5ea744245b39",
+     "error": "Error: change ch_5ea744245b39 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": []
+  }
+ ],
+ "legacy_false_alarms": 12,
+ "legacy_reacted": 9,
+ "legacy_true_conflict_pairs": [
+  "1-3",
+  "1-5",
+  "1-7",
+  "1-8",
+  "2-10",
+  "2-3",
+  "2-7",
+  "2-9",
+  "3-5",
+  "3-8",
+  "5-8",
+  "7-8",
+  "9-10"
+ ],
+ "legacy_warned_before_land": 9,
+ "legacy_warned_pair_kinds": {
+  "1-10": [
+   "overlap"
+  ],
+  "1-3": [
+   "conflict"
+  ],
+  "1-5": [
+   "conflict"
+  ],
+  "1-7": [
+   "conflict"
+  ],
+  "1-8": [
+   "conflict"
+  ],
+  "1-9": [
+   "overlap"
+  ],
+  "2-6": [
+   "conflict",
+   "overlap"
+  ],
+  "2-7": [
+   "conflict",
+   "overlap"
+  ],
+  "2-8": [
+   "overlap"
+  ],
+  "2-9": [
+   "conflict"
+  ],
+  "5-10": [
+   "overlap"
+  ],
+  "5-6": [
+   "conflict"
+  ],
+  "5-8": [
+   "conflict"
+  ],
+  "5-9": [
+   "overlap"
+  ],
+  "6-10": [
+   "conflict"
+  ],
+  "6-7": [
+   "conflict"
+  ],
+  "6-8": [
+   "conflict"
+  ],
+  "6-9": [
+   "overlap"
+  ],
+  "7-10": [
+   "overlap"
+  ],
+  "7-8": [
+   "conflict"
+  ],
+  "9-10": [
+   "conflict",
+   "overlap"
+  ]
+ },
+ "legacy_warned_pairs": [
+  [
+   1,
+   3
+  ],
+  [
+   1,
+   5
+  ],
+  [
+   1,
+   7
+  ],
+  [
+   1,
+   8
+  ],
+  [
+   1,
+   9
+  ],
+  [
+   1,
+   10
+  ],
+  [
+   2,
+   6
+  ],
+  [
+   2,
+   7
+  ],
+  [
+   2,
+   8
+  ],
+  [
+   2,
+   9
+  ],
+  [
+   5,
+   6
+  ],
+  [
+   5,
+   8
+  ],
+  [
+   5,
+   9
+  ],
+  [
+   5,
+   10
+  ],
+  [
+   6,
+   7
+  ],
+  [
+   6,
+   8
+  ],
+  [
+   6,
+   9
+  ],
+  [
+   6,
+   10
+  ],
+  [
+   7,
+   8
+  ],
+  [
+   7,
+   10
+  ],
+  [
+   9,
+   10
+  ]
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [
+  "06:52:36 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0,
+   "10": 0,
+   "2": 1,
+   "3": 0,
+   "4": 0,
+   "5": 0,
+   "6": 0,
+   "7": 0,
+   "8": 7,
+   "9": 0
+  },
+  "total": 8
+ },
+ "merge_conflicts": 1,
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "c0200e72211582f1723078673d9e8e96eb47f95e75478978c9f91207cd8ec9f5",
+ "reacted": 8,
+ "rep": 31,
+ "repo": "click",
+ "run": "B-click-heavy-r31-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "codex"
+ ],
+ "setup_s": 1.5,
+ "started": "2026-11-22T06:52:35",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 2.84,
+ "suite_s": 2.93,
+ "suite_tail_all": "...................................................................... [ 52%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n................sssssssssssssssssssss..................ss............... [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n............................................................s........... [ 73%]\n...................................................s.................... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n............                                                             [100%]\n2434 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.56s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.48s\n",
+ "tasks_on_main": 9,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 4
+  },
+  "10": {
+   "passed": true,
+   "runs": 4
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 2
+  },
+  "4": {
+   "passed": true,
+   "runs": 2
+  },
+  "5": {
+   "passed": true,
+   "runs": 2
+  },
+  "6": {
+   "passed": true,
+   "runs": 3
+  },
+  "7": {
+   "passed": true,
+   "runs": 2
+  },
+  "8": {
+   "passed": true,
+   "runs": 2
+  },
+  "9": {
+   "passed": true,
+   "runs": 3
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ParamType.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 246703,
+ "tokens_cached_in": 6964089,
+ "tokens_fresh_in": 523156,
+ "tokens_in": 7487245,
+ "tokens_out": 93228,
+ "tool_calls": 218,
+ "treeyard_sha256": "ad032dfc3b86d26056739f79c714a0c407270ec18cbefc06334680ccf96e998c",
+ "treeyard_version": "treeyard 0.1.3",
+ "undoes_held": 0,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 236.01,
+ "warned": 9,
+ "warned_pairs": [
+  "1-3",
+  "1-5",
+  "1-7",
+  "1-8",
+  "1-9",
+  "2-6",
+  "2-7",
+  "2-8",
+  "2-9",
+  "5-10",
+  "5-6",
+  "5-8",
+  "5-9",
+  "6-8",
+  "6-9",
+  "7-10",
+  "7-8",
+  "9-10"
+ ],
+ "warnings": {
+  "1": {
+   "first_warning_call": 3,
+   "kinds": [
+    "conflict"
+   ],
+   "others": [
+    "ch_79c27b160f7a",
+    "ch_d96205087ebe"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  },
+  "10": {
+   "first_warning_call": 6,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_5feecdef63ec",
+    "ch_d8027d8af3ec",
+    "ch_d96205087ebe"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  },
+  "2": {
+   "first_warning_call": 15,
+   "kinds": [
+    "overlap"
+   ],
+   "others": [
+    "ch_79c27b160f7a",
+    "ch_d8027d8af3ec"
+   ],
+   "reacted": false,
+   "warned": true,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": 8,
+   "kinds": [
+    "conflict"
+   ],
+   "others": [
+    "ch_6b4f58508ec5"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": 2,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_0b18a147ad5d",
+    "ch_5feecdef63ec",
+    "ch_6b4f58508ec5",
+    "ch_79c27b160f7a",
+    "ch_acbc9ce077d4"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  },
+  "6": {
+   "first_warning_call": 11,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_5feecdef63ec",
+    "ch_79c27b160f7a",
+    "ch_c2f4d87f6b41"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": false
+  },
+  "7": {
+   "first_warning_call": 17,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_6b4f58508ec5",
+    "ch_79c27b160f7a",
+    "ch_c2f4d87f6b41"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  },
+  "8": {
+   "first_warning_call": 10,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_6b4f58508ec5",
+    "ch_acbc9ce077d4",
+    "ch_c2f4d87f6b41"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": false
+  },
+  "9": {
+   "first_warning_call": 13,
+   "kinds": [
+    "conflict",
+    "overlap"
+   ],
+   "others": [
+    "ch_0b18a147ad5d",
+    "ch_6b4f58508ec5",
+    "ch_acbc9ce077d4",
+    "ch_c2f4d87f6b41",
+    "ch_d96205087ebe"
+   ],
+   "reacted": true,
+   "warned": true,
+   "with_main": true
+  }
+ }
+}

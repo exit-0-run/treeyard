@@ -14,13 +14,13 @@ Agents: Claude Code (`claude-sonnet-5-5`) and Codex. Every run had 0 interventio
 ## What these runs can and cannot say
 
 - `heavy` is a development set. Arm BN was written after the first A, A2 and B results on this same set.
-- Samples are small: 3 runs per arm and series, in separate series that must not be pooled blindly.
+- Samples are small: 2 to 4 runs per arm and series, in separate series that must not be pooled blindly.
 - "Claude USD" is the list price the Claude CLI reports, for Claude agents only (6 of 10 agents in the
   mixed series, all 10 in the Claude-only series). Codex reports no cost.
 - Tool calls are not a like-for-like measure of effort: in BN agents batch work into shell commands.
 - Wall time is the parallel agent phase plus the end phase of the arm. Arm A is slowest by construction
   (its hand-backs run one after the other).
-- Task `h7-byte-size` is lost in 14 of the 37 runs across all four arms for the same reason: the agent missed one
+- Task `h7-byte-size` is lost in 19 of the 47 runs across all four arms for the same reason: the agent missed one
   sentence of its own prompt ("without bounds there is no range item"). It is noise that does not depend
   on the arm, so the tables give tasks with and without it.
 - "Integration defect" means a task lost, or an integration test failed, on the final main for a reason
@@ -31,7 +31,8 @@ Agents: Claude Code (`claude-sonnet-5-5`) and Codex. Every run had 0 interventio
 
 Run files: [`first/`](first/) (mixed harness, 6 Claude Code + 4 Codex, binary before the audit fixes),
 [`claude/`](claude/) (10 Claude Code agents, same binary), [`final-claude/`](final-claude/) (10 Claude Code
-agents, binary and kit after the audit fixes, arm order shuffled per repetition).
+agents, binary and kit after the audit fixes, arm order shuffled per repetition),
+[`final-mixed/`](final-mixed/) (mixed harness again, after the audit fixes, arm order shuffled).
 
 ### First series, mixed harness (reps 1 to 4)
 
@@ -67,14 +68,27 @@ In this series BN r21 lost `h8` (and with it integration test i1) and B r23 lost
 the agent's own landing, before anything of another agent touched them (checked with
 `t2.py health`), so they are not integration defects.
 
+### Final mixed series, after the audit fixes (reps 31 to 33)
+
+| Arm | Runs | Tasks on main | without h7 | Integration tests | Runs with an integration defect | Tokens M | Tool calls | Wall s | Claude USD |
+|---|---|---|---|---|---|---|---|---|---|
+| A | 2 | 20/20 | 18/18 | 18/18 | 0/2 | 5.87 | 189 | 334 | 1.80 |
+| A2 | 3 | 27/30 | 26/27 | 27/27 | 1/3 | 5.46 | 183 | 184 | 1.57 |
+| B | 3 | 28/30 | 27/27 | 26/27 | 1/3 | 7.32 | 202 | 217 | 2.14 |
+| BN | 2 | 19/20 | 18/18 | 18/18 | 0/2 | 7.02 | 168 | 267 | 1.70 |
+
+The Codex subscription ran out again in the third repetition: A r33 was cut (not counted, not in
+`final-mixed/`) and BN r33 never started. BN r31 took 334 s because one Codex agent was slow; wall time
+is the slowest agent of a run.
+
 ## Every loss that is not h7
 
 | Run | What | Cause |
 |---|---|---|
-| A r3, A r12, A2 r3 | task h1 lost | Another agent, while resolving its conflict, deleted the function `_build_prompt` that h1 had to keep. h1 passed on main before that. |
+| A r3, A r12, A2 r3, A2 r33 | task h1 lost | Another agent, while resolving its conflict, deleted the function `_build_prompt` that h1 had to keep. h1 passed on main before that. |
 | A r3 | integration i1 | h8's behaviour never reached the class h1 introduced; both tasks pass, the pair does not. |
 | A r4 | integration i1, i7 | The same kind of mismatch: h7 and h8 never reached h1's class. |
-| BN r13, A2 r22 | integration i6 | h6 calls `write_dl(first_col_width=...)`, h10's formatter does not take it. No tool in any arm tests main after a merge. |
+| BN r13, A2 r22, B r33 | integration i6 | h6 calls `write_dl(first_col_width=...)`, h10's formatter does not take it. No tool in any arm tests main after a merge. |
 | BN r21 | task h8, integration i1 | The agent's own h8 was wrong at its own landing. |
 | B r23 | task h9 | The agent's own h9 was wrong at its own landing. |
 
@@ -86,16 +100,17 @@ rest (5 times in B, 7 in BN). No TreeYard run lost h1.
 ## What survives
 
 1. **Native mode removes the cost of TreeYard.** BN costs the same as the git arms within the noise
-   (Claude-only: 2.80 and 2.69 USD per run against 2.69/2.68 for A and 2.79/2.85 for A2) and about 27 to
-   32 % less than B (3.83 and 3.95). An exact permutation test on the first two series gives p = 1/120 for
+   (Claude-only: 2.80 and 2.69 USD per run against 2.69/2.68 for A and 2.79/2.85 for A2; mixed after the
+   fixes: 1.70 against 1.80 and 1.57) and about 20 to 32 % less than B (3.83, 3.95, 2.14). An exact permutation test on the first two series gives p = 1/120 for
    BN below B. BN reads more input tokens than A; the cost is equal because most of them are cache reads.
 2. **Wall time:** A is the slowest arm in every repetition. A2, B and BN are not told apart by this data.
 3. **Tasks delivered:** no arm delivers more tasks than another once h7 is set aside.
-4. **Integration defects:** seen in A (3 of 10 runs), A2 (2 of 10) and BN (1 of 8), none in 9 B runs.
-   With these samples no difference between arms is statistically supported (git arms 5/20 against
-   TreeYard arms 1/17, Fisher two-sided p = 0.19). The mechanism behind three of the five git defects, a
-   conflict resolution that deletes another task's code, is the one the TreeYard hold exists for, and it
-   did not get through in any TreeYard run; that is an observation, not a measured effect.
+4. **Integration defects:** seen in A (3 of 12 runs), A2 (3 of 13), B (1 of 12) and BN (1 of 10).
+   With these samples no difference between arms is statistically supported (git arms 6/25 against
+   TreeYard arms 2/22, Fisher two-sided p = 0.25). Four of the six git defects are one mechanism: a
+   conflict resolution that deletes another task's code. That is what the TreeYard hold exists for, and
+   it got through in none of the 22 TreeYard runs (4/25 against 0/22, p = 0.11): an observation that
+   fits the design, not a measured effect. The two TreeYard defects are of the kind no arm catches.
 5. **What no arm catches:** two tasks that each pass but do not fit together (i1, i6, i7). `land`,
    `t2-integrate` and the runner's merge all put work on main without running the tests of the result.
 

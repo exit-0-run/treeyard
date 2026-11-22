@@ -1,0 +1,1122 @@
+{
+ "agent_area": "system temp dir",
+ "agent_land_conflicts": 9,
+ "agent_stats": [
+  {
+   "cost_usd": 0.139689,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16961,
+   "tokens_cached_in": 245245,
+   "tokens_fresh_in": 16981,
+   "tokens_in": 262226,
+   "tokens_out": 4728,
+   "tool_calls": 10,
+   "turns": 11,
+   "wall_s": 41.15
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "live_tokens": 338870,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 332032,
+   "tokens_fresh_in": 34107,
+   "tokens_in": 366139,
+   "tokens_out": 2878,
+   "tool_calls": 9,
+   "turns": 9,
+   "wall_s": 87.73
+  },
+  {
+   "cost_usd": 0.520095,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 51101,
+   "tokens_cached_in": 1836687,
+   "tokens_fresh_in": 51177,
+   "tokens_in": 1887864,
+   "tokens_out": 13187,
+   "tool_calls": 37,
+   "turns": 38,
+   "wall_s": 137.99
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "live_tokens": 289502,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 293120,
+   "tokens_fresh_in": 37214,
+   "tokens_in": 330334,
+   "tokens_out": 3125,
+   "tool_calls": 11,
+   "turns": 11,
+   "wall_s": 87.16
+  },
+  {
+   "cost_usd": 0.264501,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 32923,
+   "tokens_cached_in": 570951,
+   "tokens_fresh_in": 32955,
+   "tokens_in": 603906,
+   "tokens_out": 7565,
+   "tool_calls": 16,
+   "turns": 17,
+   "wall_s": 60.23
+  },
+  {
+   "cost_usd": 0.248684,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 25587,
+   "tokens_cached_in": 533839,
+   "tokens_fresh_in": 25623,
+   "tokens_in": 559462,
+   "tokens_out": 9288,
+   "tool_calls": 18,
+   "turns": 19,
+   "wall_s": 70.8
+  },
+  {
+   "cost_usd": 0.437261,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 42588,
+   "tokens_cached_in": 1003928,
+   "tokens_fresh_in": 42636,
+   "tokens_in": 1046564,
+   "tokens_out": 16642,
+   "tool_calls": 23,
+   "turns": 24,
+   "wall_s": 127.95
+  },
+  {
+   "cost_usd": 0.37718,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 43962,
+   "tokens_cached_in": 838881,
+   "tokens_fresh_in": 44004,
+   "tokens_in": 882885,
+   "tokens_out": 11736,
+   "tool_calls": 22,
+   "turns": 23,
+   "wall_s": 98.44
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "live_tokens": 915329,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 871040,
+   "tokens_fresh_in": 37020,
+   "tokens_in": 908060,
+   "tokens_out": 7269,
+   "tool_calls": 25,
+   "turns": 25,
+   "wall_s": 198.79
+  },
+  {
+   "cost_usd": 0.0,
+   "exit": 0,
+   "harness": "codex",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "live_tokens": 426825,
+   "models": [],
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 415744,
+   "tokens_fresh_in": 41674,
+   "tokens_in": 457418,
+   "tokens_out": 3321,
+   "tool_calls": 11,
+   "turns": 11,
+   "wall_s": 98.04
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "ac7f0e3330cd1da4c4a4a53bfe50125a368225b65681cdf17d4591ed33061b32"
+  },
+  {
+   "agent": "codex-1",
+   "harness": "codex",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "d6446e3d21eeb78165d36facd2f4f13b2c8a49dcd04be18aaaf73ebe4a1abe6b"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "015ad4df3521271be3187202c6673a6f133b1d020f0b7ad4cafb5e70acd34e37"
+  },
+  {
+   "agent": "codex-2",
+   "harness": "codex",
+   "id": "h4-nushell",
+   "k": 4,
+   "prompt_sha256": "f3353c17c0fef8768a80fb09a0f5b1f382995d60f14e15209701433147b61484"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 5,
+   "prompt_sha256": "33f3fb838325ab9d954484e28bb6d66213df831bb2cf6dff0f1ed5acb9b98e08"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 6,
+   "prompt_sha256": "7e5af17f120846f7cda5692b187fdd31a0596dbdf1869065f6ce0ff9e5a7281f"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 7,
+   "prompt_sha256": "e3e58ac5c8590fc04550250aa32f87f41f3e5e8dc64c4ebf8377af579c72e0c7"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 8,
+   "prompt_sha256": "9795b4ef0e96ac4c846044aae5c041fb7159e6df0344fe32b56bf66f44557eed"
+  },
+  {
+   "agent": "codex-3",
+   "harness": "codex",
+   "id": "h9-help-theme",
+   "k": 9,
+   "prompt_sha256": "c50dbd4f8b700403e53e1729878cdbb09dc5bae8d76b6fe7cfa9dee0709f1904"
+  },
+  {
+   "agent": "codex-4",
+   "harness": "codex",
+   "id": "h10-help-markdown",
+   "k": 10,
+   "prompt_sha256": "91efdf04834c6e7405740f0ed5eca1fab27b7d43c4533af1706492df69b35dc1"
+  }
+ ],
+ "arm": "BN",
+ "arm_block_sha256": "d15b8695ae4d28dd35a67cb473cca964923f940967111345b8fa4b2ea3a5824e",
+ "block_sha256": "d15b8695ae4d28dd35a67cb473cca964923f940967111345b8fa4b2ea3a5824e",
+ "by_harness": {
+  "claude": {
+   "agents": 6,
+   "cost_usd": 1.98741,
+   "tokens_cache_write": 213122,
+   "tokens_cached_in": 5029531,
+   "tokens_fresh_in": 213376,
+   "tokens_in": 5242907,
+   "tokens_out": 63146,
+   "tool_calls": 126,
+   "turns": 132
+  },
+  "codex": {
+   "agents": 4,
+   "cost_usd": 0.0,
+   "tokens_cache_write": 0,
+   "tokens_cached_in": 1911936,
+   "tokens_fresh_in": 150015,
+   "tokens_in": 2061951,
+   "tokens_out": 16593,
+   "tool_calls": 56,
+   "turns": 56
+  }
+ },
+ "cost_usd": 1.98741,
+ "cost_usd_claude_only": 1.98741,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h4-nushell": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 148,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 32,
+   "test_added": 20
+  },
+  "10": {
+   "added": 166,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 43
+  },
+  "2": {
+   "added": 147,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 41,
+   "test_added": 25
+  },
+  "3": {
+   "added": 214,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 5,
+   "test_added": 39
+  },
+  "4": {
+   "added": 176,
+   "files": 4,
+   "paths": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py",
+    "tests/test_shell_completion.py"
+   ],
+   "removed": 3,
+   "test_added": 33
+  },
+  "5": {
+   "added": 171,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 6,
+   "test_added": 27
+  },
+  "6": {
+   "added": 121,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 14,
+   "test_added": 32
+  },
+  "7": {
+   "added": 273,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 3,
+   "test_added": 55
+  },
+  "8": {
+   "added": 166,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 5,
+   "test_added": 40
+  },
+  "9": {
+   "added": 180,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 5,
+   "test_added": 55
+  }
+ },
+ "handback_sha256": "5c7fc1952fca3733c02b2181238a048f9176b86c56af14307c055ed6cc3014b1",
+ "harness": "real",
+ "hold_reacted": 3,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i2-hidden-default-item": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 9,
+ "integration_total": 9,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 9,
+ "land_holds": 6,
+ "land_refused": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_63b965b4d762",
+     "error": "Error: change ch_63b965b4d762 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_b8aab4bcf8c3",
+     "error": "Error: change ch_b8aab4bcf8c3 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_0409a5ab941b",
+     "error": "Error: change ch_0409a5ab941b is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_bac5e81538d3"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_e9c6ed57beb4",
+     "error": "Error: change ch_e9c6ed57beb4 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_fb0846239388",
+     "error": "Error: change ch_fb0846239388 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_57455bba885d",
+     "error": "Error: change ch_57455bba885d is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_c0b17e88f54d",
+     "error": "Error: change ch_c0b17e88f54d is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_0f69611f810f"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_a30dc176e0ec",
+     "error": "Error: change ch_a30dc176e0ec is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_187957e98dcd"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_8eee501b24e6",
+     "error": "Error: change ch_8eee501b24e6 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_de67523a888b"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_b696aed2f3cd",
+     "error": "Error: change ch_b696aed2f3cd is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  }
+ ],
+ "legacy_false_alarms": 7,
+ "legacy_reacted": 6,
+ "legacy_true_conflict_pairs": [
+  "1-3",
+  "1-5",
+  "1-7",
+  "1-8",
+  "2-10",
+  "2-3",
+  "2-7",
+  "2-9",
+  "3-5",
+  "3-8",
+  "5-8",
+  "7-8",
+  "9-10"
+ ],
+ "legacy_warned_before_land": 7,
+ "legacy_warned_pair_kinds": {
+  "2-10": [
+   "conflict",
+   "overlap"
+  ],
+  "2-8": [
+   "conflict",
+   "overlap"
+  ],
+  "3-10": [
+   "overlap"
+  ],
+  "3-7": [
+   "conflict",
+   "overlap"
+  ],
+  "3-8": [
+   "conflict",
+   "overlap"
+  ],
+  "3-9": [
+   "overlap"
+  ],
+  "5-8": [
+   "conflict"
+  ],
+  "6-8": [
+   "conflict"
+  ],
+  "7-10": [
+   "overlap"
+  ],
+  "7-8": [
+   "overlap"
+  ],
+  "8-10": [
+   "overlap"
+  ]
+ },
+ "legacy_warned_pairs": [
+  [
+   2,
+   8
+  ],
+  [
+   2,
+   10
+  ],
+  [
+   3,
+   7
+  ],
+  [
+   3,
+   8
+  ],
+  [
+   3,
+   9
+  ],
+  [
+   3,
+   10
+  ],
+  [
+   5,
+   8
+  ],
+  [
+   6,
+   8
+  ],
+  [
+   7,
+   8
+  ],
+  [
+   7,
+   10
+  ],
+  [
+   8,
+   10
+  ]
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [
+  "07:06:41 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 3,
+   "10": 0,
+   "2": 0,
+   "3": 0,
+   "4": 0,
+   "5": 0,
+   "6": 0,
+   "7": 0,
+   "8": 0,
+   "9": 0
+  },
+  "total": 3
+ },
+ "merge_conflicts": 9,
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ],
+  "codex": [
+   "gpt-6.2-sol"
+  ]
+ },
+ "n_tasks": 10,
+ "needs_human": 0,
+ "preamble_sha256": "20765e6f79db3dc19e6100ddfac9ab13aced52d1dd4e13b002952cc849c8fea3",
+ "reacted": 3,
+ "rep": 32,
+ "repo": "click",
+ "run": "BN-click-heavy-r32-real",
+ "set": "heavy",
+ "set_agents": 10,
+ "set_mix": [
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "codex",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "codex"
+ ],
+ "setup_s": 1.33,
+ "started": "2026-11-22T07:06:40",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 2.86,
+ "suite_s": 2.96,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n...............sssssssssssssssssssss..................ss................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n............................................................s........... [ 73%]\n..................................s..................................... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n...................................................................      [100%]\n2417 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.56s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.48s\n",
+ "tasks_on_main": 10,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 3
+  },
+  "10": {
+   "passed": true,
+   "runs": 3
+  },
+  "2": {
+   "passed": true,
+   "runs": 3
+  },
+  "3": {
+   "passed": true,
+   "runs": 12
+  },
+  "4": {
+   "passed": true,
+   "runs": 2
+  },
+  "5": {
+   "passed": true,
+   "runs": 5
+  },
+  "6": {
+   "passed": true,
+   "runs": 4
+  },
+  "7": {
+   "passed": true,
+   "runs": 5
+  },
+  "8": {
+   "passed": true,
+   "runs": 5
+  },
+  "9": {
+   "passed": true,
+   "runs": 7
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_shell_completion.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ParamType.py"
+ ],
+ "test_passed_agents": 10,
+ "tokens_cache_write": 213122,
+ "tokens_cached_in": 6941467,
+ "tokens_fresh_in": 363391,
+ "tokens_in": 7304858,
+ "tokens_out": 79739,
+ "tool_calls": 182,
+ "treeyard_sha256": "ad032dfc3b86d26056739f79c714a0c407270ec18cbefc06334680ccf96e998c",
+ "treeyard_version": "treeyard 0.1.3",
+ "undoes_held": 4,
+ "undoes_held_runner": 0,
+ "undoes_overridden": 1,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 199.25,
+ "warned": 4,
+ "warned_pairs": [
+  "1-3",
+  "1-7",
+  "1-8",
+  "2-9",
+  "5-8"
+ ],
+ "warnings": {
+  "1": {
+   "changes": [
+    "ch_90e8116684fc"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "changes": [
+    "ch_894cb29e1615"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "changes": [
+    "ch_6708ba45cacd"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 1,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "changes": [
+    "ch_bac5e81538d3"
+   ],
+   "first_warning_call": 32,
+   "held_changes": [
+    "ch_bac5e81538d3"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_90e8116684fc"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "4": {
+   "changes": [
+    "ch_8cd1f46dea2a"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "changes": [
+    "ch_e03ad0f0a2ec"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 1,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "changes": [
+    "ch_6ca51739e742"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "changes": [
+    "ch_0f69611f810f"
+   ],
+   "first_warning_call": 20,
+   "held_changes": [
+    "ch_0f69611f810f"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 1,
+   "land_refused": 0,
+   "others": [
+    "ch_90e8116684fc"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "8": {
+   "changes": [
+    "ch_187957e98dcd"
+   ],
+   "first_warning_call": 18,
+   "held_changes": [
+    "ch_187957e98dcd"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 2,
+   "land_refused": 0,
+   "others": [
+    "ch_90e8116684fc",
+    "ch_e03ad0f0a2ec"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "9": {
+   "changes": [
+    "ch_de67523a888b"
+   ],
+   "first_warning_call": 13,
+   "held_changes": [
+    "ch_de67523a888b"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "conflict",
+    "undoes"
+   ],
+   "land_conflicts": 1,
+   "land_holds": 2,
+   "land_refused": 0,
+   "others": [
+    "ch_6708ba45cacd"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": true
+  }
+ }
+}
