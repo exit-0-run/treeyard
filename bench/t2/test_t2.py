@@ -857,6 +857,16 @@ class KitTests(unittest.TestCase):
                                                                                     "cache": {"read": 4, "write": 5}}, "cost": 0.5}}), st)
         self.assertEqual((st["turns"], st["tool_calls"], st["tokens_in"], st["tokens_out"], st["cost_usd"]), (2, 1, 128, 21, 0.5))
 
+    def test_claude_cli_limit_stops_count_as_limit_kills(self):
+        st = k.new_stats()
+        k.parse_line("claude", json.dumps({"type": "result", "subtype": "error_max_budget_usd", "session_id": "s",
+                                           "total_cost_usd": 2.6, "num_turns": 40}), st)
+        self.assertEqual(st["killed"], "claude budget (--max-budget-usd)")
+        self.assertAlmostEqual(st["cost_usd"], 2.6)
+        st = k.new_stats()
+        k.parse_line("claude", json.dumps({"type": "result", "subtype": "success", "total_cost_usd": 1.0}), st)
+        self.assertIsNone(st["killed"])
+
     def test_claude_counts_once_per_message_and_takes_the_result_usage(self):
         """Excerpt of a real stream-json transcript (one agent, a first run and a resumed hand-back), trimmed."""
         u1 = {"input_tokens": 3, "cache_creation_input_tokens": 100, "cache_read_input_tokens": 1000, "output_tokens": 16}

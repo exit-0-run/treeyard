@@ -435,7 +435,7 @@ def generate_extra(scratch, mod):
                 (d / f"resolved-{k}.patch").write_text(unified(apply(base, tasks[: k - 1]), apply(base, tasks[:k])))
                 files = sorted({o["file"] for e in task_ops(t) for o in [e, *e.get("alts", [])]})
                 meta_ = {"repo": repo, "set": s, "k": k, "id": t["id"], "title": t["title"], "files": files,
-                         "test": test_path(repo, t)}
+                         "test": test_path(repo, t), **({"oracle_undo": t["oracle_undo"]} if t.get("oracle_undo") else {})}
                 (d / "meta.json").write_text(json.dumps(meta_, indent=2) + "\n")
             integ = []
             for it in td.INTEGRATIONS.get(repo, {}).get(s, []):
@@ -873,6 +873,11 @@ def parse_line(harness, line, st):
                 st["cost_usd"] += total - prev if total >= prev else total
             sid = ev.get("session_id") or st.get("session") or ""
             st["_cost_cum"][sid] = float(ev.get("total_cost_usd") or 0)
+            # The CLI's own limits end the session with an error result: a limit stop like the runner's kills.
+            why = {"error_max_budget_usd": "claude budget (--max-budget-usd)",
+                   "error_max_turns": "claude turns (--max-turns)"}.get(ev.get("subtype"))
+            if why and st.get("killed") is None:
+                st["killed"] = why
     elif harness == "codex":
         if t == "thread.started":
             st["session"] = ev.get("thread_id")
@@ -1231,7 +1236,9 @@ def oracle_files_from_main(c, td, k, into, cwd):
 def agent_oracle_native(c, a, k, td, resume):
     """Arm BN: `start`, `git apply` of reference.patch in the start directory, `sync`, then in the fixed
     oracle order `land`; on a land conflict it writes main + resolved-k.patch into the directory (over the
-    markers) and lands again. On a hand-back it writes the same files and stops (the runner lands)."""
+    markers) and lands again. A land held with status `undoes` lands again with `undo` when the task's meta
+    has `oracle_undo` (the reason: a refactor that removes copies of other tasks' lines by design).
+    On a hand-back it writes the same files and stops (the runner lands)."""
     cwd = a["cwd"]
     landed_dir = Path(c["run_dir"]) / "landed"
     if resume:
@@ -1251,8 +1258,14 @@ def agent_oracle_native(c, a, k, td, resume):
         emit({"type": "note", "warned": warned})
         while not all((landed_dir / str(j)).exists() for j in range(1, k)):
             time.sleep(0.2)
+        undo = meta(td).get("oracle_undo")
         for _ in range(3):
             r = ntool(br, "land", {"change": cid})
+            if r.get("status") == "undoes" and undo:
+                # A task that removes other tasks' lines by design (its meta names why) overrides the hold, as
+                # TreeYard's advice says: land again with undo = true and the reason.
+                emit({"type": "note", "land_status": "undoes", "undo": True})
+                r = ntool(br, "land", {"change": cid, "undo": True, "reason": undo})
             status = r.get("status")
             if status == "landed":
                 landed_dir.mkdir(exist_ok=True)
