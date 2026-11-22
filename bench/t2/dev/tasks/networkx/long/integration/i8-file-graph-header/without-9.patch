@@ -67,7 +67,7 @@ diff --git a/networkx/readwrite/_compression.py b/networkx/readwrite/_compressio
 new file mode 100644
 --- /dev/null
 +++ b/networkx/readwrite/_compression.py
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,56 @@
 +"""Compressed files for the line formats (edge list, adjacency lists, Pajek,
 +LEDA).
 +
@@ -85,7 +85,6 @@ new file mode 100644
 +# The first bytes of each kind of compressed file.
 +MAGIC = ((b"\x1f\x8b", gzip), (b"BZh", bz2), (b"\xfd7zXZ\x00", lzma))
 +COMPRESSIONS = {"gzip": gzip.GzipFile, "bz2": bz2.BZ2File, "xz": lzma.LZMAFile}
-+ENDINGS = (".gz", ".gzip", ".bz2", ".xz")
 +
 +
 +def uncompressed(f):
@@ -114,10 +113,10 @@ new file mode 100644
 +        raise ValueError(
 +            f"compression must be None, 'gzip', 'bz2' or 'xz', not {compression!r}"
 +        )
-+    name = getattr(f, "name", None)
-+    if isinstance(name, str) and name.endswith(ENDINGS):
++    if isinstance(f, (gzip.GzipFile, bz2.BZ2File, lzma.LZMAFile)):
++        # a file name ending in .gz, .gzip, .bz2 or .xz: open_file compresses already
 +        raise ValueError(
-+            f"compression={compression!r} with the file name {name!r}: its ending already compresses"
++            f"compression={compression!r} for a file whose name ending compresses already"
 +        )
 +    writer = (
 +        COMPRESSIONS[compression](f, mode="wb")
