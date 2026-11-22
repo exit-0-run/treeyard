@@ -125,3 +125,22 @@ directory, backup files that are no longer sent (a `sed -i` backup had landed on
 after a landed change that go into a follow-up change, one wording of the override rule. The kit now
 records the binary of each run and has `t2.py health` (hidden and integration tests at every commit of
 a run's main).
+
+## Land test (native mode, added after the runs above)
+
+`land` can now run the repository's test command on the rebased change and land only a tree that
+passed it ([`gate/`](gate/): three Claude-only runs of arm BN with `run --land-test`, binary 0.2.0, the
+suite as the command; the BN block has one more clause, so these prompts differ from the BN runs above).
+
+| Run | Tasks on main | Integration tests | Lands refused by the test | Test rounds | Seconds in the test | Wall s | Claude USD |
+|---|---|---|---|---|---|---|---|
+| r41 | 10/10 | 9/9 | 0 | 21 | 81 | 173 | 2.88 |
+| r42 | 9/10 (h9) | 9/9 | 0 | 23 | 92 | 161 | 2.85 |
+| r43 | 9/10 (h7) | 8/9 (i6) | 0 | 18 | 69 | 175 | 2.95 |
+
+The test ran on every land (about two rounds per agent, because main moves under a tested change) and
+refused nothing. It did not stop the i6 mismatch in r43: the suite and the agents' own tests do not
+exercise h6 and h10 together, so the merged tree passed. The land test guarantees that main passes the
+tests that exist; it cannot find a mismatch no test covers. Against the ungated BN runs of the final
+Claude-only series the price was about 40 s of wall time and 0.2 USD per run (three runs each, not a
+measured difference).
