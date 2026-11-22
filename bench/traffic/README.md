@@ -152,3 +152,10 @@ against 126 at 75 agents), so the two columns differ in more than the setting. T
   the agent's changes after that are counted as not entered.
 - 28 changes an hour per real agent comes from short tasks (about 2 minutes each); agents on long
   tasks deliver fewer, so the same ceilings serve more of them.
+
+## Fair comparison without a test (settings written before the run)
+
+The comparison for this page: git **without** automatic housekeeping (`--no-gc`) and TreeYard,
+alternating level by level (git, then TreeYard, at 50, 75, 100 and 200 agents), same settings as
+series 1, in one go on the same machine so both arms meet the same load. The numbers of git with
+housekeeping stay in the limits only.
