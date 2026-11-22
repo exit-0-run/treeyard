@@ -161,6 +161,11 @@ async fn mcp_http(
     // `/mcp?tools=agent` lists the agent tool set; the default is every operation.
     let set = match query.as_deref().unwrap_or_default().split('&').find_map(|kv| kv.strip_prefix("tools=")) {
         Some(t) => match t.parse::<crate::mcp::ToolSet>() {
+            Ok(crate::mcp::ToolSet::Native) => {
+                let e =
+                    "tools=native writes the agent's disk: only the stdio bridge (treeyard mcp --tools native) has it";
+                return (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response();
+            }
             Ok(s) => s,
             Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({"error": format!("{e:#}")}))).into_response(),
         },

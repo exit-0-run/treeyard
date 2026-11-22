@@ -47,6 +47,7 @@ TASKS_DIR = HERE / "tasks"
 RESULTS = HERE / "results"
 HOOK = HERE / "astro_hook.mjs"
 FROZEN_BLOCK = HERE / "block-b.md"  # the block that `treeyard connect` writes; arm B refuses any other
+FROZEN_BLOCK_BN = HERE / "block-bn.md"  # the block of `treeyard connect --native`; arm BN refuses any other
 REPOS = json.loads((HERE / "repos.json").read_text())
 # The development set (dev/README.md): its own repos.json, taskdefs.py, tasks/ and results/, for tuning
 # the arm B block. `use_dev` points the kit at it; without a dev repo name nothing here changes.
@@ -60,7 +61,10 @@ SETS = ("disjoint", "colliding")
 # development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py). Their tasks/<repo>/<set>/set.json holds the set-level
 # settings: agent count, harness slots, limits, integration tests (`set_spec`).
 EXTRA_SETS = ("mixed", "heavy")
-ARMS = ("A", "A2", "B")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+ARMS = ("A", "A2", "B", "BN")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+# BN: arm B connected in native mode (`connect --native`): each agent edits and tests a directory of its own
+# with its own tools and sends the result with the bridge's `sync` and `land`. Not in preregistration v3.
+B_ARMS = ("B", "BN")
 AGENTS = 5
 # Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
 # v1 had an OpenCode slot; its free tier ran out of quota during the v1 pilot (results/v1-exploratory).
@@ -1120,11 +1124,143 @@ def ctx_bin(c):
     return c.get("treeyard") or str(treeyard_bin())
 
 
+class NativeBridge:
+    """`treeyard mcp --tools native` on stdio, driven with JSON-RPC as a harness drives it (arm BN: the
+    scripted agents and the runner's own lands). The process gets the agent's environment, so `start`
+    puts the directory in the agent's TMPDIR, where the runner finds it again."""
+
+    def __init__(self, ty, url, agent, env=None, cwd=None):
+        self.p = subprocess.Popen([str(ty), "mcp", "--url", url, "--agent", agent, "--tools", "native"], stdin=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, env=env, cwd=cwd)
+        self.n = 0
+        self.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t2", "version": "1"}})
+
+    def rpc(self, method, params):
+        self.n += 1
+        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params}) + "\n")
+        self.p.stdin.flush()
+        line = self.p.stdout.readline()
+        if not line:
+            raise RuntimeError("the native bridge exited")
+        return json.loads(line)
+
+    def call(self, name, args):
+        """(ok, reply text) of one tool call."""
+        r = self.rpc("tools/call", {"name": name, "arguments": args})
+        res = r.get("result") or {}
+        text = "".join(c.get("text", "") for c in res.get("content") or [])
+        return not res.get("isError") and "error" not in r, text or json.dumps(r.get("error"))
+
+    def close(self):
+        try:
+            self.p.stdin.close()
+            self.p.wait(timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            self.p.kill()
+            self.p.wait()
+        self.p.stdout.close()
+
+
+def ntool(br, name, args, talk=None):
+    """One native tool call of a scripted agent, in its transcript dialect (`talk`, else the stub events);
+    returns the reply as a dict ({} when it is not JSON, {"error": text} on a tool error)."""
+    if talk is not None and talk.d != "stub":
+        ok, text = talk.mcp(br, name, args)
+    else:
+        emit({"type": "tool_use", "name": "treeyard " + name, "cmd": ["treeyard", "mcp", name], "args": args})
+        ok, text = br.call(name, args)
+        emit({"type": "tool_result", "exit": 0 if ok else 1, "out": text[-400:], "reply": text})
+    if not ok:
+        return {"error": text}
+    try:
+        v = json.loads(text)
+    except ValueError:
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def native_dirs():
+    """The `start` directories of this agent (its TMPDIR), for a scripted agent's hand-back."""
+    tmp = Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
+    return sorted(d for d in tmp.glob("treeyard-checkouts-*/ch_*") if d.is_dir())
+
+
+def oracle_files_from_main(c, td, k, into, cwd):
+    """Main's content of the task files plus this task's resolved patch, written into `into` (arm B: the
+    workspace, arm BN: the `start` directory)."""
+    ty = ctx_bin(c)
+    resolved = td / f"resolved-{k}.patch"
+    tmp = Path(tempfile.mkdtemp(prefix=f"oracle-{k}-", dir=c["run_dir"]))
+    subprocess.run(["git", "init", "-q"], cwd=tmp)
+    for f in meta(td)["files"]:
+        rd = tool([ty, "call", "--url", c["url"], "read", json.dumps({"path": f})], cwd)
+        content = json.loads(rd.stdout or "{}").get("content") if rd.returncode == 0 else None
+        if content is None:  # not on main yet (a file the task creates): the patch makes it
+            continue
+        p = tmp / f
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content)
+    tool(["git", "apply", str(resolved if resolved.exists() else td / "reference.patch")], tmp)
+    for f in meta(td)["files"]:
+        if (tmp / f).is_file():
+            (Path(into) / f).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(tmp / f, Path(into) / f)
+
+
+def agent_oracle_native(c, a, k, td, resume):
+    """Arm BN: `start`, `git apply` of reference.patch in the start directory, `sync`, then in the fixed
+    oracle order `land`; on a land conflict it writes main + resolved-k.patch into the directory (over the
+    markers) and lands again. On a hand-back it writes the same files and stops (the runner lands)."""
+    cwd = a["cwd"]
+    landed_dir = Path(c["run_dir"]) / "landed"
+    if resume:
+        for d in native_dirs():
+            oracle_files_from_main(c, td, k, d, cwd)
+        return
+    br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=cwd)
+    try:
+        st = ntool(br, "start", {"intent": a["title"], "paths": meta(td)["files"]})
+        cid, d = st.get("id"), st.get("dir")
+        if not cid or not d:
+            emit({"type": "note", "start": "failed"})
+            return
+        tool(["git", "apply", str(td / "reference.patch")], d)
+        r = ntool(br, "sync", {"change": cid})
+        warned = any(f.get("kind") in ("overlap", "conflict") for x in r.get("collisions", []) for f in x.get("files") or [])
+        emit({"type": "note", "warned": warned})
+        while not all((landed_dir / str(j)).exists() for j in range(1, k)):
+            time.sleep(0.2)
+        for _ in range(3):
+            r = ntool(br, "land", {"change": cid})
+            status = r.get("status")
+            if status == "landed":
+                landed_dir.mkdir(exist_ok=True)
+                (landed_dir / str(k)).write_text("")
+                return
+            if status != "conflict":
+                emit({"type": "note", "land_status": status or r.get("error", "")[:200]})
+                break
+            oracle_files_from_main(c, td, k, d, cwd)
+        else:
+            emit({"type": "note", "land_status": "gave up"})
+    finally:
+        br.close()
+    landed_dir.mkdir(exist_ok=True)
+    (landed_dir / str(k)).write_text("not landed")
+
+
 def agent_noop(ctx, k):
     c = json.loads(Path(ctx).read_text())
     emit({"type": "turn"})
     if c["arm"] in ("A", "A2"):
         tool(["git", "status", "--short"], c["agents"][k - 1]["cwd"])
+    elif c["arm"] == "BN":
+        a = c["agents"][k - 1]
+        br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=a["cwd"])
+        try:
+            ntool(br, "start", {"intent": a["title"]})
+        finally:
+            br.close()
     else:
         tool([ctx_bin(c), "workspace", "status", c["agents"][k - 1]["workspace"], "--url", c["url"], "--home", c["home"]],
              c["agents"][k - 1]["cwd"])
@@ -1153,6 +1289,8 @@ def agent_oracle(ctx, k, resume=False):
         # The oracle writes main's content of its files plus its resolved patch, and stops.
         oracle_resolve(td, k, cwd)
         return
+    if c["arm"] == "BN":
+        return agent_oracle_native(c, a, k, td, resume)
     ty = ctx_bin(c)
     base = ["--url", c["url"], "--home", c["home"]]
     name = a["workspace"]
@@ -1258,6 +1396,27 @@ class StubTalk:
                                                       "aggregated_output": out, "status": "completed"}})
         return r
 
+    def mcp(self, br, name, args):
+        """A native bridge call in the dialect: an MCP tool call as each real harness records it."""
+        self.n += 1
+        ok, text = br.call(name, args)
+        if self.d == "claude":
+            tid = f"tu-{self.k}-{self.n}"
+            emit({"type": "assistant", "message": {"id": f"msg-{self.k}-{self.n}", "model": "stub-model", "content": [
+                {"type": "tool_use", "id": tid, "name": f"mcp__treeyard__{name}", "input": args}],
+                "usage": {"input_tokens": 10, "output_tokens": 1}}})
+            emit({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": tid,
+                                                            "content": [{"type": "text", "text": text}], "is_error": not ok}]}})
+        else:
+            item = {"type": "mcp_tool_call", "server": "treeyard", "tool": name, "arguments": args, "status": "completed"}
+            if ok:
+                item["result"] = {"content": [{"type": "text", "text": text}]}
+            else:
+                item["error"] = {"message": text}
+            emit({"type": "item.started", "item": dict(item, status="in_progress")})
+            emit({"type": "item.completed", "item": item})
+        return ok, text
+
     def noop(self):
         if self.d == "stub":
             emit({"type": "turn"})
@@ -1306,6 +1465,8 @@ def agent_stub(ctx, k, resume=False):
         a = c["agents"][k - 1]
         cwd = a["cwd"]
         talk = StubTalk(dialect, k, resume)
+        if c["arm"] == "BN":
+            return stub_native_edit(c, a, k, mode, talk, resume)
         if resume:
             for f in sorted(Path(cwd).glob("*.txt")):
                 if has_marker_text(f.read_text()):
@@ -1344,6 +1505,8 @@ def agent_stub(ctx, k, resume=False):
         a = c["agents"][k - 1]
         talk = StubTalk(dialect, k, resume)
         ty = ctx_bin(c)
+        if c["arm"] == "BN":
+            return stub_native_line(c, a, k, mode, talk)
 
         def call(op, args):
             return json.loads(talk.call([ty, "call", "--url", c["url"], op, json.dumps(args)], a["cwd"]).stdout or "{}")
@@ -1388,6 +1551,58 @@ def agent_stub(ctx, k, resume=False):
         time.sleep(float(os.environ.get("T2_STUB_SLOW_S", "3")))
 
 
+def stub_native_edit(c, a, k, mode, talk, resume):
+    """Arm BN hand-back modes: `start`, line 1 of a.txt set in the start directory with plain file
+    writes, `sync`, stop (the runner lands). On the hand-back the marked files are in that directory."""
+    if resume:
+        for d in native_dirs():
+            for f in sorted(d.glob("*.txt")):
+                if has_marker_text(f.read_text()):
+                    emit({"type": "note", "handback_file": f.read_text()})
+            if mode != "edit-conflict":
+                stub_resolve(d, keep_markers=mode == "conflict-markers")
+        talk.noop()
+        talk.end()
+        return
+    br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=a["cwd"])
+    try:
+        st = ntool(br, "start", {"intent": f"stub {k}", "paths": ["a.txt"]}, talk)
+        f = Path(st["dir"]) / "a.txt"
+        lines = f.read_text().splitlines(True)
+        lines[0] = f"agent {k}\n"
+        f.write_text("".join(lines))
+        ntool(br, "sync", {"change": st["id"]}, talk)
+    finally:
+        br.close()
+    talk.end()
+
+
+def stub_native_line(c, a, k, mode, talk):
+    """Arm BN undo modes: `land-line` sets line 1 in its start directory and lands; `undo-line` waits until
+    that line is on main, starts (its directory then has the line), puts line 1 back and syncs, and stops
+    (the runner's land of it is held with status `undoes`)."""
+    ty = ctx_bin(c)
+    old, new = ("line 1\n", "kept by agent 1\n") if mode == "land-line" else ("kept by agent 1\n", "line 1\n")
+    if mode == "undo-line":
+        for _ in range(200):
+            r = subprocess.run([ty, "call", "--url", c["url"], "read", json.dumps({"path": "a.txt"})], capture_output=True, text=True)
+            if old in (json.loads(r.stdout or "{}").get("content") or ""):
+                break
+            time.sleep(0.1)
+    br = NativeBridge(ty, c["url"], a["agent"], cwd=a["cwd"])
+    try:
+        st = ntool(br, "start", {"intent": f"stub {k}", "paths": ["a.txt"]}, talk)
+        f = Path(st["dir"]) / "a.txt"
+        f.write_text(f.read_text().replace(old, new, 1))
+        if mode == "land-line":
+            ntool(br, "land", {"change": st["id"]}, talk)
+        else:
+            ntool(br, "sync", {"change": st["id"]}, talk)
+    finally:
+        br.close()
+    talk.end()
+
+
 # ----------------------------------------------------------------------- real harness wiring
 
 
@@ -1412,7 +1627,7 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
             raise Stop("claude: no OAuth token in the Keychain item of the installed Claude Code")
         env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
         servers = {}
-        if c["arm"] == "B":
+        if c["arm"] in B_ARMS:
             servers["treeyard"] = {"command": c["mcp_command"], "args": c["mcp_args"] + ["--agent", a["agent"]],
                                    "env": {"TREEYARD_URL": c["url"]}}
         (home / "mcp.json").write_text(json.dumps({"mcpServers": servers}, indent=2))
@@ -1422,7 +1637,10 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
         cmd = ["claude", "-p", text, "--mcp-config", mcp, "--strict-mcp-config",
                "--max-turns", str(turns_left), "--max-budget-usd", str(budget_left),
                "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
-               "--allowedTools", "Bash,Read,Edit,Write,Glob,Grep" + (",mcp__treeyard__*" if c["arm"] == "B" else "")]
+               "--allowedTools", "Bash,Read,Edit,Write,Glob,Grep" + (",mcp__treeyard__*" if c["arm"] in B_ARMS else "")]
+        if c["arm"] == "BN":
+            # The `start` directory is in the box's TMPDIR, outside the cwd: the agent edits it with Edit/Write.
+            cmd += ["--add-dir", str(box / "tmp")]
         if session:
             cmd += ["--resume", session]
         return cmd, env
@@ -1441,7 +1659,7 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
         # take. The box (HOME, TMPDIR, the agent's venv and cargo target) is writable besides the cwd.
         cmd += ["--json", "--skip-git-repo-check", "-c", "sandbox_mode=\"workspace-write\"", "-c", "approval_policy=\"never\"",
                 "-c", f"sandbox_workspace_write.writable_roots={json.dumps([str(box)])}"]
-        if c["arm"] == "B":
+        if c["arm"] in B_ARMS:
             margs = c["mcp_args"] + ["--agent", a["agent"]]
             cmd += ["-c", f"mcp_servers.treeyard.command={json.dumps(c['mcp_command'])}", "-c", f"mcp_servers.treeyard.args={json.dumps(margs)}",
                     "-c", f"mcp_servers.treeyard.env={{TREEYARD_URL={json.dumps(c['url'])}}}",
@@ -1453,7 +1671,7 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
         for d in ("config/opencode", "data", "cache", "state"):
             (x / d).mkdir(parents=True, exist_ok=True)
         cfg = {"$schema": "https://opencode.ai/config.json", "agent": {"build": {"steps": limits["max_turns"]}}}
-        if c["arm"] == "B":
+        if c["arm"] in B_ARMS:
             cfg["mcp"] = {"treeyard": {"type": "local", "command": [c["mcp_command"], *c["mcp_args"], "--agent", a["agent"]],
                                        "enabled": True, "environment": {"TREEYARD_URL": c["url"]}}}
         (x / "config" / "opencode" / "opencode.json").write_text(json.dumps(cfg, indent=2))
@@ -1622,9 +1840,10 @@ def tool_events(harness, lines, box=None):
             if t == "tool_use":
                 cmd = ev.get("cmd") or []
                 op = None
-                if cmd[:1] and cmd[0].startswith("treeyard") and len(cmd) > 2 and cmd[1] in ("workspace", "call"):
-                    op = cmd[2] if cmd[1] == "workspace" else next((x for x in cmd[2:] if not x.startswith("-") and not x.startswith("http")), None)
-                rec = {"name": ev.get("name"), "op": op, "args": {}, "command": " ".join(cmd), "reply": None, "ok": None}
+                if cmd[:1] and cmd[0].startswith("treeyard") and len(cmd) > 2 and cmd[1] in ("workspace", "call", "mcp"):
+                    op = cmd[2] if cmd[1] in ("workspace", "mcp") else next((x for x in cmd[2:] if not x.startswith("-") and not x.startswith("http")), None)
+                args = ev.get("args") if isinstance(ev.get("args"), dict) else {}
+                rec = {"name": ev.get("name"), "op": op, "args": args, "command": " ".join(cmd), "reply": None, "ok": None}
                 out.append(rec)
                 pending["last"] = rec
             elif t == "tool_result" and pending.get("last"):
@@ -1634,9 +1853,11 @@ def tool_events(harness, lines, box=None):
     return out
 
 
-def warning_of(events, agent):
-    """`warned` and `reacted` of one agent from its tool events (see Run.transcript_metrics)."""
+def warning_of(events, agent, native=False):
+    """`warned` and `reacted` of one agent from its tool events (see Run.transcript_metrics). `native` (arm
+    BN): `start` opens the agent's change, and a `sync` after the warning (edits sent again) is a reaction."""
     own, warned_at, reacted, landed_after = set(), None, False, False
+    react_ops = ("change", "rebase", "apply", "resolve") + (("sync",) if native else ())
     kinds, others, with_main = set(), set(), False
     for i, e in enumerate(events):
         op = e.get("op")
@@ -1648,16 +1869,16 @@ def warning_of(events, agent):
             reply = None
         reply = reply if isinstance(reply, dict) else {}
         args = e.get("args") if isinstance(e.get("args"), dict) else {}
-        if op == "open_change" and reply.get("id"):
+        if op in ("open_change", "start") and reply.get("id"):
             own.add(reply["id"])
-        if op in ("apply", "declare", "rebase", "resolve", "land") and args.get("change"):
+        if op in ("apply", "declare", "rebase", "resolve", "land", "sync") and args.get("change"):
             own.add(args["change"])
         if warned_at is not None and i > warned_at and not landed_after:
             if op == "land":
                 landed_after = True
-            elif op in ("change", "rebase", "apply", "resolve") and not reacted:
+            elif op in react_ops and not reacted:
                 reacted = True
-        mine = reply.get("agent") == agent or reply.get("id") in own or op in ("apply", "open_change", "declare", "rebase", "sync", "status")
+        mine = reply.get("agent") == agent or reply.get("id") in own or op in ("apply", "open_change", "declare", "rebase", "sync", "status", "start")
         if op == "change" and args.get("change") not in own:
             mine = False
         hits = [(c.get("change"), f) for c in reply.get("collisions") or [] if isinstance(c, dict)
@@ -1715,8 +1936,14 @@ def arm_b_test_note():
             "`checkout.dir` of your `apply` reply.")
 
 
+def arm_bn_test_note():
+    """Arm BN: the agent edits and tests the directory `dir` of its `start` reply; `t2-test` runs on the tree it
+    is called from."""
+    return f"You work in the directory `dir` of your `start` reply, not in this directory: run `{TEST_CMD}` from `dir`."
+
+
 def preamble(arm):
-    note = arm_b_test_note() if arm == "B" else ""
+    note = {"B": arm_b_test_note, "BN": arm_bn_test_note}.get(arm, lambda: "")()
     return PREAMBLE + ("\n" + note if note else "")
 
 
@@ -1980,7 +2207,7 @@ class Run:
         self.run_dir.mkdir(parents=True)
         self.adir = self.agent_area()
         # The runner's own copy of the binary inside the agent area: `ps` shows this path, not the kit's.
-        if self.arm == "B" and treeyard_bin().exists():
+        if self.arm in B_ARMS and treeyard_bin().exists():
             (self.adir / "bin").mkdir()
             self.ty = self.adir / "bin" / "treeyard"
             clone_file(treeyard_bin(), self.ty)
@@ -1995,9 +2222,11 @@ class Run:
         self.agents = []
         counts = {}
         ctx = {"arm": self.arm, "run_dir": str(self.run_dir), "agents": [], "treeyard": str(self.ty)}
-        if self.arm == "B":
+        if self.arm in B_ARMS:
             ty = self.ty
-            r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror"], cwd=self.repo_dir)
+            native = ["--native"] if self.arm == "BN" else []
+            r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror", *native],
+                   cwd=self.repo_dir)
             self.note("connect: " + r.stdout.strip().splitlines()[0])
             st = json.loads(sh([str(ty), "connect", "status", "--json"], cwd=self.repo_dir).stdout)
             self.url = st["url"]
@@ -2014,6 +2243,9 @@ class Run:
             if self.block_file:
                 if self.block != block_text(self.block_file):
                     raise Stop(f"instruction block differs from {self.block_file.name} (--block); refused")
+            elif self.arm == "BN":
+                if self.block != FROZEN_BLOCK_BN.read_text().rstrip("\n"):
+                    raise Stop("instruction block differs from bench/t2/block-bn.md (frozen); refused")
             elif self.block != FROZEN_BLOCK.read_text().rstrip("\n"):
                 raise Stop("instruction block differs from bench/t2/block-b.md (frozen); refused")
             # The MCP command that connect registered, but with a fixed agent name per slot instead of
@@ -2048,7 +2280,7 @@ class Run:
         self.ctx_data = ctx
         if len(self.agents) != self.expected:
             raise Stop(f"agent count {len(self.agents)}, want {self.expected}")
-        if self.arm == "B":
+        if self.arm in B_ARMS:
             wss = json.loads(sh([str(self.ty), "call", "--url", self.url, "changes", "{}"]).stdout)
             n_open = len(wss.get("changes", wss) if isinstance(wss, dict) else wss)
             if n_open != self.expected:
@@ -2113,8 +2345,8 @@ class Run:
         return out
 
     def arm_block(self):
-        """The arm's instruction block: B the connect block, A2 `A2_BLOCK`, A none."""
-        return {"B": getattr(self, "block", None), "A2": A2_BLOCK}.get(self.arm)
+        """The arm's instruction block: B and BN the connect block, A2 `A2_BLOCK`, A none."""
+        return {"B": getattr(self, "block", None), "BN": getattr(self, "block", None), "A2": A2_BLOCK}.get(self.arm)
 
     def prompt(self, a):
         """[arm block, empty line,] the common preamble, an empty line, the frozen task prompt."""
@@ -2344,10 +2576,35 @@ class Run:
                     out.append(ch)
         return out
 
+    def native_dir(self, a, cid):
+        """Arm BN: the `start` directory of change `cid` (in the agent's TMPDIR, its manifest beside it), or None."""
+        if self.arm != "BN":
+            return None
+        root = Path(a["box"]) / "tmp" / f"treeyard-checkouts-{os.getuid()}"
+        return root / cid if (root / f"{cid}.native.json").is_file() else None
+
+    def land_native(self, a, cid):
+        """`land` through a native bridge with the agent's environment (its TMPDIR, so the same directory): edits
+        in the directory that the agent did not sync yet go in first. On a conflict it writes the markers there."""
+        br = NativeBridge(self.ty, self.url, a["agent"], env=a["env"], cwd=a["cwd"])
+        try:
+            ok, text = br.call("land", {"change": cid})
+        finally:
+            br.close()
+        try:
+            land = json.loads(text) if ok else None
+        except ValueError:
+            land = None
+        return land if isinstance(land, dict) else {"status": "error", "error": tail(text, 600)}
+
     def land_b(self, a, cid, is_ws):
         """One land by the runner: the workspace change through `workspace land` (it syncs first and, on a
-        conflict, writes the markers into the workspace), any other change through `land`."""
-        if is_ws:
+        conflict, writes the markers into the workspace), an arm BN change with a `start` directory through
+        the native bridge's `land` (the same, for that directory), any other change through `land`."""
+        native = self.native_dir(a, cid)
+        if native is not None:
+            land = self.land_native(a, cid)
+        elif is_ws:
             r = sh([str(self.ty), "workspace", "land", a["workspace"], "--wait-s", "0", "--url", self.url, "--home", str(self.home)], check=False)
             try:
                 d = json.loads(r.stdout)
@@ -2360,10 +2617,14 @@ class Run:
         if status == "error" and re.search(r"\bis empty\b", str(land.get("error") or "")):
             status = "empty"  # an idle change (the agent's work went through another change)
         rec = {"change": cid, "workspace": is_ws, "status": status}
+        if native is not None:
+            rec["native"] = True
+        if status == "refused":  # arm BN: conflict markers left in the directory; the hand-back settles them
+            rec["markers_left"] = land.get("markers_left") or []
         if status == "undoes":
             # Held: the change removes lines another agent landed. The runner never overrides.
             rec["undoes"] = [{x: e.get(x) for x in ("path", "lines", "agent", "change", "text")} for e in land.get("undoes") or []]
-        elif status not in ("landed", "conflict", "already_on_main"):
+        elif status not in ("landed", "conflict", "already_on_main", "refused"):
             rec["error"] = land.get("error") or land.get("detail") or tail(json.dumps(land), 600)
         return rec
 
@@ -2382,6 +2643,9 @@ class Run:
             for ch in [c for c in self.changes_of(a["agent"]) if c.get("state") == "open"]:
                 cid = ch["id"]
                 is_ws = ch.get("session") == f"workspace:{a['workspace']}"
+                nd = self.native_dir(a, cid)
+                if nd is not None:  # the same commit rule for the agent's `start` directory
+                    rec["skipped_paths"] += [f"{cid}:{p}" for p in self.clean_tree(nd)]
                 lr = self.land_b(a, cid, is_ws)
                 rec["runner_landed"].append(lr)
                 if lr["status"] == "undoes":
@@ -2391,10 +2655,13 @@ class Run:
                         interventions += 1
                     rec.update(needs_human=True, intervention=True)
                     continue
-                if lr["status"] != "conflict":
+                if lr["status"] not in ("conflict", "refused"):
                     continue
                 rec["conflict"] = True
-                ok, why = self.handback_b(a, cid, is_ws, rec)
+                if nd is not None:
+                    ok, why = self.handback_native(a, cid, nd, rec)
+                else:
+                    ok, why = self.handback_b(a, cid, is_ws, rec)
                 rec["handback"] = "resolved" if ok and rec["handback"] != "failed" else "failed"
                 if not ok:
                     rec.setdefault("handback_failure", []).append(f"{cid}: {why}")
@@ -2463,11 +2730,39 @@ class Run:
             return False, f"land after the hand-back: {land.get('status') or land.get('error')}"
         return True, None
 
+    def handback_native(self, a, cid, d, rec):
+        """The arm BN hand-back: the runner's native `land` left the conflicted files in the agent's `start`
+        directory `d` with markers; the agent edits them there; the runner lands through the bridge again
+        (its `land` sends the files and refuses while markers are left)."""
+        info = self.call("change", {"change": cid})
+        paths = sorted({c["path"] for c in info.get("conflicts") or [] if c.get("path")})
+        rec.setdefault("handback_files", []).extend(paths)
+        if paths:
+            self.run_agents([a], resume={a["k"]: handback_native_text(d, paths)})
+        if self.call("change", {"change": cid}).get("state") == "landed":
+            return True, None  # the agent landed it itself
+        land = self.land_native(a, cid)
+        status = land.get("status") or "error"
+        rec["runner_landed"].append({"change": cid, "workspace": False, "native": True, "status": status,
+                                     **({} if status == "landed" else {"error": tail(json.dumps(land), 600)})})
+        if status == "refused":
+            return False, "conflict markers left in " + ", ".join(land.get("markers_left") or paths)
+        if status == "undoes":
+            rec.setdefault("undoes_held", []).append({"change": cid, "undoes": [
+                {x: e.get(x) for x in ("path", "lines", "agent", "change", "text")} for e in land.get("undoes") or []]})
+        if status != "landed":
+            return False, f"land after the hand-back: {status if status != 'error' else land.get('error')}"
+        return True, None
+
     def clean_workspace(self, a):
         """Arm B side of the commit rule: files that `commit_paths` keeps out of a commit in arm A (env,
         lock and cache files that the pin does not track) are removed from the workspace before the runner
         syncs it. Returns their paths."""
-        cwd = Path(a["cwd"])
+        return self.clean_tree(Path(a["cwd"]))
+
+    def clean_tree(self, cwd):
+        """`clean_workspace` of one directory (arm BN: also the agent's `start` directory)."""
+        cwd = Path(cwd)
         tracked = self.tracked_at_pin()
         tracked_dirs = {str(Path(t).parent) for t in tracked}
         gone = []
@@ -2585,7 +2880,7 @@ class Run:
         declared hit does not). `reacted`: after that reply and before its next land, the agent called
         change, rebase, apply or resolve. Descriptive only."""
         k_of = {}
-        if self.arm == "B":
+        if self.arm in B_ARMS:
             for a in self.agents:
                 for ch in self.changes_of(a["agent"]):
                     k_of[ch["id"]] = a["k"]
@@ -2594,7 +2889,7 @@ class Run:
             path = self.run_dir / f"agent-{a['k']}.jsonl"
             lines = path.read_text(errors="replace").splitlines() if path.exists() else []
             ev = tool_events(a.get("parser") or a["harness"], lines, Path(a["box"]))
-            w = warning_of(ev, a["agent"])
+            w = warning_of(ev, a["agent"], native=self.arm == "BN")
             per[str(a["k"])] = w
             for other in w["others"]:
                 if other in k_of and k_of[other] != a["k"]:
@@ -2732,7 +3027,7 @@ class Run:
             lines.append(json.dumps({"run": self.name, "agent_area": "system temp dir" if self.made_root else "--agent-root or scratch",
                                      "preamble_sha256": sha_text(preamble(self.arm)),
                                      "arm_block_sha256": sha_text(self.arm_block()) if self.arm_block() else None,
-                                     "handback_sha256": sha_text(HANDBACK)}))
+                                     "handback_sha256": sha_text(HANDBACK_BN if self.arm == "BN" else HANDBACK)}))
             for a in self.agents:
                 cmd, env, parser = self.command(a)
                 p = self.prompt(a)
@@ -2743,7 +3038,7 @@ class Run:
                                          "test_command": a["test_command"], "prompt_sha256": sha_text(p), "prompt": p}))
         finally:
             os.environ.pop("T2_DRY", None)
-            if self.arm == "B" and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
+            if self.arm in B_ARMS and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
                 sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
             self.archive()
         return lines
@@ -2786,7 +3081,8 @@ class Run:
         t0 = time.time()
         result = {"run": self.name, "arm": self.arm, "repo": self.repo, "set": self.set, "rep": self.rep, "kit": KIT_VERSION,
                   "harness": self.harness, "limits": self.limits, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                  "preamble_sha256": sha_text(preamble(self.arm)), "handback_sha256": sha_text(HANDBACK)}
+                  "preamble_sha256": sha_text(preamble(self.arm)),
+                  "handback_sha256": sha_text(HANDBACK_BN if self.arm == "BN" else HANDBACK)}
         if self.set_spec["from_file"]:
             result["set_agents"] = self.expected
             result["set_mix"] = self.mix
@@ -2800,7 +3096,7 @@ class Run:
                                  "prompt_sha256": sha_text(self.prompt(a))} for a in self.agents]
             if self.arm_block():
                 result["arm_block_sha256"] = sha_text(self.arm_block())
-            if self.arm == "B":
+            if self.arm in B_ARMS:
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
                 if self.block_file:
                     result["block_file"] = self.block_file.name
@@ -2848,7 +3144,7 @@ class Run:
             kill_all(self.registry)
             if service:
                 service.set()
-            if self.arm == "B" and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
+            if self.arm in B_ARMS and getattr(self, "repo_dir", None) and (self.repo_dir / ".git" / "treeyard").exists():
                 sh([str(self.ty), "disconnect", "--purge"], cwd=self.repo_dir, check=False)
             result["models"] = self.models()
             self.archive()
@@ -2969,8 +3265,16 @@ HANDBACK = (
 )
 
 
+# Arm BN: the files are in the agent's `start` directory, not in its working directory.
+HANDBACK_BN = HANDBACK.replace("The files listed below, in this directory,", "The files listed below, in your directory `{dir}`,")
+
+
 def handback_text(paths):
     return HANDBACK.format(files=", ".join(f"`{p}`" for p in paths))
+
+
+def handback_native_text(d, paths):
+    return HANDBACK_BN.format(dir=d, files=", ".join(f"`{p}`" for p in paths))
 
 
 def conflict_files(tree):
@@ -3292,7 +3596,7 @@ def main(argv=None):
             return
         if a.harness == "real" and not a.yes_real:
             raise SystemExit("--harness real starts paid or quota-using agents: it needs --yes-real (the owner's yes and a budget)")
-        truth = pair_table(scratch, a.repo, a.set) if a.arm == "B" else None
+        truth = pair_table(scratch, a.repo, a.set) if a.arm in B_ARMS else None
         r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, **kw).execute(truth)
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all", "suite_green_pinned",
                                                  "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}
@@ -3319,7 +3623,7 @@ def main(argv=None):
             for harness in ("oracle", "noop"):
                 for s in sets:
                     for arm in ARMS:
-                        r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm == "B" else None)
+                        r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm in B_ARMS else None)
                         bad += r["status"] != "done"
                         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all",
                                                                  "suite_green_pinned", "merge_conflicts", "warned", "reacted",

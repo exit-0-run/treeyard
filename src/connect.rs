@@ -43,6 +43,21 @@ Use the tools of the `treeyard` MCP server for every change to this repository:
 7. The files in this directory do not change when you land. To see landed work, use `read`.
 ";
 
+/// The instruction block of `connect --native` (the bridge's `--tools native`): the agent works in
+/// a directory of its own with its normal tools; TreeYard receives the result.
+pub const NATIVE_INSTRUCTIONS: &str = "\
+## TreeYard: other agents work on this repository at the same time
+
+Use the tools of the `treeyard` MCP server to make your change to this repository:
+
+1. Call `start` first, with a one-line `intent` and the `paths` you plan to edit. It opens your change (the reply's `id`; give it as `change` in later calls) and writes a full copy of the repository to `dir`.
+2. Work only inside `dir`, with your normal tools: read, edit and run the repository's tests there. The files in this directory do not change.
+3. Call `sync` when you want to know whether you collide with other agents (optional). A collision of kind `conflict` means another open change edits the same lines; kind `overlap` merges by itself.
+4. When a reply has `undoes`, your edit removes work that another agent landed for its own task. Keep its part (the words in `contributed`, else the whole line) and still make your own edit of the same line. When your task and its part cannot both hold, keep its part, land the rest of your work and say so in your last message: a person decides. `land` holds a change that still removes it.
+5. When the tests pass in `dir`, call `land`; it sends your files and rebases for you.
+6. On status `conflict`, the files in `conflicted` hold conflict markers in `dir`: `<<<<<<< main` to `=======` is the work on main, `=======` to `>>>>>>> change` is yours. Keep both, remove the markers, run the tests, and `land` again.
+";
+
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 #[serde(rename_all = "lowercase")]
 pub enum Harness {
@@ -147,6 +162,9 @@ pub struct State {
     /// The MCP entries list every operation (`connect --all-tools`), not the agent tool set.
     #[serde(default)]
     pub all_tools: bool,
+    /// The MCP entries use the native tool set (`connect --native`) and its instruction block.
+    #[serde(default)]
+    pub native: bool,
 }
 
 pub struct Options {
@@ -158,6 +176,8 @@ pub struct Options {
     pub mirror: Option<bool>,
     /// true = the bridge lists every operation (`--all-tools`); default the agent tool set.
     pub all_tools: bool,
+    /// true = the native tool set and block (`--native`): the agent edits a directory of its own.
+    pub native: bool,
 }
 
 /// Where one repository's connect state lives.
@@ -541,8 +561,8 @@ pub fn agent_names(h: Harness, n: usize) -> Vec<String> {
     (1..=n.max(1)).map(|i| format!("{}-{i}", h.name())).collect()
 }
 
-/// The `treeyard mcp` arguments of one harness: the agent tool set unless `all_tools`.
-fn mcp_args(names: &[String], pool_dir: &Path, all_tools: bool) -> Vec<String> {
+/// The `treeyard mcp` arguments of one harness: the agent tool set unless `all_tools` or `native`.
+fn mcp_args(names: &[String], pool_dir: &Path, all_tools: bool, native: bool) -> Vec<String> {
     let mut args: Vec<String> = if names.len() == 1 {
         vec!["mcp".into(), "--agent".into(), names[0].clone()]
     } else {
@@ -554,7 +574,9 @@ fn mcp_args(names: &[String], pool_dir: &Path, all_tools: bool) -> Vec<String> {
             pool_dir.to_string_lossy().into(),
         ]
     };
-    if !all_tools {
+    if native {
+        args.extend(["--tools".into(), "native".into()]);
+    } else if !all_tools {
         args.extend(["--tools".into(), "agent".into()]);
     }
     args
@@ -686,6 +708,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
         files: vec![],
         dirs: vec![],
         all_tools: false,
+        native: false,
     });
 
     // Server.
@@ -724,7 +747,11 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     }
     let n = o.agents.unwrap_or_else(|| st.agents.values().map(Vec::len).max().unwrap_or(1));
     st.harnesses = hs.clone();
+    if o.native && o.all_tools {
+        bail!("--native and --all-tools do not go together: the native tool set is its own");
+    }
     st.all_tools = o.all_tools;
+    st.native = o.native;
     st.agents = hs.iter().map(|h| (h.name().to_string(), agent_names(*h, n))).collect();
 
     let command = command_name()?;
@@ -735,7 +762,7 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     for h in &hs {
         let path = ctx.top.join(h.config_path());
         let names = agent_names(*h, n);
-        let args = mcp_args(&names, &pool_dir, o.all_tools);
+        let args = mcp_args(&names, &pool_dir, o.all_tools, o.native);
         let kind = if *h == Harness::Codex { Kind::Toml } else { Kind::Json };
         let known = w.st.files.iter().any(|f| f.path == path);
         if !known {
@@ -751,9 +778,10 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     }
     let mut md: Vec<&str> = vec!["AGENTS.md", "CLAUDE.md"];
     md.retain(|f| ctx.top.join(f).exists() || hs.iter().any(|h| h.instruction_file() == *f));
+    let block = if o.native { NATIVE_INSTRUCTIONS } else { INSTRUCTIONS };
     for f in md {
         let path = ctx.top.join(f);
-        w.put(&path, Kind::Markdown, &|cur| Ok(block_add(cur.unwrap_or_default(), MD_START, MD_END, INSTRUCTIONS)))?;
+        w.put(&path, Kind::Markdown, &|cur| Ok(block_add(cur.unwrap_or_default(), MD_START, MD_END, block)))?;
     }
     for f in &w.st.files {
         if f.created
@@ -1001,6 +1029,7 @@ pub fn status_json(dir: &Path) -> Result<Value> {
         "server_alive": alive,
         "data": st.data,
         "branch": st.branch,
+        "native": st.native,
         "harnesses": harnesses,
         "instructions": instructions,
         "mirror": st.mirror.as_ref().map(|m| json!({"pid": m.pid, "remote": m.remote, "alive": is_ours(m.pid, "mirror", &st.data)})),

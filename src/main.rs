@@ -72,7 +72,8 @@ enum Cmd {
         agent_pool: Vec<String>,
         #[arg(long)]
         pool_dir: Option<PathBuf>,
-        /// Tools to list: `agent` (the ones a coding agent needs, short descriptions) or `all`.
+        /// Tools to list: `agent` (the ones a coding agent needs, short descriptions), `all`, or
+        /// `native` (start/sync/land: the agent edits a directory with its own tools).
         #[arg(long, default_value = "all")]
         tools: mcp::ToolSet,
     },
@@ -103,6 +104,10 @@ enum Cmd {
         /// agent tool set.
         #[arg(long)]
         all_tools: bool,
+        /// Native mode (`treeyard mcp --tools native`): each agent edits and tests a directory of
+        /// its own with its normal tools; `sync` and `land` send the result. Its own instruction block.
+        #[arg(long, conflicts_with = "all_tools")]
+        native: bool,
     },
     /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
     Disconnect {
@@ -734,7 +739,7 @@ fn main() -> Result<()> {
             mcp::run(&url, agent, tools)?;
             drop(held);
         }
-        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror, all_tools } => {
+        Cmd::Connect { cmd, harness, agents, port, mirror, no_mirror, all_tools, native } => {
             let here = std::env::current_dir()?;
             match cmd {
                 Some(ConnectCmd::Status { json }) => {
@@ -752,6 +757,7 @@ fn main() -> Result<()> {
                         port,
                         mirror: (mirror || no_mirror).then_some(mirror),
                         all_tools,
+                        native,
                     };
                     connect::connect(&here, &o)?;
                 }

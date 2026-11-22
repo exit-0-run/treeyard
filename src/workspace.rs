@@ -42,7 +42,7 @@ use crate::model::{MODE_EXEC, MODE_FILE, MODE_GITLINK, MODE_LINK};
 /// The workspace's private directory: never synced, never part of a layer.
 pub const PRIVATE: &str = ".treeyard";
 /// One sync request carries at most about this many bytes of file content.
-const BATCH_BYTES: usize = 8 << 20;
+pub(crate) const BATCH_BYTES: usize = 8 << 20;
 pub const DEFAULT_PORT_BASE: u16 = 20000;
 pub const DEFAULT_PORT_BLOCK: u16 = 10;
 /// The repo's workspace config, read from the base tree. The only repo path under `.treeyard/`.
@@ -364,7 +364,7 @@ fn hash_file(path: &Path, m: &fs::Metadata) -> Result<(u32, String, Vec<u8>)> {
     Ok((mode, git::object_id("blob", &data), data))
 }
 
-struct Lock(#[allow(dead_code)] fs::File);
+pub(crate) struct Lock(#[allow(dead_code)] fs::File);
 
 fn lock(path: &Path) -> Result<Lock> {
     if let Some(p) = path.parent() {
@@ -1211,21 +1211,8 @@ impl Node {
         let mut edits = Vec::new();
         let mut next: Vec<(String, Option<FileState>)> = Vec::new();
         for (path, f) in found.diffs {
-            match f {
-                None => edits.push((json!({"path": path, "delete": true}), 0)),
-                Some((f, data)) => {
-                    let mut e = json!({"path": path, "content_b64": B64.encode(&data)});
-                    if f.mode == MODE_LINK {
-                        e["symlink"] = json!(true);
-                    } else {
-                        e["executable"] = json!(f.mode == MODE_EXEC);
-                    }
-                    edits.push((e, data.len()));
-                    next.push((path, Some(f)));
-                    continue;
-                }
-            }
-            next.push((path, None));
+            edits.push(edit_of(&path, f.as_ref()));
+            next.push((path, f.map(|(f, _)| f)));
         }
         let refreshed = found.touched.len();
         state.extend(found.touched);
@@ -1644,6 +1631,22 @@ impl Node {
     }
 }
 
+/// The `apply` edit that writes one scanned file (whole content, mode) or deletes it, and its size.
+pub(crate) fn edit_of(path: &str, f: Option<&Found>) -> (Value, usize) {
+    match f {
+        None => (json!({"path": path, "delete": true}), 0),
+        Some((f, data)) => {
+            let mut e = json!({"path": path, "content_b64": B64.encode(data)});
+            if f.mode == MODE_LINK {
+                e["symlink"] = json!(true);
+            } else {
+                e["executable"] = json!(f.mode == MODE_EXEC);
+            }
+            (e, data.len())
+        }
+    }
+}
+
 fn round(x: f64) -> f64 {
     (x * 10000.0).round() / 10000.0
 }
@@ -1674,10 +1677,11 @@ pub const CHECKOUT_MARK: &str = ".treeyard/checkout.json";
 const CHECKOUT_LIST_MAX: usize = 20;
 
 #[derive(Default, Serialize, Deserialize)]
-struct CheckoutMark {
-    change: String,
-    head: String,
-    files: State,
+pub(crate) struct CheckoutMark {
+    pub change: String,
+    /// The change's head whose tree the directory was written from.
+    pub head: String,
+    pub files: State,
 }
 
 /// Where `checkout` puts a change when no directory is given: one directory per change under
@@ -1692,7 +1696,7 @@ pub fn checkout_dir(change: &str) -> Result<PathBuf> {
     Ok(std::env::temp_dir().join(format!("treeyard-checkouts-{uid}")).join(change))
 }
 
-fn capped(mut v: Vec<String>) -> Value {
+pub(crate) fn capped(mut v: Vec<String>) -> Value {
     let n = v.len();
     v.truncate(CHECKOUT_LIST_MAX);
     if n > CHECKOUT_LIST_MAX {
@@ -1709,22 +1713,62 @@ fn capped(mut v: Vec<String>) -> Value {
 /// does not have stay untouched; those that no `.gitignore` excludes are listed in `extra`.
 /// `into` must be new, empty, or an earlier checkout (it holds [`CHECKOUT_MARK`]).
 pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
-    let t0 = Instant::now();
     let dir = std::path::absolute(into)?;
-    let mark_path = dir.join(CHECKOUT_MARK);
-    if let Ok(md) = fs::symlink_metadata(&dir) {
-        if !md.is_dir() {
-            bail!("{} is not a directory", dir.display());
-        }
-        let empty = fs::read_dir(&dir).with_context(|| format!("read {}", dir.display()))?.next().is_none();
-        if !empty && !mark_path.exists() {
-            bail!(
-                "{} is not empty and not a checkout (no {CHECKOUT_MARK}); give a new or empty directory, \
-                 or leave out `into` for a directory of its own",
-                dir.display()
-            );
-        }
+    let place = Place { mark: dir.join(CHECKOUT_MARK), lock: dir.join(PRIVATE).join("checkout.lock"), dir };
+    place.check()?;
+    let _l = place.lock()?;
+    checkout_locked(url, change, &place, &BTreeSet::new())
+}
+
+/// Where a checkout lives: the tree, the file that records what was written there (the manifest:
+/// path -> mode, blob, stat), and the lock that serialises writers. `checkout` keeps both files
+/// inside the tree (in `.treeyard/`); the native tool set of the bridge keeps them beside it.
+pub struct Place {
+    pub dir: PathBuf,
+    pub mark: PathBuf,
+    pub lock: PathBuf,
+}
+
+impl Place {
+    pub(crate) fn lock(&self) -> Result<Lock> {
+        lock(&self.lock)
     }
+
+    /// The directory must be new, empty, or an earlier checkout (its manifest exists).
+    pub(crate) fn check(&self) -> Result<()> {
+        if let Ok(md) = fs::symlink_metadata(&self.dir) {
+            if !md.is_dir() {
+                bail!("{} is not a directory", self.dir.display());
+            }
+            let empty =
+                fs::read_dir(&self.dir).with_context(|| format!("read {}", self.dir.display()))?.next().is_none();
+            if !empty && !self.mark.exists() {
+                bail!(
+                    "{} is not empty and not a checkout (no {}); give a new or empty directory, \
+                     or leave out `into` for a directory of its own",
+                    self.dir.display(),
+                    self.mark.display()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn load(&self) -> Result<CheckoutMark> {
+        read_json(&self.mark)
+    }
+
+    pub(crate) fn save(&self, mark: &CheckoutMark) -> Result<()> {
+        write_json(&self.mark, mark)
+    }
+}
+
+/// `checkout` into `place` for a caller that holds its lock. Paths in `keep` are left as they are
+/// on disk and in the manifest (edits not sent yet).
+pub(crate) fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTreeSet<String>) -> Result<Value> {
+    let t0 = Instant::now();
+    let dir = place.dir.clone();
+    let mark_path = place.mark.clone();
     let ch = client::call(url, "change", json!({"change": change}))?;
     let head = ch["head"].as_str().context("change reply has no head")?.to_string();
     let tree = client::call(url, "tree", json!({"at": head}))?;
@@ -1741,8 +1785,7 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
         }
     }
     crate::safety::check_tree(want.keys().map(String::as_str))?;
-    fs::create_dir_all(dir.join(PRIVATE))?;
-    let _l = lock(&dir.join(PRIVATE).join("checkout.lock"))?;
+    fs::create_dir_all(&dir)?;
     let mut mark: CheckoutMark = if mark_path.exists() { read_json(&mark_path)? } else { CheckoutMark::default() };
 
     // What changed here since the last checkout: edits to its files, and new files.
@@ -1750,6 +1793,9 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
     let mut dirty: BTreeSet<String> = BTreeSet::new();
     let mut extra = Vec::new();
     for (path, f) in found.diffs {
+        if keep.contains(&path) {
+            continue;
+        }
         if mark.files.contains_key(&path) {
             dirty.insert(path);
         } else if f.is_some() {
@@ -1757,9 +1803,12 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
         }
     }
     for (path, f) in found.touched {
-        mark.files.insert(path, f);
+        if !keep.contains(&path) {
+            mark.files.insert(path, f);
+        }
     }
-    let gone: Vec<String> = mark.files.keys().filter(|p| !want.contains_key(*p)).cloned().collect();
+    let gone: Vec<String> =
+        mark.files.keys().filter(|p| !want.contains_key(*p) && !keep.contains(*p)).cloned().collect();
     for p in &gone {
         let dst = dir.join(p);
         if fs::symlink_metadata(&dst).is_ok_and(|m| m.is_dir()) {
@@ -1773,7 +1822,7 @@ pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
     let same = |st: Option<&FileState>, w: &(u32, String)| st.is_some_and(|s| (s.mode, &s.blob) == (w.0, &w.1));
     let todo: Vec<(String, (u32, String))> = want
         .iter()
-        .filter(|(p, w)| dirty.contains(*p) || !same(mark.files.get(*p), w))
+        .filter(|(p, w)| !keep.contains(*p) && (dirty.contains(*p) || !same(mark.files.get(*p), w)))
         .map(|(p, w)| (p.clone(), w.clone()))
         .collect();
     let ids: Vec<String> = todo.iter().map(|(_, (_, b))| b.clone()).collect::<BTreeSet<_>>().into_iter().collect();

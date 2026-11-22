@@ -41,8 +41,12 @@ review its own change and take main's work. Left out: history and server-side jo
 `bisect`, `revert`), coordination plumbing (`events`, `declare`, `reviews`, `queue`, `land_status`),
 best-of-N, checkpoints, attachments, shares, tokens, `audit`, `tree`, `blobs`. A `tools/call` of any of
 them still works: the set changes only what is listed. `--tools all` (the default of `treeyard mcp`)
-lists every operation. `treeyard connect` writes `--tools agent` unless `--all-tools`. The HTTP endpoint
+lists every operation. `treeyard connect` writes `--tools agent` unless `--all-tools` (or `--native`, below). The HTTP endpoint
 takes the same choice as a query: `POST /mcp?tools=agent` (no `checkout` there).
+
+`--tools native` is a third set, for agents that read, edit and test with their own tools in a
+directory of their own: `start`, `sync`, `land`, `change`, `diff`
+([Native mode](#native-mode-start-edit-with-your-own-tools-sync-land)). Only the stdio bridge has it.
 
 Measured `tools/list` result, compact JSON: 21 753 bytes before (46 tools), 22 378 bytes with
 `--tools all` now, 5 948 bytes with `--tools agent` (13 tools). With the `undo` parameters of `land`
@@ -282,6 +286,59 @@ workspace's own change, a second change of the same agent that then collides wit
 could edit on disk and land with `treeyard workspace land`. Then the collision warnings would come only
 at sync time, not in each `apply` reply. A separate directory per change has neither problem and costs
 one call.
+
+## Native mode: `start`, edit with your own tools, `sync`, `land`
+
+With the agent set, every edit travels as an `apply` payload and most reading goes through `read` and
+`grep`. In ten-agent runs of feature-sized tasks that cost about 1.5 times the tokens of plain git
+worktrees (a Codex agent made 102 tool calls through TreeYard against 57 with git, where it does most
+work in a few shell commands), for the same tasks delivered. In native mode the agent reads, edits and
+tests a real directory with its own tools, and TreeYard only receives the result, warns and integrates.
+`treeyard connect --native` sets it up ([connect.md](connect.md)); by hand it is
+`treeyard mcp --url URL --agent NAME --tools native`.
+
+| Tool | Does |
+|---|---|
+| `start {intent, paths?}` | opens the agent's change and writes a full checkout of it to a directory of its own (reply: `id`, `dir`, `files`, intent `overlaps`). The directory is the one `checkout` would use, under `$TMPDIR`. |
+| `sync {change, rebase?}` | sends what changed in `dir` since the last write or sync into the change, through `apply`. The reply is `apply`'s in the agent view: `collisions`, `overlaps`, `undoes` (with `contributed`), plus `sent`, `deleted`, and `main_moved_in` when work landed in files the change edits. `rebase: true` then rebases onto main and rewrites `dir`. |
+| `land {change, undo?, reason?}` | syncs, lands with the usual semantics (held on `undoes`, `undo` + `reason` overrides), and rewrites `dir`. |
+| `change`, `diff` | as in the agent set. |
+
+How it works:
+
+- The manifest (path to mode, blob id and stat of every file written to `dir`, and the head it was
+  written from) lives beside the directory, never in it: `<dir>.native.json`, with the lock
+  `<dir>.native.lock`. The tree holds only the repository's files, so the tests and the agent's own
+  `grep` see nothing of TreeYard. A new bridge process (the harness restarted it) finds the checkout
+  again by the change id.
+- `sync` scans `dir` against the manifest (stat first, then content hashes): modified, added and
+  deleted files, with symlinks and exec bits. New files that a `.gitignore` excludes are not sent, nor
+  caches and build output of common tools (`__pycache__/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`,
+  `.ruff_cache/`, `.hypothesis/`, `.tox/`, `.nox/`, `.venv/`, `node_modules/`, `*.egg-info/`,
+  `.DS_Store`, `.coverage`); files the change already has are always sent. The files go as whole
+  contents through `apply` with `seen` = the head `dir` was written from, so when the change moved
+  under the directory (a rebase elsewhere), the write merges 3-way instead of overwriting it. Then
+  `dir` is rewritten to the change's head: only files that differ are written.
+- A `land` conflict leaves the change rebased with conflict markers in the conflicted files. The
+  rewrite puts them in `dir`: `<<<<<<< main` .. `=======` is the work on main, `=======` ..
+  `>>>>>>> change` the agent's. The reply lists them in `conflicted` (no regions: the agent has the
+  files). The agent fixes them in place and calls `land` again. A conflicted file that still holds a
+  marker block is never sent: `sync` reports it in `markers_left`, `land` answers status `refused`
+  with `markers_left`, and the file stays as the agent left it (a half-done fix is not overwritten).
+  Other files are still sent.
+- After `landed`, `dir` holds main as of the land, with the change. The files in the agent's working
+  directory never change.
+
+Test: `tests/native.rs` drives the built bridge over stdio against a real server: a complete tree in
+`dir` with the manifest beside it; edits, a new file and a deletion sent, build output, `*.pyc` and
+`*.egg-info` not; a new bridge process syncing the same change; `undoes` in a `sync` reply when an
+edit removes another agent's landed line, the land held until the line is back; a conflict written as
+markers, `land` refused while they remain, then landed; `main_moved_in` and `rebase: true`; a stale
+directory merging 3-way.
+
+What an agent can lose: nothing that `land` sees, since it syncs first. Edits made after the last
+`land` call of a change are not sent by anything; and a `land` that lands rewrites `dir`, so an edit
+made in `dir` while that call runs can be overwritten.
 
 ## Many agents, one machine or many
 

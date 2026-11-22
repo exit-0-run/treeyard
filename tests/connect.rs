@@ -286,6 +286,51 @@ fn instruction_block_leaves_the_rest_of_the_file_byte_identical() {
     assert_eq!(std::fs::read_to_string(env.repo.join("CLAUDE.md")).unwrap(), claude);
 }
 
+/// `bench/t2/<file>` is the block between the markers, as connect writes it (the kit refuses any other).
+fn bench_block(file: &str, body: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("bench/t2").join(file);
+    let want = format!("{}\n{body}{}\n", treeyard::connect::MD_START, treeyard::connect::MD_END);
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), want, "{file} is the constant");
+}
+
+#[test]
+fn the_bench_blocks_are_the_constants() {
+    bench_block("block-b.md", treeyard::connect::INSTRUCTIONS);
+    bench_block("block-bn.md", treeyard::connect::NATIVE_INSTRUCTIONS);
+    let points = treeyard::connect::NATIVE_INSTRUCTIONS.lines().filter(|l| l.starts_with(char::is_numeric)).count();
+    assert!(points <= 6, "the native block is short: {points} points");
+}
+
+#[test]
+fn connect_native_writes_the_native_tool_set_and_block_and_back() {
+    let agents = "# Agents\n";
+    let env = Env::new(&[("AGENTS.md", agents)]);
+    env.run(&["connect", "--harness", "claude,codex", "--native", "--no-mirror"]);
+    let mcp: Value = serde_json::from_slice(&std::fs::read(env.repo.join(".mcp.json")).unwrap()).unwrap();
+    let args: Vec<&str> =
+        mcp["mcpServers"]["treeyard"]["args"].as_array().unwrap().iter().map(|a| a.as_str().unwrap()).collect();
+    assert!(args.windows(2).any(|w| w == ["--tools", "native"]), "{args:?}");
+    let codex = std::fs::read_to_string(env.repo.join(".codex/config.toml")).unwrap();
+    assert!(codex.contains("\"native\""), "{codex}");
+    for f in ["AGENTS.md", "CLAUDE.md"] {
+        let now = std::fs::read_to_string(env.repo.join(f)).unwrap();
+        let start = now.find(treeyard::connect::MD_START).unwrap() + treeyard::connect::MD_START.len() + 1;
+        let body = &now[start..now.find(treeyard::connect::MD_END).unwrap()];
+        assert_eq!(body, treeyard::connect::NATIVE_INSTRUCTIONS, "{f}");
+    }
+    assert_eq!(env.state()["native"], true);
+    assert!(env.cmd(&["connect", "--native", "--all-tools"]).output().unwrap().status.code() != Some(0));
+    // Connect again without --native: the normal tool set and block, byte for byte.
+    env.run(&["connect"]);
+    let now = std::fs::read_to_string(env.repo.join("AGENTS.md")).unwrap();
+    assert!(now.contains(treeyard::connect::INSTRUCTIONS), "{now}");
+    let mcp: Value = serde_json::from_slice(&std::fs::read(env.repo.join(".mcp.json")).unwrap()).unwrap();
+    assert!(mcp["mcpServers"]["treeyard"]["args"].as_array().unwrap().iter().any(|a| a == "agent"));
+    env.run(&["disconnect"]);
+    assert_eq!(std::fs::read_to_string(env.repo.join("AGENTS.md")).unwrap(), agents);
+    assert!(env.user_dirs_empty());
+}
+
 fn undo_case(extra: &[(&str, &str)], purge: bool) {
     let env = Env::new(extra);
     // Untracked user files count too.

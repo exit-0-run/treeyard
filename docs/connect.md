@@ -34,6 +34,7 @@ Connect adds the files that it creates to `.git/info/exclude`, so `git status` s
 | `--port P` | Port on `127.0.0.1`. Default: a free port, then the same port on the next connect. |
 | `--mirror`, `--no-mirror` | Push landed changes to `origin` every 30 s, or never ask. |
 | `--all-tools` | The MCP entries list every operation. Default: `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout` ([mcp.md](mcp.md#tool-sets)). A `connect` without the flag writes the agent set again. |
+| `--native` | Native mode: the MCP entries run `treeyard mcp --tools native` (`start`, `sync`, `land`, `change`, `diff`) and the block is the native one (below). Each agent edits and tests a directory of its own with its normal tools ([mcp.md](mcp.md#native-mode-start-edit-with-your-own-tools-sync-land)). Not with `--all-tools`. A `connect` without the flag writes the normal entries and block again. |
 
 A second `connect` with the same flags prints `already connected` and writes nothing. When the
 server stopped, connect starts it again on the recorded port.
@@ -112,6 +113,15 @@ treeyard disconnect
 
 When you edited a connect file after connect, `disconnect` removes only the TreeYard entry or block
 from it and prints a warning.
+
+## Native mode
+
+`treeyard connect --native` writes the native block instead (`NATIVE_INSTRUCTIONS` in
+`src/connect.rs`, the same text as `bench/t2/block-bn.md`): call `start` first; work only in its `dir`
+with your normal tools and run the tests there; `sync` when you want to know whether you collide
+(optional); on `undoes` keep the other agent's part; `land` when the tests pass; on a conflict fix the
+marked files in `dir` and `land` again. The files in the repository directory do not change. The
+normal block and entries stay byte for byte what they were.
 
 ## Agent names
 

@@ -231,7 +231,7 @@ class HandbackTests(StubBase):
         self.assertIn("markers", res["merges"][1]["handback_failure"])
 
     def test_hand_back_files_carry_the_same_markers_in_both_arms(self):
-        arms = ["A"] + (["B"] if HAS_TREEYARD else [])
+        arms = ["A"] + (["B", "BN"] if HAS_TREEYARD else [])
         for arm in arms:
             res = self.run_stub("edit-conflict,conflict-markers,ok,ok,ok", arm=arm)
             self.assertEqual(res["interventions"], 1, arm)
@@ -264,6 +264,111 @@ class HandbackTests(StubBase):
             ws = [p for p in (self.tmp / "t2").rglob(f"ws/agent-{a}/a.txt")]
             for p in ws:
                 self.assertFalse(k.has_marker_text(p.read_text()))
+
+
+class ArmBNTests(StubBase):
+    """Arm BN: arm B in native mode. The stub agents write files in their `start` directory and use the
+    bridge's `sync` and `land`; the runner lands through the bridge with the agent's environment."""
+
+    final = HandbackTests.final
+    assert_all_kept = HandbackTests.assert_all_kept
+    assert_left_out = HandbackTests.assert_left_out
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_claude_dialect_resolves_in_the_start_directory(self):
+        res = self.run_stub(",".join(["conflict-resolve"] * 5), arm="BN", dialects=",".join(["claude"] * 5))
+        self.assert_all_kept(res, "lands")
+        l2 = res["lands"][1]
+        self.assertTrue(all(x.get("native") for x in l2["runner_landed"] if not x["workspace"]), l2)
+        self.assertEqual(l2["handback_files"], ["a.txt"])
+        ev = k.tool_events("claude", (self.tmp / "run" / "agent-2.jsonl").read_text().splitlines())
+        self.assertEqual([e["op"] for e in ev if e["op"]], ["start", "sync"])
+        self.assertTrue(res["warned"] >= 1, "sync replies carry the collisions")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_codex_dialect_leaves_markers_and_the_land_is_refused(self):
+        res = self.run_stub(",".join(["conflict-markers"] * 5), arm="BN", dialects=",".join(["codex"] * 5))
+        self.assert_left_out(res, "lands")
+        self.assertIn("markers left", res["lands"][1]["handback_failure"][0])
+        self.assertIn("refused", [x["status"] for x in res["lands"][1]["runner_landed"]])
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_do_nothing_is_left_out(self):
+        res = self.run_stub(",".join(["edit-conflict"] * 5), arm="BN")
+        self.assert_left_out(res, "lands")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_a_held_land_from_the_start_directory(self):
+        res = self.run_stub("land-line,undo-line,ok,ok,ok", arm="BN", dialects="codex,claude,,,")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["interventions"], res["undoes_held"]), (1, 1))
+        l2 = res["lands"][1]
+        held = l2["undoes_held"][0]
+        self.assertEqual([e["text"] for e in held["undoes"]], ["kept by agent 1\n"])
+        self.assertIn({"change": held["change"], "workspace": False, "native": True, "status": "undoes", "undoes": held["undoes"]},
+                      l2["runner_landed"])
+        self.assertIn("kept by agent 1\n", (self.tmp / "run" / "final" / "a.txt").read_text())
+        # agent 2's own sync reply named the undone line
+        ev = k.tool_events("claude", (self.tmp / "run" / "agent-2.jsonl").read_text().splitlines())
+        sync = [e for e in ev if e["op"] == "sync"]
+        self.assertEqual(len(sync), 1)
+        self.assertIn("kept by agent 1", sync[0]["reply"])
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_unsynced_edits_reach_the_runners_land(self):
+        """An agent that edits its directory and stops without sync or land: the runner's native land sends the
+        files (the commit rule first removes env and lock files)."""
+        os.environ["T2_STUB_MODES"] = "ok,ok,ok,ok,ok"
+        r = k.Run(self.tmp, "BN", "mini", "colliding", 1, "noop", limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 60},
+                  tasks_dir=self.tasks, repo_spec=self.spec, run_dir=self.tmp / "run", results=self.tmp / "results")
+        r.setup()
+        try:
+            a = r.agents[0]
+            br = k.NativeBridge(r.ty, r.url, a["agent"], env=a["env"], cwd=a["cwd"])
+            st = json.loads(br.call("start", {"intent": "line 3"})[1])
+            br.close()
+            d = Path(st["dir"])
+            self.assertEqual(r.native_dir(a, st["id"]), d)
+            self.assertTrue(str(d).startswith(str(Path(a["box"]) / "tmp")), "inside the box (Codex writable root)")
+            (d / "a.txt").write_text((d / "a.txt").read_text().replace("line 3\n", "task 3\n"))
+            (d / "uv.lock").write_text("lock\n")
+            lands, interventions = r.finalize_b()
+            self.assertEqual(interventions, 0)
+            self.assertIn(f"{st['id']}:uv.lock", lands[0]["skipped_paths"])
+            self.assertIn({"change": st["id"], "workspace": False, "native": True, "status": "landed"}, lands[0]["runner_landed"])
+            self.assertIn("task 3\n", r.call("read", {"path": "a.txt"})["content"])
+            self.assertIsNone(r.call("read", {"path": "uv.lock"}).get("content"))
+        finally:
+            k.sh([str(r.ty), "disconnect", "--purge"], cwd=r.repo_dir, check=False)
+            r.archive()
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_prompt_block_and_commands(self):
+        os.environ["T2_DRY"] = "1"
+        r = k.Run(self.tmp, "BN", "mini", "colliding", 1, "stub", tasks_dir=self.tasks, repo_spec=self.spec,
+                  run_dir=self.tmp / "run", results=self.tmp / "results")
+        try:
+            r.setup()
+            want = k.FROZEN_BLOCK_BN.read_text().rstrip("\n")
+            self.assertEqual(r.block, want)
+            self.assertTrue(r.prompt(r.agents[0]).startswith(want + "\n\n" + k.preamble("BN") + "\n\n# task 1"))
+            self.assertIn("from `dir`", k.preamble("BN"))
+            self.assertIn("--tools", r.ctx_data["mcp_args"])
+            self.assertEqual(r.ctx_data["mcp_args"][r.ctx_data["mcp_args"].index("--tools") + 1], "native")
+            a = r.agents[0]
+            for h in ("claude", "codex"):
+                cmd, env = k.real_command(h, "p", a, r.ctx_data, r.limits)
+                if h == "claude":
+                    self.assertEqual(cmd[cmd.index("--add-dir") + 1], str(Path(a["box"]) / "tmp"))
+                    self.assertTrue(cmd[cmd.index("--allowedTools") + 1].endswith(",mcp__treeyard__*"))
+                else:
+                    roots = [x for x in cmd if x.startswith("sandbox_workspace_write.writable_roots=")][0]
+                    self.assertIn(json.dumps(str(Path(a["box"]))), roots)
+                    self.assertIn('"native"', " ".join(cmd))
+        finally:
+            os.environ.pop("T2_DRY", None)
+            k.sh([str(r.ty), "disconnect", "--purge"], cwd=r.repo_dir, check=False)
+            r.archive()
 
 
 class ArmBUndoesTests(StubBase):
@@ -331,6 +436,18 @@ class ArmA2Tests(StubBase):
         self.assertEqual(res["status"], "done", res.get("stop_reason"))
         self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
         self.assert_guard(res)
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_oracle_arm_bn(self):
+        r, res = self.run_world("oracle", arm="BN")
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text(), "".join(f"task {i}\n" for i in range(1, 6)))
+        self.assert_guard(res)
+        ev = k.tool_events("script", (self.tmp / "run" / "agent-5.jsonl").read_text().splitlines())
+        ops = [e["op"] for e in ev if e["op"]]
+        self.assertEqual(ops[:2], ["start", "sync"])
+        self.assertIn("land", ops)
 
     def test_stub_agents_integrate_and_settle_conflicts(self):
         r, res = self.run_world("stub", modes=",".join(["integrate"] * 5), dialects="claude,codex,claude,codex,stub")
@@ -483,6 +600,13 @@ class MetricTests(unittest.TestCase):
         w = k.warning_of([ev("apply", self.reply("claude-1", [file_hit]), change="ch_me"), ev("land", "{}", change="ch_me"),
                           ev("apply", "{}", change="ch_me")], "claude-1")
         self.assertEqual((w["warned"], w["reacted"], w["others"]), (True, False, ["ch_b"]))
+        # arm BN: `start` opens the change, `sync` replies warn, and a later sync is the reaction
+        native = [ev("start", json.dumps({"id": "ch_me", "dir": "/d"}), intent="x"),
+                  ev("sync", json.dumps({"id": "ch_me", "collisions": [file_hit]}), change="ch_me"),
+                  ev("sync", "{}", change="ch_me"), ev("land", "{}", change="ch_me")]
+        w = k.warning_of(native, "claude-1", native=True)
+        self.assertEqual((w["warned"], w["reacted"], w["others"]), (True, True, ["ch_b"]))
+        self.assertFalse(k.warning_of(native, "claude-1")["reacted"], "a sync is no reaction in arm B")
 
     def test_tool_events_of_both_harnesses(self):
         tmp = Path(tempfile.mkdtemp(prefix="t2-events-"))
@@ -871,6 +995,11 @@ class MixedSetTests(StubBase):
     @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
     def test_oracle_and_noop_arm_b_ten_workspaces(self):
         self.oracle_and_noop("B")
+
+    @unittest.skipUnless(HAS_TREEYARD, "needs target/debug/treeyard (or T2_TREEYARD)")
+    def test_oracle_and_noop_arm_bn_ten_directories(self):
+        res = self.oracle_and_noop("BN")
+        self.assertEqual({x["status"] for m in res["lands"] for x in m["runner_landed"]}, {"empty"})
 
     def test_collect_shows_the_task_count_and_integration(self):
         tmp = self.tmp / "collect"

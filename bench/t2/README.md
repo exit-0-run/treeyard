@@ -1,7 +1,8 @@
 # T2 experiment kit
 
 Five coding agents at once on one repository (ten in the development sets `mixed` and `heavy`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
-git-native way to integrate early (arm A2), and `treeyard connect` (arm B). The design, the metrics and
+git-native way to integrate early (arm A2), `treeyard connect` (arm B), and `treeyard connect --native`
+(arm BN, section "Arm BN"; not in any preregistration). The design, the metrics and
 the thresholds of version 3 are frozen in [PREREGISTRATION.md](PREREGISTRATION.md); its pilot on
 requests ran in [results/pilot-v3/](results/pilot-v3/README.md) and an audit after it found faults in
 the runner. This kit fixes them (section "Since preregistration v3"). Those fixes change the hand-back,
@@ -15,7 +16,7 @@ Standard library Python. Run every command from the worktree root with a scratch
 python3 bench/t2/t2.py setup --scratch S       # pinned clones, requests venv, warm cargo build
 python3 bench/t2/t2.py generate --scratch S    # tasks/ from taskdefs.py (prompts, hidden tests, patches)
 python3 bench/t2/t2.py validate --scratch S    # results/validate.txt
-python3 bench/t2/t2.py rehearse --scratch S    # oracle and noop runs of all cells, arms A, A2 and B
+python3 bench/t2/t2.py rehearse --scratch S    # oracle and noop runs of all cells, arms A, A2, B and BN
 python3 bench/t2/t2.py collect --summary bench/t2/results/rehearsal-summary.txt
 python3 bench/t2/t2.py run --scratch S --arm A2 --repo requests --set colliding --rep 1 --harness real --dry-run
 python3 bench/t2/t2.py recount --runs S/t2/runs --results bench/t2/results/pilot-v3
@@ -67,6 +68,39 @@ and each agent's `prompt_sha256`.
 disk do not hold its edits until a product feature writes them. The hook returns no text until that
 feature exists. `t2-test` called from a directory outside the agent's own (a copy of the tree, as block B
 point 6 says) runs in that directory.
+
+## Arm BN
+
+Arm B connected in native mode: `treeyard connect --native`, so each agent's MCP entry runs
+`treeyard mcp --tools native` (`start`, `sync`, `land`, `change`, `diff`; [docs/mcp.md](../../docs/mcp.md))
+and the block is `block-bn.md` (the run refuses any other; `tests/connect.rs` ties it to the constant
+in `src/connect.rs`). The agent calls `start`, reads, edits and runs `t2-test` in the directory `dir` of
+its reply with its own tools, and lands with `land`. Everything else is arm B: the same workspaces as
+cwd, server, metrics, hand-back and stops. What differs:
+
+- The preamble note (`arm_bn_test_note()`): run `t2-test` from `dir`.
+- `dir` is in the agent's TMPDIR (`box/tmp/treeyard-checkouts-<uid>/<change>`, its manifest beside it), so
+  it is inside the Codex writable root (the box). Claude Code gets `--add-dir box/tmp` to edit there.
+- The runner lands an open change that has a `start` directory through the bridge with the agent's
+  environment, so edits the agent made and never synced go in (after the commit rule removed env and
+  lock files from the directory too; `skipped_paths` lists them as `<change>:<path>`). On a conflict the
+  bridge writes the markers into `dir`; the hand-back (`HANDBACK_BN`: the same text, naming `dir`)
+  resumes the agent there, and the runner's next bridge `land` sends the files, or answers `refused`
+  while markers are left (the hand-back failed). `lands[].runner_landed[]` marks these with `native`.
+- `warned` counts collisions in the agent's own `sync` replies too (op `sync`); a `start` reply names the
+  agent's change; a `sync` after the warning is a reaction. `undoes_held` counts the runner's held lands
+  as in arm B.
+- The scripted harnesses drive the native flow for real through a bridge on stdio (`NativeBridge`):
+  the oracle starts, `git apply`s `reference.patch` in `dir`, syncs, lands in the fixed order and on a
+  conflict writes main plus `resolved-<k>.patch` over the markers in `dir`; `noop` calls `start` only;
+  the stub modes write `a.txt` in `dir` and sync or land (in the `claude` and `codex` dialects as MCP
+  tool calls).
+
+```sh
+python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness oracle --results S/bn
+python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness real --dry-run
+python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness real --yes-real
+```
 
 ## Hand-back
 

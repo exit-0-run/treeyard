@@ -8,7 +8,7 @@ use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
 use crate::lean::Lean;
-use crate::{client, rpc, workspace};
+use crate::{client, native, rpc, workspace};
 
 const INSTRUCTIONS: &str = "TreeYard serves the repository as an API. Read with read/list/grep/log \
 without a checkout; ask blame (who changed a line, with intent), symbols/outline (definitions) and \
@@ -22,14 +22,22 @@ through the stdio bridge, writes it to the directory in checkout.dir), run the t
 Later applies give the change id. On land status conflict, resolve the regions in change.conflicts with apply \
 (or resolve), and land again. This is the agent tool set; every operation is listed with --tools all.";
 
+const NATIVE_INSTRUCTIONS: &str = "TreeYard lets several agents work on this repository at once. Call start \
+first: it opens your change and writes a full copy of the repository to dir. Read, edit and test only in dir, \
+with your own tools. sync sends your edits and reports collisions and undoes (another agent's landed lines that \
+you removed: put its part back). land syncs and lands; on status conflict, fix the marked files in dir and land \
+again.";
+
 /// Which tools `tools/list` offers. `Agent`: the operations a coding agent needs
-/// (`rpc::AGENT_TOOLS`), with short descriptions; `All`: every operation. A `tools/call` of any
-/// operation works with either.
+/// (`rpc::AGENT_TOOLS`), with short descriptions; `All`: every operation; `Native` (stdio bridge
+/// only): `start`, `sync`, `land` on a directory the agent edits with its own tools, plus
+/// `change` and `diff` (`native`). A `tools/call` of any operation works with each.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum ToolSet {
     Agent,
     #[default]
     All,
+    Native,
 }
 
 impl std::str::FromStr for ToolSet {
@@ -38,7 +46,8 @@ impl std::str::FromStr for ToolSet {
         match s {
             "agent" => Ok(ToolSet::Agent),
             "all" => Ok(ToolSet::All),
-            _ => anyhow::bail!("tools must be agent or all, not {s:?}"),
+            "native" => Ok(ToolSet::Native),
+            _ => anyhow::bail!("tools must be agent, all or native, not {s:?}"),
         }
     }
 }
@@ -75,13 +84,18 @@ pub fn reply_with(
             "protocolVersion": msg["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"),
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "treeyard", "version": env!("CARGO_PKG_VERSION")},
-            "instructions": if set == ToolSet::Agent { AGENT_INSTRUCTIONS } else { INSTRUCTIONS },
+            "instructions": match set {
+                ToolSet::Agent => AGENT_INSTRUCTIONS,
+                ToolSet::All => INSTRUCTIONS,
+                ToolSet::Native => NATIVE_INSTRUCTIONS,
+            },
         })),
         "ping" => Ok(json!({})),
         "tools/list" => {
             let mut tools = match set {
                 ToolSet::Agent => rpc::agent_tools(),
                 ToolSet::All => rpc::tools(),
+                ToolSet::Native => native::tools(),
             };
             if extra.iter().any(|t| t["name"] == "checkout") {
                 add_checkout_param(&mut tools, set);
@@ -102,7 +116,8 @@ pub fn reply_with(
             }
             Ok(match call(name, args) {
                 Ok(mut v) => {
-                    if set == ToolSet::Agent {
+                    // The native tools shape their own replies.
+                    if set == ToolSet::Agent || (set == ToolSet::Native && !native::OWN.contains(&name)) {
                         lean.shape(name, &mut v);
                     }
                     json!({"content": [{"type": "text", "text": serde_json::to_string(&v).unwrap_or_default()}]})
@@ -157,11 +172,16 @@ const REFRESH: &[&str] = &["apply", "resolve", "rebase", "restore_change", "land
 pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
     let stdin = std::io::stdin();
     let mut out = std::io::stdout();
-    let extra = [checkout_tool()];
+    let extra = if set == ToolSet::Native { vec![] } else { vec![checkout_tool()] };
     let mut lean = Lean::default();
+    // The native tools keep their own agent view (`reply_with` borrows `lean`).
+    let mut native_lean = Lean::default();
     // Checkout directories made through this bridge, per change.
     let mut checkouts: HashMap<String, PathBuf> = HashMap::new();
     let mut call = |name: &str, mut args: Value| -> Result<Value> {
+        if set == ToolSet::Native && native::OWN.contains(&name) {
+            return native::call(url, agent.as_deref(), &mut native_lean, name, args);
+        }
         if name == "checkout" {
             let change = args["change"].as_str().context("checkout needs change (ch_...)")?.to_string();
             let dir = match args["into"].as_str().filter(|s| !s.trim().is_empty()) {

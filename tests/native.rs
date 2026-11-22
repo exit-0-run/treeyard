@@ -1,0 +1,314 @@
+//! The native tool set of the stdio bridge (`treeyard mcp --tools native`): the built binary,
+//! driven with JSON-RPC on stdio against a real server, as a harness drives it. Agents edit their
+//! `start` directory with plain file writes (their own tools), then `sync` and `land`.
+
+mod common;
+
+use common::{git, spawn_server};
+use serde_json::{Value, json};
+use std::io::{BufRead, BufReader, Write};
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::Arc;
+use treeyard::repo::Repo;
+
+fn bin() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_treeyard"))
+}
+
+const LIB: &str = "one\ntwo\nthree\nfour\nfive\n";
+
+fn repo(root: &Path) -> PathBuf {
+    let src = root.join("src");
+    std::fs::create_dir_all(&src).unwrap();
+    git(&src, &["init", "-q", "-b", "main"]);
+    std::fs::write(src.join("lib.txt"), LIB).unwrap();
+    std::fs::write(src.join("old.txt"), "to delete\n").unwrap();
+    std::fs::write(src.join(".gitignore"), "build/\n").unwrap();
+    std::fs::write(src.join("run_tests.sh"), "#!/bin/sh\ngrep -q '^TWO$' lib.txt\n").unwrap();
+    std::fs::set_permissions(src.join("run_tests.sh"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    git(&src, &["add", "-A"]);
+    git(&src, &["commit", "-q", "-m", "fixture"]);
+    src
+}
+
+struct Bridge {
+    child: Child,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+    id: u64,
+}
+
+impl Bridge {
+    fn start(url: &str, agent: &str, cwd: &Path, tmp: &Path) -> Bridge {
+        let mut child = Command::new(bin())
+            .args(["mcp", "--url", url, "--agent", agent, "--tools", "native"])
+            .env("TMPDIR", tmp)
+            .env_remove("TREEYARD_TOKEN")
+            .current_dir(cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let mut b = Bridge { child, stdin, stdout, id: 0 };
+        b.rpc("initialize", json!({}));
+        b
+    }
+
+    fn rpc(&mut self, method: &str, params: Value) -> Value {
+        self.id += 1;
+        let msg = json!({"jsonrpc": "2.0", "id": self.id, "method": method, "params": params});
+        writeln!(self.stdin, "{msg}").unwrap();
+        let mut line = String::new();
+        self.stdout.read_line(&mut line).unwrap();
+        serde_json::from_str(&line).unwrap()
+    }
+
+    fn raw(&mut self, name: &str, args: Value) -> (bool, String) {
+        let r = self.rpc("tools/call", json!({"name": name, "arguments": args}));
+        (r["result"]["isError"] == true, r["result"]["content"][0]["text"].as_str().unwrap().to_string())
+    }
+
+    fn tool(&mut self, name: &str, args: Value) -> Value {
+        let (err, text) = self.raw(name, args);
+        assert!(!err, "{name}: {text}");
+        serde_json::from_str(&text).unwrap()
+    }
+
+    fn close(mut self) {
+        drop(self.stdin);
+        self.child.wait().unwrap();
+    }
+}
+
+struct World {
+    _tmp: tempfile::TempDir,
+    src: PathBuf,
+    url: String,
+    tmpdir: PathBuf,
+}
+
+fn world() -> World {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = repo(tmp.path());
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let tmpdir = tmp.path().join("tmpdir");
+    std::fs::create_dir_all(&tmpdir).unwrap();
+    World { _tmp: tmp, src, url, tmpdir }
+}
+
+impl World {
+    fn bridge(&self, agent: &str) -> Bridge {
+        Bridge::start(&self.url, agent, &self.src, &self.tmpdir)
+    }
+
+    fn main_file(&self, path: &str) -> Option<String> {
+        let r = treeyard::client::call(&self.url, "read", json!({"path": path})).ok()?;
+        r["content"].as_str().map(str::to_string)
+    }
+}
+
+/// `start` and the change id and directory it returns.
+fn start(b: &mut Bridge, intent: &str) -> (String, PathBuf) {
+    let v = b.tool("start", json!({"intent": intent, "paths": ["lib.txt"]}));
+    (v["id"].as_str().unwrap().to_string(), PathBuf::from(v["dir"].as_str().unwrap()))
+}
+
+fn edit(dir: &Path, path: &str, from: &str, to: &str) {
+    let p = dir.join(path);
+    let text = std::fs::read_to_string(&p).unwrap();
+    assert!(text.contains(from), "{path}: {text}");
+    std::fs::write(&p, text.replacen(from, to, 1)).unwrap();
+}
+
+fn strs(v: &Value) -> Vec<String> {
+    v.as_array().map(|a| a.iter().map(|x| x.as_str().unwrap().to_string()).collect()).unwrap_or_default()
+}
+
+#[test]
+fn start_edit_with_own_tools_sync_and_land() {
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let init = b.rpc("initialize", json!({}));
+    assert!(init["result"]["instructions"].as_str().unwrap().contains("start"));
+    let list = b.rpc("tools/list", json!({}));
+    let names: Vec<&str> =
+        list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["start", "sync", "land", "change", "diff"]);
+
+    let (id, dir) = start(&mut b, "TWO in capitals");
+    // A complete tree the tests run in; the manifest sits beside it, not in it.
+    for f in ["lib.txt", "old.txt", ".gitignore", "run_tests.sh"] {
+        assert!(dir.join(f).is_file(), "{f}");
+    }
+    assert!(!dir.join(".treeyard").exists(), "nothing of TreeYard inside the tree");
+    assert!(dir.with_file_name(format!("{id}.native.json")).is_file(), "manifest beside the tree");
+    assert!(!Command::new("sh").arg("-c").arg("./run_tests.sh").current_dir(&dir).status().unwrap().success());
+
+    // The agent's own tools: edit, add, delete; build output and caches stay local.
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    std::fs::write(dir.join("new.txt"), "new\n").unwrap();
+    std::fs::remove_file(dir.join("old.txt")).unwrap();
+    for f in ["build/out.o", "__pycache__/m.cpython-312.pyc", "notes.pyc", "pkg.egg-info/PKG-INFO"] {
+        std::fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
+        std::fs::write(dir.join(f), "x\n").unwrap();
+    }
+    assert!(Command::new("sh").arg("-c").arg("./run_tests.sh").current_dir(&dir).status().unwrap().success());
+    let s = b.tool("sync", json!({"change": id}));
+    assert_eq!(strs(&s["sent"]), ["lib.txt", "new.txt"], "{s}");
+    assert_eq!(strs(&s["deleted"]), ["old.txt"], "{s}");
+    let diff = treeyard::client::call(&w.url, "diff", json!({"change": id})).unwrap();
+    let paths: Vec<&str> = diff["files"].as_array().unwrap().iter().map(|f| f["path"].as_str().unwrap()).collect();
+    assert_eq!(paths, ["lib.txt", "new.txt", "old.txt"]);
+    // Nothing new: nothing sent.
+    let s = b.tool("sync", json!({"change": id}));
+    assert!(s.get("sent").is_none() && s.get("deleted").is_none(), "{s}");
+
+    // A new bridge process (a harness restart) finds the checkout by its manifest.
+    b.close();
+    let mut b = w.bridge("agent-a");
+    std::fs::write(dir.join("new.txt"), "newer\n").unwrap();
+    let s = b.tool("sync", json!({"change": id}));
+    assert_eq!(strs(&s["sent"]), ["new.txt"], "{s}");
+
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour\nfive\n");
+    assert_eq!(w.main_file("new.txt").unwrap(), "newer\n");
+    assert!(w.main_file("old.txt").is_none());
+    for f in ["build/out.o", "notes.pyc"] {
+        assert!(w.main_file(f).is_none(), "{f} never lands");
+        assert!(dir.join(f).exists(), "{f} stays in dir");
+    }
+    // The original directory never changed.
+    assert_eq!(std::fs::read_to_string(w.src.join("lib.txt")).unwrap(), LIB);
+    let (err, text) = b.raw("sync", json!({"change": id}));
+    assert!(err && text.contains("landed"), "{text}");
+    let (err, text) = b.raw("sync", json!({"change": "ch_000000000000"}));
+    assert!(err && text.contains("call start"), "{text}");
+    b.close();
+}
+
+#[test]
+fn sync_warns_undoes_and_land_holds_until_the_line_is_back() {
+    let w = world();
+    let mut a = w.bridge("agent-a");
+    let (ca, da) = start(&mut a, "three by a");
+    edit(&da, "lib.txt", "three\n", "three by a\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+
+    // B starts after A landed, then rewrites A's line away with its own tools.
+    let mut b = w.bridge("agent-b");
+    let (cb, db) = start(&mut b, "rewrite line three");
+    assert!(std::fs::read_to_string(db.join("lib.txt")).unwrap().contains("three by a\n"));
+    edit(&db, "lib.txt", "three by a\n", "three\n");
+    let s = b.tool("sync", json!({"change": cb}));
+    let undoes = s["undoes"].as_array().unwrap_or_else(|| panic!("no undoes: {s}"));
+    assert_eq!(undoes[0]["path"], "lib.txt");
+    assert_eq!(undoes[0]["agent"], "agent-a");
+    assert_eq!(undoes[0]["change"], ca.as_str());
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "undoes", "{l}");
+    assert!(w.main_file("lib.txt").unwrap().contains("three by a\n"), "held: main keeps A's line");
+    // Its part back and B's own edit of the same line: lands.
+    edit(&db, "lib.txt", "three\n", "three by a, checked by b\n");
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert!(w.main_file("lib.txt").unwrap().contains("three by a, checked by b\n"));
+    a.close();
+    b.close();
+}
+
+#[test]
+fn a_land_conflict_becomes_markers_in_dir_and_lands_once_fixed() {
+    let w = world();
+    let mut a = w.bridge("agent-a");
+    let mut b = w.bridge("agent-b");
+    let (ca, da) = start(&mut a, "two by a");
+    let (cb, db) = start(&mut b, "two by b");
+    edit(&da, "lib.txt", "two\n", "two by a\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+    edit(&db, "lib.txt", "two\n", "two by b\n");
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "conflict", "{l}");
+    assert_eq!(strs(&l["conflicted"]), ["lib.txt"]);
+    assert!(l["advice"].as_str().unwrap().contains("<<<<<<< main"));
+    let text = std::fs::read_to_string(db.join("lib.txt")).unwrap();
+    assert!(text.contains("<<<<<<< main\ntwo by a\n=======\ntwo by b\n>>>>>>> change\n"), "{text}");
+
+    // Markers left: not sent, land refused; other files still go in.
+    std::fs::write(db.join("notes.txt"), "b's notes\n").unwrap();
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "refused", "{l}");
+    assert_eq!(strs(&l["markers_left"]), ["lib.txt"]);
+    assert_eq!(strs(&l["sent"]), ["notes.txt"]);
+    // A half-done fix stays as the agent left it.
+    edit(&db, "lib.txt", "one\n", "ONE\n");
+    let s = b.tool("sync", json!({"change": cb}));
+    assert_eq!(strs(&s["markers_left"]), ["lib.txt"], "{s}");
+    assert!(std::fs::read_to_string(db.join("lib.txt")).unwrap().starts_with("ONE\n<<<<<<< main"));
+    assert!(w.main_file("notes.txt").is_none(), "nothing landed");
+
+    std::fs::write(db.join("lib.txt"), "ONE\ntwo by a and b\nthree\nfour\nfive\n").unwrap();
+    let l = b.tool("land", json!({"change": cb}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "ONE\ntwo by a and b\nthree\nfour\nfive\n");
+    assert_eq!(w.main_file("notes.txt").unwrap(), "b's notes\n");
+    a.close();
+    b.close();
+}
+
+#[test]
+fn main_moved_shows_in_sync_and_a_rebase_refreshes_dir() {
+    let w = world();
+    let mut a = w.bridge("agent-a");
+    let mut b = w.bridge("agent-b");
+    let (ca, da) = start(&mut a, "line one");
+    let (cb, db) = start(&mut b, "line five");
+    edit(&da, "lib.txt", "one\n", "one by a\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+    edit(&db, "lib.txt", "five\n", "five by b\n");
+    let s = b.tool("sync", json!({"change": cb}));
+    assert_eq!(strs(&s["main_moved_in"]), ["lib.txt"], "{s}");
+    assert!(s["main_moved_advice"].as_str().unwrap().contains("rebase"));
+    assert!(!std::fs::read_to_string(db.join("lib.txt")).unwrap().contains("one by a"), "dir stays at its base");
+    let s = b.tool("sync", json!({"change": cb, "rebase": true}));
+    assert!(s.get("main_moved_in").is_none(), "{s}");
+    assert_eq!(std::fs::read_to_string(db.join("lib.txt")).unwrap(), "one by a\ntwo\nthree\nfour\nfive by b\n");
+    // An edit after the rebase goes on top of the rebased file, not over it.
+    edit(&db, "lib.txt", "four\n", "four by b\n");
+    assert_eq!(b.tool("land", json!({"change": cb}))["status"], "landed");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one by a\ntwo\nthree\nfour by b\nfive by b\n");
+    a.close();
+    b.close();
+}
+
+#[test]
+fn a_stale_directory_merges_instead_of_overwriting() {
+    // The change moves on the server (a rebase through another client) while dir still holds the
+    // old base: the whole-file write merges 3-way against what dir was written from.
+    let w = world();
+    let mut a = w.bridge("agent-a");
+    let mut b = w.bridge("agent-b");
+    let (ca, da) = start(&mut a, "line one");
+    let (cb, db) = start(&mut b, "line five");
+    edit(&da, "lib.txt", "one\n", "one by a\n");
+    assert_eq!(a.tool("land", json!({"change": ca}))["status"], "landed");
+    edit(&db, "lib.txt", "five\n", "five by b\n");
+    b.tool("sync", json!({"change": cb}));
+    // Rebased behind the bridge's back: dir does not have A's line.
+    treeyard::client::call(&w.url, "rebase", json!({"change": cb})).unwrap();
+    edit(&db, "lib.txt", "four\n", "four by b\n");
+    let s = b.tool("sync", json!({"change": cb}));
+    assert!(s.get("undoes").is_none(), "no undoes: the merge keeps A's line: {s}");
+    assert_eq!(std::fs::read_to_string(db.join("lib.txt")).unwrap(), "one by a\ntwo\nthree\nfour by b\nfive by b\n");
+    assert_eq!(b.tool("land", json!({"change": cb}))["status"], "landed");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one by a\ntwo\nthree\nfour by b\nfive by b\n");
+    a.close();
+    b.close();
+}

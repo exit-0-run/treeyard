@@ -5,6 +5,20 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Added
+- Native mode. `treeyard mcp --tools native` is a third tool set for agents that read, edit and test
+  with their own tools: `start {intent, paths?}` opens the change and writes a full checkout to a
+  directory of its own (`dir`); `sync {change, rebase?}` sends what changed there (modified, added,
+  deleted files; `.gitignore` rules and common caches honoured) through `apply`, so the reply carries
+  the same `collisions` and `undoes`; `land` syncs, lands with the usual hold on `undoes`, and on a
+  conflict writes the rebased files with conflict markers into `dir` (refused while a conflicted file
+  still holds markers); `change` and `diff`. The manifest of the checkout lives beside it, not in it.
+  `treeyard connect --native` writes these entries and a short native instruction block (the normal
+  block is unchanged). Only the stdio bridge has the set (`POST /mcp?tools=native` is refused).
+  Tests: `tests/native.rs`, `tests/connect.rs`.
+- bench/t2: arm `BN`, arm B connected in native mode (`block-bn.md`), with the scripted harnesses
+  driving the native flow through the bridge and the runner landing through it.
+
 ### Fixed
 - `grep` with `path` naming a file returned no matches: `path` was taken as a directory prefix only
   (`path/`). It now limits the search to that file or to that directory. A `path` that names neither

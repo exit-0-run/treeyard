@@ -26,6 +26,7 @@ pub mod lean;
 pub mod mcp;
 pub mod merge;
 pub mod model;
+pub mod native;
 pub mod replay;
 pub mod repo;
 pub mod rpc;
