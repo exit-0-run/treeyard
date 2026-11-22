@@ -16,7 +16,7 @@ Standard library Python. Run every command from the worktree root with a scratch
 python3 bench/t2/t2.py setup --scratch S       # pinned clones, requests venv, warm cargo build
 python3 bench/t2/t2.py generate --scratch S    # tasks/ from taskdefs.py (prompts, hidden tests, patches)
 python3 bench/t2/t2.py validate --scratch S    # results/validate.txt
-python3 bench/t2/t2.py rehearse --scratch S    # oracle and noop runs of all cells, arms A, A2, B and BN
+python3 bench/t2/t2.py rehearse --scratch S    # oracle and noop runs of all cells, arms A, A2, B and BN (--arms to choose)
 python3 bench/t2/t2.py collect --summary bench/t2/results/rehearsal-summary.txt
 python3 bench/t2/t2.py run --scratch S --arm A2 --repo requests --set colliding --rep 1 --harness real --dry-run
 python3 bench/t2/t2.py recount --runs S/t2/runs --results bench/t2/results/pilot-v3
@@ -54,6 +54,11 @@ development set). Point it at a scratch directory for checks: the run files in `
   when that is clean, fast-forwards `main` to it; on a conflict it leaves the markers in the files and
   the agent resolves them and runs it again. It runs no tests. The runner then merges only what agents
   left unintegrated, with the same hand-back. A2 is not part of preregistration v3.
+- **A3** ("git, merge often"): A2 with the block `A3_BLOCK` instead of `A2_BLOCK`. It adds a concrete rule:
+  commit and run `git merge main` before starting, after each logical step, at least every 10 minutes of
+  work and right before integrating, and resolve a conflict at once, so conflicts come early and in small
+  pieces. Same `t2-integrate`, same runner. `rehearse` runs it only when named (`--arms A,A2,A3`); not part
+  of preregistration v3.
 - **B**: `treeyard connect`, one workspace per agent, MCP tools; the runner lands every open change of
   each agent in slot order.
 
@@ -61,7 +66,7 @@ Every prompt is `[arm block, empty line,] PREAMBLE, empty line, task prompt`. Th
 hashes are unchanged. `PREAMBLE` (t2.py) is the same text in every arm: what to deliver (the code change
 and one regression test in the repository's existing test file for that module; no changelog or release
 notes; no unrelated files), the test command `t2-test`, and that the task is finished only when it passes.
-The run file records `preamble_sha256`, `arm_block_sha256` (A2, B), `block_sha256` (B), `handback_sha256`
+The run file records `preamble_sha256`, `arm_block_sha256` (A2, A3, B), `block_sha256` (B), `handback_sha256`
 and each agent's `prompt_sha256`.
 
 `arm_b_test_note()` in t2.py is a marked hook: in arm B the agent edits through `apply`, so the files on
@@ -213,7 +218,9 @@ tool calls in its first invocation (a hand-back answered in words is not an anom
 | `interventions` = `needs_human` | failed hand-backs (agents left out of main) |
 | `merges` / `lands` | per agent: conflict, `handback_files`, `handback`, `handback_failure`, `needs_human`, `skipped_paths`, `merge_output`; B: every runner land with its `status` and `error` text (`empty` = an idle workspace change), `undoes_held` (lands held with status `undoes`) |
 | `undoes_held` | B: runner lands held because the change removes lines another agent landed (each is also `needs_human`) |
-| `integrations`, `integrate_conflicts`, `integrated_by_agent` | A2: each `t2-integrate` call and its outcome |
+| `integrations`, `integrate_conflicts`, `integrated_by_agent` | A2, A3: each `t2-integrate` call and its outcome |
+| `conflict_work` | A, A2, A3, Claude agents: `claude_seconds` and `claude_usd` spent on conflict work, `episodes`, their shares of the Claude agents' totals (`share_of_claude_seconds`, `share_of_claude_usd`), `per_agent`. A: the hand-back invocations. A2, A3: each episode from a `t2-integrate` or `git merge`/`git pull` that reported a conflict to the next clean integrate or merge (or the `git commit` that concludes a merge); an episode's cost is the invocation's cost times its share of price-weighted tokens (input 1, cache write 2, cache read 0.1, output 5) |
+| `flow` | A, A2, A3: `changes_on_main` and `changes_per_hour` (moves of main by an agent's work: successful `t2-integrate` calls and runner merges), `wait_s_median`, `wait_s_p95` (A2, A3: from the first integrate attempt of a piece of work to its work on main), `retries` (attempts that did not put the work on main because main had moved, followed by another attempt) |
 | `warned`, `reacted`, `warnings`, `warned_pairs`, `false_alarms` | from each agent's own tool replies: warned = a reply of its own call held a file-level collision (`path`, kind overlap or conflict; with main counts); reacted = after it, before its next land, a `change`, `rebase`, `apply` or `resolve`. Descriptive only |
 | `legacy_warned_before_land`, `legacy_reacted`, `legacy_false_alarms`, ... | the event-stream metrics of preregistration v3 (in old run files: `warned_before_land`, `reacted`) |
 | `guard` | per agent: files, lines added and removed, test lines added, paths of its own diff: what its integrations (A2), the runner's merge (A, A2) or its landed changes (B) put on main; work left out counts from the merge base |

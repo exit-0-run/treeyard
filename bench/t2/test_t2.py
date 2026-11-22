@@ -1085,6 +1085,15 @@ class MixedSetTests(StubBase):
         self.assertEqual(k.LIMITS, {"max_turns": 80, "max_tokens": 4_000_000, "timeout_s": 1800, "claude_budget_usd": 3.0})
         self.assertEqual(k.MIX, ["claude", "claude", "claude", "codex", "codex"])
 
+    def test_arm_a3_oracle_and_noop(self):
+        res = self.mixed_run("oracle", arm="A3").execute()
+        self.assertEqual((res["status"], res["tasks_on_main"], res["integration_passed"]), ("done", 10, 1), res.get("stop_reason"))
+        self.assertIn("conflict_work", res)
+        self.assertEqual(res["flow"]["changes_on_main"], 10)
+        self.assertEqual(res["arm_block_sha256"], k.sha_text(k.A3_BLOCK))
+        res = self.mixed_run("noop", arm="A3").execute()
+        self.assertEqual((res["status"], res["tasks_on_main"]), ("done", 0))
+
     def test_set_settings_drive_count_slots_and_limits(self):
         r = self.mixed_run("stub")
         self.assertEqual((r.expected, r.n_agents), (10, 10))
@@ -1283,7 +1292,10 @@ class DevMixedTests(unittest.TestCase):
             r = subprocess.run([sys.executable, str(kit / "t2.py"), "generate", "--scratch", os.environ["T2_SCRATCH"], "--repo", "click"],
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr)
-            for man in ("MANIFEST.json", "MANIFEST-mixed.json", "MANIFEST-heavy.json", "MANIFEST-hard.json"):
+            mans = ["MANIFEST.json", "MANIFEST-mixed.json", "MANIFEST-heavy.json", "MANIFEST-hard.json"]
+            if (Path(os.environ["T2_SCRATCH"]) / "t2" / "src" / "networkx" / ".git").exists():
+                mans.append("MANIFEST-long.json")
+            for man in mans:
                 self.assertEqual((kit / "dev" / "tasks" / man).read_text(), (k.DEV / "tasks" / man).read_text(), man)
                 for rel in json.loads((k.DEV / "tasks" / man).read_text()):
                     self.assertEqual((kit / rel).read_bytes(), (k.HERE / rel).read_bytes(), rel)
@@ -1507,6 +1519,132 @@ class DevHardVariantTests(unittest.TestCase):
                 r = subprocess.run([str(python), "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_t2_variant.py"],
                                    cwd=tree, env=env, capture_output=True, text=True, timeout=300)
                 self.assertEqual(r.returncode, 0, r.stdout[-1500:])
+
+
+def claude_line(kind, t, **kw):
+    """One event of a synthetic Claude transcript at second `t` (2026-01-01T00:00:<t>Z)."""
+    ts = f"2026-01-01T00:{int(t) // 60:02d}:{int(t) % 60:02d}Z"
+    if kind == "init":
+        return json.dumps({"type": "system", "subtype": "init", "session_id": "s"})
+    if kind == "msg":
+        content = [{"type": "tool_use", "id": kw["tid"], "name": "Bash", "input": {"command": kw["cmd"]}}] if "tid" in kw else []
+        return json.dumps({"type": "assistant", "timestamp": ts, "message": {"id": f"m{t}", "content": content,
+                                                                            "usage": {"input_tokens": kw.get("tok", 10), "output_tokens": 0}}})
+    if kind == "res":
+        return json.dumps({"type": "user", "timestamp": ts, "message": {"content": [{"type": "tool_result", "tool_use_id": kw["tid"],
+                                                                                    "content": kw["out"]}]}})
+    return json.dumps({"type": "result", "subtype": "success", "total_cost_usd": kw["cost"], "duration_ms": kw["ms"]})
+
+
+class ConflictWorkTests(unittest.TestCase):
+    """Conflict-work accounting of the git arms (A, A2, A3) from Claude transcripts, and the integration flow."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="t2-cw-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, k, lines):
+        (self.tmp / f"agent-{k}.jsonl").write_text("\n".join(lines) + "\n")
+
+    def test_arm_a_counts_the_hand_backs(self):
+        self.write(1, [claude_line("init", 0), claude_line("msg", 1), claude_line("result", 2, cost=1.0, ms=100_000),
+                       claude_line("init", 3), claude_line("msg", 4), claude_line("result", 5, cost=1.5, ms=30_000)])
+        self.write(2, [claude_line("init", 0), claude_line("msg", 1), claude_line("result", 2, cost=0.5, ms=50_000)])
+        cw = k.conflict_work("A", [{"k": 1, "harness": "claude"}, {"k": 2, "harness": "claude"}, {"k": 3, "harness": "codex"}], self.tmp)
+        self.assertEqual((cw["claude_seconds"], cw["claude_usd"], cw["episodes"]), (30.0, 0.5, 1))
+        self.assertEqual((cw["claude_seconds_total"], cw["claude_usd_total"]), (180.0, 2.0))
+        self.assertEqual((cw["share_of_claude_seconds"], cw["share_of_claude_usd"]), (round(30 / 180, 4), 0.25))
+
+    def test_arm_a2_counts_episodes_from_conflict_to_clean_integrate(self):
+        conflict = "t2-integrate: conflict with the work on main in a.py. These files now hold both versions"
+        self.write(1, [
+            claude_line("init", 0),
+            claude_line("msg", 1, tok=100),                                   # normal work
+            claude_line("msg", 10, tid="t1", cmd="t2-integrate", tok=10),
+            claude_line("res", 11, tid="t1", out=conflict),                    # episode 1 starts at 11
+            claude_line("msg", 20, tok=40),                                    # conflict work
+            claude_line("msg", 30, tid="t2", cmd="t2-integrate", tok=10),
+            claude_line("res", 31, tid="t2", out="t2-integrate: integrated, main is now your work (abc)"),  # ends at 31
+            claude_line("msg", 40, tok=100),                                   # normal work again
+            claude_line("msg", 50, tid="t3", cmd="git merge main", tok=10),
+            claude_line("res", 51, tid="t3", out="CONFLICT (content): Merge conflict in b.py\nAutomatic merge failed"),
+            claude_line("msg", 55, tok=20),
+            claude_line("msg", 60, tid="t4", cmd="git commit -qam merge", tok=10),
+            claude_line("res", 61, tid="t4", out=""),                          # concludes the merge: ends at 61
+            claude_line("result", 70, cost=3.0, ms=70_000)])
+        cw = k.conflict_work("A3", [{"k": 1, "harness": "claude"}], self.tmp)
+        self.assertEqual(cw["episodes"], 2)
+        self.assertEqual(cw["claude_seconds"], 20.0 + 10.0)
+        # tokens inside the episodes: msgs at 20 (40) and 30 (10), at 55 (20) and 60 (10) = 80 of 300
+        self.assertAlmostEqual(cw["claude_usd"], 3.0 * 80 / 300, places=3)
+        self.assertAlmostEqual(cw["share_of_claude_usd"], 80 / 300, places=3)
+        self.assertEqual(k.conflict_episodes([(1, "t2-integrate", conflict)]), [(1, 1)])
+
+    def test_the_flow_of_work_onto_main(self):
+        agents = [{"k": 1, "integrations": [{"t_s": 10, "status": "conflict"}, {"t_s": 40, "status": "markers left"},
+                                            {"t_s": 70, "status": "integrated"}, {"t_s": 100, "status": "integrated"}]},
+                  {"k": 2, "integrations": [{"t_s": 20, "status": "integrated"}, {"t_s": 30, "status": "nothing"}]}]
+        f = k.integration_flow("A3", agents, [{"status": "on main"}, {"status": "merged"}], 3600)
+        self.assertEqual((f["changes_on_main"], f["changes_per_hour"], f["retries"]), (4, 4.0, 2))
+        self.assertEqual((f["pieces_waited"], f["wait_s_median"], f["wait_s_p95"]), (3, 0, 60))
+        f = k.integration_flow("A", [{"k": 1}], [{"status": "merged"}, {"status": "left out"}], 1800)
+        self.assertEqual((f["changes_on_main"], f["changes_per_hour"], f["wait_s_median"]), (1, 2.0, None))
+
+    def test_the_a3_block(self):
+        self.assertIn("git merge main", k.A3_BLOCK)
+        self.assertIn("every 10 minutes", k.A3_BLOCK)
+        self.assertIn(k.INTEGRATE_CMD, k.A3_BLOCK)
+        self.assertNotEqual(k.A3_BLOCK, k.A2_BLOCK)
+        self.assertEqual(k.REHEARSE_ARMS, ("A", "A2", "B", "BN"))
+        self.assertIn("A3", k.ARMS)
+
+
+class DevLongTests(unittest.TestCase):
+    """The `long` set of the development set (dev/taskdefs_long.py, dev/long/, dev/tasks/networkx/long)."""
+
+    def setUp(self):
+        self.saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        k.select_kit(["networkx"])
+
+    def tearDown(self):
+        for n, v in self.saved.items():
+            setattr(k, n, v)
+
+    def td(self):
+        return [m for m in k.extra_taskdefs() if "long" in m.SETS][0]
+
+    def test_files_match_their_manifest(self):
+        manifest = json.loads((k.DEV / "tasks" / "MANIFEST-long.json").read_text())
+        self.assertEqual(sum(1 for p in manifest if p.endswith("prompt.md")), 10)
+        for rel, digest in manifest.items():
+            self.assertTrue(rel.startswith("dev/tasks/networkx/long/"), rel)
+            self.assertEqual(k.sha256(k.HERE / rel), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", (k.HERE / rel).read_text().lower(), rel)
+
+    def test_set_json_and_the_repository(self):
+        spec = k.set_spec(k.TASKS_DIR, "networkx", "long")
+        self.assertEqual((spec["agents"], spec["mix"]), (10, ["claude"] * 10))
+        self.assertGreaterEqual(spec["limits"]["timeout_s"], 3600)
+        self.assertEqual(len(spec["integration"]), 12)
+        self.assertEqual(k.sets_of("networkx"), ["long"])
+        self.assertEqual(k.TASK_TOTAL, 10)
+        for it in spec["integration"]:
+            d = k.TASKS_DIR / "networkx" / "long" / "integration" / it["id"]
+            self.assertTrue((d / "hidden" / it["test"]).is_file())
+            for p in it["pair"]:
+                self.assertTrue((d / f"without-{p}.patch").is_file(), (it["id"], p))
+        self.assertIn("networkx==3.7", k.REPOS["networkx"]["venv_packages"])
+
+    def test_each_refactor_meets_three_features(self):
+        spec = k.set_spec(k.TASKS_DIR, "networkx", "long")
+        for r in (8, 9, 10):
+            partners = {p for it in spec["integration"] for p in it["pair"] if r in it["pair"] and p != r}
+            self.assertGreaterEqual(len(partners), 3, r)
+            self.assertRegex(self.td().PROMPTS[self.td().IDS[r - 1]][1], r"\. Keep ")
+        self.assertEqual(sorted(self.td().WITHOUT["networkx"]["long"]), list(range(1, 11)))
 
 
 if __name__ == "__main__":

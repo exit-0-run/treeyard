@@ -59,11 +59,17 @@ VENV = "requests-venv"
 TASK_TOTAL = 30
 SETS = ("disjoint", "colliding")
 # Sets beyond the two of preregistration v3, defined in sibling modules `taskdefs_<name>.py` (only the
-# development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py, dev/taskdefs_hard.py). Their
+# development set has them: dev/taskdefs_mixed.py, dev/taskdefs_heavy.py, dev/taskdefs_hard.py,
+# dev/taskdefs_long.py). Their
 # tasks/<repo>/<set>/set.json holds the set-level settings: agent count, harness slots, limits, integration tests
 # (`set_spec`).
-EXTRA_SETS = ("mixed", "heavy", "hard")
-ARMS = ("A", "A2", "B", "BN")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+EXTRA_SETS = ("mixed", "heavy", "hard", "long")
+ARMS = ("A", "A2", "A3", "B", "BN")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+# A3: arm A2 with a block that tells the agent to merge main into its branch often while it works ("git, merge
+# often"); not in preregistration v3. `rehearse` runs it only when asked (`--arms`).
+A2_ARMS = ("A2", "A3")
+GIT_ARMS = ("A", "A2", "A3")
+REHEARSE_ARMS = ("A", "A2", "B", "BN")
 # BN: arm B connected in native mode (`connect --native`): each agent edits and tests a directory of its own
 # with its own tools and sends the result with the bridge's `sync` and `land`. Not in preregistration v3.
 B_ARMS = ("B", "BN")
@@ -134,7 +140,7 @@ def use_dev():
     """Points the kit at the development set: dev/repos.json, dev/taskdefs.py, dev/tasks, dev/results."""
     global REPOS, TASKS_DIR, RESULTS, TASKDEFS, VENV, TASK_TOTAL
     REPOS, TASKS_DIR, RESULTS, TASKDEFS, VENV = DEV_REPOS, DEV / "tasks", DEV / "results", DEV, "dev-venv"
-    TASK_TOTAL = 10 * len(DEV_REPOS)
+    TASK_TOTAL = 10  # the two 5-task sets of dev/taskdefs.py (click only; the other dev repositories have only extra sets)
 
 
 def select_kit(repos):
@@ -393,6 +399,10 @@ def generate_extra(scratch, mod):
     for s in td.SETS:
         manifest = {}
         settings = td.SET_SETTINGS[s]
+        missing = [r for r in td.TASKS if not (scratch / "t2" / "src" / r / ".git").exists()]
+        if missing:  # the files of this set stay as they are
+            print(f"skipped {s}: no clone of {', '.join(missing)} in {scratch} (run `setup --repo {missing[0]}`)")
+            continue
         for repo, sets in td.TASKS.items():
             tasks = sets[s]
             assert len(tasks) == settings["agents"], (repo, s, len(tasks))
@@ -1263,7 +1273,7 @@ def agent_oracle_native(c, a, k, td, resume):
 def agent_noop(ctx, k):
     c = json.loads(Path(ctx).read_text())
     emit({"type": "turn"})
-    if c["arm"] in ("A", "A2"):
+    if c["arm"] in GIT_ARMS:
         tool(["git", "status", "--short"], c["agents"][k - 1]["cwd"])
     elif c["arm"] == "BN":
         a = c["agents"][k - 1]
@@ -1288,10 +1298,10 @@ def agent_oracle(ctx, k, resume=False):
     cwd = a["cwd"]
     emit({"type": "turn"})
     resolved = td / f"resolved-{k}.patch"
-    if c["arm"] in ("A", "A2"):
+    if c["arm"] in GIT_ARMS:
         if not resume:
             tool(["git", "apply", str(td / "reference.patch")], cwd)
-            if c["arm"] == "A2":
+            if c["arm"] in A2_ARMS:
                 return oracle_integrate(c, k, td, cwd)
             tool(["git", "add", "-A"], cwd)
             tool(["git", "commit", "-q", "-m", a["title"]], cwd)
@@ -1502,7 +1512,7 @@ def agent_stub(ctx, k, resume=False):
         f.write_text("".join(lines))
         if c["arm"] == "A":
             talk.call(["git", "commit", "-q", "-am", f"stub {k}"], cwd)
-        elif c["arm"] == "A2":
+        elif c["arm"] in A2_ARMS:
             for _ in range(10):  # main can move again between a resolve and the next integrate
                 if talk.call(["t2-integrate"], cwd).returncode == 0:
                     break
@@ -2018,6 +2028,26 @@ A2_BLOCK = (
 )
 
 
+# Arm A3 ("git, merge often"): arm A2's block plus a concrete rule to merge main into the branch while working,
+# so that conflicts come early and in small pieces. Its sha256 goes in the run file (`arm_block_sha256`).
+A3_BLOCK = (
+    "## Other agents work on this repository at the same time\n\n"
+    "Each agent works in its own git worktree and branch of this repository, and other agents put their work on "
+    "the branch `main` while you work. Meet their changes early and in small pieces:\n\n"
+    "1. Merge main into your branch often: commit your work (`git add` the files you changed, `git commit`), then "
+    "run `git merge main` in this directory. Do it before you start, after each logical step of your work (a "
+    "function written, a test passing), at least every 10 minutes of work, and right before you integrate.\n"
+    "2. When `git merge main` reports a conflict, resolve it at once, before you go on: keep your work and the work "
+    f"on main, `git add` the files and `git commit`. Then run `{TEST_CMD}` (or the tests of the files you touched) "
+    "before you continue.\n"
+    f"3. When your change passes `{TEST_CMD}`, integrate it: run `{INTEGRATE_CMD}` in this directory. It merges main "
+    "into your branch and, when that merges cleanly, moves main to your work. It runs no tests.\n"
+    f"4. When `{INTEGRATE_CMD}` reports a conflict, the files it names hold your work and the work on main with "
+    "conflict markers. Resolve them in your files so that your work and the work on main are both kept, run "
+    f"`{TEST_CMD}`, then run `{INTEGRATE_CMD}` again."
+)
+
+
 def arm_b_test_note():
     """HOOK (arm B tests): extra preamble text for arm B on how the agent's edits reach the files that
     `t2-test` runs on. In arm B an agent edits through `apply`, so the files on disk do not hold its
@@ -2312,7 +2342,7 @@ class Run:
             clone_file(treeyard_bin(), self.ty)
         # Arm A, A2: the repository is the worktrees' common git dir, so it lives with them. Arm B: the
         # server's repository (and its data in .git/treeyard) stays with the runner.
-        self.repo_dir = self.make_repo(self.adir if self.arm in ("A", "A2") else self.run_dir)
+        self.repo_dir = self.make_repo(self.adir if self.arm in GIT_ARMS else self.run_dir)
         self.base = git("rev-parse", "HEAD", cwd=self.repo_dir).stdout.strip()
         tasks = self.tasks()
         if len(tasks) != self.expected:
@@ -2363,7 +2393,7 @@ class Run:
             counts[slot] = counts.get(slot, 0) + 1
             agent = f"{slot}-{counts[slot]}"
             a = {"k": k, "agent": agent, "harness": h, "task_dir": str(td), "title": m["title"], "id": m["id"]}
-            if self.arm in ("A", "A2"):
+            if self.arm in GIT_ARMS:
                 wt = self.adir / "wt" / f"agent-{k}"
                 git("worktree", "add", "-q", "-b", f"agent-{k}", str(wt), "main", cwd=self.repo_dir)
                 a["cwd"] = str(wt)
@@ -2432,7 +2462,7 @@ class Run:
         test_env = {x: env[x] for x in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "CARGO_TARGET_DIR", "CARGO_HOME", "CARGO_NET_OFFLINE",
                                          "RUSTUP_HOME", "VIRTUAL_ENV", *self.spec.get("env", {})) if x in env}
         write_script(box / "bin" / TEST_CMD, test_script(a["cwd"], rel, suite, prefix, test_env))
-        if self.arm == "A2":
+        if self.arm in A2_ARMS:
             write_script(box / "bin" / INTEGRATE_CMD, integrate_script(box / "tmp" / ".t2-integrate"))
         a["env"] = env
         a["test_command"] = {"suite": suite, "prefix": prefix, "workdir": str(wd)}
@@ -2447,8 +2477,9 @@ class Run:
         return out
 
     def arm_block(self):
-        """The arm's instruction block: B and BN the connect block, A2 `A2_BLOCK`, A none."""
-        return {"B": getattr(self, "block", None), "BN": getattr(self, "block", None), "A2": A2_BLOCK}.get(self.arm)
+        """The arm's instruction block: B and BN the connect block, A2 `A2_BLOCK`, A3 `A3_BLOCK`, A none."""
+        return {"B": getattr(self, "block", None), "BN": getattr(self, "block", None), "A2": A2_BLOCK,
+                "A3": A3_BLOCK}.get(self.arm)
 
     def prompt(self, a):
         """[arm block, empty line,] the common preamble, an empty line, the frozen task prompt."""
@@ -3009,7 +3040,7 @@ class Run:
 
     def final_tree(self):
         tree = self.run_dir / "final"
-        if self.arm in ("A", "A2"):
+        if self.arm in GIT_ARMS:
             git("clone", "-q", "--branch", "main", str(self.repo_dir), str(tree), cwd=self.run_dir)
         else:
             git("clone", "-q", f"{self.url}/git", str(tree), cwd=self.run_dir)
@@ -3227,19 +3258,19 @@ class Run:
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
                 if self.block_file:
                     result["block_file"] = self.block_file.name
-            if self.arm == "A2":
+            if self.arm in A2_ARMS:
                 service = self.start_integrator()
             t_agents = time.time()
             self.run_agents()
             if service:
                 self.integrate_open = False
-            if self.arm in ("A", "A2"):
+            if self.arm in GIT_ARMS:
                 merges, interventions = self.finalize_a()
                 own = {m["k"]: m.pop("own_diff") for m in merges}
                 result["merges"] = merges
                 result["merge_conflicts"] = sum(m["conflict"] for m in merges)
                 result.update(land_conflicts=0)
-                if self.arm == "A2":
+                if self.arm in A2_ARMS:
                     result["integrations"] = {str(a["k"]): a.get("integrations", []) for a in self.agents}
                     result["integrate_conflicts"] = sum(1 for a in self.agents for x in a.get("integrations", []) if x["status"] == "conflict")
                     result["integrated_by_agent"] = sum(1 for m in merges if m.get("status") == "on main")
@@ -3257,6 +3288,9 @@ class Run:
             result["wall_s"] = round(time.time() - t_agents, 2)
             result["setup_s"] = round(t_agents - t0, 2)
             result.update(self.transcript_metrics(pairs_truth or {}))
+            if self.arm in GIT_ARMS:
+                result["conflict_work"] = conflict_work(self.arm, self.agents, self.run_dir)
+                result["flow"] = integration_flow(self.arm, self.agents, result.get("merges"), result.get("wall_s"))
             if self.arm == "BN":
                 bn_undoes_held(result)
                 gated = [x for rec in result.get("lands") or [] for x in rec["runner_landed"] if x.get("land_test")]
@@ -3711,7 +3745,7 @@ def recount(runs_dir, results_dirs=()):
             *(f"{hb[h]['old']} -> {hb[h]['new']}" if h in hb else "-" for h in ("claude", "codex"))]) + " |")
     cells = {}
     for r in rows:
-        m = re.match(r"^(A2|A|B)-(\w+)-(disjoint|colliding|mixed)-", r["run"])
+        m = re.match(r"^(A3|A2|A|B)-(\w+)-(disjoint|colliding|mixed)-", r["run"])
         if m:
             c = cells.setdefault((m.group(2), m.group(3)), {}).setdefault(m.group(1), {"old": 0, "new": 0, "n": 0})
             if r["old"]:
@@ -3769,6 +3803,169 @@ def setup(scratch):
     r = subprocess.run([CARGO, "test", "-q", "--no-run", *sum((["-p", c] for c in REPOS["ripgrep"]["suite_crates"]), [])],
                        cwd=src / "ripgrep", env=env, capture_output=True, text=True)
     print("ripgrep warm build:", "ok" if r.returncode == 0 else r.stderr[-500:])
+
+
+# ===================================================================================== conflict work (git arms)
+
+# Relative price weights of Claude token kinds (input 1, cache write 2 for the 1 h cache, cache read 0.1, output 5):
+# the cost of a part of a session is the session's cost times the part's share of price-weighted tokens.
+PRICE_WEIGHTS = {"input_tokens": 1.0, "cache_creation_input_tokens": 2.0, "cache_read_input_tokens": 0.1, "output_tokens": 5.0}
+CONFLICT_SIGNS = ("CONFLICT (", "Automatic merge failed", "conflict with the work on main", "conflict markers are still in")
+CLEAN_SIGNS = ("integrated, main is now", "nothing to integrate", "Already up to date", "Merge made by", "Fast-forward")
+
+
+def _iso_s(text):
+    import datetime
+    try:
+        return datetime.datetime.fromisoformat(str(text).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def claude_sessions(path):
+    """The invocations of one Claude agent transcript (the first run, then each hand-back): per invocation its
+    cost (`total_cost_usd` is the running total of the session), seconds (`duration_ms`), messages
+    [(time, price-weighted tokens)] and tool calls [(time of the result, input text, result text)]."""
+    sessions, cur, prev_cost, pending = [], None, 0.0, {}
+    for line in Path(path).read_text(errors="replace").splitlines():
+        try:
+            o = json.loads(line)
+        except ValueError:
+            continue
+        t = o.get("type")
+        if t == "system" and o.get("subtype") == "init" or (t in ("assistant", "user") and cur is None):
+            cur = {"cost": 0.0, "seconds": 0.0, "msgs": [], "tools": []}
+            sessions.append(cur)
+            if t == "system":
+                continue
+        if t == "assistant":
+            m = o.get("message") or {}
+            u = m.get("usage") or {}
+            w = sum(PRICE_WEIGHTS[x] * float(u.get(x) or 0) for x in PRICE_WEIGHTS)
+            ts = _iso_s(o.get("timestamp"))
+            cur["msgs"].append((ts, w))
+            for c in m.get("content") or []:
+                if isinstance(c, dict) and c.get("type") == "tool_use":
+                    pending[c.get("id")] = json.dumps(c.get("input"))
+        elif t == "user":
+            content = (o.get("message") or {}).get("content")
+            for c in content if isinstance(content, list) else []:
+                if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("tool_use_id") in pending:
+                    r = c.get("content")
+                    cur["tools"].append((_iso_s(o.get("timestamp")), pending.pop(c["tool_use_id"]),
+                                         r if isinstance(r, str) else json.dumps(r)))
+        elif t == "result" and cur is not None:
+            total = float(o.get("total_cost_usd") or 0)
+            cur["cost"] = max(0.0, total - prev_cost) if total >= prev_cost else total
+            prev_cost = total
+            cur["seconds"] = float(o.get("duration_ms") or 0) / 1000
+            cur = None
+    return sessions
+
+
+def conflict_episodes(tools):
+    """[(start, end)] times of the conflict work in one invocation of an arm A2/A3 agent: from a `t2-integrate`
+    or `git merge`/`git pull` whose result reports a conflict until the next clean integrate or merge (or the
+    `git commit` that concludes a merge); an episode that never ends runs to the last tool result."""
+    eps, start, by_merge = [], None, False
+    last = None
+    for ts, inp, res in tools:
+        if ts is None:
+            continue
+        last = ts
+        is_int = "t2-integrate" in inp
+        is_merge = "git merge" in inp or "git pull" in inp
+        if start is None:
+            if (is_int or is_merge) and any(x in (res or "") for x in CONFLICT_SIGNS):
+                start, by_merge = ts, is_merge
+            continue
+        clean = (is_int or is_merge) and any(x in (res or "") for x in CLEAN_SIGNS) and not any(x in (res or "") for x in CONFLICT_SIGNS)
+        concluded = by_merge and "git commit" in inp and "error" not in (res or "").lower() and "conflict" not in (res or "").lower()
+        if clean or concluded:
+            eps.append((start, ts))
+            start = None
+    if start is not None:
+        eps.append((start, last))
+    return eps
+
+
+def conflict_work(arm, agents, run_dir):
+    """Seconds and Claude USD that the Claude agents of a git arm spent on conflict work, with their share of the
+    Claude agents' totals. Arm A: every invocation after the first (the hand-backs). Arms A2, A3: the episodes of
+    `conflict_episodes`; an episode's cost is the invocation's cost times its share of price-weighted tokens."""
+    per, tot_s, tot_usd, cw_s, cw_usd, n_eps = [], 0.0, 0.0, 0.0, 0.0, 0
+    for a in agents:
+        if a.get("harness") != "claude":
+            continue
+        f = Path(run_dir) / f"agent-{a['k']}.jsonl"
+        if not f.is_file():
+            continue
+        ses = claude_sessions(f)
+        s_all = sum(x["seconds"] for x in ses)
+        usd_all = sum(x["cost"] for x in ses)
+        s_cw = usd_cw = 0.0
+        eps = 0
+        if arm == "A":
+            for x in ses[1:]:
+                s_cw += x["seconds"]
+                usd_cw += x["cost"]
+                eps += 1
+        else:
+            for x in ses:
+                weight = sum(w for _, w in x["msgs"]) or 0.0
+                for t0, t1 in conflict_episodes(x["tools"]):
+                    eps += 1
+                    s_cw += max(0.0, t1 - t0)
+                    part = sum(w for ts, w in x["msgs"] if ts is not None and t0 <= ts < t1)
+                    usd_cw += x["cost"] * part / weight if weight else 0.0
+        per.append({"k": a["k"], "seconds": round(s_cw, 1), "usd": round(usd_cw, 4), "episodes": eps})
+        tot_s += s_all
+        tot_usd += usd_all
+        cw_s += s_cw
+        cw_usd += usd_cw
+        n_eps += eps
+    return {"claude_seconds": round(cw_s, 1), "claude_usd": round(cw_usd, 4), "episodes": n_eps,
+            "share_of_claude_seconds": round(cw_s / tot_s, 4) if tot_s else None,
+            "share_of_claude_usd": round(cw_usd / tot_usd, 4) if tot_usd else None,
+            "claude_seconds_total": round(tot_s, 1), "claude_usd_total": round(tot_usd, 4), "per_agent": per}
+
+
+def _pct(xs, q):
+    xs = sorted(xs)
+    if not xs:
+        return None
+    i = min(len(xs) - 1, max(0, int(round(q * (len(xs) - 1)))))
+    return round(xs[i], 2)
+
+
+def integration_flow(arm, agents, merges, wall_s):
+    """How work entered main. `changes_per_hour`: moves of main by an agent's work (each successful
+    `t2-integrate` in A2/A3, each merge of the runner) per hour of the run. `wait_s`: per piece of work, from the
+    agent's first integrate attempt to its work being on main (A2/A3; median and 95th percentile).
+    `retries`: integrate attempts that did not put the work on main because main had moved (a conflict, or
+    markers still to resolve) and were followed by another attempt."""
+    moves, waits, retries = 0, [], 0
+    if arm in A2_ARMS:
+        for a in agents:
+            first = None
+            calls = a.get("integrations") or []
+            for i, x in enumerate(calls):
+                if x["status"] in ("integrated", "nothing"):
+                    if x["status"] == "integrated":
+                        waits.append(x["t_s"] - (x["t_s"] if first is None else first))
+                    if x["status"] == "integrated":
+                        moves += 1
+                    first = None
+                    continue
+                if first is None:
+                    first = x["t_s"]
+                if x["status"] in ("conflict", "markers left") and i + 1 < len(calls):
+                    retries += 1
+    moves += sum(1 for m in merges or [] if m.get("status") == "merged")
+    hours = (wall_s or 0) / 3600
+    return {"changes_on_main": moves, "changes_per_hour": round(moves / hours, 2) if hours else None,
+            "wait_s_median": _pct(waits, 0.5), "wait_s_p95": _pct(waits, 0.95), "pieces_waited": len(waits),
+            "retries": retries}
 
 
 # ===================================================================================== solo
@@ -3921,6 +4118,8 @@ def main(argv=None):
             p.add_argument("--repo", action="append", choices=list(REPOS) + list(DEV_REPOS))
             p.add_argument("--set", action="append", choices=list(SETS) + list(EXTRA_SETS),
                            help="only these sets (default: every set the repository has)")
+            if n == "rehearse":
+                p.add_argument("--arms", help="comma-separated arms (default: " + ",".join(REHEARSE_ARMS) + "; A3 only when named)")
         if n == "pilot":
             p.add_argument("--yes-real", action="store_true")
         if n == "run":
@@ -4062,7 +4261,9 @@ def main(argv=None):
             truth = {s: pair_table(scratch, repo, s) for s in sets}
             for harness in ("oracle", "noop"):
                 for s in sets:
-                    for arm in ARMS:
+                    for arm in (a.arms.split(",") if a.arms else REHEARSE_ARMS):
+                        if arm not in ARMS:
+                            raise SystemExit(f"rehearse: no arm {arm}")
                         r = Run(scratch, arm, repo, s, 1, harness, **kw).execute(truth[s] if arm in B_ARMS else None)
                         bad += r["status"] != "done"
                         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all",
