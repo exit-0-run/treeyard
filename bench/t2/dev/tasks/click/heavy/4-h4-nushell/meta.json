@@ -1,0 +1,13 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 4,
+  "id": "h4-nushell",
+  "title": "Shell completion for Nushell",
+  "files": [
+    "docs/shell-completion.md",
+    "examples/completion/README",
+    "src/click/shell_completion.py"
+  ],
+  "test": "tests/test_t2_h4_nushell.py"
+}

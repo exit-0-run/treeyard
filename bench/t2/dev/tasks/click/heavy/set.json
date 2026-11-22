@@ -1,0 +1,118 @@
+{
+  "set": "heavy",
+  "agents": 10,
+  "mix": [
+    "codex",
+    "claude",
+    "codex",
+    "claude",
+    "codex",
+    "claude",
+    "claude",
+    "claude",
+    "claude",
+    "codex"
+  ],
+  "limits": {
+    "max_turns": 300,
+    "max_tokens": 20000000,
+    "timeout_s": 3600,
+    "claude_budget_usd": 8.0
+  },
+  "sequential": true,
+  "tasks": [
+    "h1-prompt-text",
+    "h2-help-items",
+    "h3-secrets",
+    "h4-nushell",
+    "h5-prompt-attempts",
+    "h6-option-groups",
+    "h7-byte-size",
+    "h8-choice-menu",
+    "h9-help-theme",
+    "h10-help-markdown"
+  ],
+  "integration": [
+    {
+      "id": "i1-prompt-text-enum-names",
+      "pair": [
+        1,
+        8
+      ],
+      "test": "tests/test_t2_i1_prompt_text_enum_names.py",
+      "why": "trap: h1 keeps today's text, h8 changes it on purpose; PromptText.render() is what prompt shows"
+    },
+    {
+      "id": "i2-hidden-default-item",
+      "pair": [
+        2,
+        3
+      ],
+      "test": "tests/test_t2_i2_hidden_default_item.py",
+      "why": "trap: h2 keeps the bracket as today, h3 hides defaults; the per-item method gives the item"
+    },
+    {
+      "id": "i3-group-headings-themed",
+      "pair": [
+        6,
+        9
+      ],
+      "test": "tests/test_t2_i3_group_headings_themed.py",
+      "why": "interface: h6 writes group sections with formatter.section, h9 styles every heading"
+    },
+    {
+      "id": "i4-markdown-hidden-default",
+      "pair": [
+        3,
+        10
+      ],
+      "test": "tests/test_t2_i4_markdown_hidden_default.py",
+      "why": "interface: h10 shows the bracket items, h3 hides the default in the bracket"
+    },
+    {
+      "id": "i5-markdown-byte-size",
+      "pair": [
+        7,
+        10
+      ],
+      "test": "tests/test_t2_i5_markdown_byte_size.py",
+      "why": "interface: h10 shows the bracket items, h7 formats the default and range as sizes"
+    },
+    {
+      "id": "i6-markdown-option-groups",
+      "pair": [
+        6,
+        10
+      ],
+      "test": "tests/test_t2_i6_markdown_option_groups.py",
+      "why": "h10 renders every section of --help through the formatter, h6 adds group sections and a write_dl keyword"
+    },
+    {
+      "id": "i7-prompt-text-byte-size",
+      "pair": [
+        1,
+        7
+      ],
+      "test": "tests/test_t2_i7_prompt_text_byte_size.py",
+      "why": "refactor: h7's formatted prompt default must live in PromptText.default_part"
+    },
+    {
+      "id": "i8-markdown-with-a-theme",
+      "pair": [
+        9,
+        10
+      ],
+      "test": "tests/test_t2_i8_markdown_with_a_theme.py",
+      "why": "h9 styles the help bracket in core, h10 removes every style code"
+    },
+    {
+      "id": "i9-markdown-custom-item",
+      "pair": [
+        2,
+        10
+      ],
+      "test": "tests/test_t2_i9_markdown_custom_item.py",
+      "why": "refactor x consumer: an item added through h2's help_extra_keys shows in h10's details"
+    }
+  ]
+}

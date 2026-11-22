@@ -1,0 +1,325 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -333,6 +333,11 @@
+ ```
+ 
+ ```{eval-rst}
++.. autoclass:: HelpTheme
++   :members: apply
++```
++
++```{eval-rst}
+ .. autofunction:: wrap_text
+ ```
+ 
+diff --git a/docs/documentation.md b/docs/documentation.md
+--- a/docs/documentation.md
++++ b/docs/documentation.md
+@@ -414,3 +414,27 @@
+ .. click:run::
+     invoke(cli, ['-h'])
+ ```
++
++## Help Themes
++
++A {class}`HelpTheme` styles parts of the help page with {func}`style`: the section headings, the option, argument and
++command names in the first column, the `Usage:` prefix, and the bracket at the end of an option's help line. Set it with
++the `help_theme` context setting; subcommands inherit it from their group.
++
++```python
++THEME = click.HelpTheme(
++    heading={"fg": "yellow", "bold": True},
++    option={"fg": "cyan"},
++    usage={"bold": True},
++    extra={"dim": True},
++)
++
++@click.group(context_settings={"help_theme": THEME})
++def cli():
++    pass
++```
++
++Each field takes the keyword arguments of {func}`style`, or `None` to leave that part plain. Styles take no columns, so
++the page is laid out exactly as without a theme. As with any styled output, the codes are removed when the help is not
++written to a terminal, unless colors are forced with `color=True`. A custom {class}`HelpFormatter` gets the theme as its
++`theme` argument and as {attr}`HelpFormatter.theme`, and {meth}`HelpTheme.apply` styles a text as one of the parts.
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -39,6 +39,7 @@
+ from .exceptions import TooManyAttempts as TooManyAttempts
+ from .exceptions import UsageError as UsageError
+ from .formatting import HelpFormatter as HelpFormatter
++from .formatting import HelpTheme as HelpTheme
+ from .formatting import wrap_text as wrap_text
+ from .globals import get_current_context as get_current_context
+ from .termui import clear as clear
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -34,6 +34,7 @@
+ from .exceptions import UsageError
+ from .formatting import append_help_extra
+ from .formatting import HelpFormatter
++from .formatting import HelpTheme
+ from .formatting import join_options
+ from .globals import pop_context
+ from .globals import push_context
+@@ -283,6 +284,13 @@
+         value is not set, it defaults to the value from the parent
+         context. ``Command.show_default`` overrides this default for the
+         specific command.
++    :param help_theme: the :class:`HelpTheme` of help pages: styles for
++        headings, option names, the usage prefix and help brackets. It
++        defaults to the theme of the parent context; without one help
++        pages are not styled.
++
++    .. versionchanged:: 8.6
++        Added the ``help_theme`` parameter.
+ 
+     .. versionchanged:: 8.2
+         The ``protected_args`` attribute is deprecated and will be removed in
+@@ -339,6 +347,7 @@
+     auto_envvar_prefix: str | None
+     color: bool | None
+     show_default: bool | None
++    help_theme: HelpTheme | None
+     _close_callbacks: list[t.Callable[[], t.Any]]
+     _depth: int
+     _parameter_source: dict[str, ParameterSource]
+@@ -363,6 +372,7 @@
+         token_normalize_func: t.Callable[[str], str] | None = None,
+         color: bool | None = None,
+         show_default: bool | None = None,
++        help_theme: HelpTheme | None = None,
+     ) -> None:
+         #: the parent context or `None` if none exists.
+         self.parent = parent
+@@ -510,6 +520,14 @@
+         #: Show option default values when formatting help text.
+         self.show_default = show_default
+ 
++        if help_theme is None and parent is not None:
++            help_theme = parent.help_theme
++
++        #: The styles of help pages, or ``None`` for plain help pages.
++        #:
++        #: .. versionadded:: 8.6
++        self.help_theme = help_theme
++
+         self._close_callbacks = []
+         self._depth = 0
+         self._parameter_source = {}
+@@ -645,11 +663,21 @@
+         To quickly customize the formatter class used without overriding
+         this method, set the :attr:`formatter_class` attribute.
+ 
++        .. versionchanged:: 8.6
++            Passes :attr:`help_theme` to the formatter, when it is set.
++
+         .. versionchanged:: 8.0
+             Added the :attr:`formatter_class` attribute.
+         """
++        # Only pass a theme when there is one, so formatter classes that do
++        # not know the parameter keep working.
++        extra: dict[str, t.Any] = {}
++
++        if self.help_theme is not None:
++            extra["theme"] = self.help_theme
++
+         return self.formatter_class(
+-            width=self.terminal_width, max_width=self.max_content_width
++            width=self.terminal_width, max_width=self.max_content_width, **extra
+         )
+ 
+     def with_resource(self, context_manager: AbstractContextManager[V]) -> V:
+@@ -3520,7 +3548,8 @@
+             return None
+ 
+         items = self.format_help_extra(ctx, self.get_help_extra(ctx))
+-        return self.get_help_spec(ctx), append_help_extra(self.help or "", items)
++        return self.get_help_spec(ctx), append_help_extra(
++            self.help or "", items, theme=ctx.help_theme)
+ 
+     def get_help_extra(self, ctx: Context) -> types.OptionHelpExtra:
+         """The items of the bracket at the end of the option's help line, as
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -1,6 +1,7 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
++import typing as t
+ from contextlib import contextmanager
+ from gettext import gettext as _
+ 
+@@ -107,6 +108,70 @@
+     return "\n\n".join(rv)
+ 
+ 
++class HelpTheme:
++    """The styles of a help page. Each field is a dict of keyword
++    arguments for :func:`click.style`, such as ``{"fg": "cyan",
++    "bold": True}``, or ``None`` to leave that part as it is.
++
++    :param heading: section headings, colon included (``Options:``).
++    :param option: the first column of the option, argument and command
++        lists (``--name TEXT``).
++    :param usage: the ``Usage:`` prefix of the usage line.
++    :param extra: the bracket at the end of an option's help line
++        (``[default: 1; required]``).
++
++    Styles take no columns: widths and wrapping are the same as without
++    a theme. Like all styles they are removed when the output is not a
++    terminal, unless colors are forced.
++
++    .. versionadded:: 8.6
++    """
++
++    _parts: t.ClassVar[tuple[str, ...]] = ("heading", "option", "usage", "extra")
++
++    heading: cabc.Mapping[str, t.Any] | None
++    option: cabc.Mapping[str, t.Any] | None
++    usage: cabc.Mapping[str, t.Any] | None
++    extra: cabc.Mapping[str, t.Any] | None
++
++    def __init__(
++        self,
++        heading: cabc.Mapping[str, t.Any] | None = None,
++        option: cabc.Mapping[str, t.Any] | None = None,
++        usage: cabc.Mapping[str, t.Any] | None = None,
++        extra: cabc.Mapping[str, t.Any] | None = None,
++    ) -> None:
++        self.heading = heading
++        self.option = option
++        self.usage = usage
++        self.extra = extra
++
++    def __eq__(self, other: object) -> bool:
++        if not isinstance(other, HelpTheme):
++            return NotImplemented
++
++        return all(getattr(self, p) == getattr(other, p) for p in self._parts)
++
++    def __repr__(self) -> str:
++        parts = ", ".join(
++            f"{p}={getattr(self, p)!r}" for p in self._parts if getattr(self, p)
++        )
++        return f"HelpTheme({parts})"
++
++    def apply(self, part: str, text: str) -> str:
++        """Styles ``text`` as the part named ``part`` (a field name). Text
++        of a part without a style is returned as it is.
++        """
++        styles = getattr(self, part)
++
++        if not styles or not text:
++            return text
++
++        from .termui import style
++
++        return style(text, **styles)
++
++
+ class HelpFormatter:
+     """This class helps with formatting text-based help pages.  It's
+     usually just needed for very special internal cases, but it's also
+@@ -117,18 +182,26 @@
+     :param indent_increment: the additional increment for each level.
+     :param width: the width for the text.  This defaults to the terminal
+                   width clamped to a maximum of 78.
++    :param theme: the styles of headings, option names, the usage prefix
++                  and help brackets, see :class:`HelpTheme`. The default
++                  styles nothing.
++
++    .. versionchanged:: 8.6
++        Added the ``theme`` parameter.
+     """
+ 
+     indent_increment: int
+     width: int
+     current_indent: int
+     buffer: list[str]
++    theme: HelpTheme
+ 
+     def __init__(
+         self,
+         indent_increment: int = 2,
+         width: int | None = None,
+         max_width: int | None = None,
++        theme: HelpTheme | None = None,
+     ) -> None:
+         self.indent_increment = indent_increment
+         if max_width is None:
+@@ -142,6 +215,7 @@
+         self.width = width
+         self.current_indent = 0
+         self.buffer = []
++        self.theme = theme if theme is not None else HelpTheme()
+ 
+     def write(self, string: str) -> None:
+         """Writes a unicode string into the internal buffer."""
+@@ -164,7 +238,7 @@
+             ``"Usage: "``.
+         """
+         if prefix is None:
+-            prefix = "{usage} ".format(usage=_("Usage:"))
++            prefix = "{usage} ".format(usage=self.theme.apply("usage", _("Usage:")))
+ 
+         usage_prefix = f"{prefix:>{self.current_indent}}{prog} "
+         text_width = self.width - self.current_indent
+@@ -202,8 +276,11 @@
+         self.write("\n")
+ 
+     def write_heading(self, heading: str) -> None:
+-        """Writes a heading into the buffer."""
+-        self.write(f"{'':>{self.current_indent}}{heading}:\n")
++        """Writes a heading into the buffer, in the heading style of the
++        :attr:`theme`.
++        """
++        text = self.theme.apply("heading", f"{heading}:")
++        self.write(f"{'':>{self.current_indent}}{text}\n")
+ 
+     def write_paragraph(self) -> None:
+         """Writes a paragraph into the buffer."""
+@@ -258,7 +335,7 @@
+         first_col = min(widths[0], col_max) + col_spacing
+ 
+         for first, second in iter_rows(rows, len(widths)):
+-            self.write(f"{'':>{self.current_indent}}{first}")
++            self.write(f"{'':>{self.current_indent}}{self.theme.apply('option', first)}")
+             if not second:
+                 self.write("\n")
+                 continue
+@@ -309,7 +386,8 @@
+         return "".join(self.buffer)
+ 
+ 
+-def append_help_extra(help: str, items: cabc.Sequence[str]) -> str:
++def append_help_extra(help: str, items: cabc.Sequence[str],
++                      theme: HelpTheme | None = None) -> str:
+     """Appends the bracket of extra items to a help text, the way option
+     help lines show it: ``"Name.  [default: x; required]"``. Without
+     items the help text is returned as it is; without a help text the
+@@ -317,6 +395,7 @@
+ 
+     :param help: the help text, may be empty.
+     :param items: the texts of the items, in order.
++    :param theme: the bracket gets the ``extra`` style of this theme.
+ 
+     .. versionadded:: 8.6
+     """
+@@ -324,6 +403,11 @@
+         return help
+ 
+     extra_str = "; ".join(items)
++
++    if theme is not None:
++        bracket = theme.apply("extra", f"[{extra_str}]")
++        return f"{help}  {bracket}" if help else bracket
++
+     return f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
+ 
+ 

@@ -1,0 +1,13 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 6,
+  "id": "h6-option-groups",
+  "title": "Help pages: option groups",
+  "files": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py"
+  ],
+  "test": "tests/test_t2_h6_option_groups.py"
+}

@@ -1,0 +1,347 @@
+diff --git a/docs/documentation.md b/docs/documentation.md
+--- a/docs/documentation.md
++++ b/docs/documentation.md
+@@ -207,6 +207,36 @@
+     invoke(greet, args=['--help'])
+ ```
+ 
++## The Option Help Bracket
++
++The bracket at the end of an option's help line, such as `[env var: NAME; default: 1; required]`, is built from items.
++{attr}`Option.help_extra_keys` lists their keys in the order they are shown. Each key has a method
++`get_help_extra_<key>(ctx)` that returns its value, or `None` to leave the item out, and
++{meth}`Option.format_help_extra_item` turns a value into the text in the bracket.
++
++A subclass adds an item by adding its key and writing its method. An item of a new key is shown as `<key>: <value>`:
++
++```python
++class UnitOption(click.Option):
++    help_extra_keys = (*click.Option.help_extra_keys, "unit")
++
++    def __init__(self, *args, unit=None, **kwargs):
++        super().__init__(*args, **kwargs)
++        self.unit = unit
++
++    def get_help_extra_unit(self, ctx):
++        return self.unit
++
++@click.command()
++@click.option("--timeout", cls=UnitOption, unit="s", default=30, show_default=True)
++def cli(timeout):
++    ...
++```
++
++The help line of `--timeout` ends with `[default: 30; unit: s]`. To change how an item is shown, override
++`get_help_extra_<key>` (its value) or `format_help_extra_item` (its text). {func}`click.formatting.append_help_extra`
++appends the bracket to a help text in the same form, for parameter classes of your own.
++
+ ## Click's Wrapping Behavior
+ 
+ Click's default wrapping ignores single new lines and rewraps the text based on the width of the terminal to a maximum of 80 characters by default, but this can be modified with {attr}`~Context.max_content_width`. In the example notice how the second grouping of three lines is rewrapped into a single paragraph.
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -31,6 +31,7 @@
+ from .exceptions import NoArgsIsHelpError
+ from .exceptions import NoSuchCommand
+ from .exceptions import UsageError
++from .formatting import append_help_extra
+ from .formatting import HelpFormatter
+ from .formatting import join_options
+ from .globals import pop_context
+@@ -2980,6 +2981,19 @@
+     show_choices: bool
+     show_envvar: bool
+ 
++    #: The keys of the bracket at the end of the help line, in the order
++    #: they are shown. Each key has a method ``get_help_extra_<key>`` that
++    #: returns its value, or ``None`` to leave it out. A subclass adds an
++    #: item by adding its key here and writing that method.
++    #:
++    #: .. versionadded:: 8.6
++    help_extra_keys: t.ClassVar[tuple[str, ...]] = (
++        "envvars",
++        "default",
++        "range",
++        "required",
++    )
++
+     def __init__(
+         self,
+         param_decls: cabc.Sequence[str] | None = None,
+@@ -3399,46 +3413,61 @@
+         if self.hidden:
+             return None
+ 
+-        help = self.help or ""
+-
+-        extra = self.get_help_extra(ctx)
+-        extra_items = []
+-        if "envvars" in extra:
+-            extra_items.append(
+-                _("env var: {var}").format(var=", ".join(extra["envvars"]))
+-            )
+-        if "default" in extra:
+-            extra_items.append(_("default: {default}").format(default=extra["default"]))
+-        if "range" in extra:
+-            extra_items.append(extra["range"])
+-        if "required" in extra:
+-            extra_items.append(_(extra["required"]))
+-
+-        if extra_items:
+-            extra_str = "; ".join(extra_items)
+-            help = f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
+-
+-        return self.get_help_spec(ctx), help
++        items = self.format_help_extra(ctx, self.get_help_extra(ctx))
++        return self.get_help_spec(ctx), append_help_extra(self.help or "", items)
+ 
+     def get_help_extra(self, ctx: Context) -> types.OptionHelpExtra:
+-        extra: types.OptionHelpExtra = {}
+-
+-        if self.show_envvar:
+-            envvar = self.envvar
+-
+-            if not envvar and (
+-                self.allow_from_autoenv
+-                and ctx.auto_envvar_prefix is not None
+-                and self.name
+-            ):
+-                envvar = f"{ctx.auto_envvar_prefix}_{self.name.upper()}"
+-
+-            if envvar:
+-                if isinstance(envvar, str):
+-                    extra["envvars"] = (envvar,)
+-                else:
+-                    extra["envvars"] = tuple(str(d) for d in envvar)
+-
++        """The items of the bracket at the end of the option's help line, as
++        a dict. Each key of :attr:`help_extra_keys` gets its value from the
++        method ``get_help_extra_<key>``; a key whose method returns ``None``
++        is left out.
++
++        .. versionchanged:: 8.6
++            Built from the ``get_help_extra_<key>`` methods.
++        """
++        extra: dict[str, t.Any] = {}
++
++        for key in self.help_extra_keys:
++            value = getattr(self, f"get_help_extra_{key}")(ctx)
++
++            if value is not None:
++                extra[key] = value
++
++        return t.cast(types.OptionHelpExtra, extra)
++
++    def get_help_extra_envvars(self, ctx: Context) -> tuple[str, ...] | None:
++        """The environment variables of the option, when :attr:`show_envvar`
++        is set: the ``envvar`` of the option, else the one built from
++        :attr:`Context.auto_envvar_prefix`.
++
++        .. versionadded:: 8.6
++        """
++        if not self.show_envvar:
++            return None
++
++        envvar = self.envvar
++
++        if not envvar and (
++            self.allow_from_autoenv
++            and ctx.auto_envvar_prefix is not None
++            and self.name
++        ):
++            envvar = f"{ctx.auto_envvar_prefix}_{self.name.upper()}"
++
++        if not envvar:
++            return None
++
++        if isinstance(envvar, str):
++            return (envvar,)
++
++        return tuple(str(d) for d in envvar)
++
++    def get_help_extra_default(self, ctx: Context) -> str | None:
++        """The default as the help shows it, or ``None`` when it is not
++        shown (see :attr:`show_default` and :attr:`Context.show_default`).
++
++        .. versionadded:: 8.6
++        """
+         # Temporarily enable resilient parsing to avoid type casting
+         # failing for the default. Might be possible to extend this to
+         # help formatting in general.
+@@ -3461,47 +3490,92 @@
+         elif ctx.show_default is not None:
+             show_default = ctx.show_default
+ 
+-        if show_default_is_str or (
++        if not show_default_is_str and not (
+             show_default and (default_value not in (None, UNSET))
+         ):
+-            if show_default_is_str:
+-                default_string = f"({self.show_default})"
+-            elif isinstance(default_value, (list, tuple)):
+-                default_string = ", ".join(str(d) for d in default_value)
+-            elif isinstance(default_value, enum.Enum):
+-                default_string = default_value.name
+-            elif inspect.isfunction(default_value):
+-                default_string = _("(dynamic)")
+-            elif self.is_bool_flag and self.secondary_opts:
+-                # For boolean flags that have distinct True/False opts,
+-                # use the opt without prefix instead of the value.
+-                default_string = _split_opt(
+-                    (self.opts if default_value else self.secondary_opts)[0]
+-                )[1]
+-            elif self.is_bool_flag and not self.secondary_opts and not default_value:
+-                default_string = ""
+-            elif isinstance(default_value, str) and default_value == "":
+-                default_string = '""'
+-            else:
+-                default_string = str(default_value)
+-
+-            if default_string:
+-                extra["default"] = default_string
+-
+-        if (
+-            isinstance(self.type, types._NumberRangeBase)
+-            # skip count with default range type
+-            and not (self.count and self.type.min == 0 and self.type.max is None)
+-        ):
+-            range_str = self.type._describe_range()
+-
+-            if range_str:
+-                extra["range"] = range_str
+-
+-        if self.required:
+-            extra["required"] = "required"
+-
+-        return extra
++            return None
++
++        if show_default_is_str:
++            default_string = f"({self.show_default})"
++        elif isinstance(default_value, (list, tuple)):
++            default_string = ", ".join(str(d) for d in default_value)
++        elif isinstance(default_value, enum.Enum):
++            default_string = default_value.name
++        elif inspect.isfunction(default_value):
++            default_string = _("(dynamic)")
++        elif self.is_bool_flag and self.secondary_opts:
++            # For boolean flags that have distinct True/False opts,
++            # use the opt without prefix instead of the value.
++            default_string = _split_opt(
++                (self.opts if default_value else self.secondary_opts)[0]
++            )[1]
++        elif self.is_bool_flag and not self.secondary_opts and not default_value:
++            default_string = ""
++        elif isinstance(default_value, str) and default_value == "":
++            default_string = '""'
++        else:
++            default_string = str(default_value)
++
++        return default_string or None
++
++    def get_help_extra_range(self, ctx: Context) -> str | None:
++        """The description of a range type, such as ``1<=x<=5``.
++
++        .. versionadded:: 8.6
++        """
++        if not isinstance(self.type, types._NumberRangeBase):
++            return None
++
++        # skip count with default range type
++        if self.count and self.type.min == 0 and self.type.max is None:
++            return None
++
++        return self.type._describe_range() or None
++
++    def get_help_extra_required(self, ctx: Context) -> str | None:
++        """``"required"`` for a required option.
++
++        .. versionadded:: 8.6
++        """
++        return "required" if self.required else None
++
++    def format_help_extra(self, ctx: Context, extra: types.OptionHelpExtra) -> list[str]:
++        """The texts of the bracket items, in the order of
++        :attr:`help_extra_keys`. Keys of ``extra`` that are not in
++        :attr:`help_extra_keys` are not shown.
++
++        .. versionadded:: 8.6
++        """
++        values = t.cast("dict[str, t.Any]", extra)
++        return [
++            self.format_help_extra_item(key, values[key])
++            for key in self.help_extra_keys
++            if key in values
++        ]
++
++    def format_help_extra_item(self, key: str, value: t.Any) -> str:
++        """The text of one bracket item: ``env var: A, B``, ``default: 1``,
++        the bare range, ``required``. An item of another key is shown as
++        ``<key>: <value>``, a tuple or list value joined with ``, ``.
++
++        .. versionadded:: 8.6
++        """
++        if key == "envvars":
++            return _("env var: {var}").format(var=", ".join(value))
++
++        if key == "default":
++            return _("default: {default}").format(default=value)
++
++        if key == "range":
++            return str(value)
++
++        if key == "required":
++            return _(value)
++
++        if isinstance(value, (list, tuple)):
++            value = ", ".join(str(v) for v in value)
++
++        return f"{key}: {value}"
+ 
+     def prompt_for_value(self, ctx: Context) -> t.Any:
+         """This is an alternative flow that can be activated in the full
+diff --git a/src/click/formatting.py b/src/click/formatting.py
+--- a/src/click/formatting.py
++++ b/src/click/formatting.py
+@@ -299,6 +299,24 @@
+         return "".join(self.buffer)
+ 
+ 
++def append_help_extra(help: str, items: cabc.Sequence[str]) -> str:
++    """Appends the bracket of extra items to a help text, the way option
++    help lines show it: ``"Name.  [default: x; required]"``. Without
++    items the help text is returned as it is; without a help text the
++    bracket stands alone.
++
++    :param help: the help text, may be empty.
++    :param items: the texts of the items, in order.
++
++    .. versionadded:: 8.6
++    """
++    if not items:
++        return help
++
++    extra_str = "; ".join(items)
++    return f"{help}  [{extra_str}]" if help else f"[{extra_str}]"
++
++
+ def join_options(options: cabc.Iterable[str]) -> tuple[str, bool]:
+     """Given a list of option strings this joins them in the most appropriate
+     way and returns them in the form ``(formatted_string,
+diff --git a/src/click/types.py b/src/click/types.py
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -1431,6 +1431,12 @@
+ 
+ 
+ class OptionHelpExtra(t.TypedDict, total=False):
++    """The items of the bracket at the end of an option's help line, as
++    :meth:`Option.get_help_extra` returns them. The keys and their order
++    are :attr:`Option.help_extra_keys`; a subclass of :class:`Option` can
++    add keys of its own.
++    """
++
+     envvars: tuple[str, ...]
+     default: str
+     range: str

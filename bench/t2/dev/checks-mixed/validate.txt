@@ -1,20 +1,20 @@
-click mixed 1 m1-help-multiple: pinned fail (0.27 s), reference pass (0.14 s), suite with the reference alone pass, 2 files, 11 diff lines -> ok
-click mixed 2 m2-prompt-enum-names: pinned fail (0.16 s), reference pass (0.14 s), suite with the reference alone pass, 1 files, 7 diff lines -> ok
-click mixed 3 m3-hidden-default: pinned fail (0.18 s), reference pass (0.15 s), suite with the reference alone pass, 2 files, 17 diff lines -> ok
-click mixed 4 m4-style-link: pinned fail (0.16 s), reference pass (0.15 s), suite with the reference alone pass, 2 files, 7 diff lines -> ok
-click mixed 5 m5-range-unit: pinned fail (0.18 s), reference pass (0.14 s), suite with the reference alone pass, 3 files, 19 diff lines -> ok
-click mixed 6 m6-result-check: pinned fail (0.15 s), reference pass (0.14 s), suite with the reference alone pass, 1 files, 21 diff lines -> ok
-click mixed 7 m7-prompt-max-choices: pinned fail (0.15 s), reference pass (0.13 s), suite with the reference alone pass, 1 files, 19 diff lines -> ok
+click mixed 1 m1-help-multiple: pinned fail (0.23 s), reference pass (0.14 s), suite with the reference alone pass, 2 files, 11 diff lines -> ok
+click mixed 2 m2-prompt-enum-names: pinned fail (0.17 s), reference pass (0.13 s), suite with the reference alone pass, 1 files, 7 diff lines -> ok
+click mixed 3 m3-hidden-default: pinned fail (0.15 s), reference pass (0.12 s), suite with the reference alone pass, 2 files, 17 diff lines -> ok
+click mixed 4 m4-style-link: pinned fail (0.12 s), reference pass (0.13 s), suite with the reference alone pass, 2 files, 7 diff lines -> ok
+click mixed 5 m5-range-unit: pinned fail (0.14 s), reference pass (0.13 s), suite with the reference alone pass, 3 files, 19 diff lines -> ok
+click mixed 6 m6-result-check: pinned fail (0.14 s), reference pass (0.12 s), suite with the reference alone pass, 1 files, 21 diff lines -> ok
+click mixed 7 m7-prompt-max-choices: pinned fail (0.13 s), reference pass (0.12 s), suite with the reference alone pass, 1 files, 19 diff lines -> ok
 click mixed 8 m8-duration-type: pinned fail (0.17 s), reference pass (0.13 s), suite with the reference alone pass, 3 files, 42 diff lines -> ok
-click mixed 9 m9-prompt-range: pinned fail (0.14 s), reference pass (0.14 s), suite with the reference alone pass, 1 files, 17 diff lines -> ok
-click mixed 10 m10-heading-underline: pinned fail (0.16 s), reference pass (0.13 s), suite with the reference alone pass, 1 files, 8 diff lines -> ok
-click mixed all 10 (resolved-1..10): suite pass (3.53 s), tests 10/10 pass, integration 6/6 pass -> ok
-click mixed integration i1-multiple-and-range-label (tasks 1 and 5): pin fails, only 1 fails, all but 1 fails, only 5 fails, all but 5 fails -> ok
-click mixed integration i2-enum-names-cut (tasks 2 and 7): pin fails, only 2 fails, all but 2 fails, only 7 fails, all but 7 fails -> ok
-click mixed integration i3-prompt-range-unit (tasks 5 and 9): pin fails, only 5 fails, all but 5 fails, only 9 fails, all but 9 fails -> ok
-click mixed integration i4-link-underline (tasks 4 and 10): pin fails, only 4 fails, all but 4 fails, only 10 fails, all but 10 fails -> ok
-click mixed integration i5-hidden-default-range (tasks 3 and 9): pin fails, only 3 fails, all but 3 fails, only 9 fails, all but 9 fails -> ok
-click mixed integration i6-hidden-default-cut (tasks 3 and 7): pin fails, only 3 fails, all but 3 fails, only 7 fails, all but 7 fails -> ok
+click mixed 9 m9-prompt-range: pinned fail (0.14 s), reference pass (0.13 s), suite with the reference alone pass, 1 files, 17 diff lines -> ok
+click mixed 10 m10-heading-underline: pinned fail (0.14 s), reference pass (0.12 s), suite with the reference alone pass, 1 files, 8 diff lines -> ok
+click mixed all 10 (resolved-1..10): suite pass (3.63 s), tests 10/10 pass, integration 6/6 pass -> ok
+click mixed integration i1-multiple-and-range-label (tasks 1 and 5): pin fails, only 1 fails, all but 1 fails, only 5 fails, all but 5 fails; the partner's own test all but 1 passes, all but 5 passes -> ok
+click mixed integration i2-enum-names-cut (tasks 2 and 7): pin fails, only 2 fails, all but 2 fails, only 7 fails, all but 7 fails; the partner's own test all but 2 passes, all but 7 passes -> ok
+click mixed integration i3-prompt-range-unit (tasks 5 and 9): pin fails, only 5 fails, all but 5 fails, only 9 fails, all but 9 fails; the partner's own test all but 5 passes, all but 9 passes -> ok
+click mixed integration i4-link-underline (tasks 4 and 10): pin fails, only 4 fails, all but 4 fails, only 10 fails, all but 10 fails; the partner's own test all but 4 passes, all but 10 passes -> ok
+click mixed integration i5-hidden-default-range (tasks 3 and 9): pin fails, only 3 fails, all but 3 fails, only 9 fails, all but 9 fails; the partner's own test all but 3 passes, all but 9 passes -> ok
+click mixed integration i6-hidden-default-cut (tasks 3 and 7): pin fails, only 3 fails, all but 3 fails, only 7 fails, all but 7 fails; the partner's own test all but 3 passes, all but 7 passes -> ok
 click mixed: 6 of 45 pairs of reference patches conflict in git: 1-5, 2-7, 2-9, 3-7, 3-9, 7-9
 click mixed: tasks that fail on the pin and pass with the reference: 10/10; agents 10, slots codex,claude,claude,codex,claude,claude,codex,claude,codex,claude, limits {"claude_budget_usd": 5.0, "max_tokens": 8000000, "max_turns": 150, "timeout_s": 2400}
 validate mixed: ok

@@ -1,0 +1,348 @@
+diff --git a/docs/api.md b/docs/api.md
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -303,6 +303,10 @@
+ .. autoexception:: BadArgumentUsage
+ ```
+ 
++```{eval-rst}
++.. autoexception:: TooManyAttempts
++```
++
+ ## Formatting
+ 
+ ```{eval-rst}
+diff --git a/docs/exceptions.md b/docs/exceptions.md
+--- a/docs/exceptions.md
++++ b/docs/exceptions.md
+@@ -108,6 +108,19 @@
+   the parameter name if possible.
+ - {exc}`FileError` this is an error that is raised by the
+   {class}`FileType` if Click encounters issues opening the file.
++- {exc}`TooManyAttempts` is raised by {func}`prompt` and {func}`confirm`
++  when the user gave `max_attempts` invalid answers in a row (or an
++  option's `prompt_attempts`). It exits with code 1 and the message
++  `Error: Gave up after 3 invalid answers.`; its `attempts` and
++  `last_error` attributes hold the count and the last error message.
++  Catch it around a prompt to fall back to a default instead:
++
++  ```python
++  try:
++      size = click.prompt("Size", type=int, max_attempts=3)
++  except click.TooManyAttempts:
++      size = 10
++  ```
+ 
+ (help-page-exit-codes)=
+ 
+diff --git a/docs/prompts.md b/docs/prompts.md
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -106,6 +106,39 @@
+ 
+ If `required=True`, then the option will still prompt if it is not given, but it will also prompt if only the flag is
+ given.
++
++## Limiting Attempts
++
++By default a prompt asks again until the answer is valid. `max_attempts` gives up after that many invalid answers and
++raises {exc}`TooManyAttempts`, which ends a command with exit code 1. Until then each error line says how many attempts
++are left:
++
++```console
++$ order
++Quantity: many
++Error: 'many' is not a valid integer. (2 attempts left)
++Quantity: lots
++Error: 'lots' is not a valid integer. (1 attempt left)
++Quantity: all
++Error: 'all' is not a valid integer.
++Error: Gave up after 3 invalid answers.
++```
++
++```python
++quantity = click.prompt("Quantity", type=int, max_attempts=3)
++```
++
++{func}`confirm` takes the same parameter, and an option that prompts takes `prompt_attempts`:
++
++```python
++@click.command()
++@click.option("--quantity", type=int, prompt=True, prompt_attempts=3)
++def order(quantity):
++    ...
++```
++
++A confirmation that does not match counts as an invalid answer. An empty answer to a prompt without a default does not
++count: the prompt asks again.
+ 
+ ## Confirmation Prompts
+ 
+diff --git a/src/click/__init__.py b/src/click/__init__.py
+--- a/src/click/__init__.py
++++ b/src/click/__init__.py
+@@ -36,6 +36,7 @@
+ from .exceptions import MissingParameter as MissingParameter
+ from .exceptions import NoSuchCommand as NoSuchCommand
+ from .exceptions import NoSuchOption as NoSuchOption
++from .exceptions import TooManyAttempts as TooManyAttempts
+ from .exceptions import UsageError as UsageError
+ from .formatting import HelpFormatter as HelpFormatter
+ from .formatting import wrap_text as wrap_text
+diff --git a/src/click/core.py b/src/click/core.py
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -2916,6 +2916,9 @@
+         without a value.
+     :param hide_input: If this is ``True`` then the input on the prompt
+         will be hidden from the user. This is useful for password input.
++    :param prompt_attempts: Give up after this many invalid answers to the
++        prompt: the command fails with :exc:`TooManyAttempts` (exit code 1)
++        instead of asking again. Only valid with ``prompt``.
+     :param is_flag: forces this option to act as a flag.  The default is
+                     auto detection.
+     :param flag_value: which value should be used for this flag if it's
+@@ -2966,6 +2969,7 @@
+     confirmation_prompt: bool | str
+     prompt_required: bool
+     hide_input: bool
++    prompt_attempts: int | None
+     hidden: bool
+ 
+     _flag_needs_value: bool
+@@ -2988,6 +2992,7 @@
+         confirmation_prompt: bool | str = False,
+         prompt_required: bool = True,
+         hide_input: bool = False,
++        prompt_attempts: int | None = None,
+         is_flag: bool | None = None,
+         flag_value: t.Any = UNSET,
+         multiple: bool = False,
+@@ -3026,6 +3031,7 @@
+         self.confirmation_prompt = confirmation_prompt
+         self.prompt_required = prompt_required
+         self.hide_input = hide_input
++        self.prompt_attempts = prompt_attempts
+         self.hidden = hidden
+ 
+         # Phase 2: flag-kind inference.
+@@ -3191,6 +3197,11 @@
+             raise TypeError("Secondary flag is not valid for non-boolean flag.")
+         if self.is_bool_flag and self.hide_input and self.prompt is not None:
+             raise TypeError("'prompt' with 'hide_input' is not valid for boolean flag.")
++        if self.prompt_attempts is not None:
++            if self.prompt is None:
++                raise TypeError("'prompt_attempts' is only valid with 'prompt'.")
++            if self.prompt_attempts < 1:
++                raise ValueError("'prompt_attempts' must be at least 1.")
+         if self.count:
+             if self.multiple:
+                 raise TypeError("'count' is not valid with 'multiple'.")
+@@ -3531,7 +3542,7 @@
+             # get [Y/n] or [y/N] depending on the truthy value of the default.
+             else:
+                 default = bool(default)
+-            return confirm(self.prompt, default)
++            return confirm(self.prompt, default, max_attempts=self.prompt_attempts)
+ 
+         # If show_default is given, provide this to `prompt` as well,
+         # otherwise we use `prompt`'s default behavior
+@@ -3549,6 +3560,7 @@
+             show_choices=self.show_choices,
+             confirmation_prompt=self.confirmation_prompt,
+             value_proc=lambda x: self.process_value(ctx, x),
++            max_attempts=self.prompt_attempts,
+             **prompt_kwargs,
+         )
+ 
+diff --git a/src/click/exceptions.py b/src/click/exceptions.py
+--- a/src/click/exceptions.py
++++ b/src/click/exceptions.py
+@@ -359,6 +359,33 @@
+         )
+ 
+ 
++class TooManyAttempts(ClickException):
++    """Raised by :func:`click.prompt` and :func:`click.confirm` when the
++    user gave ``max_attempts`` invalid answers in a row. Inside a command
++    it ends the program with exit code 1 and the message
++    ``Error: Gave up after 3 invalid answers.``
++
++    :param attempts: the number of invalid answers.
++    :param last_error: the error message of the last invalid answer.
++
++    .. versionadded:: 8.6
++    """
++
++    exit_code: t.ClassVar[int] = 1
++
++    def __init__(self, attempts: int, last_error: str | None = None) -> None:
++        message = ngettext(
++            "Gave up after {attempts} invalid answer.",
++            "Gave up after {attempts} invalid answers.",
++            attempts,
++        ).format(attempts=attempts)
++        super().__init__(message)
++        #: The number of invalid answers.
++        self.attempts = attempts
++        #: The error message of the last invalid answer.
++        self.last_error = last_error
++
++
+ class Abort(RuntimeError):
+     """An internal signalling exception that signals Click to abort."""
+ 
+diff --git a/src/click/termui.py b/src/click/termui.py
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -11,11 +11,13 @@
+ from contextlib import AbstractContextManager
+ from contextlib import redirect_stdout
+ from gettext import gettext as _
++from gettext import ngettext
+ 
+ from . import _compat
+ from ._compat import isatty
+ from ._compat import strip_ansi
+ from .exceptions import Abort
++from .exceptions import TooManyAttempts
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
+@@ -147,6 +149,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
+ ) -> str: ...
+ 
+ 
+@@ -162,6 +165,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
+ ) -> V: ...
+ 
+ 
+@@ -176,6 +180,7 @@
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    max_attempts: int | None = None,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+@@ -205,6 +210,15 @@
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++    :param max_attempts: give up after this many invalid answers (a value
++                         the type rejects, or a confirmation that does not
++                         match) and raise :exc:`TooManyAttempts`. Each error
++                         line before the last says how many attempts are
++                         left. An empty answer without a default does not
++                         count. ``None`` asks until the answer is valid.
++
++    .. versionchanged:: 8.6
++        Added the ``max_attempts`` parameter.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+@@ -246,6 +260,8 @@
+ 
+     if value_proc is None:
+         value_proc = convert_type(type, default)
++
++    attempts = _Attempts(max_attempts, err)
+ 
+     prompt = _build_prompt(
+         text, prompt_suffix, show_default, default, show_choices, type
+@@ -272,7 +288,7 @@
+             result = value_proc(value)
+         except UsageError as e:
+             message = _mask_hidden_input(e.message, value) if hide_input else e.message
+-            echo(_("Error: {message}").format(message=message), err=err)
++            attempts.failed(message)
+             continue
+         if not confirmation_prompt:
+             return result
+@@ -283,7 +299,40 @@
+                 break
+         if value == value2:
+             return result
+-        echo(_("Error: The two entered values do not match."), err=err)
++        attempts.failed(_("The two entered values do not match."))
++
++
++class _Attempts:
++    """Counts the invalid answers of one prompt and writes their error
++    lines; raises :exc:`TooManyAttempts` after the last one allowed.
++    """
++
++    def __init__(self, max_attempts: int | None, err: bool) -> None:
++        if max_attempts is not None and max_attempts < 1:
++            raise ValueError("'max_attempts' must be at least 1.")
++
++        self.max_attempts = max_attempts
++        self.err = err
++        self.count = 0
++
++    def failed(self, message: str) -> None:
++        self.count += 1
++        line = _("Error: {message}").format(message=message)
++
++        if self.max_attempts is None:
++            echo(line, err=self.err)
++            return
++
++        left = self.max_attempts - self.count
++
++        if left <= 0:
++            echo(line, err=self.err)
++            raise TooManyAttempts(self.count, message)
++
++        hint = ngettext(
++            "{left} attempt left", "{left} attempts left", left
++        ).format(left=left)
++        echo(f"{line} ({hint})", err=self.err)
+ 
+ 
+ def confirm(
+@@ -293,6 +342,7 @@
+     prompt_suffix: str = ": ",
+     show_default: bool = True,
+     err: bool = False,
++    max_attempts: int | None = None,
+ ) -> bool:
+     """Prompts for confirmation (yes/no question).
+ 
+@@ -308,6 +358,11 @@
+     :param show_default: shows or hides the default value in the prompt.
+     :param err: if set to true the file defaults to ``stderr`` instead of
+                 ``stdout``, the same as with echo.
++    :param max_attempts: give up after this many invalid answers and raise
++                         :exc:`TooManyAttempts`, as :func:`prompt` does.
++
++    .. versionchanged:: 8.6
++        Added the ``max_attempts`` parameter.
+ 
+     .. versionchanged:: 8.3.1
+         A space is no longer appended to the prompt.
+@@ -324,6 +379,7 @@
+         show_default,
+         "y/n" if default is None else ("Y/n" if default else "y/N"),
+     )
++    attempts = _Attempts(max_attempts, err)
+ 
+     while True:
+         try:
+@@ -337,7 +393,7 @@
+         elif default is not None and value == "":
+             rv = default
+         else:
+-            echo(_("Error: invalid input"), err=err)
++            attempts.failed(_("invalid input"))
+             continue
+         break
+     if abort and not rv:

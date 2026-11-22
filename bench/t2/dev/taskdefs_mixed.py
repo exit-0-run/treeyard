@@ -647,7 +647,9 @@ def test_docs_list_it():
             "`click.prompt` with an `IntRange` or `FloatRange` type does not tell the user which values it accepts "
             "until they type a wrong one. Show the range after the text, in the same form as in the help and the "
             "error messages: `click.prompt(\"Count\", type=click.IntRange(1, 5))` shows `Count (1<=x<=5): `, and "
-            "`click.FloatRange(0, 1, max_open=True)` shows `(0<=x<1)`. Options that prompt show it too "
+            "`click.FloatRange(0, 1, max_open=True)` shows `(0<=x<1)`. The text in the parentheses is always the same "
+            "text that the type's `repr` and its error message (`7 is not in the range 1<=x<=5.`) show for the range, "
+            "so it changes when they do. Options that prompt show it too "
             "(`@click.option(\"--count\", type=click.IntRange(1, 5), prompt=True)` asks `Count (1<=x<=5): `). Add a "
             "keyword parameter `show_range: bool = True` to `click.prompt` (in all its overloads and in the "
             "docstring) that turns it off. Prompts with other types stay as they are."
@@ -717,7 +719,9 @@ def test_options_that_prompt():
             "`\"-\"`, `write_heading` writes the heading as before and then, on the next line and at the same "
             "indentation, that character repeated as many times as the heading line is wide, colon included: "
             "`HelpFormatter(heading_underline=\"-\")` writes `Options:` and then `--------`. The width is what the "
-            "terminal shows: ANSI style codes in the heading take no columns. A command uses it through "
+            "terminal shows, measured the way click measures the rest of the help text: everything that "
+            "`click.unstyle` removes from the heading (style codes and any other terminal sequence it knows) takes no "
+            "columns. A command uses it through "
             "`Context.formatter_class`. Without it the help output is as before."
         ),
         "edits": [

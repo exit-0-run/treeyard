@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 8,
+  "id": "h8-choice-menu",
+  "title": "Choice prompts: enum names and a numbered menu",
+  "files": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_h8_choice_menu.py"
+}

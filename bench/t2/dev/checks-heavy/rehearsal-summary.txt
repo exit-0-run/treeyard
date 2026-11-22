@@ -1,0 +1,8 @@
+| run | status | suite all | suite pinned | done | integration | merge/land conflicts | warned | reacted | legacy warned | legacy reacted | interv | lost | tests passed | tool calls | tokens | Claude tokens | Codex tokens | cost (Claude only) | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-click-heavy-r1-noop | done | green | green | 0/10 | 0/9 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.5 |
+| A-click-heavy-r1-oracle | done | green | green | 10/10 | 9/9 | 6 | 0 | 0 | - | - | 0 | 11 | 0 | 36 | 0 | - | - | 0.0 | 5.73 |
+| A2-click-heavy-r1-noop | done | green | green | 0/10 | 0/9 | 0 | 0 | 0 | - | - | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.34 |
+| A2-click-heavy-r1-oracle | done | green | green | 10/10 | 9/9 | 0 | 0 | 0 | - | - | 0 | 11 | 0 | 32 | 0 | - | - | 0.0 | 11.62 |
+| B-click-heavy-r1-noop | done | green | green | 0/10 | 0/9 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 10 | 0 | - | - | 0.0 | 1.03 |
+| B-click-heavy-r1-oracle | done | green | green | 10/10 | 9/9 | 6 | 8 | 0 | 9 | 7 | 0 | 11 | 0 | 79 | 0 | - | - | 0.0 | 7.2 |

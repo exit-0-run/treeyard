@@ -899,6 +899,52 @@ class SeqEditTests(unittest.TestCase):
         ins = [{"id": str(i), "edits": [{"op": "insert_before", "file": "f", "anchor": "a = 1\n", "text": f"x{i}\n"}]} for i in (1, 2)]
         self.assertEqual(k.apply_seq(files, ins)["f"], "x1\nx2\na = 1\n", "insertions at one anchor keep the task order")
 
+    def test_create_and_new_file_patches(self):
+        t = {"id": "1", "edits": [{"op": "create", "file": "new.py", "text": "x = 1\n"},
+                                  {"op": "replace", "file": "f", "old": "a = 1\n", "new": "from new import x\n"}]}
+        out = k.apply_seq({"f": "a = 1\n"}, [t], False)
+        self.assertEqual(out, {"f": "from new import x\n", "new.py": "x = 1\n"})
+        with self.assertRaises(ValueError):  # a create on a file that is there
+            k.apply_seq(out, [t], False)
+        patch = k.unified({"f": "a = 1\n"}, out)
+        self.assertIn("diff --git a/new.py b/new.py\nnew file mode 100644\n--- /dev/null\n+++ b/new.py\n", patch)
+        tmp = Path(tempfile.mkdtemp(prefix="t2-new-"))
+        try:
+            subprocess.run(["git", "init", "-q"], cwd=tmp, check=True)
+            (tmp / "f").write_text("a = 1\n")
+            (tmp / "p.patch").write_text(patch)
+            subprocess.run(["git", "apply", "p.patch"], cwd=tmp, check=True)
+            self.assertEqual((tmp / "new.py").read_text(), "x = 1\n")
+            self.assertEqual((tmp / "f").read_text(), "from new import x\n")
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_combined_edits_are_the_step_on_the_earlier_tasks(self):
+        files = {"f": "def g():\n    return 1\n"}
+        move = {"id": "1", "edits": [{"op": "create", "file": "m.py", "text": "def g():\n    return 1\n"},
+                                     {"op": "replace", "file": "f", "old": "def g():\n    return 1\n", "new": "from m import g\n"}]}
+        change = {"id": "2", "edits": [{"op": "replace", "file": "f", "old": "return 1", "new": "return 2"}],
+                  "combined_edits": [{"op": "replace", "file": "m.py", "old": "return 1", "new": "return 2"}]}
+        self.assertEqual(k.apply_seq(files, [change], False)["f"], "def g():\n    return 2\n", "alone: its own edits")
+        both = k.apply_seq(files, [move, change])
+        self.assertEqual(both, {"f": "from m import g\n", "m.py": "def g():\n    return 2\n"})
+        with self.assertRaises(ValueError):  # combined on a tree without the move: no silent fallback
+            k.apply_seq(files, [change])
+        self.assertEqual(k.task_ops(change)[-1]["file"], "m.py")
+
+    def test_replay_without_a_task(self):
+        files = {"f": "a\nb\nc\nd\ne\nf\ng\n"}
+        t1 = {"id": "1", "edits": [{"op": "replace", "file": "f", "old": "a\n", "new": "A\n"}]}
+        t2 = {"id": "2", "edits": [{"op": "replace", "file": "f", "old": "g\n", "new": "G\n"}],
+              "combined_edits": [{"op": "replace", "file": "f", "old": "f\ng\n", "new": "f\nG\n"}]}
+        t3 = {"id": "3", "edits": [{"op": "replace", "file": "f", "old": "d\n", "new": "D\n"}],
+              "combined_edits": [{"op": "replace", "file": "f", "old": "A\nb\nc\nd\n", "new": "A\nb\nc\nD\n"}]}
+        self.assertEqual(k.replay_without(files, [t1, t2, t3], 1)["f"], "a\nb\nc\nD\ne\nf\nG\n")
+        self.assertEqual(k.replay_without(files, [t1, t2, t3], 2)["f"], "A\nb\nc\nD\ne\nf\ng\n")
+        self.assertEqual(k.merge3("x\n", "x\n", "y\n"), "y\n")
+        self.assertIsNone(k.merge3("z\n", "x\n", "y\n"))
+        self.assertEqual(k.merge3("z\n", "x\n", "y\n", union=True), "z\ny\n")
+
 
 class DevMixedTests(unittest.TestCase):
     """The `mixed` set of the development set (dev/taskdefs_mixed.py, dev/tasks/click/mixed)."""
@@ -932,7 +978,7 @@ class DevMixedTests(unittest.TestCase):
         self.assertEqual((spec["agents"], len(spec["mix"]), spec["mix"].count("claude"), spec["mix"].count("codex")), (10, 10, 6, 4))
         self.assertEqual(spec["limits"], MIXED_LIMITS)
         self.assertEqual(len(k.task_dirs("click", "mixed")), 10)
-        self.assertEqual(k.sets_of("click"), ["mixed"])
+        self.assertEqual(k.sets_of("click"), ["mixed", "heavy"])
         pairs = {it["id"]: it["pair"] for it in spec["integration"]}
         self.assertEqual(len(pairs), 6)
         for it in spec["integration"]:
@@ -966,12 +1012,68 @@ class DevMixedTests(unittest.TestCase):
             r = subprocess.run([sys.executable, str(kit / "t2.py"), "generate", "--scratch", os.environ["T2_SCRATCH"], "--repo", "click"],
                                capture_output=True, text=True, timeout=300)
             self.assertEqual(r.returncode, 0, r.stderr)
-            for man in ("MANIFEST.json", "MANIFEST-mixed.json"):
+            for man in ("MANIFEST.json", "MANIFEST-mixed.json", "MANIFEST-heavy.json"):
                 self.assertEqual((kit / "dev" / "tasks" / man).read_text(), (k.DEV / "tasks" / man).read_text(), man)
                 for rel in json.loads((k.DEV / "tasks" / man).read_text()):
                     self.assertEqual((kit / rel).read_bytes(), (k.HERE / rel).read_bytes(), rel)
         finally:
             shutil.rmtree(tmp)
+
+
+class DevHeavyTests(unittest.TestCase):
+    """The `heavy` set of the development set (dev/taskdefs_heavy.py, dev/heavy/, dev/tasks/click/heavy)."""
+
+    def setUp(self):
+        self.saved = {n: getattr(k, n) for n in KIT_GLOBALS}
+        k.select_kit(["click"])
+
+    def tearDown(self):
+        for n, v in self.saved.items():
+            setattr(k, n, v)
+
+    def td(self):
+        return [m for m in k.extra_taskdefs() if "heavy" in m.SETS][0]
+
+    def test_files_match_their_manifest(self):
+        manifest = json.loads((k.DEV / "tasks" / "MANIFEST-heavy.json").read_text())
+        self.assertEqual(sum(1 for p in manifest if p.endswith("prompt.md")), 10)
+        for rel, digest in manifest.items():
+            self.assertTrue(rel.startswith("dev/tasks/click/heavy/"), rel)
+            self.assertEqual(k.sha256(k.HERE / rel), digest, rel)
+            if rel.endswith("prompt.md"):
+                self.assertNotIn("treeyard", (k.HERE / rel).read_text().lower(), rel)
+
+    def test_set_json(self):
+        spec = k.set_spec(k.TASKS_DIR, "click", "heavy")
+        self.assertEqual((spec["agents"], spec["mix"].count("claude"), spec["mix"].count("codex")), (10, 6, 4))
+        self.assertGreaterEqual(spec["limits"]["timeout_s"], 1800)
+        self.assertEqual(len(spec["integration"]), 9)
+        apart = sum(spec["mix"][a - 1] != spec["mix"][b - 1] for a, b in (it["pair"] for it in spec["integration"]))
+        self.assertEqual(apart, 7, "two triangles of pairs: 7 of 9 pairs get different harnesses")
+        for it in spec["integration"]:
+            d = k.TASKS_DIR / "click" / "heavy" / "integration" / it["id"]
+            self.assertTrue((d / "hidden" / it["test"]).is_file())
+            for p in it["pair"]:
+                self.assertTrue((d / f"without-{p}.patch").is_file(), (it["id"], p))
+
+    def test_tasks_are_feature_sized(self):
+        for t in self.td().TASKS["click"]["heavy"]:
+            files = {e["file"] for e in t["edits"]}
+            self.assertGreaterEqual(len(files), 3, t["id"])
+            lines = sum(1 for e in t["edits"] for x in k.unified({e["file"]: e.get("old", "")} if e["op"] == "replace" else {},
+                                                                  {e["file"]: e.get("new", e.get("text"))}).splitlines()
+                        if x[:1] in "+-" and x[:3] not in ("+++", "---"))
+            self.assertGreaterEqual(lines, 140, t["id"])
+            self.assertGreaterEqual(t["test"].count("assert"), 8, t["id"])
+            self.assertGreaterEqual(t["test"].count("\ndef test_"), 5, t["id"])
+
+    def test_patches_parse_into_ops(self):
+        ops = self.td().ops_from_patch(
+            "diff --git a/n.py b/n.py\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/n.py\n@@ -0,0 +1,2 @@\n+a\n+b\n"
+            "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -1,3 +1,3 @@\n x\n-y\n+Y\n z\n@@ -9,2 +9,3 @@\n p\n+q\n r\n")
+        self.assertEqual(ops, [{"op": "create", "file": "n.py", "text": "a\nb\n"},
+                               {"op": "replace", "file": "f", "old": "x\ny\nz\n", "new": "x\nY\nz\n"},
+                               {"op": "replace", "file": "f", "old": "p\nr\n", "new": "p\nq\nr\n"}])
 
 
 if __name__ == "__main__":

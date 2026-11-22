@@ -1,0 +1,15 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 1,
+  "id": "h1-prompt-text",
+  "title": "Refactor: the prompt text",
+  "files": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py"
+  ],
+  "test": "tests/test_t2_h1_prompt_text.py"
+}

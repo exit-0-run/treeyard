@@ -1,0 +1,18 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 3,
+  "id": "h3-secrets",
+  "title": "Secrets: a secret type and hidden defaults",
+  "files": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_h3_secrets.py"
+}

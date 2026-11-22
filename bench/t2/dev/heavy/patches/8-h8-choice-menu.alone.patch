@@ -1,0 +1,362 @@
+diff --git a/docs/prompts.md b/docs/prompts.md
+index f11b416..fe3914a 100644
+--- a/docs/prompts.md
++++ b/docs/prompts.md
+@@ -105,10 +105,40 @@ option's flag is given, instead of if the option is not provided at all.
+ ```
+ 
+ If `required=True`, then the option will still prompt if it is not given, but it will also prompt if only the flag is
+ given.
+ 
++## Choice Menus
++
++A prompt for a {class}`Choice` lists the choices after the text, `Region (eu, us, ap): `. Choices built from an enum
++are listed by member name, and an enum default is shown by name too. For long names, or when users prefer to type a
++number, `choice_menu=True` shows a numbered menu, one choice per line, before the prompt, and accepts the number of a
++choice as well as the choice itself:
++
++```console
++  1) eu
++  2) us
++  3) ap
++Region (1-3) [2]: 3
++```
++
++```python
++region = click.prompt("Region", type=click.Choice(["eu", "us", "ap"]), default="us", choice_menu=True)
++```
++
++A default that is one of the choices is shown as its number. An answer that is itself one of the choices selects that
++choice, so choices that are numbers (`["10", "20"]`) keep working; any other number gets the error
++`Error: 9 is not a number of the menu (1-3).` and the prompt asks again. An option that prompts takes
++`prompt_menu=True` for the same menu:
++
++```python
++@click.command()
++@click.option("--region", type=click.Choice(["eu", "us", "ap"]), prompt=True, prompt_menu=True)
++def deploy(region):
++    ...
++```
++
+ ## Confirmation Prompts
+ 
+ To ask if a user wants to continue with an action, the {func}`confirm` function comes in handy. By default, it returns
+ the result of the prompt as a boolean value:
+ 
+diff --git a/src/click/core.py b/src/click/core.py
+index e4b6b57..096f844 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -2914,10 +2914,12 @@ class Option(Parameter):
+     :param prompt_required: If set to ``False``, the user will be
+         prompted for input only when the option was specified as a flag
+         without a value.
+     :param hide_input: If this is ``True`` then the input on the prompt
+         will be hidden from the user. This is useful for password input.
++    :param prompt_menu: Prompt for a :class:`Choice` with a numbered menu
++        of the choices (see ``choice_menu`` of :func:`prompt`).
+     :param is_flag: forces this option to act as a flag.  The default is
+                     auto detection.
+     :param flag_value: which value should be used for this flag if it's
+                        enabled.  This is set to a boolean automatically if
+                        the option string contains a slash to mark two options.
+@@ -2964,10 +2966,11 @@ class Option(Parameter):
+ 
+     prompt: str | None
+     confirmation_prompt: bool | str
+     prompt_required: bool
+     hide_input: bool
++    prompt_menu: bool
+     hidden: bool
+ 
+     _flag_needs_value: bool
+     is_flag: bool
+     flag_value: t.Any
+@@ -2986,10 +2989,11 @@ class Option(Parameter):
+         show_default: bool | str | None = None,
+         prompt: bool | str = False,
+         confirmation_prompt: bool | str = False,
+         prompt_required: bool = True,
+         hide_input: bool = False,
++        prompt_menu: bool = False,
+         is_flag: bool | None = None,
+         flag_value: t.Any = UNSET,
+         multiple: bool = False,
+         count: bool = False,
+         allow_from_autoenv: bool = True,
+@@ -3024,10 +3028,11 @@ class Option(Parameter):
+ 
+         self.prompt = prompt_text
+         self.confirmation_prompt = confirmation_prompt
+         self.prompt_required = prompt_required
+         self.hide_input = hide_input
++        self.prompt_menu = prompt_menu
+         self.hidden = hidden
+ 
+         # Phase 2: flag-kind inference.
+         self.is_flag, self._flag_needs_value = self._infer_flag_kind(
+             is_flag, flag_value
+@@ -3189,10 +3194,12 @@ class Option(Parameter):
+             raise TypeError("nargs=-1 is not supported for options.")
+         if not self.is_bool_flag and self.secondary_opts:
+             raise TypeError("Secondary flag is not valid for non-boolean flag.")
+         if self.is_bool_flag and self.hide_input and self.prompt is not None:
+             raise TypeError("'prompt' with 'hide_input' is not valid for boolean flag.")
++        if self.prompt_menu and not isinstance(self.type, types.Choice):
++            raise TypeError("'prompt_menu' is only valid with a 'Choice' type.")
+         if self.count:
+             if self.multiple:
+                 raise TypeError("'count' is not valid with 'multiple'.")
+             if self.is_flag:
+                 raise TypeError("'count' is not valid with 'is_flag'.")
+@@ -3547,10 +3554,11 @@ class Option(Parameter):
+             type=self.type,
+             hide_input=self.hide_input,
+             show_choices=self.show_choices,
+             confirmation_prompt=self.confirmation_prompt,
+             value_proc=lambda x: self.process_value(ctx, x),
++            choice_menu=self.prompt_menu,
+             **prompt_kwargs,
+         )
+ 
+     def resolve_envvar_value(self, ctx: Context) -> str | None:
+         """:class:`Option` resolves its environment variable the same way as
+diff --git a/src/click/termui.py b/src/click/termui.py
+index 8fe0085..479eb31 100644
+--- a/src/click/termui.py
++++ b/src/click/termui.py
+@@ -1,8 +1,9 @@
+ from __future__ import annotations
+ 
+ import collections.abc as cabc
++import enum
+ import inspect
+ import io
+ import itertools
+ import os
+ import re
+@@ -14,10 +15,11 @@ from gettext import gettext as _
+ 
+ from . import _compat
+ from ._compat import isatty
+ from ._compat import strip_ansi
+ from .exceptions import Abort
++from .exceptions import BadParameter
+ from .exceptions import UsageError
+ from .globals import resolve_color_default
+ from .types import Choice
+ from .types import convert_type
+ from .types import ParamType
+@@ -110,24 +112,33 @@ def _build_prompt(
+     suffix: str,
+     show_default: bool | str = False,
+     default: object | None = None,
+     show_choices: bool = True,
+     type: object | None = None,
++    choice_menu: bool = False,
+ ) -> str:
+     prompt = text
+-    if type is not None and show_choices and isinstance(type, Choice):
+-        prompt += f" ({', '.join(map(str, type.choices))})"
++    if type is not None and isinstance(type, Choice) and choice_menu:
++        # The menu lists the choices; the prompt asks for a number.
++        prompt += f" (1-{len(type.choices)})"
++        if default in type.choices:
++            default = type.choices.index(default) + 1
++    elif type is not None and show_choices and isinstance(type, Choice):
++        prompt += f" ({', '.join(type.format_choice(c) for c in type.choices)})"
+     default_preview = ""
+     if show_default:
+         if isinstance(show_default, str):
+             default_preview = f" [({show_default})]"
+         elif default is not None:
+             default_preview = f" [{_format_default(default)}]"
+     return f"{prompt}{default_preview}{suffix}"
+ 
+ 
+ def _format_default(default: V) -> V | str:
++    if isinstance(default, enum.Enum):
++        return default.name
++
+     if isinstance(default, (io.IOBase, _LazyFile)):
+         name = getattr(default, "name", None)
+ 
+         if name is not None:
+             return str(name)
+@@ -145,10 +156,11 @@ def prompt(
+     value_proc: None = None,
+     prompt_suffix: str = ": ",
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    choice_menu: bool = False,
+ ) -> str: ...
+ 
+ 
+ @t.overload
+ def prompt(
+@@ -160,10 +172,11 @@ def prompt(
+     value_proc: t.Callable[[str], V] | None = None,
+     prompt_suffix: str = ": ",
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    choice_menu: bool = False,
+ ) -> V: ...
+ 
+ 
+ def prompt(
+     text: str,
+@@ -174,10 +187,11 @@ def prompt(
+     value_proc: t.Callable[[str], V] | None = None,
+     prompt_suffix: str = ": ",
+     show_default: bool | str = True,
+     err: bool = False,
+     show_choices: bool = True,
++    choice_menu: bool = False,
+ ) -> V:
+     """Prompts a user for input.  This is a convenience function that can
+     be used to prompt a user for input later.
+ 
+     If the user aborts the input by sending an interrupt signal, this
+@@ -203,10 +217,24 @@ def prompt(
+                 ``stdout``, the same as with echo.
+     :param show_choices: Show or hide choices if the passed type is a Choice.
+                          For example if type is a Choice of either day or week,
+                          show_choices is true and text is "Group by" then the
+                          prompt will be "Group by (day, week): ".
++                         Enum members are listed by their name.
++    :param choice_menu: With a :class:`Choice` type, show the choices as a
++                        numbered menu, one per line, before the first
++                        prompt, and accept the number of a choice as well
++                        as the choice itself. The prompt then shows the
++                        range of numbers, ``Region (1-3): ``, and a default
++                        that is one of the choices as its number. An answer
++                        that is itself a choice is that choice, so choices
++                        that are numbers keep working; another number gives
++                        the error ``9 is not a number of the menu (1-3).``
++
++    .. versionchanged:: 8.6
++        Added the ``choice_menu`` parameter. Enum choices and an enum
++        default are shown by name.
+ 
+     .. versionchanged:: 8.5.0
+         Generically typed: the return type is narrowed by ``type``,
+         ``value_proc``, or ``default`` instead of being ``Any``. Runtime
+         behavior is unchanged.
+@@ -245,12 +273,26 @@ def prompt(
+             raise Abort() from None
+ 
+     if value_proc is None:
+         value_proc = convert_type(type, default)
+ 
++    menu = choice_menu and isinstance(type, Choice)
++
++    if menu:
++        value_proc = _menu_value_proc(t.cast("Choice[t.Any]", type), value_proc)
++
++        for number, choice in enumerate(type.choices, 1):  # type: ignore[union-attr]
++            echo(f"  {number}) {type.format_choice(choice)}", err=err)  # type: ignore[union-attr]
++
+     prompt = _build_prompt(
+-        text, prompt_suffix, show_default, default, show_choices, type
++        text,
++        prompt_suffix,
++        show_default,
++        default,
++        show_choices,
++        type,
++        choice_menu=menu,
+     )
+ 
+     if confirmation_prompt:
+         if confirmation_prompt is True:
+             confirmation_prompt = _("Repeat for confirmation")
+@@ -284,10 +326,43 @@ def prompt(
+         if value == value2:
+             return result
+         echo(_("Error: The two entered values do not match."), err=err)
+ 
+ 
++def _menu_value_proc(
++    type: Choice[t.Any], value_proc: t.Callable[[str], t.Any]
++) -> t.Callable[[str], t.Any]:
++    """Wraps the conversion of a menu prompt. An answer that is one of the
++    choices is that choice (so choices that are numbers still work);
++    otherwise the number of a choice selects it. Any other number is not
++    on the menu.
++    """
++
++    def convert(value: str) -> t.Any:
++        if not isinstance(value, str):
++            return value_proc(value)
++
++        try:
++            return value_proc(value)
++        except UsageError:
++            choice = type.choice_from_number(value)
++
++            if choice is not None:
++                return value_proc(choice)
++
++            if value.strip().isdigit():
++                raise BadParameter(
++                    _("{number} is not a number of the menu (1-{count}).").format(
++                        number=value.strip(), count=len(type.choices)
++                    )
++                ) from None
++
++            raise
++
++    return convert
++
++
+ def confirm(
+     text: str,
+     default: bool | None = False,
+     abort: bool = False,
+     prompt_suffix: str = ": ",
+diff --git a/src/click/types.py b/src/click/types.py
+index b6e98a9..66fdc91 100644
+--- a/src/click/types.py
++++ b/src/click/types.py
+@@ -421,10 +421,39 @@ class Choice(ParamType[_ValueT_co], t.Generic[_ValueT_co]):
+         if not self.case_sensitive:
+             normed_value = normed_value.casefold()
+ 
+         return normed_value
+ 
++    def format_choice(self, choice: t.Any) -> str:
++        """The text that prompts show for one choice: the name of an enum
++        member, ``str()`` of anything else.
++
++        .. versionadded:: 8.6
++        """
++        if isinstance(choice, enum.Enum):
++            return choice.name
++
++        return str(choice)
++
++    def choice_from_number(self, answer: str) -> _ValueT_co | None:
++        """The choice that a numbered menu answer selects: ``"1"`` is the
++        first choice. ``None`` when the answer is not a number of the menu.
++
++        .. versionadded:: 8.6
++        """
++        text = answer.strip()
++
++        if not text.isdigit():
++            return None
++
++        number = int(text)
++
++        if not 1 <= number <= len(self.choices):
++            return None
++
++        return self.choices[number - 1]
++
+     def get_metavar(self, param: Parameter, ctx: Context) -> str | None:
+         if param.param_type_name == "option" and not param.show_choices:  # type: ignore[attr-defined]
+             choice_metavars = [
+                 convert_type(type(choice)).name.upper() for choice in self.choices
+             ]

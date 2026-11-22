@@ -1,0 +1,14 @@
+{
+  "repo": "click",
+  "set": "heavy",
+  "k": 2,
+  "id": "h2-help-items",
+  "title": "Refactor: one method per item of the option help bracket",
+  "files": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py"
+  ],
+  "test": "tests/test_t2_h2_help_items.py"
+}

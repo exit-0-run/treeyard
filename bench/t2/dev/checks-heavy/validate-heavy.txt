@@ -1,0 +1,23 @@
+click heavy 1 h1-prompt-text: pinned fail (0.2 s), reference pass (0.14 s), suite with the reference alone pass, 5 files, 189 diff lines -> ok
+click heavy 2 h2-help-items: pinned fail (0.17 s), reference pass (0.14 s), suite with the reference alone pass, 4 files, 282 diff lines -> ok
+click heavy 3 h3-secrets: pinned fail (0.17 s), reference pass (0.14 s), suite with the reference alone pass, 8 files, 151 diff lines -> ok
+click heavy 4 h4-nushell: pinned fail (0.17 s), reference pass (0.14 s), suite with the reference alone pass, 3 files, 162 diff lines -> ok
+click heavy 5 h5-prompt-attempts: pinned fail (0.17 s), reference pass (0.14 s), suite with the reference alone pass, 7 files, 154 diff lines -> ok
+click heavy 6 h6-option-groups: pinned fail (0.23 s), reference pass (0.13 s), suite with the reference alone pass, 3 files, 153 diff lines -> ok
+click heavy 7 h7-byte-size: pinned fail (0.21 s), reference pass (0.14 s), suite with the reference alone pass, 7 files, 175 diff lines -> ok
+click heavy 8 h8-choice-menu: pinned fail (0.17 s), reference pass (0.14 s), suite with the reference alone pass, 5 files, 148 diff lines -> ok
+click heavy 9 h9-help-theme: pinned fail (0.2 s), reference pass (0.14 s), suite with the reference alone pass, 5 files, 152 diff lines -> ok
+click heavy 10 h10-help-markdown: pinned fail (0.14 s), reference pass (0.12 s), suite with the reference alone pass, 5 files, 164 diff lines -> ok
+click heavy all 10 (resolved-1..10): suite pass (3.87 s), tests 10/10 pass, integration 9/9 pass -> ok
+click heavy integration i1-prompt-text-enum-names (tasks 1 and 8): pin fails, only 1 fails, all but 1 fails, only 8 fails, all but 8 fails; the partner's own test all but 1 passes, all but 8 passes -> ok
+click heavy integration i2-hidden-default-item (tasks 2 and 3): pin fails, only 2 fails, all but 2 fails, only 3 fails, all but 3 fails; the partner's own test all but 2 passes, all but 3 passes -> ok
+click heavy integration i3-group-headings-themed (tasks 6 and 9): pin fails, only 6 fails, all but 6 fails, only 9 fails, all but 9 fails; the partner's own test all but 6 passes, all but 9 passes -> ok
+click heavy integration i4-markdown-hidden-default (tasks 3 and 10): pin fails, only 3 fails, all but 3 fails, only 10 fails, all but 10 fails; the partner's own test all but 3 passes, all but 10 passes -> ok
+click heavy integration i5-markdown-byte-size (tasks 7 and 10): pin fails, only 7 fails, all but 7 fails, only 10 fails, all but 10 fails; the partner's own test all but 7 passes, all but 10 passes -> ok
+click heavy integration i6-markdown-option-groups (tasks 6 and 10): pin fails, only 6 fails, all but 6 fails, only 10 fails, all but 10 fails; the partner's own test all but 6 passes, all but 10 passes -> ok
+click heavy integration i7-prompt-text-byte-size (tasks 1 and 7): pin fails, only 1 fails, all but 1 fails, only 7 fails, all but 7 fails; the partner's own test all but 1 passes, all but 7 passes -> ok
+click heavy integration i8-markdown-with-a-theme (tasks 9 and 10): pin fails, only 9 fails, all but 9 fails, only 10 fails, all but 10 fails; the partner's own test all but 9 passes, all but 10 passes -> ok
+click heavy integration i9-markdown-custom-item (tasks 2 and 10): pin fails, only 2 fails, all but 2 fails, only 10 fails, all but 10 fails; the partner's own test all but 2 passes, all but 10 passes -> ok
+click heavy: 13 of 45 pairs of reference patches conflict in git: 1-3, 1-5, 1-7, 1-8, 2-10, 2-3, 2-7, 2-9, 3-5, 3-8, 5-8, 7-8, 9-10
+click heavy: tasks that fail on the pin and pass with the reference: 10/10; agents 10, slots codex,claude,codex,claude,codex,claude,claude,claude,claude,codex, limits {"claude_budget_usd": 8.0, "max_tokens": 20000000, "max_turns": 300, "timeout_s": 3600}
+validate heavy: ok
