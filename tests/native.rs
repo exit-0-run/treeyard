@@ -312,3 +312,33 @@ fn a_stale_directory_merges_instead_of_overwriting() {
     a.close();
     b.close();
 }
+
+#[test]
+fn a_refresh_never_overwrites_an_edit_made_after_the_scan() {
+    // The refresh after sync or land rewrites dir to the change's head; an edit that reached the
+    // disk after the sync's scan (a background process, a race) stays for the next sync.
+    let w = world();
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "late edit");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    b.tool("sync", json!({"change": id}));
+    edit(&dir, "lib.txt", "four\n", "four late\n");
+    let p = treeyard::native::place(&id).unwrap();
+    assert!(p.keep_edits);
+    // `place` reads TMPDIR: point it at the bridge's.
+    let p = treeyard::workspace::Place {
+        dir: dir.clone(),
+        mark: dir.with_file_name(format!("{id}.native.json")),
+        lock: dir.with_file_name(format!("{id}.native.lock")),
+        keep_edits: true,
+    };
+    let _l = p.lock().unwrap();
+    treeyard::workspace::checkout_locked(&w.url, &id, &p, &Default::default()).unwrap();
+    drop(_l);
+    assert!(std::fs::read_to_string(dir.join("lib.txt")).unwrap().contains("four late\n"), "kept");
+    let s = b.tool("sync", json!({"change": id}));
+    assert_eq!(strs(&s["sent"]), ["lib.txt"], "{s}");
+    assert_eq!(b.tool("land", json!({"change": id}))["status"], "landed");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour late\nfive\n");
+    b.close();
+}

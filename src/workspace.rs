@@ -364,7 +364,7 @@ fn hash_file(path: &Path, m: &fs::Metadata) -> Result<(u32, String, Vec<u8>)> {
     Ok((mode, git::object_id("blob", &data), data))
 }
 
-pub(crate) struct Lock(#[allow(dead_code)] fs::File);
+pub struct Lock(#[allow(dead_code)] fs::File);
 
 fn lock(path: &Path) -> Result<Lock> {
     if let Some(p) = path.parent() {
@@ -1714,7 +1714,8 @@ pub(crate) fn capped(mut v: Vec<String>) -> Value {
 /// `into` must be new, empty, or an earlier checkout (it holds [`CHECKOUT_MARK`]).
 pub fn checkout(url: &str, change: &str, into: &Path) -> Result<Value> {
     let dir = std::path::absolute(into)?;
-    let place = Place { mark: dir.join(CHECKOUT_MARK), lock: dir.join(PRIVATE).join("checkout.lock"), dir };
+    let place =
+        Place { mark: dir.join(CHECKOUT_MARK), lock: dir.join(PRIVATE).join("checkout.lock"), dir, keep_edits: false };
     place.check()?;
     let _l = place.lock()?;
     checkout_locked(url, change, &place, &BTreeSet::new())
@@ -1727,10 +1728,13 @@ pub struct Place {
     pub dir: PathBuf,
     pub mark: PathBuf,
     pub lock: PathBuf,
+    /// Leave files edited since the last write as they are (the native set sends them on its next
+    /// sync) instead of putting the change's content back (`checkout`: code tested is code landed).
+    pub keep_edits: bool,
 }
 
 impl Place {
-    pub(crate) fn lock(&self) -> Result<Lock> {
+    pub fn lock(&self) -> Result<Lock> {
         lock(&self.lock)
     }
 
@@ -1765,7 +1769,7 @@ impl Place {
 
 /// `checkout` into `place` for a caller that holds its lock. Paths in `keep` are left as they are
 /// on disk and in the manifest (edits not sent yet).
-pub(crate) fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTreeSet<String>) -> Result<Value> {
+pub fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTreeSet<String>) -> Result<Value> {
     let t0 = Instant::now();
     let dir = place.dir.clone();
     let mark_path = place.mark.clone();
@@ -1792,8 +1796,13 @@ pub(crate) fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTr
     let found = scan(&dir, &mark.files, &BTreeSet::new())?;
     let mut dirty: BTreeSet<String> = BTreeSet::new();
     let mut extra = Vec::new();
+    let mut kept: BTreeSet<String> = keep.clone();
     for (path, f) in found.diffs {
-        if keep.contains(&path) {
+        if kept.contains(&path) {
+            continue;
+        }
+        if place.keep_edits && (mark.files.contains_key(&path) || f.is_some()) {
+            kept.insert(path);
             continue;
         }
         if mark.files.contains_key(&path) {
@@ -1803,12 +1812,12 @@ pub(crate) fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTr
         }
     }
     for (path, f) in found.touched {
-        if !keep.contains(&path) {
+        if !kept.contains(&path) {
             mark.files.insert(path, f);
         }
     }
     let gone: Vec<String> =
-        mark.files.keys().filter(|p| !want.contains_key(*p) && !keep.contains(*p)).cloned().collect();
+        mark.files.keys().filter(|p| !want.contains_key(*p) && !kept.contains(*p)).cloned().collect();
     for p in &gone {
         let dst = dir.join(p);
         if fs::symlink_metadata(&dst).is_ok_and(|m| m.is_dir()) {
@@ -1822,7 +1831,7 @@ pub(crate) fn checkout_locked(url: &str, change: &str, place: &Place, keep: &BTr
     let same = |st: Option<&FileState>, w: &(u32, String)| st.is_some_and(|s| (s.mode, &s.blob) == (w.0, &w.1));
     let todo: Vec<(String, (u32, String))> = want
         .iter()
-        .filter(|(p, w)| !keep.contains(*p) && (dirty.contains(*p) || !same(mark.files.get(*p), w)))
+        .filter(|(p, w)| !kept.contains(*p) && (dirty.contains(*p) || !same(mark.files.get(*p), w)))
         .map(|(p, w)| (p.clone(), w.clone()))
         .collect();
     let ids: Vec<String> = todo.iter().map(|(_, (_, b))| b.clone()).collect::<BTreeSet<_>>().into_iter().collect();

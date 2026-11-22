@@ -95,7 +95,7 @@ pub const OWN: &[&str] = &["start", "sync", "land"];
 pub fn place(change: &str) -> Result<Place> {
     let dir = workspace::checkout_dir(change)?;
     let side = |ext: &str| dir.with_file_name(format!("{change}.{ext}"));
-    Ok(Place { mark: side("native.json"), lock: side("native.lock"), dir })
+    Ok(Place { mark: side("native.json"), lock: side("native.lock"), dir, keep_edits: true })
 }
 
 /// One native call. `agent` names the agent for `start` (unless a token names it).

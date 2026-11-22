@@ -336,9 +336,11 @@ edit removes another agent's landed line, the land held until the line is back; 
 markers, `land` refused while they remain, then landed; `main_moved_in` and `rebase: true`; a stale
 directory merging 3-way.
 
-What an agent can lose: nothing that `land` sees, since it syncs first. Edits made after the last
-`land` call of a change are not sent by anything; and a `land` that lands rewrites `dir`, so an edit
-made in `dir` while that call runs can be overwritten.
+What an agent can lose: `land` syncs first, and a rewrite of `dir` never overwrites a file that
+changed since it was last written or sent (it waits for the next sync), so edits are not lost while
+the change is open. Edits made in `dir` after the change landed belong to no change (`sync` says the
+change has landed; call `start` again and redo them there). New files that a `.gitignore` or the
+cache list excludes never land.
 
 ## Many agents, one machine or many
 
