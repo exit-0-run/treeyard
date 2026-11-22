@@ -1690,6 +1690,25 @@ pub(crate) struct CheckoutMark {
     pub followed_by: Option<String>,
 }
 
+/// Tracked files of a checkout whose stat (size, mtime, mode) differs from what its manifest
+/// recorded, or that are gone: written after the checkout, even with the same bytes put back.
+pub(crate) fn changed_since_written(dir: &Path, mark: &CheckoutMark) -> Vec<String> {
+    mark.files
+        .iter()
+        .filter(|(path, st)| match fs::symlink_metadata(dir.join(path)) {
+            Ok(md) => md.is_dir() || md.len() != st.size || mtime_ns(&md) != st.mtime_ns || disk_mode(&md) != st.mode,
+            Err(_) => true,
+        })
+        .map(|(p, _)| p.clone())
+        .collect()
+}
+
+/// `changed_since_written` of a `checkout` directory (its manifest inside, `CHECKOUT_MARK`).
+pub fn checkout_changed(dir: &Path) -> Result<Vec<String>> {
+    let mark: CheckoutMark = read_json(&dir.join(CHECKOUT_MARK))?;
+    Ok(changed_since_written(dir, &mark))
+}
+
 /// Where `checkout` puts a change when no directory is given: one directory per change under
 /// the system temp directory. Sandboxed agent tools let commands write there (Codex
 /// `workspace-write` allows `$TMPDIR` and `/tmp`), and nothing lands in the repository checkout.

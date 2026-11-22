@@ -463,6 +463,48 @@ fn e_warm_test_dirs_keep_build_output_and_write_only_changes() {
 }
 
 #[test]
+fn e_a_test_slot_runs_its_setup_once_and_again_when_a_declared_file_changes() {
+    // The queue tests in the server's slots, not in the agent's directory: a slot needs its own
+    // venv or node_modules. The setup runs once per slot, again when requirements.txt changes.
+    let tmp = tempfile::tempdir().unwrap();
+    let log = tmp.path().join("setup.log");
+    let setup_cmd = format!("echo run >> {} && mkdir -p .venv && touch .venv/ready", log.display());
+    let cfg = format!(
+        "[landing]\nmode = \"queue\"\nbatch = 1\nparallel = 1\ntest = \"test -f .venv/ready\"\n\
+         test_setup = \"{setup_cmd}\"\ntest_setup_files = [\"requirements.txt\"]\n"
+    );
+    let (_repo, url) = setup(tmp.path(), &cfg, &[("requirements.txt", "click\n")]);
+    let runs = || std::fs::read_to_string(&log).unwrap_or_default().lines().count();
+    let land = |agent: &str, path: &str, text: &str| {
+        let ch = id(&open(&url, agent, json!({})));
+        write(&url, &ch, path, text);
+        assert_eq!(call(&url, "land", json!({"change": ch}))["status"], "queued");
+        let step = call(&url, "queue_run", json!({}));
+        assert_eq!(step["landed"].as_array().unwrap().len(), 1, "{step}");
+    };
+    land("a", "f00.txt", "a\n");
+    assert_eq!(runs(), 1, "the first test of the slot runs the setup");
+    land("b", "f01.txt", "b\n");
+    assert_eq!(runs(), 1, "nothing it depends on changed");
+    land("c", "requirements.txt", "click\nrich\n");
+    assert_eq!(runs(), 2, "requirements.txt changed");
+    // A failing setup fails the test: the change goes back with the setup's output.
+    let cfg = cfg.replace("echo run", "echo setup broke; exit 3; echo run");
+    let data = tmp.path().join("data");
+    std::fs::write(data.join("treeyard.toml"), cfg).unwrap();
+    let url = spawn_server(Arc::new(Repo::open(&data).unwrap()));
+    let ch = id(&open(&url, "d", json!({})));
+    write(&url, &ch, "f02.txt", "d\n");
+    call(&url, "land", json!({"change": ch}));
+    let step = call(&url, "queue_run", json!({}));
+    assert!(step["landed"].as_array().unwrap().is_empty(), "{step}");
+    let st = call(&url, "land_status", json!({"change": ch}));
+    assert_eq!(st["verdict"], "rejected", "{st}");
+    let out = st["output"].as_str().unwrap();
+    assert!(out.contains("test setup") && out.contains("setup broke"), "{out}");
+}
+
+#[test]
 fn e_optimistic_mode_bisects_and_reverts_through_the_api() {
     let tmp = tempfile::tempdir().unwrap();
     let (_repo, url) = setup(tmp.path(), &NOT_BROKEN.replace("{mode}", "optimistic"), &[]);

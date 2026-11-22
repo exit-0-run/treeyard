@@ -1628,13 +1628,14 @@ impl Inner {
     }
 
     /// Lands `id` and, once it is on main, abandons the other open changes of its group. In
-    /// queue mode it answers `queued` and abandons nothing; call it again after the land.
-    pub fn land_one_of(&mut self, group: &str, id: &str) -> Result<Value> {
+    /// queue mode it answers `queued` and abandons nothing; call it again after the land. The land
+    /// goes through the land test like `land` (`tested`; else `untested`).
+    pub fn land_one_of(&mut self, group: &str, id: &str, tested: Option<TestedProof>) -> Result<Value> {
         let ch = self.change(id)?;
         if ch.group.as_deref() != Some(group) {
             bail!("change {id} is not in group {group:?}");
         }
-        let land = self.land(id)?;
+        let land = self.land_gated(id, Undo::Hold, tested)?;
         let mut abandoned = Vec::new();
         if matches!(land["status"].as_str(), Some("landed" | "already_on_main")) {
             for other in self.store.group(group)? {

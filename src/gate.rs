@@ -3,6 +3,9 @@
 //! with a timeout, and lands only with a proof (`tested`: command, main, head) that the server
 //! checks under its lock together with the land. When main moved in between, the server answers
 //! `main_moved` and the bridge goes round again, at most `ROUNDS` times.
+//!
+//! The land queue on the agent's side (`[landing] mode = "queue"`): the server tests the change
+//! in its own test slots; `land_queued` waits for the verdict and answers like a direct land.
 
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
@@ -120,8 +123,10 @@ pub fn tail_lines(buf: &[u8], cut: bool) -> String {
 }
 
 /// What `land` needs from the caller: `prepare` rebases the change onto main and writes the
-/// directory (Ok(Some(reply)) stops with that reply, a conflict for one); `land_args` are the
-/// agent's `undo` and `reason`.
+/// directory (Ok(Some(reply)) stops with that reply, a conflict for one); `unchanged`, after a
+/// passing run, checks that dir still holds exactly the tree it was written with (Ok(Some(reply))
+/// stops: what was tested is then not what would land); `land_args` are the agent's `undo` and
+/// `reason`.
 pub fn land(
     url: &str,
     change: &str,
@@ -129,6 +134,7 @@ pub fn land(
     dir: &Path,
     land_args: &Value,
     prepare: &mut dyn FnMut() -> Result<Option<Value>>,
+    unchanged: &mut dyn FnMut() -> Result<Option<Value>>,
 ) -> Result<Value> {
     let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let log = dir.with_file_name(format!("{name}.land-test.log"));
@@ -149,6 +155,10 @@ pub fn land(
                 "output_bytes": r.bytes, "advice": FAILED_ADVICE,
             }));
         }
+        if let Some(mut stop) = unchanged()? {
+            stop["land_test"] = meta;
+            return Ok(stop);
+        }
         let mut req = land_args.clone();
         req["change"] = json!(change);
         req["tested"] = json!({"command": gate.command, "main": main, "head": head, "seconds": r.seconds});
@@ -165,9 +175,153 @@ pub fn land(
     unreachable!("the last round returns")
 }
 
+/// The reply when files of dir changed while the land test ran: the run tested something else
+/// than the change, so nothing lands.
+pub fn changed_during_test(change: &str, paths: Vec<String>) -> Value {
+    json!({"status": "refused", "change": change, "changed_during_test": crate::workspace::capped(paths),
+        "advice": CHANGED_ADVICE})
+}
+
+const CHANGED_ADVICE: &str = "Not landed: these files in dir changed while the land test ran, so the test did not \
+run on your change. Leave dir alone until land answers, and land again.";
+
+// ---- the land queue (`[landing] mode = "queue"`) ------------------------------------------------
+
+/// The land queue of a repository, from a `change` reply (`land_queue`), if it has one.
+pub struct Queue {
+    pub timeout: Duration,
+    pub batch: u64,
+    pub parallel: u64,
+}
+
+impl Queue {
+    pub fn of(change: &Value) -> Option<Queue> {
+        let q = change.get("land_queue").filter(|q| q.is_object())?;
+        Some(Queue {
+            timeout: Duration::from_secs(q["timeout_s"].as_u64().unwrap_or(600)),
+            batch: q["batch"].as_u64().unwrap_or(8).max(1),
+            parallel: q["parallel"].as_u64().unwrap_or(1).max(1),
+        })
+    }
+
+    /// How long a change at `position` may wait for its verdict: the test runs of the batches
+    /// before it and of its own (a failing batch costs more runs: the changes alone side by side
+    /// and the prefixes, or a bisect), plus a margin. One more batch for a step that ran stale.
+    pub fn budget(&self, position: u64) -> Duration {
+        let runs = if self.parallel > 1 { 3 } else { 1 + (64 - (self.batch - 1).leading_zeros()) as u64 };
+        let steps = position.max(1).div_ceil(self.batch) + 1;
+        self.timeout * (runs * steps) as u32 + Duration::from_secs(60)
+    }
+}
+
+pub const QUEUE_FAILED_ADVICE: &str = "Not landed: the server's tests failed on your change on top of main \
+(output). dir now holds your change rebased onto main as it is now. Fix it in dir, run the tests there, and land \
+again.";
+const QUEUE_TIMEOUT_ADVICE: &str = "Not landed yet: the server is still testing the changes ahead of yours. \
+Land again to keep waiting.";
+
+/// Fields of the agent-facing reply that tell how the queue went.
+fn queue_meta(t0: Instant, position: &Value, entries: u32) -> Value {
+    json!({"seconds": (t0.elapsed().as_secs_f64() * 100.0).round() / 100.0, "position": position, "entries": entries})
+}
+
+/// `land` through the land queue, for a bridge: enqueues the change (a change already queued just
+/// waits), waits for the server's verdict (events of the change, `land_status`) and answers in the
+/// shapes of a direct land: `landed`, `tests_failed` (after `on_reject` brought the change and dir
+/// to main as it is now; its reply, if any, is merged in: conflict markers), `conflict`, `undoes`.
+/// The agent never sees `queued`. `land_args` are the agent's `undo` and `reason`.
+pub fn land_queued(
+    url: &str,
+    change: &str,
+    q: &Queue,
+    land_args: &Value,
+    on_reject: &mut dyn FnMut() -> Result<Value>,
+) -> Result<Value> {
+    let t0 = Instant::now();
+    let mut req = land_args.clone();
+    req["change"] = json!(change);
+    let status = |c: &str| client::call(url, "land_status", json!({"change": c}));
+    // A rejection before this call is old news: only a new review is this land's verdict.
+    let first = status(change)?;
+    let old_review = if first["verdict"] == "rejected" { first["review"].clone() } else { Value::Null };
+    let mut queued = first["verdict"] == "queued";
+    let mut position = Value::Null;
+    for entries in 1..=4u32 {
+        if !queued {
+            let v = client::call(url, "land", req.clone())?;
+            if v["status"] != "queued" {
+                return Ok(v);
+            }
+            position = v["position"].clone();
+        }
+        queued = false;
+        let deadline = t0 + q.budget(position.as_u64().unwrap_or(q.batch));
+        let mut since = client::call(url, "events", json!({"since": 0, "limit": 0}))?["latest"].as_u64().unwrap_or(0);
+        let st = loop {
+            let st = status(change)?;
+            if !matches!(st["verdict"].as_str(), Some("queued" | "pending")) {
+                break st;
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Ok(json!({"status": "not_landed_yet", "change": change,
+                    "land_queue": queue_meta(t0, &position, entries), "advice": QUEUE_TIMEOUT_ADVICE}));
+            }
+            // Wakes on any event of the change (landed, rejected, conflict, undoes), else re-checks.
+            let wait = left.min(Duration::from_secs(5)).as_millis() as u64;
+            let ev = client::call(url, "events", json!({"since": since, "change": change, "wait_ms": wait}))?;
+            since = ev["next"].as_u64().unwrap_or(since);
+        };
+        let meta = queue_meta(t0, &position, entries);
+        match st["verdict"].as_str().unwrap_or_default() {
+            "passed" => {
+                // Landing again answers like the land the queue made (changeset, commit).
+                let mut v = client::call(url, "land", req.clone())?;
+                if let Some(m) = v.as_object_mut() {
+                    m.remove("repeated");
+                }
+                v["land_queue"] = meta;
+                return Ok(v);
+            }
+            "rejected" if st["review"] != old_review => {
+                let output = st["output"].as_str().unwrap_or_default();
+                let cut = output.len() > OUTPUT_CAP;
+                let tail = tail_lines(&output.as_bytes()[output.len().saturating_sub(OUTPUT_CAP)..], cut);
+                let mut v = json!({
+                    "status": "tests_failed", "change": change, "exit": st["exit"], "timed_out": st["timed_out"],
+                    "output": tail, "land_queue": meta, "advice": QUEUE_FAILED_ADVICE,
+                });
+                let extra = on_reject()?;
+                if let Some(m) = extra.as_object() {
+                    for (k, x) in m {
+                        v[k.as_str()] = x.clone();
+                    }
+                }
+                return Ok(v);
+            }
+            "abandoned" => anyhow::bail!("change {change} was abandoned while it waited in the land queue"),
+            // Held (undoes), sent back with a conflict, or dropped: landing again gives the reply
+            // with the details (undoes entries, conflicts), or enqueues it once more.
+            _ => {}
+        }
+    }
+    Ok(json!({"status": "not_landed_yet", "change": change, "land_queue": queue_meta(t0, &position, 4),
+        "advice": QUEUE_TIMEOUT_ADVICE}))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_queue_wait_grows_with_the_position_and_the_runs_of_a_step() {
+        let q = |batch, parallel| Queue { timeout: Duration::from_secs(30), batch, parallel };
+        // batch 8, one run at a time: a bisect of 8 is 1 + 3 runs; first in line: its batch and one more.
+        assert_eq!(q(8, 1).budget(1), Duration::from_secs(30 * 4 * 2 + 60));
+        assert_eq!(q(8, 1).budget(9), Duration::from_secs(30 * 4 * 3 + 60));
+        assert_eq!(q(1, 1).budget(1), Duration::from_secs(30 * 2 + 60));
+        assert_eq!(q(8, 4).budget(1), Duration::from_secs(30 * 3 * 2 + 60));
+    }
 
     #[test]
     fn a_run_passes_fails_times_out_and_caps_its_output() {

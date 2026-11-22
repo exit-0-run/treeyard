@@ -37,6 +37,7 @@ Connect adds the files that it creates to `.git/info/exclude`, so `git status` s
 | `--api` | API mode (the default before 0.2.0): `treeyard mcp --tools agent`, the 12 operations a coding agent needs plus `checkout`, and the API block ([mcp.md](mcp.md#tool-sets)). A `connect` without `--api` switches back to native mode. |
 | `--all-tools` | API mode with every operation listed. Refused with `--native`. |
 | `--land-test CMD`, `--land-test-timeout S`, `--no-land-test` | The land test: `land` lands only a result that passed `CMD` on the change rebased onto the main it lands on ([mcp.md](mcp.md#the-land-test)). Stored as `[coordination] land_test` in the server's `treeyard.toml` (the server restarts to read it). |
+| `--land-queue CMD`, `--land-queue-setup CMD`, `--land-batch N`, `--no-land-queue` | The land queue instead of the land test: the server tests batches of up to `N` changes (default 8) with `CMD` in its own test slots, after `--land-queue-setup` prepared each slot once; `land` waits for the verdict ([mcp.md](mcp.md#the-land-queue)). Stored as `[landing] mode = "queue"`, `test`, `test_setup`, `batch`; it replaces a land test, and `--land-test` replaces it. Refused together with `--land-test`. `--no-land-queue` and `disconnect` remove it. |
 
 A second `connect` with the same flags prints `already connected` and writes nothing. When the
 server stopped, connect starts it again on the recorded port.
@@ -104,7 +105,8 @@ cat greeting.txt
 
 `disconnect` restores every file that connect touched to its bytes from before connect, deletes the
 files that connect created, and stops the server and the mirror. It keeps `.git/treeyard/data`
-(open changes included) unless you pass `--purge`. A second `disconnect` prints `not connected`.
+(open changes included) unless you pass `--purge`; a land queue that connect set is taken out of its
+`treeyard.toml`. A second `disconnect` prints `not connected`.
 
 ```sh
 treeyard disconnect --purge
@@ -124,7 +126,7 @@ with your normal tools and run the tests there; `sync` when you want to know whe
 (optional); on `undoes` keep the other agent's part; `land` when the tests pass; on a conflict fix the
 marked files in `dir` and `land` again. The files in the repository directory do not change. The
 API block and entries (`--api`) stay byte for byte what they were. `connect status` prints the mode
-(`mode: native` or `mode: api`) and the land test.
+(`mode: native` or `mode: api`), the land test and the land queue.
 
 ## Agent names
 
@@ -144,4 +146,5 @@ bridge uses `<h>-1-<pid>`.
   sets is for the tools of its own Codex server entry, in the project file that it writes and removes.
 
 Tests: `tests/connect.rs` (init and idempotency, the three configs, the instruction block, byte
-identity after disconnect, status with two agents on one file, the mirror flag, the Codex tool approval).
+identity after disconnect, status with two agents on one file, the mirror flag, the Codex tool approval,
+the land test and the land queue flags).

@@ -391,12 +391,74 @@ With a land test the server lands a change only when the test passed on exactly 
 - **No agent override.** There is no flag for an agent to land past the test: an agent that could skip
   it would, the first time a test is slow or flaky. The owner turns it off in config
   (`connect --no-land-test`). A human `git push` and `revert` do not go through `land` and are not gated.
+- **The tested tree is the landed tree.** After a passing run the bridge checks that no tracked file
+  in `dir` changed while the test ran (size, mtime or mode differ from what it wrote). If one did, the
+  test ran on something else than the change: status `refused` with `changed_during_test`, nothing
+  lands, and the next `land` sends that edit and tests again. A test that writes tracked files itself
+  is refused the same way; untracked output (build dirs, reports) is fine.
+- **No test outlives its bridge.** The test runs in its own process group under a small shell guard
+  that watches a pipe from the bridge: when the bridge dies (also by `SIGKILL`, as a harness that
+  gives up on it does), the guard kills the whole group.
+- `land_one_of` goes through the land test too: it takes the same `tested` proof, else `untested`.
+- **Trust boundary.** The bridge runs the test on the agent's machine and the server trusts its
+  proof. The server checks that the proof names the right command, the current main and the change's
+  head, but it cannot see that a test ran: a client that writes its own HTTP request can send a proof
+  without running anything. The land test keeps careful agents from landing untested merges; it is no
+  defence against a client that lies. For tests that run where no client can skip them, use the land
+  queue (next section): the server runs them.
 - Without a land test nothing changes: no field, no proof, the same replies. With landing mode
-  `queue` the land test is refused (a queued land lands on a later main).
+  `queue` the land test is refused (a queued land lands on a later main); `connect --land-queue`
+  removes it.
 
 Tests: `tests/native.rs` (pass and record, fail then fix, main moving between test and land, timeout,
 output cap, two changes that pass alone and fail together, the server's refusal without a proof, no
-command, and the API set through its checkout), `src/gate.rs`.
+command, the API set through its checkout, a file rewritten during the test, `land_one_of`, a killed
+bridge), `src/gate.rs`.
+
+## The land queue
+
+The land test runs one test per change, on the agent's side, and lands one change per test run: every
+land moves main, so the others test again. With a test of T seconds main takes at most 3600 / T changes
+an hour, the same as git with a test before each push. A merge queue tests a batch of changes on top of each other in one run
+and lands the whole batch. Batch merge queues exist for plain git (forges and bots run them on pull
+requests); TreeYard has one built in, for agents: `[landing] mode = "queue"`
+([coordination.md](coordination.md#e-landing-modes)).
+
+- **Set it up.** `treeyard connect --land-queue CMD [--land-queue-setup CMD] [--land-batch N]` writes
+  `[landing] mode = "queue"`, `test`, `test_setup`, `batch` to the server's `treeyard.toml` (and drops
+  a land test); `--no-land-queue` and `treeyard disconnect` remove it again.
+- **Where the test runs.** In the server's test slots (`<data>/scratch/test-slot-N`), never in the
+  agent's `dir`. A slot is a kept directory: only changed files are written, build output stays.
+  `test_setup` runs once per slot before its first test (a venv, `npm ci`), and again when the slot
+  was written from scratch or a file of `test_setup_files` changed (default: common manifests and
+  lockfiles, `landing::SETUP_FILES`). A failing setup fails the test run.
+- **What the bridge does on `land`** (native set). It syncs, sends `land` (the server answers
+  `queued`), then waits: it long-polls the change's events and asks `land_status` after each, until
+  the verdict. The agent sees one reply in the shapes it knows from the land test, never `queued`:
+  - `landed`, with `changeset`, `commit` and `land_queue: {seconds, position, entries}`; `dir` holds
+    main with the change.
+  - `tests_failed`, with `exit`, `timed_out`, the end of the output (`output`, at most 4 KB) and
+    advice. The change stays open; the bridge rebases it onto main as it is now (batch-mates that
+    passed may have landed) and rewrites `dir` with the same rule as every rewrite (edits not sent
+    yet stay), so `dir` holds what to fix. When that rebase conflicts, the reply also has `conflicted`
+    and the markers are in `dir`. The next `land` enters the queue again.
+  - `conflict`: the change conflicts with main after its batch-mates landed (the queue sent it back);
+    markers in `dir`, `conflicted` lists the files, as for a direct land.
+  - `undoes`: held as before (the queue checks again before each batch).
+  - `not_landed_yet`: the verdict did not come within the wait budget (the test timeout times the test
+    runs a step can take, for each batch ahead and one more, plus a minute). The change stays queued;
+    `land` again keeps waiting.
+- **Which one to choose.** The land test needs nothing on the server and catches a failure before the
+  change ever leaves the agent, with the agent's own environment; it suits few agents or short tests.
+  The land queue lands up to `batch` changes per test run and runs the tests where no client can skip
+  them, at the cost of a test environment on the server and a wait inside `land`; it suits many agents,
+  long tests, or a test that must be enforced. A failing batch costs more runs (the changes alone side
+  by side with `parallel` > 1, else a bisect).
+- The API set (`--tools agent`) and HTTP clients still get `queued` and poll `land_status` themselves.
+
+Tests: `tests/native.rs` (landed without `queued`, rejected then fixed then landed, rejected while main
+moved, a conflict with main after a batch-mate landed), `tests/coordination.rs` (slot setup once and
+again on a changed file, a failing setup), `tests/connect.rs` (`--land-queue` set, shown, removed).
 
 ## Many agents, one machine or many
 

@@ -379,6 +379,8 @@ batch = 8
 parallel = 4                     # test runs side by side; default half the cores, at most 4
 warm = true                      # default: one kept test dir per slot, only changed files written
 timeout_s = 600
+test_setup = "python3 -m venv .venv && .venv/bin/pip install -e ."   # once per slot (optional)
+test_setup_files = ["pyproject.toml", "requirements*.txt"]           # setup again when one changes
 ```
 
 Tests run in `<data>/scratch/test-slot-N`, one kept directory per parallel slot (`TREEYARD_TEST_SLOT=N`).
@@ -386,6 +388,14 @@ Each run writes only the paths that changed since that slot's last run (and trac
 deletes paths that left the tree, and keeps untracked files, so `target/`, `node_modules` or a `.venv` built
 by an earlier run stay warm and `cargo test` rebuilds only what changed. `warm = false` tests in a fresh
 copy each time (test `e_warm_test_dirs_…`).
+
+`test_setup` prepares a slot for the tests: it runs in the slot (`TREEYARD_TEST_SETUP=1`) before the
+slot's first test, and again when the slot was written from scratch or a file matching
+`test_setup_files` changed (default: common manifests and lockfiles, `landing::SETUP_FILES`: `pyproject.toml`,
+`requirements*.txt`, `package-lock.json`, `Cargo.lock`, ...). The slot remembers the command and those
+files' blobs in `test-slot-N.setup`. With `warm = false` it runs before every test. A failing setup fails
+the run, with its output (test `e_a_test_slot_runs_its_setup_…`). Test and setup run in their own process
+group, killed whole at `timeout_s`.
 
 - `direct` (default): `land` moves main at once. No tests.
 - `queue`: `land` returns `queued`. A step takes up to `batch` changes, rebases them one on top of the
@@ -412,8 +422,11 @@ copy each time (test `e_warm_test_dirs_…`).
 `land_status {change}` tells an agent what happened after `land`: `verdict` = `passed`, `pending`,
 `queued`, `rejected` (with the failing `output`), `reverted` (with the `output` that made bisect revert it),
 `broke_main` (the same, but the revert conflicted), `main_red` (tested, but main is red from `red_change`),
-`not_tested` (direct mode), `open` or `abandoned`. `treeyard workspace land` polls it, so an agent that
-lands in optimistic mode learns about a revert before it stops.
+`not_tested` (direct mode), `open` or `abandoned`; `exit` and `timed_out` with a failed test. `treeyard
+workspace land` polls it, so an agent that lands in optimistic mode learns about a revert before it stops.
+The native bridge's `land` waits for the queue's verdict itself and answers `landed`, `tests_failed`
+(the change rebased onto main as it is now, in `dir`), `conflict` or `undoes`: an agent never sees
+`queued` ([mcp.md](mcp.md#the-land-queue)). `treeyard connect --land-queue CMD` sets this mode up.
 
 `treeyard serve` starts a worker thread for `queue` and `optimistic`. The `queue_run` and `test_main`
 operations run one step by hand (tests and CLI). Tests run outside the repo lock: agents keep reading

@@ -94,7 +94,8 @@ pub fn tools() -> Vec<Value> {
             "name": "land",
             "description": "Syncs dir, then lands your change on main. status: landed; conflict (fix the files in \
             `conflicted` in dir, land again); undoes (not landed: you remove another agent's landed work; put its part \
-            back and land again); refused (markers left, or conflicts to decide). undo = true with a reason only when \
+            back and land again); tests_failed (the repository's tests failed on your change on top of main: fix it \
+            in dir, land again); refused (markers left, or conflicts to decide). undo = true with a reason only when \
             your own task names those lines for removal.",
             "inputSchema": {"type": "object", "properties": {
                 "change": change,
@@ -363,6 +364,8 @@ struct Synced {
     stale_dir: Option<std::path::PathBuf>,
     /// The repository's land test, from the `change` reply (`land_test`), if any.
     gate: Option<Value>,
+    /// The repository's land queue, from the `change` reply (`land_queue`), if any.
+    queue: Option<Value>,
 }
 
 impl Synced {
@@ -432,6 +435,7 @@ fn send(url: &str, p: &Place, change: &str, resolve: &BTreeMap<String, String>) 
         ch = client::call(url, "change", json!({"change": change}))?;
     }
     out.gate = ch.get("land_test").cloned();
+    out.queue = ch.get("land_queue").cloned();
     let conflicts = kinds(&ch);
     // dir holds the change's head (else it was written before the change moved, a refresh failed).
     let current = ch["head"].as_str() == Some(mark.head.as_str());
@@ -673,9 +677,9 @@ fn land(
         }
     }
     let gate = s.gate.as_ref().and_then(|g| gate::Gate::of(&json!({"land_test": g})));
-    let mut v = match &gate {
-        None => client::call(url, "land", req)?,
-        Some(g) => {
+    let queue = s.queue.as_ref().and_then(|q| gate::Queue::of(&json!({"land_queue": q})));
+    let mut v = match (&gate, &queue) {
+        (Some(g), _) => {
             // Rebase, write dir to exactly that tree, test it, land with the proof.
             let mut prepare = || -> Result<Option<Value>> {
                 let rb = client::call(url, "rebase", json!({"change": change}))?;
@@ -693,8 +697,27 @@ fn land(
                 }
                 Ok(None)
             };
-            gate::land(url, change, g, &p.dir, &req, &mut prepare)?
+            // The tree that passed must be the tree that lands: dir as it was written from head.
+            let mut unchanged = || -> Result<Option<Value>> {
+                let left = workspace::changed_since_written(&p.dir, &p.load()?);
+                Ok((!left.is_empty()).then(|| gate::changed_during_test(change, left)))
+            };
+            gate::land(url, change, g, &p.dir, &req, &mut prepare, &mut unchanged)?
         }
+        (None, Some(q)) => {
+            // The server tests the change (in its test slots); a rejected change comes back
+            // rebased onto main as it is now, so dir holds what to fix.
+            let mut on_reject = || -> Result<Value> {
+                let mut rb = client::call(url, "rebase", json!({"change": change}))?;
+                native_change(&mut rb);
+                Ok(match rb.get("conflicted") {
+                    Some(paths) => json!({"conflicted": paths}),
+                    None => json!({}),
+                })
+            };
+            gate::land_queued(url, change, q, &req, &mut on_reject)?
+        }
+        (None, None) => client::call(url, "land", req)?,
     };
     let co = refresh(url, p, change, &[]);
     lean.shape("land", &mut v);
@@ -720,6 +743,12 @@ fn land(
             }
         }
         "undoes" => v["advice"] = json!(HOLD_ADVICE),
+        "tests_failed" if v.get("conflicted").is_some() => {
+            // Sent back by the land queue, then rebased onto a main that moved in the same lines.
+            s.decide = decisions(url, change);
+            v["conflict_advice"] =
+                json!(CONFLICT_ADVICE.replacen("Not landed: main moved and the", "Main moved too: the", 1));
+        }
         "tests_failed" | "untested" => {}
         "landed" | "already_on_main" => v["note"] = json!(LANDED_NOTE),
         _ => {}

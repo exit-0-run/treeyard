@@ -229,7 +229,11 @@ pub fn run(url: &str, agent: Option<String>, set: ToolSet) -> Result<()> {
             if let Some(m) = req.as_object_mut() {
                 m.remove("change");
             }
-            let mut v = gate::land(url, &c, &g, &dir, &req, &mut prepare)?;
+            let mut unchanged = || -> Result<Option<Value>> {
+                let left = workspace::checkout_changed(&dir)?;
+                Ok((!left.is_empty()).then(|| gate::changed_during_test(&c, left)))
+            };
+            let mut v = gate::land(url, &c, &g, &dir, &req, &mut prepare, &mut unchanged)?;
             checkouts.insert(c.clone(), dir.clone());
             if v.is_object() {
                 v["checkout"] = workspace::checkout(url, &c, &dir)

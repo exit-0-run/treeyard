@@ -171,6 +171,8 @@ struct Open {
 struct GroupP {
     group: String,
     change: Option<String>,
+    /// `land_one_of` with `[coordination] land_test`: the proof, as for `land`.
+    tested: Option<crate::repo::TestedProof>,
 }
 
 #[derive(Deserialize)]
@@ -938,7 +940,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
         }
         "group" => {
             let a: GroupP = params(p)?;
-            if a.change.is_some() {
+            if a.change.is_some() || a.tested.is_some() {
                 bail!("group takes only group");
             }
             r.group_view(&a.group)
@@ -954,7 +956,7 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
                     owned(r, c, &other.id)?;
                 }
             }
-            let mut v = r.land_one_of(&a.group, &id)?;
+            let mut v = r.land_one_of(&a.group, &id, a.tested)?;
             crate::undoes::filter(&mut v["land"], &|p| c.can_read(p));
             Ok(v)
         }
@@ -989,6 +991,10 @@ fn dispatch(r: &mut Inner, c: &Caller, op: &str, p: Value) -> Result<Value> {
             if let Some(cmd) = &r.cfg.coordination.land_test {
                 let timeout = r.cfg.coordination.land_test_timeout_s.unwrap_or(crate::config::LAND_TEST_TIMEOUT_S);
                 v["land_test"] = json!({"command": cmd, "timeout_s": timeout});
+            }
+            if r.cfg.landing.mode == crate::config::Mode::Queue {
+                let l = &r.cfg.landing;
+                v["land_queue"] = json!({"timeout_s": l.timeout_s, "batch": l.batch, "parallel": l.parallel});
             }
             filter_change(&mut v, c);
             Ok(v)
@@ -1467,7 +1473,7 @@ pub fn tools() -> Vec<Value> {
         tool(
             "land_one_of",
             "Best-of-N: land one change of a group, then abandon the other open changes of the group (listed in abandoned). Siblings stay open unless it landed (conflict, waiting, or queued: call again after it lands).",
-            json!({"group": {"type": "string"}, "change": change}),
+            json!({"group": {"type": "string"}, "change": change, "tested": {"type": "object", "description": "with [coordination] land_test: the proof, as for land"}}),
             &["group", "change"],
         ),
         tool(
@@ -1514,7 +1520,7 @@ pub fn tools() -> Vec<Value> {
         ),
         tool(
             "land_status",
-            "What happened to a change after land: verdict passed, pending, queued, rejected, reverted, broke_main (its revert conflicted: fix forward), main_red (tested, but main is red from red_change), not_tested; test output when it failed.",
+            "What happened to a change after land: verdict passed, pending, queued, rejected, reverted, broke_main (its revert conflicted: fix forward), main_red (tested, but main is red from red_change), not_tested; test output (and exit, timed_out) when it failed.",
             json!({"change": change}),
             &["change"],
         ),

@@ -5,9 +5,33 @@ versions follow [Semantic Versioning](https://semver.org/) (before 1.0, a minor 
 
 ## [Unreleased]
 
+### Added
+- The land queue from native mode. With `[landing] mode = "queue"` the bridge's `land` waits for the
+  server's verdict (events of the change, `land_status`; a wait budget from the test timeout and the
+  queue position) and answers `landed`, `tests_failed` (`exit`, `timed_out`, the end of the output),
+  `conflict` or `undoes`, never `queued`; past the budget `not_landed_yet`, and `land` again keeps
+  waiting. A rejected change comes back rebased onto main as it is now, `dir` rewritten (unsent edits
+  stay; markers when that rebase conflicts); the next `land` enters the queue again. The `change` reply
+  carries `land_queue: {timeout_s, batch, parallel}`; `land_status` carries `exit` and `timed_out`.
+- `[landing] test_setup` and `test_setup_files`: a command that prepares each test slot (a venv,
+  `node_modules`) before its first test and again when the slot was rewritten or a declared file
+  changed (default: common manifests and lockfiles). A failing setup fails the run.
+- `treeyard connect --land-queue CMD [--land-queue-setup CMD] [--land-batch N]` and `--no-land-queue`.
+  It replaces a land test (and `--land-test` replaces it); both flags at once are refused;
+  `disconnect` removes a queue that connect set. `connect status` shows it.
+
 ### Fixed
 - A bridge killed in the middle of a land (also by `SIGKILL`) no longer leaves its land test running:
-  the test runs under a shell guard that kills its process group when the bridge's pipe closes.
+  the test runs under a shell guard that kills its process group when the bridge's pipe closes. The
+  server's test and setup runs are killed as a whole process group at their timeout.
+- The land test: a tracked file in `dir` that changed while the test ran makes `land` answer `refused`
+  (`changed_during_test`) instead of landing a head that was not what the test saw.
+- `land_one_of` goes through the land test (it takes `tested`, else `untested`); it called the plain
+  land before.
+
+### Changed
+- docs/mcp.md says where the land test's trust ends: the server checks the proof, not that a test ran.
+  The land queue is the way to tests a client cannot skip.
 
 ## [0.2.0] - 2026-11-22
 

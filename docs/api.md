@@ -354,6 +354,7 @@ Best-of-N: land one change of a group, then abandon the other open changes of th
 |---|---|---|---|
 | `change` | string | yes | change id, ch_... |
 | `group` | string | yes |  |
+| `tested` | object | no | with [coordination] land_test: the proof, as for land |
 
 ```sh
 treeyard call land_one_of '{"group": "fix-1", "change": "ch_..."}'
@@ -454,7 +455,7 @@ treeyard call changes '{}'
 
 ### land_status
 
-What happened to a change after land: verdict passed, pending, queued, rejected, reverted, broke_main (its revert conflicted: fix forward), main_red (tested, but main is red from red_change), not_tested; test output when it failed.
+What happened to a change after land: verdict passed, pending, queued, rejected, reverted, broke_main (its revert conflicted: fix forward), main_red (tested, but main is red from red_change), not_tested; test output (and exit, timed_out) when it failed.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|

@@ -373,6 +373,34 @@ fn connect_sets_and_clears_the_land_test() {
     env.run(&["disconnect"]);
 }
 
+#[test]
+fn connect_sets_and_clears_the_land_queue() {
+    let env = Env::new(&[]);
+    let mode = || treeyard::config::Config::load(&env.state_dir().join("data")).unwrap().landing.mode;
+    let queue = treeyard::config::Mode::Queue;
+    env.run(&["connect", "--harness", "claude", "--no-mirror", "--land-test", "make test"]);
+    env.run(&["connect", "--land-queue", "make test", "--land-queue-setup", "make deps", "--land-batch", "4"]);
+    let st: Value = serde_json::from_str(&env.run(&["connect", "status", "--json"])).unwrap();
+    assert_eq!(st["land_queue"], json!({"test": "make test", "setup": "make deps", "batch": 4}), "{st}");
+    assert!(st["land_test"].is_null(), "the queue replaced the land test: {st}");
+    assert!(env.run(&["connect", "status"]).contains("land queue: make test (batch 4, setup make deps)"));
+    let url = st["url"].as_str().unwrap().to_string();
+    let ch = treeyard::client::call(&url, "open_change", json!({"agent": "a", "intent": "x"})).unwrap();
+    let ch = treeyard::client::call(&url, "change", json!({"change": ch["id"]})).unwrap();
+    assert_eq!(ch["land_queue"]["batch"], 4, "the server reads it: {ch}");
+    assert!(ch.get("land_test").is_none());
+    // Both at once is a usage error.
+    let out = env.cmd(&["connect", "--land-test", "x", "--land-queue", "y"]).output().unwrap();
+    assert!(!out.status.success());
+    env.run(&["connect", "--no-land-queue"]);
+    assert_ne!(mode(), queue);
+    // Disconnect takes back a queue that connect set (the data stays).
+    env.run(&["connect", "--land-queue", "make test"]);
+    assert_eq!(mode(), queue);
+    env.run(&["disconnect"]);
+    assert_ne!(mode(), queue);
+}
+
 fn undo_case(extra: &[(&str, &str)], purge: bool) {
     let env = Env::new(extra);
     // Untracked user files count too.

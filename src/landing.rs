@@ -151,10 +151,15 @@ pub struct Outcome {
     pub ok: bool,
     pub output: String,
     pub seconds: f64,
+    /// The exit code (None: killed, by the timeout or a signal).
+    pub code: Option<i32>,
+    pub timed_out: bool,
 }
 
-/// Runs `sh -c cmd` in `dir` with a timeout; keeps the last 4000 bytes of the output.
+/// Runs `sh -c cmd` in `dir` with a timeout (in its own process group, killed whole at the
+/// timeout); keeps the last 4000 bytes of the output.
 pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -> Result<Outcome> {
+    use std::os::unix::process::CommandExt;
     let started = Instant::now();
     let log = dir.with_extension("log");
     let file = std::fs::File::create(&log)?;
@@ -166,6 +171,7 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
         .stdin(Stdio::null())
         .stdout(file.try_clone()?)
         .stderr(file)
+        .process_group(0)
         .spawn()
         .with_context(|| format!("starting {cmd:?}"))?;
     let status = loop {
@@ -173,7 +179,8 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
             break Some(s);
         }
         if started.elapsed() > timeout {
-            let _ = child.kill();
+            // SAFETY: kill has no memory preconditions; the group is the child's own.
+            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL) };
             let _ = child.wait();
             break None;
         }
@@ -186,19 +193,86 @@ pub fn run_cmd(cmd: &str, dir: &Path, timeout: Duration, env: &[(&str, &str)]) -
     if status.is_none() {
         output.push_str(&format!("\n(treeyard: killed after {} s)", timeout.as_secs()));
     }
-    Ok(Outcome { ok: status.is_some_and(|s| s.success()), output, seconds: started.elapsed().as_secs_f64() })
+    Ok(Outcome {
+        ok: status.is_some_and(|s| s.success()),
+        output,
+        seconds: started.elapsed().as_secs_f64(),
+        code: status.and_then(|s| s.code()),
+        timed_out: status.is_none(),
+    })
 }
 
-/// Materializes changeset `cs` and runs the repo's test command on it.
+/// Files whose change makes a test slot run `[landing] test_setup` again when `test_setup_files`
+/// is not set: the manifests and lockfiles of common package managers.
+pub const SETUP_FILES: &[&str] = &[
+    "requirements*.txt",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "uv.lock",
+    "poetry.lock",
+    "Pipfile.lock",
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "Cargo.lock",
+    "go.sum",
+    "Gemfile.lock",
+];
+
+/// What a slot's setup depends on: the command and the blobs of the files that trigger it.
+fn setup_key(cmd: &str, files: &[String], m: &Manifest) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    let g = crate::config::globs(files)?;
+    let mut h = Sha256::new();
+    h.update(cmd.as_bytes());
+    for (path, e) in m.iter().filter(|(p, _)| g.is_match(p.as_str())) {
+        h.update(format!("\0{path}\0{}", e.blob).as_bytes());
+    }
+    Ok(hex::encode(h.finalize()))
+}
+
+/// The output of a failed setup, as the test's (the change cannot be tested without it).
+fn setup_failed(cmd: &str, out: Outcome) -> Outcome {
+    Outcome { output: format!("(treeyard: the test setup {cmd:?} failed)\n{}", out.output), ok: false, ..out }
+}
+
+/// Output fields of a failed test run for a review and its event.
+fn failed_detail(out: &Outcome) -> Value {
+    json!({"output": out.output, "seconds": out.seconds, "exit": out.code, "timed_out": out.timed_out})
+}
+
+/// Materializes changeset `cs` and runs the repo's test command on it. With `[landing]
+/// test_setup`, a slot runs the setup first: once per slot directory (warm mode: again when the
+/// directory was written from scratch or a file of `test_setup_files` changed; otherwise on
+/// every run). A failing setup fails the run.
 fn test(repo: &Repo, cs: &str) -> Result<Outcome> {
     let slot = Slot::take(repo.with(|r| Ok(r.scratch()))?);
-    let (dir, cmd, timeout, warm) = repo.with(|r| {
+    let (dir, cmd, timeout, warm, setup) = repo.with(|r| {
         let cmd = r.cfg.landing.test.clone().context("landing.test is not set in treeyard.toml")?;
         let m = r.manifest(cs)?;
         let warm = r.cfg.landing.warm;
+        let setup = match &r.cfg.landing.test_setup {
+            Some(c) => {
+                let files = r
+                    .cfg
+                    .landing
+                    .test_setup_files
+                    .clone()
+                    .unwrap_or_else(|| SETUP_FILES.iter().map(|s| s.to_string()).collect());
+                Some((c.clone(), setup_key(c, &files, &m)?))
+            }
+            None => None,
+        };
         let dir = if warm {
             let dir = r.scratch().join(format!("test-slot-{}", slot.1));
-            materialize_warm(r, &m, &dir, &dir.with_extension("state.json"))?;
+            let state = dir.with_extension("state.json");
+            if !state.exists() || !dir.is_dir() {
+                // Written from scratch: build output and the setup's work are gone.
+                let _ = std::fs::remove_file(dir.with_extension("setup"));
+            }
+            materialize_warm(r, &m, &dir, &state)?;
             dir
         } else {
             let dir = r.scratch().join(format!("test-{}-{:08x}", &cs[..12], rand::random::<u32>()));
@@ -206,11 +280,40 @@ fn test(repo: &Repo, cs: &str) -> Result<Outcome> {
             materialize(r, &m, &dir)?;
             dir
         };
-        Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s), warm))
+        Ok((dir, cmd, Duration::from_secs(r.cfg.landing.timeout_s), warm, setup))
     })?;
     let started = std::time::Instant::now();
     let slot_s = slot.1.to_string();
-    let out = run_cmd(&cmd, &dir, timeout, &[("TREEYARD_CHANGESET", cs), ("TREEYARD_TEST_SLOT", &slot_s)]);
+    let env = [("TREEYARD_CHANGESET", cs), ("TREEYARD_TEST_SLOT", slot_s.as_str())];
+    let out = (|| -> Result<Outcome> {
+        if let Some((scmd, key)) = &setup {
+            let stamp = dir.with_extension("setup");
+            if !warm || std::fs::read_to_string(&stamp).ok().as_deref() != Some(key.as_str()) {
+                let _ = std::fs::remove_file(&stamp);
+                let mut senv = env.to_vec();
+                senv.push(("TREEYARD_TEST_SETUP", "1"));
+                let s = run_cmd(scmd, &dir, timeout, &senv)?;
+                let ok = s.ok;
+                let _ = repo.with(|r| {
+                    r.emit(
+                        "test_setup",
+                        &[],
+                        &[],
+                        json!({"changeset": cs, "slot": slot.1, "ok": ok,
+                        "seconds": (s.seconds * 10.0).round() / 10.0}),
+                    );
+                    Ok(())
+                });
+                if !ok {
+                    return Ok(setup_failed(scmd, s));
+                }
+                if warm {
+                    std::fs::write(&stamp, key)?;
+                }
+            }
+        }
+        run_cmd(&cmd, &dir, timeout, &env)
+    })();
     if !warm {
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -298,7 +401,8 @@ impl Inner {
                 }
             }
         };
-        let output = review.as_ref().map(|r| r["detail"]["output"].clone()).unwrap_or(Value::Null);
+        let detail = |k: &str| review.as_ref().map(|r| r["detail"][k].clone()).unwrap_or(Value::Null);
+        let (output, exit, timed_out) = (detail("output"), detail("exit"), detail("timed_out"));
         let red = if verdict == "main_red" { self.store.get_ref("red")? } else { None };
         let red_change = match &red {
             Some(cs) => self.changeset(cs)?.meta.change.clone(),
@@ -306,7 +410,8 @@ impl Inner {
         };
         Ok(json!({
             "change": id, "state": ch.state.as_str(), "mode": mode, "verdict": verdict,
-            "landed_as": ch.landed_as, "output": output, "review": review.map(|r| r["id"].clone()),
+            "landed_as": ch.landed_as, "output": output, "exit": exit, "timed_out": timed_out,
+            "review": review.map(|r| r["id"].clone()),
             "red_since": red, "red_change": red_change,
         }))
     }
@@ -472,7 +577,7 @@ impl Inner {
             return Ok(None);
         }
         self.store.dequeue(id)?;
-        let review = self.add_review(&ch, "tests_failed", json!({"output": out.output, "seconds": out.seconds}))?;
+        let review = self.add_review(&ch, "tests_failed", failed_detail(out))?;
         self.emit("rejected", &[id], &[&ch.agent], json!({"change": id, "review": review, "preflight": true}));
         Ok(Some(json!({"change": id, "review": review})))
     }
@@ -549,7 +654,7 @@ impl Inner {
         if let (Some(out), Some(item)) = (culprit, items.next()) {
             let ch = item.before;
             self.store.dequeue(&ch.id)?;
-            let review = self.add_review(&ch, "tests_failed", json!({"output": out.output, "seconds": out.seconds}))?;
+            let review = self.add_review(&ch, "tests_failed", failed_detail(out))?;
             self.emit("rejected", &[&ch.id], &[&ch.agent], json!({"change": ch.id, "review": review}));
             rejected = json!({"change": ch.id, "review": review});
         }

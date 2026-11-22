@@ -41,6 +41,8 @@ pub const TEMPLATE: &str = r#"# TreeYard repo settings (docs/coordination.md). C
 # parallel = 4                   # queue mode: test runs side by side (default: half the cores, at most 4)
 # warm = true                    # reuse one test dir per slot: only changed files are written, build output stays
 # timeout_s = 600
+# test_setup = "python3 -m venv .venv && .venv/bin/pip install -e ."   # once per test slot, before its first test
+# test_setup_files = ["pyproject.toml", "requirements*.txt"]           # setup runs again when one changes (default: common lockfiles)
 
 # [bisect]                       # commands the bisect operation may run (agents pick by name)
 # test = "cargo test --offline"  # default; falls back to landing.test
@@ -195,6 +197,12 @@ pub struct Landing {
     /// last run, so build output (`target/`, `node_modules`) stays warm. `false`: a fresh copy each run.
     pub warm: bool,
     pub timeout_s: u64,
+    /// A command that prepares a test slot (a venv, `node_modules`) before its first test. It runs
+    /// again when the slot was written from scratch or a file of `test_setup_files` changed.
+    pub test_setup: Option<String>,
+    /// Globs of the files whose change makes a slot run `test_setup` again (default:
+    /// `landing::SETUP_FILES`, the manifests and lockfiles of common package managers).
+    pub test_setup_files: Option<Vec<String>>,
 }
 
 /// Half the cores, 1 to 4: preflight runs of a queue step share the machine with the agents.
@@ -204,7 +212,16 @@ fn default_parallel() -> usize {
 
 impl Default for Landing {
     fn default() -> Self {
-        Self { mode: Mode::Direct, test: None, batch: 8, parallel: default_parallel(), warm: true, timeout_s: 600 }
+        Self {
+            mode: Mode::Direct,
+            test: None,
+            batch: 8,
+            parallel: default_parallel(),
+            warm: true,
+            timeout_s: 600,
+            test_setup: None,
+            test_setup_files: None,
+        }
     }
 }
 

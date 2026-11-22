@@ -115,7 +115,7 @@ enum Cmd {
         api: bool,
         /// A command that must pass on the rebased change before `land` puts it on main
         /// (`[coordination] land_test` of the server; the bridge runs it in the change's directory).
-        #[arg(long, value_name = "CMD", conflicts_with = "no_land_test")]
+        #[arg(long, value_name = "CMD", conflicts_with_all = ["no_land_test", "land_queue"])]
         land_test: Option<String>,
         /// Remove the land test.
         #[arg(long)]
@@ -123,6 +123,20 @@ enum Cmd {
         /// Seconds the land test may run (default 600).
         #[arg(long, value_name = "S")]
         land_test_timeout: Option<u64>,
+        /// The land queue instead of the land test: `land` waits while the server tests batches of
+        /// changes with CMD in its own test slots (`[landing] mode = "queue"`, `test`).
+        #[arg(long, value_name = "CMD", conflicts_with = "no_land_queue")]
+        land_queue: Option<String>,
+        /// With --land-queue: a command that prepares each test slot once (a venv,
+        /// `node_modules`), again when a lockfile changes (`[landing] test_setup`).
+        #[arg(long, value_name = "CMD", requires = "land_queue")]
+        land_queue_setup: Option<String>,
+        /// With --land-queue: changes tested together in one run (`[landing] batch`, default 8).
+        #[arg(long, value_name = "N", requires = "land_queue")]
+        land_batch: Option<usize>,
+        /// Remove the land queue.
+        #[arg(long)]
+        no_land_queue: bool,
     },
     /// Undo `treeyard connect`: restore every file it touched, stop its server and mirror.
     Disconnect {
@@ -767,6 +781,10 @@ fn main() -> Result<()> {
             land_test,
             no_land_test,
             land_test_timeout,
+            land_queue,
+            land_queue_setup,
+            land_batch,
+            no_land_queue,
         } => {
             let here = std::env::current_dir()?;
             match cmd {
@@ -788,6 +806,9 @@ fn main() -> Result<()> {
                         native: !(api || all_tools),
                         land_test: if no_land_test { Some(None) } else { land_test.map(Some) },
                         land_test_timeout_s: land_test_timeout,
+                        land_queue: if no_land_queue { Some(None) } else { land_queue.map(Some) },
+                        land_queue_setup,
+                        land_batch,
                     };
                     connect::connect(&here, &o)?;
                 }

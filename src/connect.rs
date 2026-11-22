@@ -165,6 +165,10 @@ pub struct State {
     /// The MCP entries use the native tool set (`connect --native`) and its instruction block.
     #[serde(default)]
     pub native: bool,
+    /// `connect --land-queue` set the land queue in the server's `treeyard.toml`; disconnect
+    /// removes it again.
+    #[serde(default)]
+    pub land_queue: bool,
 }
 
 pub struct Options {
@@ -184,6 +188,95 @@ pub struct Options {
     pub land_test: Option<Option<String>>,
     /// `--land-test-timeout S`: `[coordination] land_test_timeout_s`.
     pub land_test_timeout_s: Option<u64>,
+    /// `--land-queue CMD`: Some(Some(cmd)) sets landing mode `queue` with test `cmd`,
+    /// Some(None) (`--no-land-queue`) removes it, None leaves it as it is.
+    pub land_queue: Option<Option<String>>,
+    /// `--land-queue-setup CMD`: `[landing] test_setup`.
+    pub land_queue_setup: Option<String>,
+    /// `--land-batch N`: `[landing] batch`.
+    pub land_batch: Option<usize>,
+}
+
+/// The `[landing]` keys `connect --land-queue` writes (and removes).
+const QUEUE_KEYS: &[&str] = &["mode", "test", "batch", "test_setup", "test_setup_files"];
+
+fn read_doc(path: &Path) -> Result<(String, toml::Table)> {
+    let old = fs::read_to_string(path).unwrap_or_default();
+    let doc: toml::Table = toml::from_str(&old).with_context(|| format!("reading {}", path.display()))?;
+    Ok((old, doc))
+}
+
+/// Writes `doc` to `path` when it differs from the text `old` (checked first); whether it did.
+fn write_doc(path: &Path, old: &str, doc: &toml::Table) -> Result<bool> {
+    let was: toml::Table = toml::from_str(old)?;
+    if was == *doc {
+        return Ok(false);
+    }
+    let new = if doc.is_empty() { crate::config::TEMPLATE.to_string() } else { toml::to_string(doc)? };
+    crate::config::Config::parse_text(&new, path)?;
+    fs::write(path, new)?;
+    Ok(true)
+}
+
+fn table<'a>(doc: &'a mut toml::Table, name: &str) -> Result<&'a mut toml::Table> {
+    doc.entry(name)
+        .or_insert_with(|| toml::Value::Table(Default::default()))
+        .as_table_mut()
+        .with_context(|| format!("[{name}] is not a table"))
+}
+
+/// Removes landing mode `queue` (and the keys connect writes with it) from `doc`, if it is set.
+fn drop_queue(doc: &mut toml::Table) {
+    if let Some(l) = doc.get_mut("landing").and_then(toml::Value::as_table_mut)
+        && l.get("mode").and_then(toml::Value::as_str) == Some("queue")
+    {
+        for k in QUEUE_KEYS {
+            l.remove(*k);
+        }
+        if l.is_empty() {
+            doc.remove("landing");
+        }
+    }
+}
+
+/// Sets or removes the land queue (`[landing] mode = "queue"`, `test`, `test_setup`, `batch`) in
+/// `<data>/treeyard.toml`. Setting it removes the land test (the two exclude each other). Returns
+/// whether the file changed.
+pub fn set_land_queue(
+    data: &Path,
+    cmd: Option<Option<&str>>,
+    setup: Option<&str>,
+    batch: Option<usize>,
+) -> Result<bool> {
+    if cmd.is_none() {
+        return Ok(false);
+    }
+    let path = data.join(crate::config::FILE);
+    let (old, mut doc) = read_doc(&path)?;
+    match cmd {
+        Some(Some(c)) if !c.trim().is_empty() => {
+            if let Some(co) = doc.get_mut("coordination").and_then(toml::Value::as_table_mut) {
+                co.remove("land_test");
+                co.remove("land_test_timeout_s");
+                if co.is_empty() {
+                    doc.remove("coordination");
+                }
+            }
+            let l = table(&mut doc, "landing")?;
+            l.insert("mode".into(), toml::Value::String("queue".into()));
+            l.insert("test".into(), toml::Value::String(c.to_string()));
+            match setup.filter(|s| !s.trim().is_empty()) {
+                Some(s) => l.insert("test_setup".into(), toml::Value::String(s.to_string())),
+                None => l.remove("test_setup"),
+            };
+            match batch {
+                Some(b) => l.insert("batch".into(), toml::Value::Integer(b.max(1) as i64)),
+                None => l.remove("batch"),
+            };
+        }
+        _ => drop_queue(&mut doc),
+    }
+    write_doc(&path, &old, &doc)
 }
 
 /// Sets or removes `[coordination] land_test` (and its timeout) in `<data>/treeyard.toml`.
@@ -193,10 +286,9 @@ pub fn set_land_test(data: &Path, cmd: Option<Option<&str>>, timeout_s: Option<u
         return Ok(false);
     }
     let path = data.join(crate::config::FILE);
-    let old = fs::read_to_string(&path).unwrap_or_default();
-    let mut doc: toml::Table = toml::from_str(&old).with_context(|| format!("reading {}", path.display()))?;
-    let co = doc.entry("coordination").or_insert_with(|| toml::Value::Table(Default::default()));
-    let co = co.as_table_mut().context("[coordination] is not a table")?;
+    let (old, mut doc) = read_doc(&path)?;
+    let co = table(&mut doc, "coordination")?;
+    let set = matches!(cmd, Some(Some(c)) if !c.trim().is_empty());
     match cmd {
         Some(Some(c)) if !c.trim().is_empty() => {
             co.insert("land_test".into(), toml::Value::String(c.to_string()));
@@ -215,14 +307,11 @@ pub fn set_land_test(data: &Path, cmd: Option<Option<&str>>, timeout_s: Option<u
     if co.is_empty() {
         doc.remove("coordination");
     }
-    let was: toml::Table = toml::from_str(&old)?;
-    if was == doc {
-        return Ok(false);
+    if set {
+        // The land test and the land queue exclude each other.
+        drop_queue(&mut doc);
     }
-    let new = if doc.is_empty() { crate::config::TEMPLATE.to_string() } else { toml::to_string(&doc)? };
-    crate::config::Config::parse_text(&new, &path)?;
-    fs::write(&path, new)?;
-    Ok(true)
+    write_doc(&path, &old, &doc)
 }
 
 /// Where one repository's connect state lives.
@@ -746,6 +835,16 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
     if test_changed {
         notes.push("land test changed in the server's treeyard.toml; the server restarts to read it".into());
     }
+    let queue_changed = set_land_queue(
+        &data,
+        o.land_queue.as_ref().map(|c| c.as_deref()),
+        o.land_queue_setup.as_deref(),
+        o.land_batch,
+    )?;
+    if queue_changed {
+        notes.push("land queue changed in the server's treeyard.toml; the server restarts to read it".into());
+    }
+    let test_changed = test_changed || queue_changed;
     let mut st = prev.clone().unwrap_or_else(|| State {
         version: 1,
         repo: ctx.top.clone(),
@@ -761,7 +860,13 @@ pub fn connect(dir: &Path, o: &Options) -> Result<()> {
         dirs: vec![],
         all_tools: false,
         native: false,
+        land_queue: false,
     });
+    if let Some(q) = &o.land_queue {
+        st.land_queue = q.is_some();
+    } else if o.land_test.as_ref().is_some_and(Option::is_some) {
+        st.land_queue = false; // a land test replaced it
+    }
 
     // Server.
     let mut restarted = false;
@@ -990,6 +1095,9 @@ pub fn disconnect(dir: &Path, purge: bool) -> Result<()> {
     {
         println!("stopped mirror (pid {})", m.pid);
     }
+    if st.land_queue && set_land_queue(&st.data, Some(None), None, None)? {
+        println!("removed the land queue that connect set from {}", rel(&st.data.join(crate::config::FILE)));
+    }
     if stop(st.pid, "serve", &st.data) {
         println!("stopped server {} (pid {})", st.url, st.pid);
     } else {
@@ -1081,6 +1189,8 @@ pub fn status_json(dir: &Path) -> Result<Value> {
         "native": st.native,
         "mode": if st.native { "native" } else { "api" },
         "land_test": crate::config::Config::load(&st.data).ok().and_then(|c| c.coordination.land_test),
+        "land_queue": crate::config::Config::load(&st.data).ok().filter(|c| c.landing.mode == crate::config::Mode::Queue)
+            .map(|c| json!({"test": c.landing.test, "setup": c.landing.test_setup, "batch": c.landing.batch})),
         "harnesses": harnesses,
         "instructions": instructions,
         "mirror": st.mirror.as_ref().map(|m| json!({"pid": m.pid, "remote": m.remote, "alive": is_ours(m.pid, "mirror", &st.data)})),
@@ -1107,6 +1217,10 @@ pub fn status_text(v: &Value) -> String {
     match v["land_test"].as_str() {
         Some(t) => out.push_str(&format!("land test: {t}\n")),
         None => out.push_str("land test: none\n"),
+    }
+    if let Some(q) = v["land_queue"].as_object() {
+        let setup = q.get("setup").and_then(Value::as_str).map(|s| format!(", setup {s}")).unwrap_or_default();
+        out.push_str(&format!("land queue: {} (batch {}{setup})\n", s(&q["test"]), q["batch"]));
     }
     for h in v["harnesses"].as_array().into_iter().flatten() {
         let agents: Vec<String> = h["agents"].as_array().into_iter().flatten().map(&s).collect();

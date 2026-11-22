@@ -764,3 +764,169 @@ fn a_killed_bridge_leaves_no_land_test_running() {
     }
     assert!(!alive(&pid), "the land test outlived its bridge");
 }
+
+// ---- ways past the land test --------------------------------------------------------------------
+
+#[test]
+fn a_file_rewritten_during_the_land_test_does_not_land() {
+    // The head fails the test; the agent rewrites the file in dir to a passing version right after
+    // the test started. The test passed on that file, but the head would land: refused.
+    let marks = tempfile::tempdir().unwrap();
+    let started = marks.path().join("started");
+    let w = gated(&format!("touch {}; sleep 2; ./run_tests.sh", started.display()), 60);
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "two");
+    edit(&dir, "lib.txt", "two\n", "Two\n");
+    let (lib, mark) = (dir.join("lib.txt"), started.clone());
+    let writer = std::thread::spawn(move || {
+        while !mark.exists() {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let text = std::fs::read_to_string(&lib).unwrap();
+        std::fs::write(&lib, text.replace("Two\n", "TWO\n")).unwrap();
+    });
+    let l = b.tool("land", json!({"change": id}));
+    writer.join().unwrap();
+    assert_eq!(l["status"], "refused", "{l}");
+    assert_eq!(strs(&l["changed_during_test"]), ["lib.txt"], "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), LIB, "the failing head did not land");
+    // The rewrite is an edit like any other: the next land sends it, tests it and lands it.
+    std::fs::remove_file(&started).unwrap();
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour\nfive\n");
+    b.close();
+}
+
+#[test]
+fn land_one_of_goes_through_the_land_test() {
+    let w = gated("true", 60);
+    let c = |op: &str, p: Value| treeyard::client::call(&w.url, op, p).unwrap();
+    let ch = c("open_change", json!({"agent": "x", "intent": "x", "group": "g"}));
+    let id = ch["id"].as_str().unwrap();
+    let ap =
+        c("apply", json!({"change": id, "edits": [{"path": "lib.txt", "replace": {"old": "two\n", "new": "TWO\n"}}]}));
+    let l = c("land_one_of", json!({"group": "g", "change": id}));
+    assert_eq!(l["status"], "untested", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), LIB);
+    let ok = json!({"command": "true", "main": c("change", json!({"change": id}))["base"], "head": ap["head"]});
+    assert_eq!(c("land_one_of", json!({"group": "g", "change": id, "tested": ok}))["status"], "landed");
+}
+
+// ---- the land queue (`[landing] mode = "queue"`) -------------------------------------------------
+
+/// A world whose server lands through the queue with `test`, its worker running.
+fn queued(test: &str) -> World {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = repo(tmp.path());
+    let data = tmp.path().join("data");
+    Repo::init(&data, &src, "main", None).unwrap();
+    let toml =
+        format!("[landing]\nmode = \"queue\"\ntest = {}\nbatch = 4\nparallel = 1\ntimeout_s = 60\n", toml_str(test));
+    std::fs::write(data.join("treeyard.toml"), toml).unwrap();
+    let repo = Arc::new(Repo::open(&data).unwrap());
+    treeyard::landing::spawn_worker(repo.clone()).unwrap();
+    let url = spawn_server(repo);
+    let tmpdir = tmp.path().join("tmpdir");
+    std::fs::create_dir_all(&tmpdir).unwrap();
+    World { _tmp: tmp, src, url, tmpdir }
+}
+
+/// Opens a change of agent `agent` over HTTP with one replace in lib.txt and lands it (queued).
+fn queue_other(w: &World, agent: &str, old: &str, new: &str) -> String {
+    let c = |op: &str, p: Value| treeyard::client::call(&w.url, op, p).unwrap();
+    let id = c("open_change", json!({"agent": agent, "intent": new}))["id"].as_str().unwrap().to_string();
+    c("apply", json!({"change": id, "edits": [{"path": "lib.txt", "replace": {"old": old, "new": new}}]}));
+    assert_eq!(c("land", json!({"change": id}))["status"], "queued");
+    id
+}
+
+#[test]
+fn a_queued_land_answers_landed() {
+    let w = queued("./run_tests.sh");
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "TWO");
+    edit(&dir, "lib.txt", "two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "the agent never sees queued: {l}");
+    assert!(l["land_queue"]["seconds"].is_number(), "{l}");
+    assert!(l["commit"].is_string() && l.get("repeated").is_none(), "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour\nfive\n");
+    let st = treeyard::client::call(&w.url, "land_status", json!({"change": id})).unwrap();
+    assert_eq!(st["verdict"], "passed");
+    b.close();
+}
+
+#[test]
+fn a_rejected_change_is_fixed_in_dir_and_lands() {
+    let w = queued("./run_tests.sh");
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "two in capitals");
+    edit(&dir, "lib.txt", "two\n", "Two\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "tests_failed", "{l}");
+    assert_eq!((l["exit"].as_i64(), l["timed_out"].as_bool()), (Some(1), Some(false)), "{l}");
+    assert!(l["advice"].as_str().unwrap().contains("Fix it in dir"), "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), LIB, "not landed");
+    assert!(std::fs::read_to_string(dir.join("lib.txt")).unwrap().contains("Two\n"));
+    edit(&dir, "lib.txt", "Two\n", "TWO\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "the second land re-enters the queue: {l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\nTWO\nthree\nfour\nfive\n");
+    b.close();
+}
+
+#[test]
+fn a_change_rejected_while_main_moved_comes_back_on_the_new_main() {
+    let w = queued("sleep 1; ! grep -q BROKEN lib.txt");
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "one");
+    edit(&dir, "lib.txt", "one\n", "one BROKEN\n");
+    // Another change is ahead in the queue: it lands, then this one fails on top of it.
+    let other = queue_other(&w, "agent-b", "five\n", "five by b\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "tests_failed", "{l}");
+    let st = treeyard::client::call(&w.url, "land_status", json!({"change": other})).unwrap();
+    assert_eq!(st["verdict"], "passed", "{st}");
+    let text = std::fs::read_to_string(dir.join("lib.txt")).unwrap();
+    assert_eq!(text, "one BROKEN\ntwo\nthree\nfour\nfive by b\n", "dir: the change on main as it is now");
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert_eq!(ch["base"], st["landed_as"], "rebased onto the new main");
+    edit(&dir, "lib.txt", "one BROKEN\n", "one fixed\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one fixed\ntwo\nthree\nfour\nfive by b\n");
+    b.close();
+}
+
+#[test]
+fn a_queued_change_that_conflicts_with_main_gets_markers_in_dir() {
+    let w = queued("! grep -q BROKEN lib.txt");
+    let mut b = w.bridge("agent-a");
+    let (id, dir) = start(&mut b, "two by a");
+    edit(&dir, "lib.txt", "two\n", "two by a\n");
+    // A batch-mate ahead of it edits the same line and lands first.
+    queue_other(&w, "agent-b", "two\n", "two by b\n");
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "conflict", "{l}");
+    assert_eq!(strs(&l["conflicted"]), ["lib.txt"], "{l}");
+    let text = std::fs::read_to_string(dir.join("lib.txt")).unwrap();
+    assert!(text.contains("<<<<<<< main\ntwo by b\n=======\ntwo by a\n>>>>>>> change\n"), "{text}");
+    let kept: String = text.lines().filter(|l| !l.starts_with(['<', '=', '>'])).map(|l| format!("{l}\n")).collect();
+    std::fs::write(dir.join("lib.txt"), kept).unwrap();
+    let l = b.tool("land", json!({"change": id}));
+    assert_eq!(l["status"], "landed", "{l}");
+    assert_eq!(w.main_file("lib.txt").unwrap(), "one\ntwo by b\ntwo by a\nthree\nfour\nfive\n");
+    b.close();
+}
+
+#[test]
+fn a_queued_land_keeps_the_land_test_untouched() {
+    // Direct mode with a land test still runs it on the agent's side.
+    let w = gated("./run_tests.sh", 60);
+    let mut b = w.bridge("agent-a");
+    let (id, _) = start(&mut b, "x");
+    let ch = treeyard::client::call(&w.url, "change", json!({"change": id})).unwrap();
+    assert!(ch.get("land_queue").is_none() && ch.get("land_test").is_some(), "{ch}");
+    b.close();
+}
