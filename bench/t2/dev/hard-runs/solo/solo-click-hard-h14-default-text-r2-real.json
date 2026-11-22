@@ -1,0 +1,180 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.165257,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 21965,
+   "tokens_cached_in": 270467,
+   "tokens_fresh_in": 21985,
+   "tokens_in": 292452,
+   "tokens_out": 5031,
+   "tool_calls": 13,
+   "turns": 14,
+   "wall_s": 38.14
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h14-default-text",
+   "k": 1,
+   "prompt_sha256": "6d21e602a485af2c2f14007ee27d1c8a453b1a12a232821fa0cea5b69e561428"
+  }
+ ],
+ "arm": "A",
+ "by_harness": {
+  "claude": {
+   "agents": 1,
+   "cost_usd": 0.165257,
+   "tokens_cache_write": 21965,
+   "tokens_cached_in": 270467,
+   "tokens_fresh_in": 21985,
+   "tokens_in": 292452,
+   "tokens_out": 5031,
+   "tool_calls": 13,
+   "turns": 14
+  }
+ },
+ "cost_usd": 0.165257,
+ "cost_usd_claude_only": 0.165257,
+ "done": {
+  "h14-default-text": true
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 131,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/_default_text.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 58,
+   "test_added": 19
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "hidden_failed": [],
+ "hidden_passed": true,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 1,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 2,
+ "repo": "click",
+ "run": "solo-click-hard-h14-default-text-r2-real",
+ "set": "hard",
+ "set_agents": 1,
+ "set_mix": [
+  "claude"
+ ],
+ "setup_s": 0.22,
+ "solo": true,
+ "started": "2026-11-22T17:21:29",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.26,
+ "suite_s": 3.35,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n.........sssssssssssssssssssss..................ss...................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n....................................................s................... [ 74%]\n.......................s................................................ [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n........................................................                 [100%]\n2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.90s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.85s\n",
+ "task": "h14-default-text",
+ "task_k": 13,
+ "tasks_on_main": 1,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  }
+ },
+ "test_files_restored": [
+  "tests/test_termui.py"
+ ],
+ "test_passed_agents": 1,
+ "tokens_cache_write": 21965,
+ "tokens_cached_in": 270467,
+ "tokens_fresh_in": 21985,
+ "tokens_in": 292452,
+ "tokens_out": 5031,
+ "tool_calls": 13,
+ "treeyard_sha256": "542945b3e3de705fb78b373ab56451bc9e282c25498d2934f4fe3282c6eb40b8",
+ "treeyard_version": "treeyard 0.2.0",
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 38.32,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}

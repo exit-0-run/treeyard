@@ -1,0 +1,17 @@
+| task | rep | harness | hidden test | failed functions | suite all / pinned | turns | tokens | Claude USD | wall s |
+|---|---|---|---|---|---|---|---|---|---|
+| h1-prompt-text | 1 | real | pass | - | green/green | 9 | 165507 | 0.1327 | 36.46 |
+| h2-help-items | 1 | real | pass | - | green/green | 7 | 153370 | 0.1276 | 34.34 |
+| h3-secrets | 1 | real | pass | - | green/green | 22 | 594509 | 0.3177 | 72.62 |
+| h5-prompt-attempts | 1 | real | pass | - | green/green | 15 | 422404 | 0.2339 | 58.66 |
+| h6-option-groups | 1 | real | pass | - | green/green | 28 | 493392 | 0.2726 | 71.62 |
+| h7-byte-size | 1 | real | pass | - | green/green | 24 | 445518 | 0.2802 | 75.73 |
+| h8-choice-menu | 1 | real | pass | - | green/green | 10 | 275270 | 0.2173 | 58.01 |
+| h9-help-theme | 1 | real | pass | - | green/green | 17 | 375325 | 0.2313 | 66.6 |
+| h10-help-markdown | 1 | real | pass | - | green/green | 6 | 182537 | 0.1546 | 43.98 |
+| h11-prompter | 1 | real | pass | - | green/green | 11 | 264374 | 0.1628 | 46.87 |
+| h12-option-prompt | 1 | real | pass | - | green/green | 12 | 215789 | 0.1369 | 40.43 |
+| h13-help-formatter | 1 | real | pass | - | green/green | 5 | 111014 | 0.1063 | 22.09 |
+| h14-default-text | 1 | real | pass | - | green/green | 16 | 369180 | 0.1864 | 47.73 |
+
+hidden tests passed: 13/13; Claude USD 2.5604
