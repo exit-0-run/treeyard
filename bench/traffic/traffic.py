@@ -4,6 +4,9 @@
 Two arms on the same repository and the same stream of changes:
   git       one clone per agent, a shared bare repository; an agent with a ready change commits,
             then loops fetch, rebase onto main, push; a rejected push is a retry.
+  treeyard_queue  as treeyard, but the server runs in landing mode `queue` (needs --test-s): `land`
+            answers `queued`, the server tests up to --batch changes together and lands the batch;
+            the agent polls `land_status`.
   treeyard  native mode: one stdio bridge per agent (`treeyard mcp --tools native`); `start` gives
             the directory, the agent edits it, `land` sends and lands; a reply that is not
             `landed` is a retry.
@@ -111,6 +114,8 @@ class Level:
         self.a, self.arm, self.n, self.work = a, arm, n, work
         self.rows, self.errors, self.lock = [], [], threading.Lock()
         self.files = other_files(a.seed)
+        self.queue = arm == "treeyard_queue"
+        self.verdicts = {}
         self.stop_new = 0.0
         self.deadline = 0.0
 
@@ -179,7 +184,10 @@ class Level:
                        check=True, capture_output=True)
         if self.a.test_s:
             with open(data / "treeyard.toml", "a") as f:
-                f.write(f'\n[coordination]\nland_test = "sleep {self.a.test_s}"\n')
+                if self.queue:
+                    f.write(f'\n[landing]\nmode = "queue"\ntest = "sleep {self.a.test_s}"\nbatch = {self.a.batch}\n')
+                else:
+                    f.write(f'\n[coordination]\nland_test = "sleep {self.a.test_s}"\n')
         pf = self.work / "port"
         self.server = subprocess.Popen([self.a.treeyard, "serve", "--data", str(data), "--addr", "127.0.0.1:0", "--port-file", str(pf),
                                         "--max-inflight", "1024"], stdout=subprocess.DEVNULL, stderr=open(self.work / "server.log", "w"))
@@ -214,6 +222,15 @@ class Level:
                 r = br.call("land", {"change": cid})
                 retries += max(0, int((r.get("land_test") or {}).get("rounds", 1)) - 1)
                 s = r.get("status")
+                if s == "queued":
+                    v = self.wait_queue(cid)
+                    if v == "passed":
+                        landed = time.time()
+                        break
+                    retries += 1
+                    with self.lock:
+                        self.verdicts[v] = self.verdicts.get(v, 0) + 1
+                    continue
                 if s == "landed":
                     landed = time.time()
                     break
@@ -229,6 +246,26 @@ class Level:
                     time.sleep(0.2)
             self.row(i, name, rel, ready, landed, retries, conflicts)
             shutil.rmtree(d, ignore_errors=True)
+
+    def wait_queue(self, cid):
+        """Queue mode: poll `land_status` until the change left the queue; the verdict."""
+        import urllib.request
+        body = json.dumps({"change": cid}).encode()
+        while time.time() < self.deadline:
+            time.sleep(0.25)
+            try:
+                req = urllib.request.Request(self.url + "/api/land_status", data=body, headers={"Content-Type": "application/json"})
+                v = json.loads(urllib.request.urlopen(req, timeout=30).read()).get("verdict")
+            except Exception as e:
+                self.err(f"land_status: {e}"[:200])
+                continue
+            if v not in ("queued", "pending"):
+                return v
+        return "timeout"
+
+    setup_treeyard_queue = lambda self: self.setup_treeyard()
+    agent_treeyard_queue = lambda self, i: self.agent_treeyard(i)
+    names_on_main_treeyard_queue = lambda self: self.names_on_main_treeyard()
 
     def names_on_main_treeyard(self):
         tmp = self.work / "tmp" / "check"
@@ -269,7 +306,7 @@ class Level:
         for x in th:
             x.join(timeout=max(1, self.deadline + 60 - time.time()))
         on_main = getattr(self, "names_on_main_" + self.arm)()
-        if self.arm == "treeyard":
+        if self.arm.startswith("treeyard"):
             for b in self.bridges:
                 b.close()
             self.server.terminate()
@@ -286,7 +323,7 @@ class Level:
                    retries=sum(r["retries"] for r in ready), conflicts=sum(r["conflicts"] for r in ready),
                    hot_share=round(sum(r["file"] in HOT_FILES for r in ready) / max(1, len(ready)), 3),
                    landed_missing_on_main=len({r["name"] for r in done} - on_main), on_main=len(on_main),
-                   errors=len(self.errors), error_samples=self.errors[:5], load_avg=os.getloadavg()[0])
+                   queue_verdicts=self.verdicts, errors=len(self.errors), error_samples=self.errors[:5], load_avg=os.getloadavg()[0])
         return res, self.rows
 
 
@@ -305,6 +342,7 @@ def main():
     ap.add_argument("--hot", type=float, default=0.5)
     ap.add_argument("--test-s", type=float, default=0)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--batch", type=int, default=8)
     a = ap.parse_args()
     a.seed_n = a.seed
     work = Path(a.work).resolve()

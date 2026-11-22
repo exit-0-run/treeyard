@@ -49,3 +49,10 @@ Series 2 (a 2 s test) clogged both arms alike. Step 1b repeats it with tests of 
 - Reading: the ceiling follows 3600 / test length in both arms: a test before entry sets the
   throughput, not the tool. An arm with a ceiling over 1.5 times the other's at some test length:
   an advantage there, reported with its level.
+- Third arm, added before the run: `treeyard_queue`. The server runs in landing mode `queue` with
+  the same `sleep` as its test and the default batch of 8: `land` answers `queued`, the server
+  tests up to 8 changes on top of each other in one run and lands the batch; the scripted agent
+  polls `land_status` every 0.25 s. The `treeyard` arm stays the land test (one test per change on
+  the rebased tree, run by the agent's bridge). Expected ceiling of the queue, if it holds: about
+  8 x 3600 / test length. A `sleep` never fails, so this measures the queue without failing
+  batches; the cost of a failing batch (bisect, more runs) is not in these numbers.
