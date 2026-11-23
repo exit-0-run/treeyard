@@ -1,0 +1,152 @@
+{
+ "run": "A-click-hard-r51-real",
+ "states": 13,
+ "main_suite_failed": 0,
+ "own_work": 13,
+ "own_suite_failed": 0,
+ "rows": [
+  {
+   "commit": "72e652f8ef",
+   "subject": "Merge branch 'agent-1'",
+   "agent": 1,
+   "main_suite": true,
+   "s": 3.0,
+   "tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.59s",
+   "handback": false,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.48s"
+  },
+  {
+   "commit": "72f474c0e7",
+   "subject": "Merge branch 'agent-2'",
+   "agent": 2,
+   "main_suite": true,
+   "s": 2.83,
+   "tail": "2407 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.47s",
+   "handback": false,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.58s"
+  },
+  {
+   "commit": "1a0e735df9",
+   "subject": "Merge branch 'agent-3'",
+   "agent": 3,
+   "main_suite": true,
+   "s": 2.86,
+   "tail": "2408 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.47s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.47s"
+  },
+  {
+   "commit": "14a792ef9f",
+   "subject": "Merge branch 'agent-4'",
+   "agent": 4,
+   "main_suite": true,
+   "s": 2.9,
+   "tail": "2410 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.51s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2407 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.46s"
+  },
+  {
+   "commit": "3748088147",
+   "subject": "Merge branch 'agent-5'",
+   "agent": 5,
+   "main_suite": true,
+   "s": 2.9,
+   "tail": "2412 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.52s",
+   "handback": false,
+   "own_suite": true,
+   "own_tail": "2407 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.48s"
+  },
+  {
+   "commit": "69265faf94",
+   "subject": "Merge branch 'agent-6'",
+   "agent": 6,
+   "main_suite": true,
+   "s": 3.13,
+   "tail": "2413 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.73s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.69s"
+  },
+  {
+   "commit": "d3fad5fcf4",
+   "subject": "Merge branch 'agent-7'",
+   "agent": 7,
+   "main_suite": true,
+   "s": 3.06,
+   "tail": "2414 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.65s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.58s"
+  },
+  {
+   "commit": "e67729dff8",
+   "subject": "Merge branch 'agent-8'",
+   "agent": 8,
+   "main_suite": true,
+   "s": 3.19,
+   "tail": "2415 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.77s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.67s"
+  },
+  {
+   "commit": "4d345bebf9",
+   "subject": "Merge branch 'agent-9'",
+   "agent": 9,
+   "main_suite": true,
+   "s": 3.17,
+   "tail": "2416 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.75s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.56s"
+  },
+  {
+   "commit": "61c31a328f",
+   "subject": "Merge branch 'agent-10'",
+   "agent": 10,
+   "main_suite": true,
+   "s": 2.92,
+   "tail": "2417 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.55s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.49s"
+  },
+  {
+   "commit": "c1c3f8d43c",
+   "subject": "Merge branch 'agent-11'",
+   "agent": 11,
+   "main_suite": true,
+   "s": 2.95,
+   "tail": "2418 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.57s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.54s"
+  },
+  {
+   "commit": "9dc4f340ff",
+   "subject": "Merge branch 'agent-12'",
+   "agent": 12,
+   "main_suite": true,
+   "s": 2.9,
+   "tail": "2419 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.52s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.50s"
+  },
+  {
+   "commit": "7850d4e811",
+   "subject": "Merge branch 'agent-13'",
+   "agent": 13,
+   "main_suite": true,
+   "s": 2.98,
+   "tail": "2420 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.57s",
+   "handback": true,
+   "own_suite": true,
+   "own_tail": "2406 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.56s"
+  }
+ ]
+}

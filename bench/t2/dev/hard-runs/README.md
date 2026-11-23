@@ -75,3 +75,24 @@ conflict, plain git with one model delivered everything. The merge phase took 26
 this arm hands conflicts back one after the other; that is a property of the arm, not of git. The
 hand-backs cost 1.08 of 3.79 USD.
 Run file and classifier output: [`git/`](git/).
+
+### How often a change fails the test at entry (stored runs, 2026-11-23)
+
+Counted with no new agent run. A queue or a test before entry tests main with the change in it.
+
+| Source | What was tested | Changes | Failed |
+|---|---|---|---|
+| Arm BN with the land test, runs r41 to r43 of `heavy` ([`../heavy-runs/gate/`](../heavy-runs/gate/)) | the suite on the rebased change, at every land (62 test runs) | 30 | 0 |
+| Arm A, run r51 of `hard` ([`git/suite-r51.json`](git/suite-r51.json), by [`suite_at.py`](suite_at.py)) | the suite at each of the 13 states of main | 13 | 0 |
+| Together | | 43 | 0 |
+
+**0 of 43 changes failed; the 95 % interval reaches up to 8.2 %** (exact binomial, two-sided; 11.6 %
+for the 30 changes of the land-test runs alone). In r51 the suite also passes on each of the 13
+agents' own work before its merge.
+
+- The agents run the tests themselves before they hand a change in (39 to 46 runs of the test
+  command per land-test run), so what fails is fixed before entry and is not counted here.
+- "The test" is the repository's suite of about 3 s. It sees only what it covers: in the land-test
+  trial it refused 5 of 10 known bad changes, and run r43 put a mismatch between two tasks on main
+  with the suite green.
+- One model, tasks of a few minutes, one repository, 43 changes: the data cannot tell 0 % from 8 %.
