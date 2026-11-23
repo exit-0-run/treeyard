@@ -340,7 +340,7 @@ index 893eab0..5d7665f 100644
  def write_adjlist(
      G,
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index 29b3d1c..0b7f1f1 100644
+index 8a6f16d..6d4a127 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
 @@ -105,10 +105,18 @@ Parsing

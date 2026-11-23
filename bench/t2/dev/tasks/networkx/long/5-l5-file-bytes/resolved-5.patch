@@ -276,7 +276,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -341,12 +367,15 @@
+@@ -341,12 +367,17 @@
      write_weighted_edgelist
      """
  
@@ -285,7 +285,9 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +        path.write(bom_bytes(encoding))
      if header:
 -        path.write((header_line(G, comments) + "\n").encode(encoding))
-+        path.write((header_line(G, comments) + newline).encode(encoding))
++        path.write(
++            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
++        )
      for line in generate_edgelist(
          G, delimiter, data, sort=sort, float_format=float_format
      ):
@@ -294,7 +296,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
          path.write(line.encode(encoding))
  
  
-@@ -441,7 +470,7 @@
+@@ -441,7 +472,7 @@
          # split line, should have 2 or more; the two node names may be quoted
          # with data keys every value may be quoted too; else the data is text
          names = None if data not in (True, False) else 2
@@ -303,7 +305,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
          if len(s) < 2:
              continue
          seen_data = True
-@@ -533,6 +562,9 @@
+@@ -533,6 +564,9 @@
         Convert edge data from strings to specified type and use as 'weight'
      encoding: string, optional
         Specify which encoding to use when reading file.
@@ -313,7 +315,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Returns
      -------
-@@ -542,6 +574,10 @@
+@@ -542,6 +576,10 @@
      A token that starts with ``"`` is a quoted node name (see the module
      docstring); the delimiter and the comment string inside it are part of
      the name.
@@ -324,7 +326,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -607,7 +643,7 @@
+@@ -607,7 +645,7 @@
      Since nodes must be hashable, the function nodetype must return hashable
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
      """
@@ -333,7 +335,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      try:
          return parse_edgelist(
              lines,
-@@ -631,6 +667,8 @@
+@@ -631,6 +669,8 @@
      header=False,
      sort=False,
      float_format=None,
@@ -342,7 +344,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  ):
      """Write graph `G` as a list of edges with numeric weights.
  
-@@ -660,6 +698,15 @@
+@@ -660,6 +700,15 @@
  
      Node names that are empty or hold whitespace, the delimiter, ``#``, ``"``
      or ``\\`` are written in double quotes (see the module docstring).
@@ -358,7 +360,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -692,6 +739,8 @@
+@@ -692,6 +741,8 @@
          header=header,
          sort=sort,
          float_format=float_format,
@@ -367,7 +369,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      )
  
  
-@@ -726,6 +775,9 @@
+@@ -726,6 +777,9 @@
         Convert node data from strings to specified type
      encoding: string, optional
         Specify which encoding to use when reading file.
@@ -377,7 +379,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Returns
      -------
-@@ -740,6 +792,10 @@
+@@ -740,6 +794,10 @@
      A token that starts with ``"`` is a quoted node name (see the module
      docstring); the delimiter and the comment string inside it are part of
      the name.

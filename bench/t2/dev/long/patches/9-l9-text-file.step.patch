@@ -214,7 +214,7 @@ index 5d7665f..83421dd 100644
 +
 +
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index 0b7f1f1..e6b05f4 100644
+index 6d4a127..e6b05f4 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
 @@ -113,10 +113,17 @@ Writing
@@ -274,7 +274,7 @@ index 0b7f1f1..e6b05f4 100644
      path,
      comments="#",
      delimiter=" ",
-@@ -372,23 +380,14 @@ def write_edgelist(
+@@ -372,25 +380,14 @@ def write_edgelist(
      See Also
      --------
      read_edgelist
@@ -287,7 +287,9 @@ index 0b7f1f1..e6b05f4 100644
 -        path.write(bom_bytes(encoding))
 +    lines = generate_edgelist(G, delimiter, data, sort=sort, float_format=float_format)
      if header:
--        path.write((header_line(G, comments) + newline).encode(encoding))
+-        path.write(
+-            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
+-        )
 -    for line in generate_edgelist(
 -        G, delimiter, data, sort=sort, float_format=float_format
 -    ):
@@ -301,7 +303,7 @@ index 0b7f1f1..e6b05f4 100644
  @nx._dispatchable(graphs=None, returns_graph=True)
  def parse_edgelist(
      lines, comments="#", delimiter=None, create_using=None, nodetype=None, data=True
-@@ -463,11 +462,10 @@ def parse_edgelist(
+@@ -465,11 +462,10 @@ def parse_edgelist(
      return LineParser(comments, delimiter, nodetype).parse_edgelist(
          lines, create_using=create_using, data=data
      )
@@ -313,7 +315,7 @@ index 0b7f1f1..e6b05f4 100644
      path,
      comments="#",
      delimiter=None,
-@@ -586,23 +584,15 @@ def read_edgelist(
+@@ -588,23 +584,15 @@ def read_edgelist(
      Notes
      -----
      Since nodes must be hashable, the function nodetype must return hashable
@@ -339,7 +341,7 @@ index 0b7f1f1..e6b05f4 100644
  def write_weighted_edgelist(
      G,
      path,
-@@ -830,11 +820,10 @@ def parse_graph_header(lines, comments="#"):
+@@ -832,11 +820,10 @@ def parse_graph_header(lines, comments="#"):
          if text and not (comments is not None and text.startswith(comments)):
              return None
      return None
@@ -351,7 +353,7 @@ index 0b7f1f1..e6b05f4 100644
      multiline adjacency list format, without reading the rest of it.
  
      Parameters
-@@ -854,7 +843,10 @@ def read_graph_header(path, comments="#", encoding="utf-8"):
+@@ -856,7 +843,10 @@ def read_graph_header(path, comments="#", encoding="utf-8"):
  
      See Also
      --------

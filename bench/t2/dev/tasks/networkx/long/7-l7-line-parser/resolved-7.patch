@@ -392,7 +392,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  from networkx.exception import LineParseError
  from networkx.readwrite._compression import compressing, uncompressed
  from networkx.readwrite._encoding import bom_bytes, decoded_lines
-@@ -469,77 +477,9 @@
+@@ -471,77 +479,9 @@
      --------
      read_weighted_edgelist
      """

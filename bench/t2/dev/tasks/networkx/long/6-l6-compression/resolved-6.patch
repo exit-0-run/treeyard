@@ -197,7 +197,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      if bom:
          path.write(bom_bytes(encoding))
      if header:
-@@ -377,6 +395,7 @@
+@@ -379,6 +397,7 @@
      ):
          line += newline
          path.write(line.encode(encoding))
@@ -205,7 +205,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  @nx._dispatchable(graphs=None, returns_graph=True)
-@@ -579,6 +598,9 @@
+@@ -581,6 +600,9 @@
      ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
      UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
  
@@ -215,7 +215,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      Examples
      --------
      >>> from pathlib import Path
-@@ -643,7 +665,7 @@
+@@ -645,7 +667,7 @@
      Since nodes must be hashable, the function nodetype must return hashable
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
      """
@@ -224,7 +224,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      try:
          return parse_edgelist(
              lines,
-@@ -669,6 +691,7 @@
+@@ -671,6 +693,7 @@
      float_format=None,
      bom=False,
      newline="\n",
@@ -232,7 +232,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  ):
      """Write graph `G` as a list of edges with numeric weights.
  
-@@ -707,6 +730,13 @@
+@@ -709,6 +732,13 @@
  
      Every line written, comment lines included, ends with `newline`; with
      ``bom=True`` the byte order mark of `encoding` comes before anything else.
@@ -246,7 +246,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -741,6 +771,7 @@
+@@ -743,6 +773,7 @@
          float_format=float_format,
          bom=bom,
          newline=newline,
@@ -254,7 +254,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      )
  
  
-@@ -797,6 +828,9 @@
+@@ -799,6 +830,9 @@
      ``encoding=None`` the encoding is taken from the byte order mark (UTF-8,
      UTF-16 LE or UTF-16 BE). Lines may end with ``\\n``, ``\\r\\n`` or ``\\r``.
  

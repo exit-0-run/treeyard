@@ -1652,7 +1652,7 @@ index 0f0c210..5d7665f 100644
 +        err.filename = getattr(path, "name", None)
 +        raise
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index fe62ba8..0b7f1f1 100644
+index fe62ba8..6d4a127 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
 @@ -16,59 +16,194 @@ You can read or write three formats of edge lists with these functions.
@@ -1964,7 +1964,7 @@ index fe62ba8..0b7f1f1 100644
      Write out the edgelist to file:
  
      >>> fpath = tmp_path / "test.edgelist"
-@@ -200,59 +366,76 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
+@@ -200,59 +366,78 @@ def write_edgelist(G, path, comments="#", delimiter=" ", data=True, encoding="ut
      >>> nx.write_edgelist(G, fpath, data=["color", "weight"])
      >>> with open(fpath) as fh:
      ...     print(fh.read())
@@ -1984,7 +1984,9 @@ index fe62ba8..0b7f1f1 100644
 +    if bom:
 +        path.write(bom_bytes(encoding))
 +    if header:
-+        path.write((header_line(G, comments) + newline).encode(encoding))
++        path.write(
++            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
++        )
 +    for line in generate_edgelist(
 +        G, delimiter, data, sort=sort, float_format=float_format
 +    ):
@@ -2043,7 +2045,7 @@ index fe62ba8..0b7f1f1 100644
      [(1, 2), (2, 3), (3, 4)]
  
      Edgelist with data in Python dictionary representation:
-@@ -268,83 +451,27 @@ def parse_edgelist(
+@@ -268,83 +453,27 @@ def parse_edgelist(
  
      >>> lines = ["1 2 3", "2 3 27", "3 4 3.0"]
      >>> G = nx.parse_edgelist(lines, nodetype=int, data=(("weight", float),))
@@ -2130,7 +2132,7 @@ index fe62ba8..0b7f1f1 100644
      nodetype=None,
      data=True,
      edgetype=None,
-@@ -356,38 +483,56 @@ def read_edgelist(
+@@ -356,38 +485,56 @@ def read_edgelist(
      ----------
      path : file or string
         File or filename to read. If a file is provided, it must be
@@ -2187,7 +2189,7 @@ index fe62ba8..0b7f1f1 100644
      >>> G.edges
      EdgeView([('0', '1'), ('1', '2'), ('2', '3')])
  
-@@ -434,52 +579,96 @@ def read_edgelist(
+@@ -434,52 +581,96 @@ def read_edgelist(
      See `parse_edgelist` for more examples of formatting.
  
      See Also
@@ -2296,7 +2298,7 @@ index fe62ba8..0b7f1f1 100644
      >>> fpath = tmp_path / "test.weighted.edgelist"
      >>> nx.write_weighted_edgelist(G, fpath)
      >>> with open(fpath) as fh:
-@@ -491,24 +680,30 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
+@@ -491,24 +682,30 @@ def write_weighted_edgelist(G, path, comments="#", delimiter=" ", encoding="utf-
      --------
      read_edgelist
      write_edgelist
@@ -2327,7 +2329,7 @@ index fe62ba8..0b7f1f1 100644
      nodetype=None,
      encoding="utf-8",
  ):
-@@ -517,39 +712,57 @@ def read_weighted_edgelist(
+@@ -517,39 +714,57 @@ def read_weighted_edgelist(
      Parameters
      ----------
      path : file or string
@@ -2385,7 +2387,7 @@ index fe62ba8..0b7f1f1 100644
      >>> G = nx.Graph()
      >>> G.add_weighted_edges_from([(0, 1, 1), (1, 2, 2.718), (2, 0, 10)])
      >>> fpath = tmp_path / "C3_weighted.list"
-@@ -569,12 +782,79 @@ def read_weighted_edgelist(
+@@ -569,12 +784,79 @@ def read_weighted_edgelist(
      --------
      write_weighted_edgelist
      """

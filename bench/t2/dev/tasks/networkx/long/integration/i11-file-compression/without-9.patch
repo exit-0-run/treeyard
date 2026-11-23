@@ -1725,7 +1725,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -209,9 +375,18 @@
+@@ -209,9 +375,20 @@
      write_weighted_edgelist
      """
  
@@ -1736,7 +1736,9 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 +    if bom:
 +        path.write(bom_bytes(encoding))
 +    if header:
-+        path.write((header_line(G, comments) + newline).encode(encoding))
++        path.write(
++            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
++        )
 +    for line in generate_edgelist(
 +        G, delimiter, data, sort=sort, float_format=float_format
 +    ):
@@ -1746,7 +1748,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  @nx._dispatchable(graphs=None, returns_graph=True)
-@@ -231,6 +406,10 @@
+@@ -231,6 +408,10 @@
         Separator for node labels. Default is `None`, meaning any whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -1757,7 +1759,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      nodetype : Python type, optional
         Convert nodes to this type. Default is `None`, meaning no conversion is
         performed.
-@@ -244,6 +423,10 @@
+@@ -244,6 +425,10 @@
      G: NetworkX Graph
          The graph corresponding to lines
  
@@ -1768,7 +1770,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      Examples
      --------
      Edgelist with no data:
-@@ -277,65 +460,9 @@
+@@ -277,65 +462,9 @@
      --------
      read_weighted_edgelist
      """
@@ -1837,7 +1839,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  @open_file(0, mode="rb")
-@@ -365,6 +492,10 @@
+@@ -365,6 +494,10 @@
         The string used to separate values.  The default is whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -1848,7 +1850,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      nodetype : int, float, str, Python type, optional
         Convert node data from strings to specified type
      data : bool or list of (label,type) tuples
-@@ -373,11 +504,25 @@
+@@ -373,11 +506,25 @@
         Convert edge data from strings to specified type and use as 'weight'
      encoding: string, optional
         Specify which encoding to use when reading file.
@@ -1874,7 +1876,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -443,18 +588,34 @@
+@@ -443,18 +590,34 @@
      Since nodes must be hashable, the function nodetype must return hashable
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
      """
@@ -1921,7 +1923,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      """Write graph `G` as a list of edges with numeric weights.
  
      Parameters
-@@ -471,6 +632,34 @@
+@@ -471,6 +634,34 @@
         The string used to separate values.  The default is whitespace.
      encoding: string, optional
         Specify which encoding to use when writing file.
@@ -1956,7 +1958,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -500,6 +689,12 @@
+@@ -500,6 +691,12 @@
          delimiter=delimiter,
          data=("weight",),
          encoding=encoding,
@@ -1969,7 +1971,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
      )
  
  
-@@ -526,10 +721,17 @@
+@@ -526,10 +723,17 @@
         The string used to separate values.  The default is whitespace.
      create_using : NetworkX graph constructor, optional (default=nx.Graph)
         Graph type to create. If graph instance, then cleared before populated.
@@ -1987,7 +1989,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Returns
      -------
-@@ -540,6 +742,17 @@
+@@ -540,6 +744,17 @@
      -----
      Since nodes must be hashable, the function nodetype must return hashable
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
@@ -2005,7 +2007,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
      Examples
      --------
-@@ -578,3 +791,70 @@
+@@ -578,3 +793,70 @@
          data=(("weight", float),),
          encoding=encoding,
      )

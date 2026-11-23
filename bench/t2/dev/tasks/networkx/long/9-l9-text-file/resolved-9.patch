@@ -233,7 +233,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  def write_edgelist(
      G,
      path,
-@@ -374,19 +382,10 @@
+@@ -374,21 +382,10 @@
      read_edgelist
      write_weighted_edgelist
      """
@@ -244,7 +244,9 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
 -        path.write(bom_bytes(encoding))
 +    lines = generate_edgelist(G, delimiter, data, sort=sort, float_format=float_format)
      if header:
--        path.write((header_line(G, comments) + newline).encode(encoding))
+-        path.write(
+-            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
+-        )
 -    for line in generate_edgelist(
 -        G, delimiter, data, sort=sort, float_format=float_format
 -    ):
@@ -256,7 +258,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  @nx._dispatchable(graphs=None, returns_graph=True)
-@@ -465,7 +464,6 @@
+@@ -467,7 +464,6 @@
      )
  
  
@@ -264,7 +266,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  @nx._dispatchable(graphs=None, returns_graph=True)
  def read_edgelist(
      path,
-@@ -588,19 +586,11 @@
+@@ -590,19 +586,11 @@
      Since nodes must be hashable, the function nodetype must return hashable
      types (e.g. int, float, str, frozenset - or tuples of those, etc.)
      """
@@ -286,7 +288,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  
  
  def write_weighted_edgelist(
-@@ -832,7 +822,6 @@
+@@ -834,7 +822,6 @@
      return None
  
  
@@ -294,7 +296,7 @@ diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
  def read_graph_header(path, comments="#", encoding="utf-8"):
      """The graph header of a file in the edge list, adjacency list or
      multiline adjacency list format, without reading the rest of it.
-@@ -856,5 +845,8 @@
+@@ -858,5 +845,8 @@
      --------
      parse_graph_header
      """

@@ -378,7 +378,7 @@ index 5c8128b..893eab0 100644
  @nx._dispatchable(graphs=None, returns_graph=True)
  def read_adjlist(
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index 47527e9..29b3d1c 100644
+index 4b46c34..8a6f16d 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
 @@ -98,10 +98,17 @@ Compressed files
@@ -411,7 +411,7 @@ index 47527e9..29b3d1c 100644
  from networkx.readwrite._encoding import bom_bytes, decoded_lines
  from networkx.readwrite._floats import data_text, value_text
  from networkx.readwrite._header import (
-@@ -467,81 +475,13 @@ def parse_edgelist(
+@@ -469,81 +477,13 @@ def parse_edgelist(
  
      See Also
      --------

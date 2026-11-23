@@ -244,7 +244,7 @@ index c9b71d6..15a1883 100644
              comments=comments,
              delimiter=delimiter,
 diff --git a/networkx/readwrite/edgelist.py b/networkx/readwrite/edgelist.py
-index 6d94d6e..4f7b552 100644
+index 6d94d6e..f38c86c 100644
 --- a/networkx/readwrite/edgelist.py
 +++ b/networkx/readwrite/edgelist.py
 @@ -77,10 +77,23 @@ Number format
@@ -324,7 +324,7 @@ index 6d94d6e..4f7b552 100644
      --------
      >>> from pathlib import Path
      >>> import tempfile, gzip
-@@ -339,16 +365,19 @@ def write_edgelist(
+@@ -339,16 +365,21 @@ def write_edgelist(
      --------
      read_edgelist
      write_weighted_edgelist
@@ -335,7 +335,9 @@ index 6d94d6e..4f7b552 100644
 +        path.write(bom_bytes(encoding))
      if header:
 -        path.write((header_line(G, comments) + "\n").encode(encoding))
-+        path.write((header_line(G, comments) + newline).encode(encoding))
++        path.write(
++            (header_line(G, comments) + "\n").replace("\n", newline).encode(encoding)
++        )
      for line in generate_edgelist(
          G, delimiter, data, sort=sort, float_format=float_format
      ):
@@ -346,7 +348,7 @@ index 6d94d6e..4f7b552 100644
  
  @nx._dispatchable(graphs=None, returns_graph=True)
  def parse_edgelist(
-@@ -439,11 +468,11 @@ def parse_edgelist(
+@@ -439,11 +470,11 @@ def parse_edgelist(
              if not line:
                  continue
          # split line, should have 2 or more; the two node names may be quoted
@@ -359,7 +361,7 @@ index 6d94d6e..4f7b552 100644
          seen_data = True
          u = s.pop(0)
          v = s.pop(0)
-@@ -531,20 +560,27 @@ def read_edgelist(
+@@ -531,20 +562,27 @@ def read_edgelist(
         Tuples specifying dictionary key names and types for edge data
      edgetype : int, float, str, Python type, optional OBSOLETE
         Convert edge data from strings to specified type and use as 'weight'
@@ -387,7 +389,7 @@ index 6d94d6e..4f7b552 100644
      >>> from pathlib import Path
      >>> import tempfile
      >>> tmp_path = Path(tempfile.gettempdir())
-@@ -605,11 +641,11 @@ def read_edgelist(
+@@ -605,11 +643,11 @@ def read_edgelist(
      Notes
      -----
      Since nodes must be hashable, the function nodetype must return hashable
@@ -400,7 +402,7 @@ index 6d94d6e..4f7b552 100644
              lines,
              comments=comments,
              delimiter=delimiter,
-@@ -629,10 +665,12 @@ def write_weighted_edgelist(
+@@ -629,10 +667,12 @@ def write_weighted_edgelist(
      delimiter=" ",
      encoding="utf-8",
      header=False,
@@ -413,7 +415,7 @@ index 6d94d6e..4f7b552 100644
  
      Parameters
      ----------
-@@ -658,10 +696,19 @@ def write_weighted_edgelist(
+@@ -658,10 +698,19 @@ def write_weighted_edgelist(
         written as ``format(value, float_format)``. Other values are
         written as before.
  
@@ -433,7 +435,7 @@ index 6d94d6e..4f7b552 100644
      --------
      >>> from pathlib import Path
      >>> import tempfile
-@@ -690,10 +737,12 @@ def write_weighted_edgelist(
+@@ -690,10 +739,12 @@ def write_weighted_edgelist(
          data=("weight",),
          encoding=encoding,
          header=header,
@@ -446,7 +448,7 @@ index 6d94d6e..4f7b552 100644
  
  @nx._dispatchable(graphs=None, returns_graph=True)
  def read_weighted_edgelist(
-@@ -724,10 +773,13 @@ def read_weighted_edgelist(
+@@ -724,10 +775,13 @@ def read_weighted_edgelist(
         of the type the header names.
      nodetype : int, float, str, Python type, optional
         Convert node data from strings to specified type
@@ -460,7 +462,7 @@ index 6d94d6e..4f7b552 100644
      -------
      G : graph
         A networkx Graph or other type specified with create_using
-@@ -739,10 +791,14 @@ def read_weighted_edgelist(
+@@ -739,10 +793,14 @@ def read_weighted_edgelist(
  
      A token that starts with ``"`` is a quoted node name (see the module
      docstring); the delimiter and the comment string inside it are part of
