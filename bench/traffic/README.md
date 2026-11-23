@@ -148,8 +148,12 @@ against 126 at 75 agents), so the two columns differ in more than the setting. T
   a quieter machine.
 - Changes are 2-line inserts that always merge; real conflicts need an agent and are not in this test.
 - In the land-test arm with tests of 30 s and more, the bridge process of 1 to 7 agents per level
-  exited in the middle of a run with nothing on stderr (seen again in a repeat). Not explained yet;
-  the agent's changes after that are counted as not entered.
+  ended in the middle of a run. Cause, found afterwards: the script itself killed them. It waited
+  only 60 s after the deadline for its agents and then closed every bridge, and a land with a 30 s
+  test can run three rounds, longer than that. The kills came after the deadline, when nothing more
+  is counted, so the rates and waits above stand; the script now waits long enough. (Looking for
+  this showed a real fault that is fixed on the `queue` branch: a land test kept running after its
+  bridge was killed.)
 - 28 changes an hour per real agent comes from short tasks (about 2 minutes each); agents on long
   tasks deliver fewer, so the same ceilings serve more of them.
 

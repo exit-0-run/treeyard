@@ -317,7 +317,9 @@ class Level:
         for x in th:
             x.start()
         for x in th:
-            x.join(timeout=max(1, self.deadline + 60 - time.time()))
+            # a land with the land test may run 3 rounds after the deadline: wait for it, or close() would
+            # kill a bridge in the middle of a land
+            x.join(timeout=max(1, self.deadline + 60 + 3 * (self.a.test_s + 10) - time.time()))
         on_main = getattr(self, "names_on_main_" + self.arm)()
         if self.arm.startswith("treeyard"):
             for b in self.bridges:
