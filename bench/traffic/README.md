@@ -160,8 +160,8 @@ columns 0 % to 5 %, and the data cannot rule out the 10 % column. The agents run
 themselves before they hand a change in; a suite that takes long enough to need a queue may be run
 less often by them, and then more changes would fail at entry.
 
-Until the longer run below is in, **every number in the columns with bad changes comes from the
-first minutes of an overloaded queue.**
+**Every number in the columns with bad changes of the table above comes from the first minutes of
+an overloaded queue.** The longer run under it reads the two cells that matter.
 
 - **The rule is met in this one run:** at 10 % bad changes and a 60 s test, batch 8 gives 210
   changes an hour, 3.5 times 3600 / test length (the rule asks for 2 times). That number is 28
@@ -183,6 +183,29 @@ first minutes of an overloaded queue.**
   waiting at the end. The wait of a bad change is therefore not measured.
 - The queue was overloaded in every cell with bad changes: 19 to 50 ready changes had not entered
   at the end, and the median wait of the good changes that entered was 1 to 12 test lengths.
+
+### The queue with failing changes, longer window (2026-11-23)
+
+Test 60 s, batch 8, 50 agents, window of 30 test lengths, three seeds per cell, a rejected change
+fixed after 120 s ([`results/queue-steady.json`](results/queue-steady.json)).
+
+| Bad share | Per hour: mean (lowest to highest of 3) | Ratio to 3600 / test | Fixed change: rejection to entry, median per run | Rejected changes that entered in the run | Good change: median wait | Bad on main |
+|---|---|---|---|---|---|---|
+| 5 % | 217 (212 to 226) | 3.6 (3.5 to 3.8) | 9, 13 and 15 min | 10 of 18 | 8 to 10 min | 0 |
+| 10 % | 158 (146 to 166) | 2.6 (2.4 to 2.8) | 12, 12 and 13 min | 15 of 31 | 10 to 13 min | 0 |
+
+- **The rule is met:** at 10 % bad changes the queue gives 158 changes an hour, 2.6 times
+  3600 / test length, in each of the three runs above the 120 the rule asks for. The short window
+  had said 3.5 times; the longer one is lower.
+- With no bad change the same queue gave 6.4 times (short window), so 5 % bad costs about four
+  tenths of the rate and 10 % about six tenths.
+- A rejected change that is fixed enters 9 to 15 minutes after its rejection (2 of them are the
+  fix), and it was rejected about 9 to 11 minutes after it was ready. About half of the rejected
+  changes had not entered when the run ended.
+- The rate moves within a run: by ten-minute thirds it runs from 96 to 336 an hour.
+- The queue is overloaded throughout (50 agents offer about 5 times what enters; 24 to 42 ready
+  changes had not entered at the end), so the waits are those of a full queue, not of a queue that
+  keeps up.
 
 ### Limits
 
