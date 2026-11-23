@@ -59,7 +59,7 @@ queue tested one change at a time. Both git runs were done by then. The queue ru
 | **Test runs at entry** | 48 | 46 | 13 |
 | Test runs at entry that failed | 1 | 0 | 1 (the change entered after its fix) |
 | Repeats because main moved | 34 | 33 | - |
-| Conflict answers to agents | 37 | 41 | 30 |
+| Conflict answers to agents | 37 | 42 | 30 |
 | Wall time of the run | 22.7 min | 21.4 min | 20.5 min |
 | Claude USD | 4.54 | 4.54 | 5.56 |
 
