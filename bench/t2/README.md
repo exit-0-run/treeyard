@@ -1,5 +1,32 @@
 # T2 experiment kit
 
+## Verdict of the measurements (closed 2026-11-23)
+
+**In these measurements TreeYard showed no advantage over git by the rules written down before the
+runs, except in traffic of very many agents at once and in the simulation of the queue.**
+
+| Line | Result | Reading |
+|---|---|---|
+| Quality of work (set `hard`, 13 agents) | git: 13 of 13 tasks, 21 of 21 integration tests, no integration defect, one run | the set is not a cheap field for comparisons; closed by its rule. Not "git does not lose" |
+| Traffic without a model, no test | git clogs between 75 and 100 scripted agents, TreeYard holds to 200 | an advantage only at the traffic of about 320 real agents |
+| Traffic with a test for every change | git and TreeYard stop at the same ceiling, about 50 changes an hour with a 60 s test | no difference without a queue |
+| Queue in the simulation (batch 8, test 60 s) | 217 changes an hour at 5 % failing changes (3.6 times the ceiling), 158 at 10 % (2.6 times), about 1 time at 20 to 30 % | the gain depends on the share of failing changes |
+| Queue with real agents (`hard`, suite made longer to 60 s) | git 21.0 and 19.9 minutes, queue v1 18.5 minutes; test runs 48 and 46 against 13 | rule "at most half of git's time" not met; queue v1 was 7 to 12 % faster in these 3 runs |
+| Queue v2 | **a model on stub agents only: 726 s against about 1200 s for git. It never ran with real agents** | under the threshold set for a paid run, so none was made |
+| Long work of agents | **not checked**: the tasks of the set `long` took a median of 3.3 minutes | whether git loses time or work when agents work long is unknown |
+| Another agent's work broken or deleted | git 5 of 28 runs, TreeYard 0 known of 26 | counted after the fact, over different sets, one TreeYard run not traced, with one model 2 of 15 git runs; see the section below |
+
+Batch queues exist for plain git too (GitHub merge queue, GitLab merge trains, Bors, Mergify,
+Zuul), so a gain of the queue is a gain of queueing, not of TreeYard alone.
+
+Where the numbers come from: the traffic and queue simulation on branch `traffic`
+(`bench/traffic/README.md`); the rest here: [dev/hard-runs/](dev/hard-runs/README.md),
+[dev/queue-runs/](dev/queue-runs/README.md), [dev/long-runs/](dev/long-runs/README.md),
+[dev/losses-all.md](dev/losses-all.md). The queue is the code of branch `queue` (not released);
+queue v2 is not published.
+
+## The kit
+
 Five coding agents at once on one repository (ten in the development sets `mixed` and `heavy`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
 git-native way to integrate early (arm A2), `treeyard connect` (arm B), and `treeyard connect --native`
 (arm BN, section "Arm BN"; not in any preregistration), and two arms with a test before entry: git with a
