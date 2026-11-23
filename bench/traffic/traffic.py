@@ -226,7 +226,7 @@ class Level:
             time.sleep(rng.expovariate(1 / self.a.think))
             rel = self.pick(rng)
             edit(d, rel, rng, name)
-            ready, retries, conflicts, landed = time.time(), 0, 0, None
+            ready, retries, conflicts, landed, rejected = time.time(), 0, 0, None, None
             while time.time() < self.deadline:
                 r = br.call("land", {"change": cid})
                 retries += max(0, int((r.get("land_test") or {}).get("rounds", 1)) - 1)
@@ -240,6 +240,8 @@ class Level:
                     with self.lock:
                         self.verdicts[v] = self.verdicts.get(v, 0) + 1
                     if v == "rejected" and name.startswith("_bad"):   # the agent fixes its change
+                        rejected = time.time()
+                        time.sleep(self.a.fix_s)
                         f = Path(d) / rel
                         f.write_text(f.read_text().replace(name, name[4:]))
                         name = name[4:]
@@ -257,7 +259,7 @@ class Level:
                     if retries > 20:
                         break
                     time.sleep(0.2)
-            self.row(i, name, rel, ready, landed, retries, conflicts, bad)
+            self.row(i, name, rel, ready, landed, retries, conflicts, bad, rejected)
             shutil.rmtree(d, ignore_errors=True)
 
     def wait_queue(self, cid):
@@ -290,9 +292,9 @@ class Level:
         return {l.split()[1] for l in out.splitlines()}
 
     # ---- common
-    def row(self, i, name, rel, ready, landed, retries, conflicts, bad=False):
+    def row(self, i, name, rel, ready, landed, retries, conflicts, bad=False, rejected=None):
         with self.lock:
-            self.rows.append(dict(agent=i, name=name, file=rel, ready=ready, landed=landed, retries=retries, conflicts=conflicts, bad=bad))
+            self.rows.append(dict(agent=i, name=name, file=rel, ready=ready, landed=landed, retries=retries, conflicts=conflicts, bad=bad, rejected=rejected))
 
     def err(self, text):
         with self.lock:
@@ -338,6 +340,10 @@ class Level:
                    bad_share=self.a.bad, batch=self.a.batch, bad_made=sum(r["bad"] for r in ready),
                    wait_median_good_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["landed"] - r["ready"] for r in done if not r["bad"])),
                    wait_median_bad_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["landed"] - r["ready"] for r in done if r["bad"])),
+                   fix_s=self.a.fix_s, bad_rejected=sum(1 for r in ready if r.get("rejected")),
+                   bad_fixed_landed=sum(1 for r in done if r.get("rejected")),
+                   wait_median_reject_to_landed_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["landed"] - r["rejected"] for r in done if r.get("rejected"))),
+                   wait_median_ready_to_reject_s=(lambda w: round(w[len(w) // 2], 3) if w else None)(sorted(r["rejected"] - r["ready"] for r in ready if r.get("rejected"))),
                    bad_on_main=sum(1 for n in on_main if n.startswith("_bad")),
                    retries=sum(r["retries"] for r in ready), conflicts=sum(r["conflicts"] for r in ready),
                    hot_share=round(sum(r["file"] in HOT_FILES for r in ready) / max(1, len(ready)), 3),
@@ -363,6 +369,7 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--bad", type=float, default=0, help="queue arm: share of changes that fail the test until their agent fixes them")
+    ap.add_argument("--fix-s", type=float, default=0, help="queue arm: seconds an agent takes to fix a rejected change")
     ap.add_argument("--tag", default="")
     ap.add_argument("--no-gc", action="store_true", help="git arm: gc.auto=0, maintenance.auto=false, receive.autogc=false in the shared repository and every clone")
     a = ap.parse_args()

@@ -226,3 +226,16 @@ change comes back `rejected` fixes it at once (renames the function) and lands a
   batches are reported beside it.
 - The count starts with an empty queue, so the first test length of every cell lands nothing; the
   rates are a little under the steady state.
+
+## The queue with failing changes, longer window (settings written before the run)
+
+The cells above show the first minutes of an overloaded queue. This repeat reads the steady state.
+
+- Arm `treeyard_queue`, binary 0.2.0, 50 agents, test 60 s, batch 8, bad share 5 % and 10 %.
+- Window 1 800 s (30 test lengths), then 180 s. Three independent random seeds per cell (11, 12,
+  13): six runs, one after the other, nothing else measured on the machine.
+- An agent whose change is rejected takes 120 s to fix it (`--fix-s 120`), then lands again.
+- Reported per cell: mean and range over the three seeds of changes entering main per hour and of
+  the ratio to 3600 / test length; the time from rejection to entry of a fixed change (median per
+  run); bad changes on main (must be 0).
+- The rule is the same: at 10 % bad at least 120 changes an hour.
