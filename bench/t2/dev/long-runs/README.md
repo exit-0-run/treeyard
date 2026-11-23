@@ -22,3 +22,31 @@ agents work long, not a minute? Development runs. Everything below the rules was
     there is a field for a comparison; plan step 3.
   - Between: a second run of each way if it fits the limit.
 - Step 3 (git, git with a conflict signal, TreeYard native, alternating) is not run without a new yes.
+
+## Step 1, solo (2026-11-23)
+
+One agent alone per task, one after the other, nothing else measured on the machine. Result files:
+[`solo/`](solo/).
+
+| Task | Hidden test | Wall time | Tool calls | Claude USD |
+|---|---|---|---|---|
+| l1 quoted names | pass | 4.7 min | 12 | 0.41 |
+| l2 graph header | fail (1 test function) | 2.8 min | 5 | 0.31 |
+| l3 line errors | fail (1 test function) | 4.8 min | 16 | 0.33 |
+| l4 output format | pass | 3.1 min | 16 | 0.43 |
+| l5 file bytes | pass | 3.3 min | 15 | 0.43 |
+| l6 compression | pass | 3.4 min | 15 | 0.41 |
+| l7 line parser | pass | 2.1 min | 5 | 0.17 |
+| l8 line writer | pass | 2.1 min | 11 | 0.19 |
+| l9 text file | pass | 12.9 min | 24 | 0.36 |
+
+7 of 9 hidden tests pass, total 3.03 USD, the repository's suite green after every task. **Median
+wall time 3.3 minutes (2.1 to 12.9), under the 10 minutes of the rule: the set is not long. Stop;
+step 2 is not run.**
+
+- The tasks were sized by the length of the reference change (305 to 435 lines) and an estimate of
+  15 minutes each. The agent wrote them in 2 to 5 minutes; only l9 took longer. Lines of change do
+  not make an agent work long.
+- l2 and l3 each failed one function of the hidden test. Whether the agent or the test is at fault
+  was not examined, because the set stops here.
+- One run per task, one model; wall time on a subscription varies with the service's load.

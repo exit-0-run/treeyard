@@ -1,0 +1,206 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.193391,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 24740,
+   "tokens_cached_in": 232790,
+   "tokens_fresh_in": 24756,
+   "tokens_in": 257546,
+   "tokens_out": 7112,
+   "tool_calls": 11,
+   "turns": 12,
+   "wall_s": 125.51
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "l8-line-writer",
+   "k": 1,
+   "prompt_sha256": "3ad3e76ed0f3989f692320e479023435dcfefcde948da956607213947fc31a7d"
+  }
+ ],
+ "arm": "A",
+ "by_harness": {
+  "claude": {
+   "agents": 1,
+   "cost_usd": 0.193391,
+   "tokens_cache_write": 24740,
+   "tokens_cached_in": 232790,
+   "tokens_fresh_in": 24756,
+   "tokens_in": 257546,
+   "tokens_out": 7112,
+   "tool_calls": 11,
+   "turns": 12
+  }
+ },
+ "conflict_work": {
+  "claude_seconds": 0.0,
+  "claude_seconds_total": 124.9,
+  "claude_usd": 0.0,
+  "claude_usd_total": 0.1934,
+  "episodes": 0,
+  "per_agent": [
+   {
+    "episodes": 0,
+    "k": 1,
+    "seconds": 0.0,
+    "usd": 0.0
+   }
+  ],
+  "share_of_claude_seconds": 0.0,
+  "share_of_claude_usd": 0.0
+ },
+ "cost_usd": 0.193391,
+ "cost_usd_claude_only": 0.193391,
+ "done": {
+  "l8-line-writer": true
+ },
+ "false_alarms": 0,
+ "flow": {
+  "changes_on_main": 1,
+  "changes_per_hour": 28.62,
+  "pieces_waited": 0,
+  "retries": 0,
+  "wait_s_median": null,
+  "wait_s_p95": null
+ },
+ "guard": {
+  "1": {
+   "added": 246,
+   "files": 6,
+   "paths": [
+    "networkx/readwrite/_linewriter.py",
+    "networkx/readwrite/adjlist.py",
+    "networkx/readwrite/edgelist.py",
+    "networkx/readwrite/multiline_adjlist.py",
+    "networkx/readwrite/pajek.py",
+    "networkx/readwrite/tests/test_edgelist.py"
+   ],
+   "removed": 161,
+   "test_added": 22
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "hidden_failed": [],
+ "hidden_passed": true,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 1.5,
+  "max_tokens": 40000000,
+  "max_turns": 600,
+  "timeout_s": 7200
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 0
+  },
+  "total": 0
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "skipped_paths": [],
+   "status": "merged"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 1,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 1,
+ "repo": "networkx",
+ "run": "solo-networkx-long-l8-line-writer-r1-real",
+ "set": "long",
+ "set_agents": 1,
+ "set_mix": [
+  "claude"
+ ],
+ "setup_s": 0.53,
+ "solo": true,
+ "started": "2026-11-23T06:37:44",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 63.32,
+ "suite_s": 64.46,
+ "suite_tail_all": "%]\n........................................................................ [ 87%]\n........................................................................ [ 88%]\n........................................................................ [ 89%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 91%]\n........................................................................ [ 91%]\n........................................................................ [ 92%]\n........................................................................ [ 93%]\n........................................................................ [ 94%]\n........................................................................ [ 94%]\n.........sssssssssssssssssssssssssssssssssssssssss...................... [ 95%]\n........................................................................ [ 96%]\n........................................................................ [ 97%]\n.......................................................................s [ 97%]\ns.s..s.................................................................. [ 98%]\n........................................................................ [ 99%]\n........................................................................ [100%]\n9076 passed, 54 skipped, 741 xfailed in 63.49s (0:01:03)\n",
+ "suite_tail_pinned": "%]\n........................................................................ [ 87%]\n........................................................................ [ 88%]\n........................................................................ [ 89%]\n........................................................................ [ 89%]\n........................................................................ [ 90%]\n........................................................................ [ 91%]\n........................................................................ [ 91%]\n........................................................................ [ 92%]\n........................................................................ [ 93%]\n........................................................................ [ 94%]\n........................................................................ [ 94%]\n........sssssssssssssssssssssssssssssssssssssssss....................... [ 95%]\n........................................................................ [ 96%]\n........................................................................ [ 97%]\n......................................................................ss [ 97%]\n.s..s................................................................... [ 98%]\n........................................................................ [ 99%]\n.......................................................................  [100%]\n9075 passed, 54 skipped, 741 xfailed in 62.37s (0:01:02)\n",
+ "task": "l8-line-writer",
+ "task_k": 8,
+ "tasks_on_main": 1,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 2
+  }
+ },
+ "test_files_restored": [
+  "networkx/readwrite/tests/test_edgelist.py"
+ ],
+ "test_passed_agents": 1,
+ "tokens_cache_write": 24740,
+ "tokens_cached_in": 232790,
+ "tokens_fresh_in": 24756,
+ "tokens_in": 257546,
+ "tokens_out": 7112,
+ "tool_calls": 11,
+ "treeyard_sha256": "542945b3e3de705fb78b373ab56451bc9e282c25498d2934f4fe3282c6eb40b8",
+ "treeyard_version": "treeyard 0.2.0",
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "c4b81d57282f99a101b34a58a46a4219be9c5a9a0b37e71183fb35f250383cbf",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 125.79,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}
