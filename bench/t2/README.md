@@ -2,7 +2,8 @@
 
 Five coding agents at once on one repository (ten in the development sets `mixed` and `heavy`, [dev/README.md](dev/README.md)): plain `git worktree` per agent (arm A), worktrees plus a
 git-native way to integrate early (arm A2), `treeyard connect` (arm B), and `treeyard connect --native`
-(arm BN, section "Arm BN"; not in any preregistration). The design, the metrics and
+(arm BN, section "Arm BN"; not in any preregistration), and two arms with a test before entry: git with a
+test in `t2-integrate` (arm G) and TreeYard with the land queue (arm Q; section "Arms G and Q"). The design, the metrics and
 the thresholds of version 3 are frozen in [PREREGISTRATION.md](PREREGISTRATION.md); its pilot on
 requests ran in [results/pilot-v3/](results/pilot-v3/README.md) and an audit after it found faults in
 the runner. This kit fixes them (section "Since preregistration v3"). Those fixes change the hand-back,
@@ -117,6 +118,74 @@ cwd, server, metrics, hand-back and stops. What differs:
 python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness oracle --results S/bn
 python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness real --dry-run
 python3 bench/t2/t2.py run --scratch S --arm BN --repo click --set heavy --rep 1 --harness real --yes-real
+```
+
+## Arms G and Q (a test before entry)
+
+Two arms for a comparison where every change must pass a test before it is on main. Not in any
+preregistration. `rehearse` runs them only when named (`--arms G,Q`).
+
+- **G** ("git, a test for every change"). Each agent has its own clone of main, on branch `agent-<k>`,
+  with no remote. `t2-integrate` (block `G_BLOCK`) commits the agent's work, fetches main, merges it into
+  the branch, runs `t2-test` on the result and moves main to it only when the test passes. The move is a
+  compare-and-swap: when main moved during the test, the command fetches, merges and tests again. Calls
+  of different agents run at the same time. Its answers: a conflict (the files with markers, as in A2),
+  the test failed (with the end of its output; main did not change), or integrated. Main's repository
+  stays with the runner: its HEAD is detached and a hook refuses every push, so an agent cannot move
+  main around the test. After the agents stop, the runner sends work left out of main through the same
+  command; a conflict there is handed back once; work that still conflicts or fails the test stays out
+  (`needs_human`).
+- **Q** (TreeYard with the land queue). Arm BN with `connect --land-queue <t2-test> --land-batch N`
+  (`--land-batch`, default 8; the server's default `parallel`). `land` waits until the server has tested
+  a batch of changes on main in its own test slots. A change that fails comes back to its agent as
+  `tests_failed` and stays open; the agent fixes it and lands again. The prompt is BN's: the frozen
+  connect block, then `Q_NOTE` (two sentences on the wait and on `tests_failed`), then the preamble. The
+  queue's test is a copy of `t2-test` in the runner's directory, with the kit's venv and
+  `PYTHONPATH=src`; click needs no `--land-queue-setup`. The runner lands what agents left open through
+  the bridge, which waits for the queue too; a change the queue rejects there stays out.
+
+Both arms give Claude Code longer tool timeouts (`LONG_TOOL_ENV`), because `t2-integrate` and `land` wait
+for tests. Arm Q gives Codex `tool_timeout_sec = 3600` for the MCP server.
+
+### The padded test
+
+`run --test-pad-s S` makes `t2-test` the repository's suite followed by `sleep S`, whatever the suite's
+result; the exit code is the suite's. It is the same command for the agents' own runs, for arm G's
+integrate and for arm Q's queue. By default only `t2-test` without arguments is padded
+(`--test-pad-scope suite`); `--test-pad-scope all` pads every call. The run name ends in `-pad<S>`, and
+the run file has `test_pad_s` and `test_pad_scope`. Without the option nothing changes.
+
+### Records of arms G and Q
+
+The run file has `entry`:
+
+| Field | Arm G | Arm Q |
+|---|---|---|
+| `first_ready_s` | first `t2-integrate` call of any agent (seconds after the agents started) | first `land` call (server audit, ms) |
+| `last_entry_s` | last move of main | last `landed` event (server, 1 s resolution) |
+| `entry_time_s` | `last_entry_s - first_ready_s` | the same |
+| `entries` | moves of main (`entries_by_runner`: after the agents stopped) | `landed` events |
+| `test_runs`, `test_runs_failed`, `test_seconds` | tests run by `t2-integrate` | `test_run` events of the queue |
+| `repeats_main_moved` | tests run again because main moved during a test | - |
+| `calls`, `statuses` | every `t2-integrate` call: start, end, tests, repeats, answer | - |
+| `rejected_changes`, `rejections`, `rejected[]` | - | changes the queue sent back; per change its slot, how often, and `entered_later` |
+| `verdicts` | - | the answers of every `land`: the agents' own (from transcripts) and the runner's |
+| `server_events` | - | counts of `queued`, `rejected`, `landed`, `test_run`, `conflict` |
+
+Tasks on main, integration tests, cost and wall time are recorded as in every arm. Arm Q also records
+`land_queue` (batch, parallel, setup) and `q_note_sha256`.
+
+### Stub modes for these arms
+
+`T2_STUB_MODES` takes `gate-ok` and `gate-fail` (arm G), `queue-ok` and `queue-fail` (arm Q). Each stub
+adds a file of its own (`t2_stub_<k>.txt`), so no two stubs conflict, and enters at once. A `-fail` stub
+also adds `tests/test_t2_stub_fail.py`, a test that fails; after the failure it removes that file and
+enters again. With 13 stubs entering at the same moment, these modes load the entry path much harder
+than agents that finish at different times.
+
+```sh
+python3 bench/t2/t2.py run --scratch S --arm G --repo click --set hard --rep 1 --harness oracle --test-pad-s 57 --results S/g
+T2_STUB_MODES=queue-ok,queue-fail,queue-ok,... python3 bench/t2/t2.py run --scratch S --arm Q --repo click --set hard --rep 1 --harness stub --test-pad-s 57 --results S/q
 ```
 
 ## Hand-back

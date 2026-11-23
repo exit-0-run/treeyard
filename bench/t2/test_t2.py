@@ -192,6 +192,9 @@ class StopTests(StubBase):
 
 
 HAS_TREEYARD = k.treeyard_bin().exists()
+# Arm Q needs a binary with the land queue (`connect --land-queue`).
+HAS_QUEUE = HAS_TREEYARD and "--land-queue" in subprocess.run([str(k.treeyard_bin()), "connect", "--help"], capture_output=True,
+                                                                text=True).stdout
 
 
 class HandbackTests(StubBase):
@@ -1677,6 +1680,138 @@ class DevLongTests(unittest.TestCase):
         self.assertEqual([t["id"] for t in tds if t.get("oracle_undo")], ["l9-text-file"])
         meta = json.loads((k.TASKS_DIR / "networkx" / "long" / "9-l9-text-file" / "meta.json").read_text())
         self.assertIn("oracle_undo", meta)
+
+
+class ArmGQTests(StubBase):
+    """Arm G (git, a test for every change: `t2-integrate` tests the merged result and moves main with a
+    compare-and-swap) and arm Q (arm BN with the land queue), with the oracle and the entry stubs."""
+
+    # The prompt texts of the earlier arms: runs made before arms G and Q stay comparable.
+    FROZEN = {"preamble_A": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+              "preamble_B": "c0200e72211582f1723078673d9e8e96eb47f95e75478978c9f91207cd8ec9f5",
+              "preamble_BN": "20765e6f79db3dc19e6100ddfac9ab13aced52d1dd4e13b002952cc849c8fea3",
+              "A2_BLOCK": "82ecdd76c6640901558d5cf2717d24a8659fe23d36b2d7431ef8f873219b9ad5",
+              "A3_BLOCK": "f3209e302e8d19eb24abc0709c2d97a8387337afe4ae0d14a0985fc9c914bc9a",
+              "HANDBACK": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+              "HANDBACK_BN": "5c7fc1952fca3733c02b2181238a048f9176b86c56af14307c055ed6cc3014b1"}
+
+    def world(self, arm, harness, modes="", dialects="", suite=None, **kw):
+        os.environ["T2_STUB_MODES"] = modes
+        os.environ["T2_STUB_AS"] = dialects
+        spec, tasks = oracle_world(self.tmp / "w")
+        if suite:
+            spec["suite"] = suite
+        r = k.Run(self.tmp, arm, "mini", "colliding", 1, harness, limits={"max_turns": 50, "max_tokens": 10**9, "timeout_s": 120},
+                  tasks_dir=tasks, repo_spec=spec, run_dir=self.tmp / "run", results=self.tmp / "results", **kw)
+        return r
+
+    # A suite that fails while the stub's failing test is in the tree, and takes a little time.
+    FAIL_SUITE = [sys.executable, "-c", "import os, sys, time; time.sleep(0.3); sys.exit(os.path.exists('tests/test_t2_stub_fail.py'))"]
+
+    def test_earlier_prompt_texts_are_unchanged(self):
+        self.assertEqual(k.sha_text(k.preamble("A")), self.FROZEN["preamble_A"])
+        self.assertEqual(k.sha_text(k.preamble("A2")), self.FROZEN["preamble_A"])
+        self.assertEqual(k.sha_text(k.preamble("B")), self.FROZEN["preamble_B"])
+        self.assertEqual(k.sha_text(k.preamble("BN")), self.FROZEN["preamble_BN"])
+        self.assertEqual(k.sha_text(k.preamble("Q")), self.FROZEN["preamble_BN"], "arm Q has the preamble of BN")
+        self.assertEqual(k.sha_text(k.preamble("G")), self.FROZEN["preamble_A"], "arm G has the preamble of A2")
+        for name in ("A2_BLOCK", "A3_BLOCK", "HANDBACK", "HANDBACK_BN"):
+            self.assertEqual(k.sha_text(getattr(k, name)), self.FROZEN[name], name)
+
+    def test_padded_test_command(self):
+        d = self.tmp / "pad"
+        d.mkdir()
+        script = d / "t2-test"
+        k.write_script(script, k.test_script(str(d), ".", [sys.executable, "-c", "pass"], [sys.executable, "-c", "pass"], {}, 1.5))
+        t0 = time.time()
+        r = subprocess.run([str(script)], cwd=d, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertGreaterEqual(time.time() - t0, 1.5)
+        self.assertIn("t2-test: passed", r.stdout)
+        t0 = time.time()
+        subprocess.run([str(script), "x"], cwd=d, capture_output=True, text=True)
+        self.assertLess(time.time() - t0, 1.4, "scope suite: t2-test ARGS is not padded")
+        plain = k.test_script(str(d), ".", ["a"], ["b"], {})
+        self.assertNotIn("PAD_S", plain, "no pad: the script of the earlier runs")
+
+    def test_g_prompt_and_no_push_around_the_test(self):
+        r = self.world("G", "noop")
+        r.setup()
+        a1 = r.agents[0]
+        self.assertTrue(r.prompt(a1).startswith(k.G_BLOCK + "\n\n" + k.PREAMBLE + "\n\n# task 1"))
+        wt = Path(a1["cwd"])
+        self.assertEqual(k.git("remote", cwd=wt).stdout.strip(), "", "no remote in the agent's clone")
+        self.assertFalse((r.repo_dir / ".git").resolve() in [p.resolve() for p in wt.parents])
+        for f in (wt / ".git").rglob("*"):
+            if f.is_file() and f.suffix not in (".pack", ".idx") and "objects" not in f.parts:
+                self.assertNotIn(str(r.run_dir), f.read_text(errors="replace"), f)
+        (wt / "a.txt").write_text("pushed\n")
+        k.git("commit", "-qam", "x", cwd=wt)
+        main = k.git("rev-parse", "main", cwd=r.repo_dir).stdout
+        push = k.git("push", str(r.repo_dir), "HEAD:main", cwd=wt, check=False)
+        self.assertNotEqual(push.returncode, 0, "a push to main's repository is refused")
+        self.assertEqual(k.git("rev-parse", "main", cwd=r.repo_dir).stdout, main)
+        r.archive()
+
+    def test_g_oracle_tests_every_entry(self):
+        r = self.world("G", "oracle", test_pad_s=0.2)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual(res["run"], "G-mini-colliding-r1-oracle-pad0.2")
+        self.assertEqual((res["tasks_on_main"], res["interventions"], res["integrated_by_agent"]), (5, 0, 5))
+        self.assertEqual(res["arm_block_sha256"], k.sha_text(k.G_BLOCK))
+        e = res["entry"]
+        self.assertEqual((e["entries"], e["test_runs_failed"], e["repeats_main_moved"]), (5, 0, 0))
+        self.assertGreaterEqual(e["test_runs"], 5)
+        self.assertGreater(e["entry_time_s"], 0)
+        self.assertEqual(res["test_pad_s"], 0.2)
+        self.assertEqual((self.tmp / "run" / "final" / "a.txt").read_text(), "".join(f"task {i}\n" for i in range(1, 6)))
+
+    def test_g_stubs_at_once_repeat_and_a_failing_test_stays_out(self):
+        r = self.world("G", "stub", modes="gate-fail,gate-ok,gate-ok,gate-ok,gate-ok", dialects="claude,,,,", suite=self.FAIL_SUITE)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        final = self.tmp / "run" / "final"
+        self.assertEqual(sorted(p.name for p in final.glob("t2_stub_*.txt")), [f"t2_stub_{i}.txt" for i in range(1, 6)])
+        self.assertFalse((final / "tests" / "test_t2_stub_fail.py").exists(), "the failing test never entered main")
+        e = res["entry"]
+        self.assertEqual(e["entries"], 5)
+        self.assertGreaterEqual(e["test_runs_failed"], 1)
+        self.assertGreaterEqual(e["repeats_main_moved"], 1, "agents at once: main moved under some of them")
+        self.assertEqual(e["test_runs"], e["entries"] + e["test_runs_failed"] + e["repeats_main_moved"])
+        self.assertEqual(res["interventions"], 0)
+
+    @unittest.skipUnless(HAS_QUEUE, "needs a treeyard binary with the land queue (T2_TREEYARD)")
+    def test_q_oracle_through_the_queue(self):
+        r = self.world("Q", "oracle", test_pad_s=0.2)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+        self.assertEqual(res["arm_block_sha256"], k.sha_text(r.block + "\n\n" + k.Q_NOTE))
+        self.assertEqual(res["block_sha256"], k.hashlib.sha256(k.FROZEN_BLOCK_BN.read_text().rstrip("\n").encode()).hexdigest())
+        e = res["entry"]
+        self.assertEqual((e["entries"], e["rejected_changes"]), (5, 0))
+        self.assertGreaterEqual(e["test_runs"], 1)
+        self.assertEqual(e["batch"], 8)
+
+    @unittest.skipUnless(HAS_QUEUE, "needs a treeyard binary with the land queue (T2_TREEYARD)")
+    def test_q_rejection_reaches_the_agent_and_is_counted(self):
+        r = self.world("Q", "stub", modes="queue-ok,queue-fail,queue-ok,queue-ok,queue-ok", dialects="claude,claude,codex,,",
+                       suite=self.FAIL_SUITE, land_batch=4)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertTrue(res["run"].endswith("-batch4"), res["run"])
+        final = self.tmp / "run" / "final"
+        self.assertEqual(sorted(p.name for p in final.glob("t2_stub_*.txt")), [f"t2_stub_{i}.txt" for i in range(1, 6)])
+        self.assertFalse((final / "tests" / "test_t2_stub_fail.py").exists())
+        e = res["entry"]
+        self.assertEqual(e["rejected_changes"], 1, e)
+        self.assertEqual(e["rejected"][0]["k"], 2)
+        self.assertTrue(e["rejected"][0]["entered_later"])
+        self.assertEqual(e["verdicts"].get("agent:tests_failed"), 1, e["verdicts"])
+        self.assertEqual(e["verdicts"].get("agent:landed"), 5, e["verdicts"])
+        self.assertEqual(res["land_tests_failed"], 1, "the agent's own land reply")
+        self.assertEqual(e["entries"], 5)
 
 
 if __name__ == "__main__":

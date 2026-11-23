@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Why a task or an integration test is lost on the final main of an arm A run, from the history of main.
+"""Why a task or an integration test is lost on the final main of an arm A (or G) run, from the history of main.
 
 Usage: python3 losses.py --scratch S --run RUNNER_DIR [--set hard] [--out FILE.json]
 
@@ -84,6 +84,9 @@ def main():
             return c
         tip = parents[1]
         if "hand-back" in t2.git("log", "-1", "--format=%s", tip, cwd=final).stdout:
+            tip = t2.git("log", "-1", "--format=%P", tip, cwd=final).stdout.split()[0]
+        # Arm G: the branch merged main in before each test ("agent-<k>: merge main"); the own work is below them.
+        while "merge main" in t2.git("log", "-1", "--format=%s", tip, cwd=final).stdout:
             tip = t2.git("log", "-1", "--format=%P", tip, cwd=final).stdout.split()[0]
         return tip
 

@@ -8,6 +8,7 @@ Standard library only. Subcommands (see bench/t2/README.md and PREREGISTRATION.m
   generate                              tasks/ from taskdefs.py (prompts, hidden tests, patches)
   validate  --scratch S [--repo R]      each test fails on the pin and passes with its reference
   run       --scratch S --arm A|A2|B --repo R --set disjoint|colliding|mixed --rep N --harness H [--results D] [--agent-root D]
+            [--test-pad-s S] [--land-batch N]   arms G and Q (README, "Arms G and Q"): a test padded to S more seconds
   rehearse  --scratch S [--repo R]      oracle and noop runs of every cell (no model, no cost)
   solo      --scratch S --repo R --set S --rep N --harness H   each task by one agent alone on the pin
   collect   [--results DIR]             metrics.json and a summary table from the run files
@@ -64,15 +65,25 @@ SETS = ("disjoint", "colliding")
 # tasks/<repo>/<set>/set.json holds the set-level settings: agent count, harness slots, limits, integration tests
 # (`set_spec`).
 EXTRA_SETS = ("mixed", "heavy", "hard", "long")
-ARMS = ("A", "A2", "A3", "B", "BN")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+ARMS = ("A", "A2", "A3", "B", "BN", "G", "Q")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 # A3: arm A2 with a block that tells the agent to merge main into its branch often while it works ("git, merge
 # often"); not in preregistration v3. `rehearse` runs it only when asked (`--arms`).
-A2_ARMS = ("A2", "A3")
-GIT_ARMS = ("A", "A2", "A3")
+# G ("git, a test for every change"): each agent has its own clone; `t2-integrate` merges main into the agent's
+# branch, runs `t2-test` on the result and moves main only when it passes (again when main moved meanwhile).
+# Not in preregistration v3; `rehearse` runs it only when named.
+A2_ARMS = ("A2", "A3", "G")
+GIT_ARMS = ("A", "A2", "A3", "G")
 REHEARSE_ARMS = ("A", "A2", "B", "BN")
 # BN: arm B connected in native mode (`connect --native`): each agent edits and tests a directory of its own
 # with its own tools and sends the result with the bridge's `sync` and `land`. Not in preregistration v3.
-B_ARMS = ("B", "BN")
+# Q: arm BN with the server's land queue (`connect --land-queue t2-test --land-batch N`): `land` waits while the
+# server tests batches of changes on main. Not in preregistration v3; `rehearse` runs it only when named.
+B_ARMS = ("B", "BN", "Q")
+NATIVE_ARMS = ("BN", "Q")
+LAND_BATCH = 8  # arm Q: changes tested together in one queue run (`--land-batch`)
+G_CLIENT_WAIT_S = 7200  # arm G: how long `t2-integrate` waits for the runner's answer (tests, repeats)
+# Arms G and Q, Claude Code: tool timeouts long enough for a command or an MCP call that waits for tests.
+LONG_TOOL_ENV = {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "3600000", "MCP_TOOL_TIMEOUT": "3600000"}
 AGENTS = 5
 # Agent slots per repetition: 3 Claude Code, 2 Codex, rotated by one slot per repetition (preregistration v2).
 # v1 had an OpenCode slot; its free tier ran out of quota during the v1 pilot (results/v1-exploratory).
@@ -1288,7 +1299,7 @@ def agent_noop(ctx, k):
     emit({"type": "turn"})
     if c["arm"] in GIT_ARMS:
         tool(["git", "status", "--short"], c["agents"][k - 1]["cwd"])
-    elif c["arm"] == "BN":
+    elif c["arm"] in NATIVE_ARMS:
         a = c["agents"][k - 1]
         br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=a["cwd"])
         try:
@@ -1323,7 +1334,7 @@ def agent_oracle(ctx, k, resume=False):
         # The oracle writes main's content of its files plus its resolved patch, and stops.
         oracle_resolve(td, k, cwd)
         return
-    if c["arm"] == "BN":
+    if c["arm"] in NATIVE_ARMS:
         return agent_oracle_native(c, a, k, td, resume)
     ty = ctx_bin(c)
     base = ["--url", c["url"], "--home", c["home"]]
@@ -1489,7 +1500,9 @@ def agent_stub(ctx, k, resume=False):
     settles the markers on disk). `integrate` (arm A2): edits line 1, runs `t2-integrate`, settles a
     conflict and runs it again. Undo modes (arm B): `land-line` sets line 1 in its own change and lands
     it; `undo-line` waits until that line is on main, then puts line 1 back in its own change and stops
-    (the runner's land of it is held with status `undoes`)."""
+    (the runner's land of it is held with status `undoes`). Entry modes (arms G and Q, any repository):
+    `gate-ok` / `queue-ok` add a file of their own and enter (G: `t2-integrate`, Q: `land`), `gate-fail` /
+    `queue-fail` add a failing test too and, after the test failure, remove it and enter again (`stub_entry`)."""
     modes = os.environ.get("T2_STUB_MODES", "ok,ok,ok,ok,ok").split(",")
     mode = modes[k - 1] if k - 1 < len(modes) else "ok"
     dialects = os.environ.get("T2_STUB_AS", "").split(",")
@@ -1499,7 +1512,7 @@ def agent_stub(ctx, k, resume=False):
         a = c["agents"][k - 1]
         cwd = a["cwd"]
         talk = StubTalk(dialect, k, resume)
-        if c["arm"] == "BN":
+        if c["arm"] in NATIVE_ARMS:
             return stub_native_edit(c, a, k, mode, talk, resume)
         if resume:
             for f in sorted(Path(cwd).glob("*.txt")):
@@ -1534,12 +1547,15 @@ def agent_stub(ctx, k, resume=False):
             talk.call([ctx_bin(c), "workspace", "sync", a["workspace"], "--url", c["url"], "--home", c["home"]], cwd)
         talk.end()
         return
+    if mode in ENTRY_STUB_MODES and not resume:
+        c = json.loads(Path(ctx).read_text())
+        return stub_entry(c, c["agents"][k - 1], k, mode, StubTalk(dialect, k, resume))
     if mode in ("land-line", "undo-line") and not resume:
         c = json.loads(Path(ctx).read_text())
         a = c["agents"][k - 1]
         talk = StubTalk(dialect, k, resume)
         ty = ctx_bin(c)
-        if c["arm"] == "BN":
+        if c["arm"] in NATIVE_ARMS:
             return stub_native_line(c, a, k, mode, talk)
 
         def call(op, args):
@@ -1583,6 +1599,61 @@ def agent_stub(ctx, k, resume=False):
         emit({"type": "turn"})
         emit({"type": "tool_use", "name": "noop"})
         time.sleep(float(os.environ.get("T2_STUB_SLOW_S", "3")))
+
+
+ENTRY_STUB_MODES = ("gate-ok", "gate-fail", "queue-ok", "queue-fail")
+STUB_FAIL_TEST = "tests/test_t2_stub_fail.py"  # a test of the stub that fails the suite (`gate-fail`, `queue-fail`)
+
+
+def stub_entry(c, a, k, mode, talk):
+    """Arms G and Q: a new file of this agent's own (`t2_stub_<k>.txt`, so no two stubs conflict) and, in a
+    `-fail` mode, `STUB_FAIL_TEST`, a test that fails; then enter: arm G runs `t2-integrate`, arm Q calls
+    `start`, writes the files in `dir` and calls `land`, which waits for the queue. After a failed test it
+    removes the failing test and enters again (at most 5 tries in all)."""
+    fail = mode.endswith("-fail")
+
+    def write(d):
+        (Path(d) / f"t2_stub_{k}.txt").write_text(f"stub {k}\n")
+        if fail:
+            f = Path(d) / STUB_FAIL_TEST
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("def test_t2_stub_fails():\n    assert False, 'this stub test fails on purpose'\n")
+
+    def unfail(d):
+        (Path(d) / STUB_FAIL_TEST).unlink(missing_ok=True)
+
+    if c["arm"] == "Q":
+        br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=a["cwd"])
+        try:
+            st = ntool(br, "start", {"intent": f"stub {k}", "paths": [f"t2_stub_{k}.txt"]}, talk)
+            d = st.get("dir")
+            if not d:
+                emit({"type": "note", "start": "failed"})
+                return
+            write(d)
+            for _ in range(5):
+                r = ntool(br, "land", {"change": st["id"]}, talk)
+                status = r.get("status")
+                emit({"type": "note", "land_status": status or str(r.get("error", ""))[:200]})
+                if status == "tests_failed":
+                    unfail(d)
+                elif status != "not_landed_yet":
+                    break
+        finally:
+            br.close()
+    else:
+        d = a["cwd"]
+        write(d)
+        for _ in range(5):
+            r = talk.call([INTEGRATE_CMD], d)
+            emit({"type": "note", "integrate_exit": r.returncode})
+            if r.returncode == 0:
+                break
+            if "the test failed" in r.stdout:
+                unfail(d)
+            else:
+                break
+    talk.end()
 
 
 def stub_native_edit(c, a, k, mode, talk, resume):
@@ -1672,9 +1743,13 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
                "--max-turns", str(turns_left), "--max-budget-usd", str(budget_left),
                "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits",
                "--allowedTools", "Bash,Read,Edit,Write,Glob,Grep" + (",mcp__treeyard__*" if c["arm"] in B_ARMS else "")]
-        if c["arm"] == "BN":
+        if c["arm"] in NATIVE_ARMS:
             # The `start` directory is in the box's TMPDIR, outside the cwd: the agent edits it with Edit/Write.
             cmd += ["--add-dir", str(box / "tmp")]
+        if c["arm"] in ("G", "Q"):
+            # `t2-integrate` (G) and `land` (Q) wait for tests, maybe several runs: longer tool timeouts than the
+            # CLI's defaults, the same in both arms.
+            env.update(LONG_TOOL_ENV)
         if session:
             cmd += ["--resume", session]
         return cmd, env
@@ -1698,6 +1773,8 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
             cmd += ["-c", f"mcp_servers.treeyard.command={json.dumps(c['mcp_command'])}", "-c", f"mcp_servers.treeyard.args={json.dumps(margs)}",
                     "-c", f"mcp_servers.treeyard.env={{TREEYARD_URL={json.dumps(c['url'])}}}",
                     "-c", "mcp_servers.treeyard.default_tools_approval_mode=\"approve\""]
+            if c["arm"] == "Q":  # `land` waits for the queue's verdict
+                cmd += ["-c", "mcp_servers.treeyard.tool_timeout_sec=3600"]
         cmd.append(text)
         return cmd, env
     if harness == "opencode":
@@ -1970,7 +2047,7 @@ def warning_of(events, agent, native=False):
 def metrics_of(arm, agents, k_of, pairs_truth=None):
     """The transcript metrics of a run (Run.transcript_metrics, `recount --metrics`): `agents` = [(k, agent
     name, tool events)], `k_of` = change id -> k. Without `pairs_truth` there is no `false_alarms`."""
-    native = arm == "BN"
+    native = arm in NATIVE_ARMS
     per, pairs, tests = {}, set(), {}
     for k, agent, ev in agents:
         w = warning_of(ev, agent, native=native)
@@ -2061,6 +2138,31 @@ A3_BLOCK = (
 )
 
 
+# Arm G ("git, a test for every change"): like A2, but each agent has its own clone and `t2-integrate` runs the
+# test on the merged result before it moves main. Its sha256 goes in the run file (`arm_block_sha256`).
+G_BLOCK = (
+    "## Other agents work on this repository at the same time\n\n"
+    "Each agent works in its own clone of this repository, on its own branch.\n\n"
+    f"1. When your change passes `{TEST_CMD}`, integrate it yourself: run `{INTEGRATE_CMD}` in this directory. It "
+    f"merges main into your branch, runs `{TEST_CMD}` on the result and moves main to your work only when that passes; "
+    "when main moved meanwhile, it merges and tests again. It can take several minutes: wait for its answer.\n"
+    f"2. When `{INTEGRATE_CMD}` reports a conflict, the files it names hold your work and the work on main with "
+    "conflict markers. Resolve them in your files so that your work and the work on main are both kept, run "
+    f"`{TEST_CMD}`, then run `{INTEGRATE_CMD}` again.\n"
+    f"3. When `{INTEGRATE_CMD}` reports that the test failed, main did not change: fix your work from the output, run "
+    f"`{TEST_CMD}`, then run `{INTEGRATE_CMD}` again."
+)
+
+# Arm Q: the connect block of arm BN (frozen, block-bn.md) followed by this note on the land queue. The run file
+# records the sha256 of the whole (`arm_block_sha256`), of the connect block (`block_sha256`) and of the note.
+Q_NOTE = (
+    "## The land queue\n\n"
+    "`land` waits until the server has run the repository's tests on main with your change in it, which can take "
+    "several minutes, and then answers `landed`, or `tests_failed` with the end of the test output. After "
+    f"`tests_failed` your change is not on main: fix it in `dir`, run `{TEST_CMD}`, and call `land` again."
+)
+
+
 def arm_b_test_note():
     """HOOK (arm B tests): extra preamble text for arm B on how the agent's edits reach the files that
     `t2-test` runs on. In arm B an agent edits through `apply`, so the files on disk do not hold its
@@ -2078,7 +2180,7 @@ def arm_bn_test_note():
 
 
 def preamble(arm):
-    note = {"B": arm_b_test_note, "BN": arm_bn_test_note}.get(arm, lambda: "")()
+    note = {"B": arm_b_test_note, "BN": arm_bn_test_note, "Q": arm_bn_test_note}.get(arm, lambda: "")()
     return PREAMBLE + ("\n" + note if note else "")
 
 
@@ -2191,11 +2293,40 @@ def write_script(path, text):
     os.chmod(path, 0o755)
 
 
-def test_script(root, workdir, suite, prefix, env):
+def test_script(root, workdir, suite, prefix, env, pad_s=0, pad_scope="suite"):
     """`t2-test`: the repository's tests (the `suite` command of repos.json) or `test_prefix` + ARGS.
     It runs in the agent's directory (`root`, plus the repo's `workdir`); called from a directory
     outside it (a copy of the tree, as block B point 6 describes), it runs there. Absolute paths only,
-    so it works under any shell profile and sandbox."""
+    so it works under any shell profile and sandbox. `pad_s` > 0 (`run --test-pad-s`): a sleep of that
+    many seconds after the suite (`pad_scope` "suite": only `t2-test` without ARGS; "all": every call),
+    whatever the result, so the test takes longer; the exit code is the suite's."""
+    if pad_s:
+        return f'''#!{sys.executable} -I
+"""t2-test: runs the repository's tests. `t2-test ARGS` passes ARGS to the test runner."""
+import os
+import subprocess
+import sys
+import time
+
+ROOT = {str(root)!r}
+WORKDIR = {str(workdir)!r}
+SUITE = {suite!r}
+PREFIX = {prefix!r}
+ENV = {env!r}
+PAD_S = {float(pad_s)!r}
+PAD_ALL = {pad_scope == "all"!r}
+here = os.getcwd()
+base = ROOT if here == ROOT or here.startswith(ROOT + os.sep) else here
+wd = os.path.join(base, WORKDIR) if os.path.isdir(os.path.join(base, WORKDIR)) else base
+args = [os.path.abspath(x) if os.path.exists(x) else x for x in sys.argv[1:]]
+cmd = PREFIX + args if args else SUITE
+rc = subprocess.call(cmd, cwd=wd, env=dict(os.environ, **ENV))
+if PAD_ALL or not args:
+    sys.stdout.flush()
+    time.sleep(PAD_S)
+print("t2-test: passed" if rc == 0 else f"t2-test: failed (exit {{rc}})", flush=True)
+sys.exit(rc)
+'''
     return f'''#!{sys.executable} -I
 """t2-test: runs the repository's tests. `t2-test ARGS` passes ARGS to the test runner."""
 import os
@@ -2218,9 +2349,10 @@ sys.exit(rc)
 '''
 
 
-def integrate_script(spool):
+def integrate_script(spool, wait_s=900):
     """`t2-integrate` of arm A2: a request file in the agent's TMPDIR, answered by the runner (`Run.integrate`),
-    which does the git work outside any sandbox. A Codex sandbox lets a command write its TMPDIR."""
+    which does the git work outside any sandbox. A Codex sandbox lets a command write its TMPDIR. Arm G waits
+    longer (`Run.integrate_g` runs the test, maybe more than once)."""
     return f'''#!{sys.executable} -I
 """t2-integrate: merges main into this branch and, when that merges cleanly, moves main to it."""
 import json
@@ -2239,8 +2371,8 @@ os.rename(tmp, os.path.join(SPOOL, "req-" + rid + ".json"))
 res = os.path.join(SPOOL, "res-" + rid + ".json")
 t0 = time.time()
 while not os.path.exists(res):
-    if time.time() - t0 > 900:
-        print("t2-integrate: no answer within 900 s")
+    if time.time() - t0 > {wait_s}:
+        print("t2-integrate: no answer within {wait_s} s")
         sys.exit(2)
     time.sleep(0.1)
 with open(res) as f:
@@ -2256,7 +2388,8 @@ sys.exit(d["exit"])
 
 class Run:
     def __init__(self, scratch, arm, repo, s, rep, harness, limits=None, agents=None, tasks_dir=None, repo_spec=None,
-                 run_dir=None, health_url=None, results=None, block_file=None, agent_root=None, land_test=False):
+                 run_dir=None, health_url=None, results=None, block_file=None, agent_root=None, land_test=False,
+                 test_pad_s=0, test_pad_scope="suite", land_batch=None):
         self.scratch, self.arm, self.repo, self.set, self.rep, self.harness = scratch, arm, repo, s, rep, harness
         self.tasks_dir = tasks_dir or TASKS_DIR
         # Set-level settings (set.json of an extra set; else 5 agents, MIX, the frozen LIMITS): the agent
@@ -2279,6 +2412,22 @@ class Run:
             if arm != "BN":
                 raise ValueError("--land-test is for arm BN")
             self.name += "-gate"
+        # --test-pad-s: `t2-test` (the agents' own runs, arm G's integrate, arm Q's queue) is the suite plus a
+        # sleep of this many seconds. The run name ends in -pad<S>.
+        self.test_pad_s = float(test_pad_s or 0)
+        if self.test_pad_s < 0 or test_pad_scope not in ("suite", "all"):
+            raise ValueError("--test-pad-s must be >= 0 and --test-pad-scope suite or all")
+        self.test_pad_scope = test_pad_scope
+        if self.test_pad_s:
+            self.name += f"-pad{self.test_pad_s:g}"
+        # --land-batch (arm Q): changes the queue tests together.
+        if land_batch is not None and arm != "Q":
+            raise ValueError("--land-batch is for arm Q")
+        self.land_batch = int(land_batch or LAND_BATCH) if arm == "Q" else None
+        if self.land_batch is not None and self.land_batch < 1:
+            raise ValueError("--land-batch must be >= 1")
+        if self.land_batch is not None and self.land_batch != LAND_BATCH:
+            self.name += f"-batch{self.land_batch}"
         # The runner's directory (ctx.json, transcripts, final trees, the archive of the agent area):
         # never within an agent's reach. The agents' directory is `agent_area()`.
         self.run_dir = run_dir or scratch / "t2" / "runner" / self.name
@@ -2355,8 +2504,11 @@ class Run:
             clone_file(treeyard_bin(), self.ty)
         # Arm A, A2: the repository is the worktrees' common git dir, so it lives with them. Arm B: the
         # server's repository (and its data in .git/treeyard) stays with the runner.
-        self.repo_dir = self.make_repo(self.adir if self.arm in GIT_ARMS else self.run_dir)
+        # Arm G: main's repository stays with the runner (each agent has a clone of its own, with no remote).
+        self.repo_dir = self.make_repo(self.adir if self.arm in GIT_ARMS and self.arm != "G" else self.run_dir)
         self.base = git("rev-parse", "HEAD", cwd=self.repo_dir).stdout.strip()
+        if self.arm == "G":
+            self.guard_main_g()
         tasks = self.tasks()
         if len(tasks) != self.expected:
             raise Stop(f"agent count {len(tasks)} tasks, want {self.expected}")
@@ -2367,9 +2519,11 @@ class Run:
         if self.arm in B_ARMS:
             ty = self.ty
             # The mode explicitly: `connect` is native by default, arm B is the API mode.
-            native = ["--native"] if self.arm == "BN" else ["--api"]
+            native = ["--native"] if self.arm in NATIVE_ARMS else ["--api"]
             if self.land_test:
                 native += ["--land-test", LAND_TEST_CMD]
+            if self.arm == "Q":
+                native += ["--land-queue", str(self.queue_test_script()), "--land-batch", str(self.land_batch)]
             r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror", *native],
                    cwd=self.repo_dir)
             self.note("connect: " + r.stdout.strip().splitlines()[0])
@@ -2388,7 +2542,7 @@ class Run:
             if self.block_file:
                 if self.block != block_text(self.block_file):
                     raise Stop(f"instruction block differs from {self.block_file.name} (--block); refused")
-            elif self.arm == "BN":
+            elif self.arm in NATIVE_ARMS:
                 if self.block != FROZEN_BLOCK_BN.read_text().rstrip("\n"):
                     raise Stop("instruction block differs from bench/t2/block-bn.md (frozen); refused")
             elif self.block != FROZEN_BLOCK.read_text().rstrip("\n"):
@@ -2406,7 +2560,11 @@ class Run:
             counts[slot] = counts.get(slot, 0) + 1
             agent = f"{slot}-{counts[slot]}"
             a = {"k": k, "agent": agent, "harness": h, "task_dir": str(td), "title": m["title"], "id": m["id"]}
-            if self.arm in GIT_ARMS:
+            if self.arm == "G":
+                wt = self.adir / "wt" / f"agent-{k}"
+                self.clone_g(wt, k)
+                a["cwd"] = str(wt)
+            elif self.arm in GIT_ARMS:
                 wt = self.adir / "wt" / f"agent-{k}"
                 git("worktree", "add", "-q", "-b", f"agent-{k}", str(wt), "main", cwd=self.repo_dir)
                 a["cwd"] = str(wt)
@@ -2474,9 +2632,10 @@ class Run:
         prefix = self.fill_spec(self.spec.get("test_prefix") or self.spec.get("suite") or [sys.executable, "-c", "pass"], fill_vals)
         test_env = {x: env[x] for x in ("PYTHONPATH", "PYTHONDONTWRITEBYTECODE", "CARGO_TARGET_DIR", "CARGO_HOME", "CARGO_NET_OFFLINE",
                                          "RUSTUP_HOME", "VIRTUAL_ENV", *self.spec.get("env", {})) if x in env}
-        write_script(box / "bin" / TEST_CMD, test_script(a["cwd"], rel, suite, prefix, test_env))
+        write_script(box / "bin" / TEST_CMD, test_script(a["cwd"], rel, suite, prefix, test_env, self.test_pad_s, self.test_pad_scope))
         if self.arm in A2_ARMS:
-            write_script(box / "bin" / INTEGRATE_CMD, integrate_script(box / "tmp" / ".t2-integrate"))
+            write_script(box / "bin" / INTEGRATE_CMD, integrate_script(box / "tmp" / ".t2-integrate",
+                                                                       G_CLIENT_WAIT_S if self.arm == "G" else 900))
         a["env"] = env
         a["test_command"] = {"suite": suite, "prefix": prefix, "workdir": str(wd)}
 
@@ -2491,8 +2650,10 @@ class Run:
 
     def arm_block(self):
         """The arm's instruction block: B and BN the connect block, A2 `A2_BLOCK`, A3 `A3_BLOCK`, A none."""
+        if self.arm == "Q":
+            return getattr(self, "block", None) and self.block + "\n\n" + Q_NOTE
         return {"B": getattr(self, "block", None), "BN": getattr(self, "block", None), "A2": A2_BLOCK,
-                "A3": A3_BLOCK}.get(self.arm)
+                "A3": A3_BLOCK, "G": G_BLOCK}.get(self.arm)
 
     def prompt(self, a):
         """[arm block, empty line,] the common preamble, an empty line, the frozen task prompt."""
@@ -2629,11 +2790,12 @@ class Run:
             merges.append(rec)
         return merges, interventions
 
-    def prepare_conflict_a(self, wt):
+    def prepare_conflict_a(self, wt, ref="main"):
         """Merges main into the agent's branch in its worktree (`--no-commit`) and writes each conflicted
         file with the markers of arm B: `<<<<<<< main`, `=======`, `>>>>>>> change` (main first, no base
-        section; `git merge-file` on the index stages). Returns {path: prepared text} ({} = merged clean)."""
-        r = git("merge", "--no-ff", "--no-commit", "main", cwd=wt, check=False)
+        section; `git merge-file` on the index stages). Returns {path: prepared text} ({} = merged clean).
+        Arm G merges `ref` = the runner's copy of main in the agent's clone (`refs/remotes/origin/main`)."""
+        r = git("merge", "--no-ff", "--no-commit", ref, cwd=wt, check=False)
         if r.returncode == 0:
             return {}
         stages = {}
@@ -2724,7 +2886,7 @@ class Run:
 
     def native_dir(self, a, cid):
         """Arm BN: the `start` directory of change `cid` (in the agent's TMPDIR, its manifest beside it), or None."""
-        if self.arm != "BN":
+        if self.arm not in NATIVE_ARMS:
             return None
         root = Path(a["box"]) / "tmp" / f"treeyard-checkouts-{os.getuid()}"
         return root / cid if (root / f"{cid}.native.json").is_file() else None
@@ -2759,9 +2921,13 @@ class Run:
                 land = {"status": "error", "error": tail(r.stdout + r.stderr, 600)}
         else:
             land = self.call("land", {"change": cid})
+            if land.get("status") == "queued":  # arm Q: the API answers `queued`; the verdict comes later
+                land = self.wait_queued(cid)
         status = land.get("status") or "error"
         if status == "error" and re.search(r"\bis empty\b", str(land.get("error") or "")):
             status = "empty"  # an idle change (the agent's work went through another change)
+        if self.arm == "Q":
+            self.q_runner_lands = getattr(self, "q_runner_lands", []) + [status]
         rec = {"change": cid, "workspace": is_ws, "status": status}
         if native is not None:
             rec["native"] = True
@@ -2963,6 +3129,27 @@ class Run:
         stop = threading.Event()
         t0 = time.time()
 
+        def answer(a, spool, rid):
+            t_call = round(time.time() - t0, 2)
+            if self.integrate_open:
+                try:
+                    if self.arm == "G":  # several agents at once: each tests, the move of main is a compare-and-swap
+                        rc, out, status = self.integrate_g(a)
+                    else:
+                        with self.integrate_lock:
+                            rc, out, status = self.integrate(a)
+                except Exception as e:  # noqa: BLE001 - the agent gets the text, the run goes on
+                    rc, out, status = 2, f"{INTEGRATE_CMD}: runner error: {e}\n", "error"
+            else:
+                rc, out, status = 1, f"{INTEGRATE_CMD}: closed, the runner merges now; edit the files only\n", "closed"
+            rec = {"t_s": round(time.time() - t0, 2), "exit": rc, "status": status}
+            if self.arm == "G":
+                rec["t0_s"] = t_call
+            a.setdefault("integrations", []).append(rec)
+            tmp = spool / f".res-{rid}"
+            tmp.write_text(json.dumps({"exit": rc, "out": out}))
+            tmp.rename(spool / f"res-{rid}.json")
+
         def loop():
             while not stop.wait(0.1):
                 for a in self.agents:
@@ -2973,18 +3160,10 @@ class Run:
                         except (ValueError, KeyError, OSError):
                             continue
                         req.unlink(missing_ok=True)
-                        if self.integrate_open:
-                            with self.integrate_lock:
-                                try:
-                                    rc, out, status = self.integrate(a)
-                                except Exception as e:  # noqa: BLE001 - the agent gets the text, the run goes on
-                                    rc, out, status = 2, f"{INTEGRATE_CMD}: runner error: {e}\n", "error"
+                        if self.arm == "G":
+                            threading.Thread(target=answer, args=(a, spool, rid), daemon=True).start()
                         else:
-                            rc, out, status = 1, f"{INTEGRATE_CMD}: closed, the runner merges now; edit the files only\n", "closed"
-                        a.setdefault("integrations", []).append({"t_s": round(time.time() - t0, 2), "exit": rc, "status": status})
-                        tmp = spool / f".res-{rid}"
-                        tmp.write_text(json.dumps({"exit": rc, "out": out}))
-                        tmp.rename(spool / f"res-{rid}.json")
+                            answer(a, spool, rid)
 
         threading.Thread(target=loop, daemon=True).start()
         return stop
@@ -3028,6 +3207,300 @@ class Run:
         a.pop("integrate_files", None)
         head = git("rev-parse", "--short", "main", cwd=self.repo_dir).stdout.strip()
         return 0, f"{INTEGRATE_CMD}: integrated, main is now your work ({head})\n", "integrated"
+
+    # -------------------------------------------------------------- arm G: a clone per agent, t2-integrate with the test
+
+    G_MAIN = "refs/remotes/origin/main"  # the runner's copy of main in an agent's clone
+
+    def gitq(self, *args, cwd, check=True):
+        """git in an agent's clone for the runner: no hooks of the agent's, no reflog entries, no FETCH_HEAD (so
+        no path of the runner's repository is written into the clone)."""
+        return git("-c", "core.hooksPath=/dev/null", "-c", "core.logAllRefUpdates=false", *args, cwd=cwd, check=check)
+
+    def guard_main_g(self):
+        """Arm G: main moves only through `integrate_g` (a fetch from the agent's clone and a compare-and-swap of
+        the ref by the runner). Main's repository is with the runner, out of the agents' reach and named by no
+        remote of theirs; its HEAD is detached, and a pre-receive hook refuses every push."""
+        git("checkout", "-q", "--detach", cwd=self.repo_dir)
+        write_script(self.repo_dir / ".git" / "hooks" / "pre-receive",
+                     "#!/bin/sh\necho 'main changes only through t2-integrate' >&2\nexit 1\n")
+        self.g_lock = threading.Lock()
+        self.g_agent_locks = {}
+        self.g_tests, self.g_calls, self.g_entries = [], [], []
+
+    def sync_main_g(self, wt):
+        """Fetches main into the agent's clone (`G_MAIN`, and the local branch `main` unless it is checked out
+        there); returns the commit fetched, the `old` value of the next compare-and-swap. `--update-shallow`: the
+        pinned clones are shallow."""
+        self.gitq("fetch", "-q", "--no-tags", "--no-write-fetch-head", "--update-shallow", str(self.repo_dir), f"+refs/heads/main:{self.G_MAIN}", cwd=wt)
+        m = self.gitq("rev-parse", self.G_MAIN, cwd=wt).stdout.strip()
+        head = self.gitq("symbolic-ref", "-q", "HEAD", cwd=wt, check=False).stdout.strip()
+        if head != "refs/heads/main":
+            self.gitq("update-ref", "refs/heads/main", m, cwd=wt, check=False)
+        return m
+
+    def clone_g(self, wt, k):
+        """The agent's own clone: a new repository with main fetched in and branch `agent-<k>` checked out, no
+        remote, no reflog of the fetch."""
+        wt = Path(wt)
+        wt.mkdir(parents=True)
+        git("init", "-q", cwd=wt)
+        git("config", "user.name", "t2", cwd=wt)
+        git("config", "user.email", "t2@example.com", cwd=wt)
+        self.sync_main_g(wt)
+        git("checkout", "-q", "-b", f"agent-{k}", "main", cwd=wt)
+
+    def test_g(self, a):
+        """The agent's `t2-test` (suite plus pad) on its clone, with its environment, run by the runner."""
+        t0 = time.time()
+        try:
+            r = subprocess.run([str(Path(a["box"]) / "bin" / TEST_CMD)], cwd=a["cwd"], env=a["env"], capture_output=True, text=True,
+                               timeout=max(600, self.test_pad_s + 1800))
+            rc, out = r.returncode, r.stdout + r.stderr
+        except subprocess.TimeoutExpired as e:
+            rc, out = 124, f"{e.stdout or ''}{e.stderr or ''}\nt2-test: timed out"
+        return rc, out if isinstance(out, str) else str(out), round(time.time() - t0, 2)
+
+    def integrate_g(self, a, by="agent"):
+        """One `t2-integrate` of arm G: commit the agent's work (commit rule), fetch main, merge it into the agent's
+        branch, run `t2-test` on the result and move main to it with a compare-and-swap; when main moved since
+        the fetch, the cycle starts again (fetch, merge, test, move). A conflict leaves the markers in the files
+        and the merge open, as in arm A2; a failing test leaves main as it is. Calls of different agents run at
+        the same time; one agent's calls one after the other. Returns (exit, text, status)."""
+        k, wt = a["k"], a["cwd"]
+        br = f"agent-{k}"
+        with self.g_lock:
+            lock = self.g_agent_locks.setdefault(k, threading.Lock())
+        with lock:
+            call = {"k": k, "by": by, "t0": time.time(), "tests": 0, "tests_failed": 0, "repeats": 0}
+            self.g_calls.append(call)
+            rc, out, status = self._integrate_g(a, k, wt, br, call)
+            call.update(t1=time.time(), exit=rc, status=status)
+            return rc, out, status
+
+    def _integrate_g(self, a, k, wt, br, call):
+        anc = lambda x, y: self.gitq("merge-base", "--is-ancestor", x, y, cwd=wt, check=False).returncode == 0  # noqa: E731
+        if self.merging(wt):
+            files = a.get("integrate_files") or conflict_files(wt)
+            left = [p for p in files if (Path(wt) / p).is_file() and has_marker_text((Path(wt) / p).read_text(errors="replace"))]
+            if left:
+                return 1, (f"{INTEGRATE_CMD}: conflict markers are still in {', '.join(left)}. Resolve them so that your work and "
+                           f"the work on main are both kept, run {TEST_CMD}, then {INTEGRATE_CMD} again.\n"), "markers left"
+            self.commit_work(wt, f"{br}: merge main", extra=files)
+            if self.merging(wt):
+                return 1, f"{INTEGRATE_CMD}: the merge commit failed\n", "error"
+        else:
+            self.commit_work(wt, f"{br}: work")
+        while True:
+            m = self.sync_main_g(wt)
+            if anc(br, m):
+                return 0, f"{INTEGRATE_CMD}: nothing to integrate, main has all of your work\n", "nothing"
+            if not anc(m, br):
+                prepared = self.prepare_conflict_a(wt, self.G_MAIN)
+                if prepared:
+                    a["integrate_files"] = sorted(prepared)
+                    return 1, (f"{INTEGRATE_CMD}: conflict with the work on main in {', '.join(sorted(prepared))}. These files now hold "
+                               "both versions with conflict markers: the lines between `<<<<<<< main` and `=======` are on main, the "
+                               "lines between `=======` and `>>>>>>> change` are yours. Resolve them so that your work and the work on "
+                               f"main are both kept, run {TEST_CMD}, then {INTEGRATE_CMD} again.\n"), "conflict"
+                self.commit_work(wt, f"{br}: merge main")
+            a.pop("integrate_files", None)
+            new = self.gitq("rev-parse", br, cwd=wt).stdout.strip()
+            rc, text, secs = self.test_g(a)
+            call["tests"] += 1
+            self.g_tests.append({"k": k, "by": call["by"], "t0": round(time.time() - secs, 3), "seconds": secs, "ok": rc == 0,
+                                 "commit": new[:12]})
+            if rc != 0:
+                call["tests_failed"] += 1
+                return 1, (f"{INTEGRATE_CMD}: the test failed on your work merged with main (exit {rc}); main did not change. "
+                           f"The end of the output of {TEST_CMD}:\n{tail(text, 2000)}\nFix your work, run {TEST_CMD}, then "
+                           f"{INTEGRATE_CMD} again.\n"), "test failed"
+            with self.g_lock:
+                git("fetch", "-q", "--no-tags", "--no-write-fetch-head", "--update-shallow", str(wt), f"+refs/heads/{br}:refs/t2/{br}", cwd=self.repo_dir)
+                # Main gets a commit with the tested tree, first parent the old main, second the agent's branch, so
+                # the first-parent history of main is its states one by one (as in arm A: `health`, `losses.py`).
+                tip = git("commit-tree", f"{new}^{{tree}}", "-p", m, "-p", new, "-m", f"{br}: integrate (tested)",
+                          cwd=self.repo_dir).stdout.strip()
+                moved = git("update-ref", "refs/heads/main", tip, m, cwd=self.repo_dir, check=False).returncode == 0
+                t_in = time.time()
+            if moved:
+                self.g_entries.append({"k": k, "by": call["by"], "t": t_in, "commit": tip[:12]})
+                a.setdefault("own_diffs", []).append(git("diff", m, tip, cwd=self.repo_dir).stdout)
+                again = f"; main had moved {call['repeats']} time(s), so it merged and tested again" if call["repeats"] else ""
+                return 0, f"{INTEGRATE_CMD}: integrated, main is now your work ({new[:7]}); the test passed on it{again}\n", "integrated"
+            call["repeats"] += 1
+
+    def finalize_g(self):
+        """Arm G after the agents stopped: work an agent left out of main goes through the same `integrate_g` (the
+        test included), in slot order. A conflict there is handed back as in arm A2 (the files with markers in the
+        agent's clone, `HANDBACK`), then `integrate_g` again. Work that conflicts again, keeps markers or fails the
+        test stays out of main (`needs_human`); nothing enters main untested."""
+        merges, interventions = [], 0
+        for a in self.agents:
+            k, wt = a["k"], a["cwd"]
+            br = f"agent-{k}"
+            rec = {"k": k, "conflict": False, "conflict_files": [], "handback": None, "needs_human": False,
+                   "intervention": False, "left_out": False, "runner_integrate": []}
+            if self.merging(wt):  # the agent stopped inside an integration conflict
+                git("merge", "--abort", cwd=wt, check=False)
+                rec["aborted_open_merge"] = True
+            a.pop("integrate_files", None)
+            rec["skipped_paths"] = self.commit_work(wt, f"{br}: work left in the clone")
+            m = self.sync_main_g(wt)
+            if self.gitq("merge-base", "--is-ancestor", br, m, cwd=wt, check=False).returncode == 0:
+                rec["status"] = "on main" if self.gitq("rev-parse", br, cwd=wt).stdout.strip() != self.base else "no work"
+            else:
+                rc, out, status = self.integrate_g(a, by="runner")
+                rec["runner_integrate"].append(status)
+                if status == "conflict":
+                    rec["conflict"] = True
+                    rec["conflict_files"] = rec["handback_files"] = list(a.get("integrate_files") or [])
+                    rec["merge_output"] = tail(out)
+                    self.run_agents([a], resume={k: handback_text(rec["handback_files"])})
+                    rc, out, status = self.integrate_g(a, by="runner")
+                    rec["runner_integrate"].append(status)
+                    rec["handback"] = "resolved" if status == "integrated" else "failed"
+                if status in ("integrated", "nothing"):
+                    rec["status"] = "merged" if status == "integrated" else "on main"
+                else:
+                    if self.merging(wt):
+                        git("merge", "--abort", cwd=wt, check=False)
+                    rec["status"] = "left out"
+                    rec["left_out_reason"] = status
+                    rec["handback_failure" if rec["conflict"] else "runner_failure"] = tail(out, 1500)
+                    rec.update(needs_human=True, intervention=True, left_out=True)
+                    interventions += 1
+            parts = list(a.get("own_diffs") or [])
+            if rec["status"] == "left out":
+                parts.append(self.gitq("diff", f"{self.G_MAIN}...{br}", cwd=wt).stdout)
+            rec["own_diff"] = "".join(parts)
+            merges.append(rec)
+        return merges, interventions
+
+    def entry_g(self):
+        """Arm G entry records: from the first `t2-integrate` call (of any agent, or of the runner when no agent
+        called it) to the last move of main; the test runs at entry, those that failed, and the repeats because
+        main moved between the fetch and the move."""
+        t_ref = self.t_agents
+        calls = sorted(self.g_calls, key=lambda c: c["t0"])
+        first = calls[0]["t0"] if calls else None
+        last = max((e["t"] for e in self.g_entries), default=None)
+        return {"first_ready_s": round(first - t_ref, 2) if first else None,
+                "first_ready_by": (f"agent-{calls[0]['k']}" if calls[0]["by"] == "agent" else "runner") if calls else None,
+                "last_entry_s": round(last - t_ref, 2) if last else None,
+                "entry_time_s": round(last - first, 2) if first and last else None,
+                "entries": len(self.g_entries), "entries_by_runner": sum(1 for e in self.g_entries if e["by"] == "runner"),
+                "integrate_calls": len(calls), "integrate_calls_by_runner": sum(1 for c in calls if c["by"] == "runner"),
+                "test_runs": len(self.g_tests), "test_runs_failed": sum(1 for t in self.g_tests if not t["ok"]),
+                "test_seconds": round(sum(t["seconds"] for t in self.g_tests), 2),
+                "repeats_main_moved": sum(c["repeats"] for c in calls),
+                "statuses": dict(sorted({c.get("status"): sum(1 for x in calls if x.get("status") == c.get("status")) for c in calls}.items(),
+                                        key=lambda x: str(x[0]))),
+                "calls": [{"k": c["k"], "by": c["by"], "t0_s": round(c["t0"] - t_ref, 2), "t1_s": round(c.get("t1", c["t0"]) - t_ref, 2),
+                           "status": c.get("status"), "tests": c["tests"], "tests_failed": c["tests_failed"], "repeats": c["repeats"]}
+                          for c in calls],
+                "entry_times_s": [round(e["t"] - t_ref, 2) for e in sorted(self.g_entries, key=lambda e: e["t"])]}
+
+    # -------------------------------------------------------------- arm Q: the land queue
+
+    def queue_test_script(self):
+        """The land queue's test command (arm Q): `t2-test` as the agents have it (the suite plus the pad, the
+        same environment and venv as the scripted runs), written in the runner's directory. The server runs it
+        with `sh -c` in its test slots, a copy of the tree, so it runs in the directory it is called from."""
+        d = self.run_dir / "bin"
+        d.mkdir(parents=True, exist_ok=True)
+        venv = self.scratch / "t2" / "env" / VENV
+        vals = {"python": str(venv / "bin" / "python"), "cargo": CARGO, "hook": str(d / "ts-hook.mjs")}
+        suite = self.fill_spec(self.spec.get("suite") or [sys.executable, "-c", "pass"], vals)
+        prefix = self.fill_spec(self.spec.get("test_prefix") or self.spec.get("suite") or [sys.executable, "-c", "pass"], vals)
+        env = dict(self.spec.get("env", {}))
+        if self.spec.get("venv_packages"):
+            env["VIRTUAL_ENV"] = str(venv)
+        if self.repo == "requests":
+            env.update(PYTHONPATH="src", PYTHONDONTWRITEBYTECODE="1")
+        if self.repo in ("ripgrep", "astro"):
+            raise Stop(f"arm Q: no queue test environment for {self.repo} (click and requests only)")
+        path = d / TEST_CMD
+        write_script(path, test_script(str(d / "no-tree"), self.spec.get("workdir", "."), suite, prefix, env, self.test_pad_s,
+                                       self.test_pad_scope))
+        self.queue_test = {"suite": suite, "env": env, "pad_s": self.test_pad_s, "setup": None}
+        return path
+
+    def wait_queued(self, cid, timeout_s=7200):
+        """A runner's land answered `queued` (a change without a `start` directory): polls `land_status` until the
+        verdict, in the shapes of a direct land (`landed`, `tests_failed`, ...)."""
+        t0 = time.time()
+        while time.time() - t0 < timeout_s:
+            st = self.call("land_status", {"change": cid})
+            v = st.get("verdict") or st.get("status")
+            if v in ("passed", "landed"):
+                return {"status": "landed", "land_status": st}
+            if v == "rejected":
+                return {"status": "tests_failed", "output": (st.get("output") or ""), "land_status": st}
+            if v not in ("queued", None) or "error" in st:
+                return {"status": "error", "error": tail(json.dumps(st), 600)}
+            time.sleep(1)
+        return {"status": "error", "error": "no verdict within the wait"}
+
+    def entry_q(self):
+        """Arm Q entry records, from the server: the first `land` call (audit, ms) to the last `landed` event (s);
+        test runs of the queue (`test_run` events), the changes it rejected and whether each landed later, and
+        the verdicts of every `land` reply (the agents' own, from their transcripts, and the runner's)."""
+        ev = self.call("events", {"since": 0, "limit": 100000}).get("events", [])
+        audit = self.call("audit", {"limit": 100000}).get("entries", [])
+        lands = sorted(r["time_ms"] / 1000 for r in audit if r.get("op") == "land")
+        landed = [e for e in ev if e.get("kind") == "landed"]
+        runs = [e for e in ev if e.get("kind") == "test_run"]
+        body = lambda e: e.get("body") if isinstance(e.get("body"), dict) else e  # noqa: E731
+        rejected = {}
+        for e in ev:
+            if e.get("kind") == "rejected":
+                cid = body(e).get("change") or (e.get("changes") or [None])[0]
+                rejected[cid] = rejected.get(cid, 0) + 1
+        landed_ids = {body(e).get("change") or (e.get("changes") or [None])[0] for e in landed}
+        k_of = {}
+        for a in self.agents:
+            for ch in self.changes_of(a["agent"]):
+                k_of[ch["id"]] = a["k"]
+        first = lands[0] if lands else None
+        last = max((e["time"] for e in landed), default=None)
+        t_ref = self.t_agents
+        verdicts = {}
+        for a in self.agents:
+            path = self.run_dir / f"agent-{a['k']}.jsonl"
+            lines = path.read_text(errors="replace").splitlines() if path.exists() else []
+            for e in tool_events(a.get("parser") or a["harness"], lines, Path(a["box"])):
+                if e.get("op") == "land":
+                    try:
+                        st = (json.loads(e.get("reply") or "") or {}).get("status")
+                    except (ValueError, AttributeError):
+                        st = None
+                    key = f"agent:{st or 'error'}"
+                    verdicts[key] = verdicts.get(key, 0) + 1
+        for x in getattr(self, "q_runner_lands", []):
+            key = f"runner:{x}"
+            verdicts[key] = verdicts.get(key, 0) + 1
+        counts = {}
+        for e in ev:
+            if e.get("kind") in ("queued", "rejected", "landed", "test_run", "test_passed", "test_failed", "conflict"):
+                counts[e["kind"]] = counts.get(e["kind"], 0) + 1
+        return {"first_ready_s": round(first - t_ref, 2) if first else None,
+                "last_entry_s": round(last - t_ref, 2) if last else None,
+                "entry_time_s": round(last - first, 2) if first and last else None, "time_resolution_s": 1,
+                "entries": len(landed), "test_runs": len(runs), "test_runs_failed": sum(1 for e in runs if not body(e).get("ok")),
+                "test_seconds": round(sum(float(body(e).get("seconds") or 0) for e in runs), 1),
+                "rejected_changes": len(rejected), "rejections": sum(rejected.values()),
+                "rejected": [{"change": c, "k": k_of.get(c), "times": n, "entered_later": c in landed_ids} for c, n in sorted(rejected.items(), key=lambda x: str(x[0]))],
+                "verdicts": dict(sorted(verdicts.items())), "server_events": dict(sorted(counts.items())),
+                "batch": self.land_batch, "parallel": self.queue_parallel(), "test": self.queue_test}
+
+    def queue_parallel(self):
+        """`[landing] parallel` of the server's treeyard.toml, or "server default" when connect left it unset."""
+        for f in (self.repo_dir / ".git" / "treeyard").rglob("treeyard.toml") if (self.repo_dir / ".git" / "treeyard").exists() else []:
+            m = re.search(r"^\s*parallel\s*=\s*(\d+)", f.read_text(), re.M)
+            if m:
+                return int(m.group(1))
+        return "server default"
 
     # -------------------------------------------------------------- metrics from the transcripts
 
@@ -3175,7 +3648,7 @@ class Run:
             lines.append(json.dumps({"run": self.name, "agent_area": "system temp dir" if self.made_root else "--agent-root or scratch",
                                      "preamble_sha256": sha_text(preamble(self.arm)),
                                      "arm_block_sha256": sha_text(self.arm_block()) if self.arm_block() else None,
-                                     "handback_sha256": sha_text(HANDBACK_BN if self.arm == "BN" else HANDBACK)}))
+                                     "handback_sha256": sha_text(HANDBACK_BN if self.arm in NATIVE_ARMS else HANDBACK)}))
             for a in self.agents:
                 cmd, env, parser = self.command(a)
                 p = self.prompt(a)
@@ -3198,7 +3671,7 @@ class Run:
         if not adir or not adir.exists():
             return
         for box in (adir / "box").glob("*") if (adir / "box").exists() else []:
-            if self.arm == "BN":
+            if self.arm in NATIVE_ARMS:
                 self.keep_start_dirs(box)
             for sub in ("home", "tmp", "venv", "target", "cargo"):
                 p = box / sub
@@ -3250,7 +3723,7 @@ class Run:
         result = {"run": self.name, "arm": self.arm, "repo": self.repo, "set": self.set, "rep": self.rep, "kit": KIT_VERSION,
                   "harness": self.harness, "limits": self.limits, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                   "preamble_sha256": sha_text(preamble(self.arm)),
-                  "handback_sha256": sha_text(HANDBACK_BN if self.arm == "BN" else HANDBACK)}
+                  "handback_sha256": sha_text(HANDBACK_BN if self.arm in NATIVE_ARMS else HANDBACK)}
         if self.set_spec["from_file"]:
             result["set_agents"] = self.expected
             result["set_mix"] = self.mix
@@ -3267,18 +3740,27 @@ class Run:
                 result["arm_block_sha256"] = sha_text(self.arm_block())
             if self.arm == "BN":
                 result["land_test_gate"] = {"on": self.land_test, "command": LAND_TEST_CMD if self.land_test else None}
+            result["test_pad_s"] = self.test_pad_s
+            result["test_pad_scope"] = self.test_pad_scope
+            if self.arm == "Q":
+                result["q_note_sha256"] = sha_text(Q_NOTE)
+                result["land_queue"] = {"batch": self.land_batch, "parallel": self.queue_parallel(), "setup": None,
+                                        "test": "t2-test (the runner's copy: the suite plus the pad, in the server's test slots)"}
             if self.arm in B_ARMS:
                 result["block_sha256"] = hashlib.sha256(self.block.encode()).hexdigest()
                 if self.block_file:
                     result["block_file"] = self.block_file.name
             if self.arm in A2_ARMS:
                 service = self.start_integrator()
-            t_agents = time.time()
+            t_agents = self.t_agents = time.time()
             self.run_agents()
             if service:
                 self.integrate_open = False
+            if self.arm == "G":
+                merges, interventions = self.finalize_g()
             if self.arm in GIT_ARMS:
-                merges, interventions = self.finalize_a()
+                if self.arm != "G":
+                    merges, interventions = self.finalize_a()
                 own = {m["k"]: m.pop("own_diff") for m in merges}
                 result["merges"] = merges
                 result["merge_conflicts"] = sum(m["conflict"] for m in merges)
@@ -3299,12 +3781,16 @@ class Run:
             result["interventions"] = interventions
             result["needs_human"] = interventions
             result["wall_s"] = round(time.time() - t_agents, 2)
+            if self.arm == "G":
+                result["entry"] = self.entry_g()
+            elif self.arm == "Q":
+                result["entry"] = self.entry_q()
             result["setup_s"] = round(t_agents - t0, 2)
             result.update(self.transcript_metrics(pairs_truth or {}))
             if self.arm in GIT_ARMS:
                 result["conflict_work"] = conflict_work(self.arm, self.agents, self.run_dir)
                 result["flow"] = integration_flow(self.arm, self.agents, result.get("merges"), result.get("wall_s"))
-            if self.arm == "BN":
+            if self.arm in NATIVE_ARMS:
                 bn_undoes_held(result)
                 gated = [x for rec in result.get("lands") or [] for x in rec["runner_landed"] if x.get("land_test")]
                 result["land_tests_failed_runner"] = sum(1 for rec in result.get("lands") or [] for _ in rec.get("land_test_refused") or [])
@@ -3637,7 +4123,7 @@ def recount_metrics(runs_dir, results_dirs, out_dir=None):
                     k_of.setdefault(c, k)
             m = metrics_of(r["arm"], agents, k_of)
             new = dict(r, **m)
-            if r["arm"] == "BN":
+            if r["arm"] in NATIVE_ARMS:
                 bn_undoes_held(new)
             new["recounted"] = {"by": "recount --metrics", "time": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                 "was": {x: r.get(x) for x in ("warned", "reacted", "undoes_held")}}
@@ -4146,6 +4632,12 @@ def main(argv=None):
             p.add_argument("--block", type=Path, help="arm B, development set only: this instruction block instead of block-b.md")
             p.add_argument("--land-test", action="store_true", help="arm BN: land only what passed the suite on the rebased "
                            "change (connect --land-test t2-test); the run name ends in -gate")
+            p.add_argument("--land-batch", type=int, help=f"arm Q: changes the land queue tests together (default {LAND_BATCH})")
+        if n in ("run", "rehearse"):
+            p.add_argument("--test-pad-s", type=float, default=0, help="t2-test = the suite plus a sleep of this many seconds "
+                           "(the agents' runs, arm G's integrate, arm Q's queue); the run name ends in -pad<S>")
+            p.add_argument("--test-pad-scope", choices=["suite", "all"], default="suite", help="pad only t2-test without "
+                           "arguments (suite, the default) or every call (all)")
     p = sub.add_parser("solo", help="one agent, one task, alone on the pin; its hidden test and the suite after")
     p.add_argument("--scratch", required=True, type=Path)
     p.add_argument("--repo", required=True, choices=list(REPOS) + list(DEV_REPOS))
@@ -4239,6 +4731,12 @@ def main(argv=None):
     if a.cmd == "validate":
         sys.exit(0 if validate(scratch, a.repo or list(REPOS), a.results, a.set) else 1)
     kw = {"results": getattr(a, "results", None), "agent_root": getattr(a, "agent_root", None)}
+    if a.cmd in ("run", "rehearse"):
+        kw.update(test_pad_s=a.test_pad_s, test_pad_scope=a.test_pad_scope)
+    if a.cmd == "run" and a.land_batch is not None:
+        if a.arm != "Q":
+            raise SystemExit("--land-batch is for arm Q")
+        kw["land_batch"] = a.land_batch
     if a.cmd == "run":
         if a.dry_run:
             for line in Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, land_test=a.land_test, **kw).dry_run():
@@ -4250,9 +4748,12 @@ def main(argv=None):
         if a.land_test and a.arm != "BN":
             raise SystemExit("--land-test is for arm BN")
         r = Run(scratch, a.arm, a.repo, a.set, a.rep, a.harness, block_file=a.block, land_test=a.land_test, **kw).execute(truth)
+        entry = {k: (r.get("entry") or {}).get(k) for k in ("entry_time_s", "test_runs", "test_runs_failed", "repeats_main_moved",
+                                                              "rejected_changes")} if r.get("entry") else {}
         print(json.dumps({k: r.get(k) for k in ("run", "status", "stop_reason", "tasks_on_main", "suite_green_all", "suite_green_pinned",
                                                  "merge_conflicts", "warned", "reacted", "interventions", "wall_s")}
-                         | ({"integration": f"{r['integration_passed']}/{r['integration_total']}"} if r.get("integration_total") else {})))
+                         | ({"integration": f"{r['integration_passed']}/{r['integration_total']}"} if r.get("integration_total") else {})
+                         | ({"entry": entry} if entry else {})))
         sys.exit(0 if r["status"] == "done" else 3)
     if a.cmd == "pilot":
         order = pilot_order()
