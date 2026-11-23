@@ -24,7 +24,7 @@ pass at the end and their integration test does not. A task its own agent got wr
   conflict in the moved code and removes or bypasses what the refactor needs, and no test in the
   repository's suite notices. In r61 of arm G the test before entry ran and passed.
 - Three of the four heavy cases are in runs with two kinds of agent; with one model it happened in
-  2 of 16 git runs (heavy A r12, hard G r61).
+  2 of 15 git runs (heavy A r12, hard G r61).
 - Run r42 of the land-test series lost a task and nobody traced why before its history was
   deleted, so the TreeYard count is "0 known".
 - The sets, arms, binaries and prompts differ between rows. The table says where the loss was seen,
