@@ -65,7 +65,7 @@ SETS = ("disjoint", "colliding")
 # tasks/<repo>/<set>/set.json holds the set-level settings: agent count, harness slots, limits, integration tests
 # (`set_spec`).
 EXTRA_SETS = ("mixed", "heavy", "hard", "long")
-ARMS = ("A", "A2", "A3", "B", "BN", "G", "Q")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
+ARMS = ("A", "A2", "A3", "B", "BN", "G", "Q", "Q2")  # A2: worktrees plus t2-integrate (git-native coordinated baseline); not in preregistration v3
 # A3: arm A2 with a block that tells the agent to merge main into its branch often while it works ("git, merge
 # often"); not in preregistration v3. `rehearse` runs it only when asked (`--arms`).
 # G ("git, a test for every change"): each agent has its own clone; `t2-integrate` merges main into the agent's
@@ -78,8 +78,11 @@ REHEARSE_ARMS = ("A", "A2", "B", "BN")
 # with its own tools and sends the result with the bridge's `sync` and `land`. Not in preregistration v3.
 # Q: arm BN with the server's land queue (`connect --land-queue t2-test --land-batch N`): `land` waits while the
 # server tests batches of changes on main. Not in preregistration v3; `rehearse` runs it only when named.
-B_ARMS = ("B", "BN", "Q")
-NATIVE_ARMS = ("BN", "Q")
+# Q2 ("queue v2"): arm Q with a binary that answers a conflict at `land` (against main and the changes queued
+# ahead) and the note `Q2_NOTE`: after a conflict, land again without running the full test first.
+B_ARMS = ("B", "BN", "Q", "Q2")
+NATIVE_ARMS = ("BN", "Q", "Q2")
+QUEUE_ARMS = ("Q", "Q2")
 LAND_BATCH = 8  # arm Q: changes tested together in one queue run (`--land-batch`)
 G_CLIENT_WAIT_S = 7200  # arm G: how long `t2-integrate` waits for the runner's answer (tests, repeats)
 # Arms G and Q, Claude Code: tool timeouts long enough for a command or an MCP call that waits for tests.
@@ -1601,7 +1604,7 @@ def agent_stub(ctx, k, resume=False):
         time.sleep(float(os.environ.get("T2_STUB_SLOW_S", "3")))
 
 
-ENTRY_STUB_MODES = ("gate-ok", "gate-fail", "queue-ok", "queue-fail")
+ENTRY_STUB_MODES = ("gate-ok", "gate-fail", "queue-ok", "queue-fail", "queue-ref", "queue-model")
 STUB_FAIL_TEST = "tests/test_t2_stub_fail.py"  # a test of the stub that fails the suite (`gate-fail`, `queue-fail`)
 
 
@@ -1609,8 +1612,12 @@ def stub_entry(c, a, k, mode, talk):
     """Arms G and Q: a new file of this agent's own (`t2_stub_<k>.txt`, so no two stubs conflict) and, in a
     `-fail` mode, `STUB_FAIL_TEST`, a test that fails; then enter: arm G runs `t2-integrate`, arm Q calls
     `start`, writes the files in `dir` and calls `land`, which waits for the queue. After a failed test it
-    removes the failing test and enters again (at most 5 tries in all)."""
+    removes the failing test and enters again (at most 5 tries in all). `queue-ref` (arm Q) applies the task's
+    `reference.patch` (the change on the clean pin) in `dir` and lands once; a `conflict` or `undoes` answer
+    is not resolved, the change stays out. `T2_STUB_SPREAD_S`: slot k waits (k-1) times that many seconds
+    before its first entry, so the entries are spread out."""
     fail = mode.endswith("-fail")
+    spread = float(os.environ.get("T2_STUB_SPREAD_S") or 0) * (k - 1)
 
     def write(d):
         (Path(d) / f"t2_stub_{k}.txt").write_text(f"stub {k}\n")
@@ -1622,7 +1629,9 @@ def stub_entry(c, a, k, mode, talk):
     def unfail(d):
         (Path(d) / STUB_FAIL_TEST).unlink(missing_ok=True)
 
-    if c["arm"] == "Q":
+    if mode == "queue-model":
+        return stub_queue_model(c, a, k, talk, spread)
+    if c["arm"] in QUEUE_ARMS:
         br = NativeBridge(ctx_bin(c), c["url"], a["agent"], cwd=a["cwd"])
         try:
             st = ntool(br, "start", {"intent": f"stub {k}", "paths": [f"t2_stub_{k}.txt"]}, talk)
@@ -1630,8 +1639,12 @@ def stub_entry(c, a, k, mode, talk):
             if not d:
                 emit({"type": "note", "start": "failed"})
                 return
-            write(d)
-            for _ in range(5):
+            if mode == "queue-ref":
+                tool(["git", "apply", str(Path(a["task_dir"]) / "reference.patch")], d)
+            else:
+                write(d)
+            time.sleep(spread)
+            for _ in range(1 if mode == "queue-ref" else 5):
                 r = ntool(br, "land", {"change": st["id"]}, talk)
                 status = r.get("status")
                 emit({"type": "note", "land_status": status or str(r.get("error", ""))[:200]})
@@ -1644,6 +1657,7 @@ def stub_entry(c, a, k, mode, talk):
     else:
         d = a["cwd"]
         write(d)
+        time.sleep(spread)
         for _ in range(5):
             r = talk.call([INTEGRATE_CMD], d)
             emit({"type": "note", "integrate_exit": r.returncode})
@@ -1653,6 +1667,70 @@ def stub_entry(c, a, k, mode, talk):
                 unfail(d)
             else:
                 break
+    talk.end()
+
+
+def stub_queue_model(c, a, k, talk, spread):
+    """`queue-model` (arms Q, Q2): a model of an agent that fixes conflicts, for a prediction, not a measurement.
+    It applies the task's `reference.patch` in `dir`, waits `spread`, lands. On `conflict` it waits
+    `T2_STUB_FIX_S` seconds (the time to fix), takes the files of the task at its change's base as the server
+    now holds it (main, or in queue v2 the queued change it is stacked on), applies `resolved-<k>.patch` there, or
+    else `reference.patch`, writes the result into `dir` and lands again; when neither applies it gives up and the
+    change stays out. With `T2_STUB_RETEST=1` it runs `t2-test` in `dir` before each new land (an agent of arm Q),
+    without it lands at once (arm Q2). At most 8 lands."""
+    td = Path(a["task_dir"])
+    fix_s = float(os.environ.get("T2_STUB_FIX_S") or 25)
+    retest = os.environ.get("T2_STUB_RETEST") == "1"
+    ty = ctx_bin(c)
+    br = NativeBridge(ty, c["url"], a["agent"], cwd=a["cwd"])
+    try:
+        st = ntool(br, "start", {"intent": a["title"], "paths": meta(td)["files"]}, talk)
+        cid, d = st.get("id"), st.get("dir")
+        if not d:
+            emit({"type": "note", "start": "failed"})
+            return
+        tool(["git", "apply", str(td / "reference.patch")], d)
+        time.sleep(spread)
+        for _ in range(8):
+            r = ntool(br, "land", {"change": cid}, talk)
+            status = r.get("status")
+            emit({"type": "note", "land_status": status or str(r.get("error", ""))[:200]})
+            if status == "not_landed_yet":
+                continue
+            if not (status == "conflict" or (status == "tests_failed" and r.get("conflicted"))):
+                break
+            time.sleep(fix_s)
+            ch = json.loads(subprocess.run([ty, "call", "--url", c["url"], "change", json.dumps({"change": cid})],
+                                           capture_output=True, text=True).stdout or "{}")
+            base = ch.get("base") or "main"
+            tmp = Path(tempfile.mkdtemp(prefix=f"model-{k}-", dir=c["run_dir"]))
+            subprocess.run(["git", "init", "-q"], cwd=tmp)
+            for f in meta(td)["files"]:
+                rd = subprocess.run([ty, "call", "--url", c["url"], "read", json.dumps({"path": f, "at": base})],
+                                    capture_output=True, text=True)
+                content = json.loads(rd.stdout or "{}").get("content") if rd.returncode == 0 else None
+                if content is not None:
+                    (tmp / f).parent.mkdir(parents=True, exist_ok=True)
+                    (tmp / f).write_text(content)
+            fixed = None
+            for patch in (td / f"resolved-{k}.patch", td / "reference.patch"):
+                if patch.is_file() and subprocess.run(["git", "apply", str(patch)], cwd=tmp, capture_output=True).returncode == 0:
+                    fixed = patch.name
+                    break
+            emit({"type": "note", "fix": fixed or "none applies"})
+            if not fixed:
+                break
+            for f in meta(td)["files"]:
+                src, dst = tmp / f, Path(d) / f
+                if src.is_file():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(src, dst)
+                elif dst.exists():
+                    dst.unlink()
+            if retest:
+                tool([TEST_CMD], d)
+    finally:
+        br.close()
     talk.end()
 
 
@@ -1746,7 +1824,7 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
         if c["arm"] in NATIVE_ARMS:
             # The `start` directory is in the box's TMPDIR, outside the cwd: the agent edits it with Edit/Write.
             cmd += ["--add-dir", str(box / "tmp")]
-        if c["arm"] in ("G", "Q"):
+        if c["arm"] in ("G", "Q", "Q2"):
             # `t2-integrate` (G) and `land` (Q) wait for tests, maybe several runs: longer tool timeouts than the
             # CLI's defaults, the same in both arms.
             env.update(LONG_TOOL_ENV)
@@ -1773,7 +1851,7 @@ def real_command(harness, prompt, a, c, limits, resume_msg=None, session=None, p
             cmd += ["-c", f"mcp_servers.treeyard.command={json.dumps(c['mcp_command'])}", "-c", f"mcp_servers.treeyard.args={json.dumps(margs)}",
                     "-c", f"mcp_servers.treeyard.env={{TREEYARD_URL={json.dumps(c['url'])}}}",
                     "-c", "mcp_servers.treeyard.default_tools_approval_mode=\"approve\""]
-            if c["arm"] == "Q":  # `land` waits for the queue's verdict
+            if c["arm"] in QUEUE_ARMS:  # `land` waits for the queue's verdict
                 cmd += ["-c", "mcp_servers.treeyard.tool_timeout_sec=3600"]
         cmd.append(text)
         return cmd, env
@@ -2163,6 +2241,19 @@ Q_NOTE = (
 )
 
 
+# Arm Q2: the connect block of arm BN, then this note (instead of `Q_NOTE`). It needs the queue v2 binary (a
+# conflict is answered at `land`, with the other change's lines). Recorded as `q_note_sha256`.
+Q2_NOTE = (
+    "## The land queue\n\n"
+    "`land` checks at once whether your change conflicts with main or with changes queued ahead of yours; then it "
+    "answers `conflict` with the other change's lines, and the files in `dir` hold the markers. After a `conflict`, "
+    "resolve the markers and call `land` again without running the full `t2-test` first: the queue runs the full "
+    "test. Otherwise `land` waits until the server has run the repository's tests on main with your change in it, "
+    "which can take several minutes, and then answers `landed`, or `tests_failed` with the end of the test output. "
+    f"After `tests_failed` your change is not on main: fix it in `dir`, run `{TEST_CMD}`, and call `land` again."
+)
+
+
 def arm_b_test_note():
     """HOOK (arm B tests): extra preamble text for arm B on how the agent's edits reach the files that
     `t2-test` runs on. In arm B an agent edits through `apply`, so the files on disk do not hold its
@@ -2180,7 +2271,7 @@ def arm_bn_test_note():
 
 
 def preamble(arm):
-    note = {"B": arm_b_test_note, "BN": arm_bn_test_note, "Q": arm_bn_test_note}.get(arm, lambda: "")()
+    note = {"B": arm_b_test_note, "BN": arm_bn_test_note, "Q": arm_bn_test_note, "Q2": arm_bn_test_note}.get(arm, lambda: "")()
     return PREAMBLE + ("\n" + note if note else "")
 
 
@@ -2421,9 +2512,9 @@ class Run:
         if self.test_pad_s:
             self.name += f"-pad{self.test_pad_s:g}"
         # --land-batch (arm Q): changes the queue tests together.
-        if land_batch is not None and arm != "Q":
+        if land_batch is not None and arm not in QUEUE_ARMS:
             raise ValueError("--land-batch is for arm Q")
-        self.land_batch = int(land_batch or LAND_BATCH) if arm == "Q" else None
+        self.land_batch = int(land_batch or LAND_BATCH) if arm in QUEUE_ARMS else None
         if self.land_batch is not None and self.land_batch < 1:
             raise ValueError("--land-batch must be >= 1")
         if self.land_batch is not None and self.land_batch != LAND_BATCH:
@@ -2522,7 +2613,7 @@ class Run:
             native = ["--native"] if self.arm in NATIVE_ARMS else ["--api"]
             if self.land_test:
                 native += ["--land-test", LAND_TEST_CMD]
-            if self.arm == "Q":
+            if self.arm in QUEUE_ARMS:
                 native += ["--land-queue", str(self.queue_test_script()), "--land-batch", str(self.land_batch)]
             r = sh([str(ty), "connect", "--harness", "claude,codex,opencode", "--agents", str(self.expected), "--no-mirror", *native],
                    cwd=self.repo_dir)
@@ -2648,10 +2739,13 @@ class Run:
                 out.append(x)
         return out
 
+    def q_note(self):
+        return Q2_NOTE if self.arm == "Q2" else Q_NOTE
+
     def arm_block(self):
         """The arm's instruction block: B and BN the connect block, A2 `A2_BLOCK`, A3 `A3_BLOCK`, A none."""
-        if self.arm == "Q":
-            return getattr(self, "block", None) and self.block + "\n\n" + Q_NOTE
+        if self.arm in QUEUE_ARMS:
+            return getattr(self, "block", None) and self.block + "\n\n" + self.q_note()
         return {"B": getattr(self, "block", None), "BN": getattr(self, "block", None), "A2": A2_BLOCK,
                 "A3": A3_BLOCK, "G": G_BLOCK}.get(self.arm)
 
@@ -2926,7 +3020,7 @@ class Run:
         status = land.get("status") or "error"
         if status == "error" and re.search(r"\bis empty\b", str(land.get("error") or "")):
             status = "empty"  # an idle change (the agent's work went through another change)
-        if self.arm == "Q":
+        if self.arm in QUEUE_ARMS:
             self.q_runner_lands = getattr(self, "q_runner_lands", []) + [status]
         rec = {"change": cid, "workspace": is_ws, "status": status}
         if native is not None:
@@ -3498,7 +3592,13 @@ class Run:
             timeline.sort(key=lambda x: x["t"])
         except Exception as exc:  # noqa: BLE001
             timeline = [{"error": str(exc)[:200]}]
-        return {"timeline": timeline, "first_ready_s": round(first - t_ref, 2) if first else None,
+        # Every event of the queue in order, with its body (position, paths, cause, ok, seconds), for the batches.
+        qkinds = ("queued", "rejected", "landed", "test_run", "test_passed", "test_failed", "conflict", "undoes", "rebased")
+        queue_events = [{"t": round(e["time"] - t_ref, 1), "kind": e["kind"],
+                         "agents": [k_of.get(c) for c in (e.get("changes") or [])],
+                         **{x: v for x, v in body(e).items() if x not in ("kind", "time", "changes", "agents", "review", "output")}}
+                        for e in ev if e.get("kind") in qkinds]
+        return {"timeline": timeline, "queue_events": queue_events, "first_ready_s": round(first - t_ref, 2) if first else None,
                 "last_entry_s": round(last - t_ref, 2) if last else None,
                 "entry_time_s": round(last - first, 2) if first and last else None, "time_resolution_s": 1,
                 "entries": len(landed), "test_runs": len(runs), "test_runs_failed": sum(1 for e in runs if not body(e).get("ok")),
@@ -3756,8 +3856,8 @@ class Run:
                 result["land_test_gate"] = {"on": self.land_test, "command": LAND_TEST_CMD if self.land_test else None}
             result["test_pad_s"] = self.test_pad_s
             result["test_pad_scope"] = self.test_pad_scope
-            if self.arm == "Q":
-                result["q_note_sha256"] = sha_text(Q_NOTE)
+            if self.arm in QUEUE_ARMS:
+                result["q_note_sha256"] = sha_text(self.q_note())
                 result["land_queue"] = {"batch": self.land_batch, "parallel": self.queue_parallel(), "setup": None,
                                         "test": "t2-test (the runner's copy: the suite plus the pad, in the server's test slots)"}
             if self.arm in B_ARMS:
@@ -3797,7 +3897,7 @@ class Run:
             result["wall_s"] = round(time.time() - t_agents, 2)
             if self.arm == "G":
                 result["entry"] = self.entry_g()
-            elif self.arm == "Q":
+            elif self.arm in QUEUE_ARMS:
                 result["entry"] = self.entry_q()
             result["setup_s"] = round(t_agents - t0, 2)
             result.update(self.transcript_metrics(pairs_truth or {}))
@@ -4748,7 +4848,7 @@ def main(argv=None):
     if a.cmd in ("run", "rehearse"):
         kw.update(test_pad_s=a.test_pad_s, test_pad_scope=a.test_pad_scope)
     if a.cmd == "run" and a.land_batch is not None:
-        if a.arm != "Q":
+        if a.arm not in QUEUE_ARMS:
             raise SystemExit("--land-batch is for arm Q")
         kw["land_batch"] = a.land_batch
     if a.cmd == "run":

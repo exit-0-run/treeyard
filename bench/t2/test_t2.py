@@ -1717,6 +1717,12 @@ class ArmGQTests(StubBase):
         self.assertEqual(k.sha_text(k.preamble("G")), self.FROZEN["preamble_A"], "arm G has the preamble of A2")
         for name in ("A2_BLOCK", "A3_BLOCK", "HANDBACK", "HANDBACK_BN"):
             self.assertEqual(k.sha_text(getattr(k, name)), self.FROZEN[name], name)
+        # Arms G and Q as run with real agents (queue v1): their texts stay as they were.
+        self.assertEqual(k.sha_text(k.Q_NOTE), "c3444cc108bd967927eea738551e050a7d1a3d5514b9cf4707e5332af3af33c0")
+        self.assertEqual(k.sha_text(k.G_BLOCK), "6599888819ecd668bc81a9de79857e4463a29fd09b7b6d34a1afa70e02ccc004")
+        self.assertEqual(k.sha_text(k.preamble("Q2")), self.FROZEN["preamble_BN"], "arm Q2 has the preamble of BN")
+        self.assertNotEqual(k.Q2_NOTE, k.Q_NOTE)
+        self.assertIn("without running the full `t2-test`", k.Q2_NOTE)
 
     def test_padded_test_command(self):
         d = self.tmp / "pad"
@@ -1793,6 +1799,20 @@ class ArmGQTests(StubBase):
         self.assertEqual((e["entries"], e["rejected_changes"]), (5, 0))
         self.assertGreaterEqual(e["test_runs"], 1)
         self.assertEqual(e["batch"], 8)
+
+    @unittest.skipUnless(HAS_QUEUE, "needs a treeyard binary with the land queue (T2_TREEYARD)")
+    def test_q2_has_its_own_note_and_the_same_records(self):
+        r = self.world("Q2", "oracle", test_pad_s=0.2)
+        res = r.execute()
+        self.assertEqual(res["status"], "done", res.get("stop_reason"))
+        self.assertEqual((res["tasks_on_main"], res["interventions"]), (5, 0))
+        self.assertEqual(res["arm_block_sha256"], k.sha_text(r.block + "\n\n" + k.Q2_NOTE))
+        self.assertEqual(res["q_note_sha256"], k.sha_text(k.Q2_NOTE))
+        self.assertEqual(res["preamble_sha256"], self.FROZEN["preamble_BN"])
+        e = res["entry"]
+        for key in ("entry_time_s", "test_runs", "rejected_changes", "rejected", "verdicts", "queue_events", "timeline"):
+            self.assertIn(key, e)
+        self.assertEqual(e["entries"], 5)
 
     @unittest.skipUnless(HAS_QUEUE, "needs a treeyard binary with the land queue (T2_TREEYARD)")
     def test_q_rejection_reaches_the_agent_and_is_counted(self):
