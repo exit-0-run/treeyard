@@ -85,3 +85,57 @@ two git runs give no interval.
   main broke a task that passed before. Three runs do not show that the queue prevents such losses.
 - The change the queue rejected had passed its agent's own run of the suite; it failed with the
   other agents' changes under it.
+
+## Why the queue tested one change at a time (stub agents, no model, 2026-11-23)
+
+Thirteen scripted agents called `land` within 96 s, 60 s test, batch 8, the v1 binary.
+
+| Changes | Test runs | Batches | Entry time | Left out |
+|---|---|---|---|---|
+| 13 that touch 13 different files | 3 | 1, 7, 5 | 181 s | 0 |
+| The 13 reference changes of `hard`, conflicts not resolved | 2 | 1, 2 | 120 s | 10, sent back with `conflict` after 13 to 65 s in the queue |
+
+- **Batching works when changes do not collide.** The first batch is always one change, because
+  the queue starts a test as soon as one change waits; each later batch holds what arrived during
+  the test before it.
+- **On `hard` the batches stay single because the changes collide.** A queued change that
+  conflicts with one ahead of it cannot share its batch. In v1 the queue finds that only when it
+  builds the next batch, after the running test: the later change waits up to a test length and
+  then goes back to its agent with `conflict`. That is the 48 s before the 30 conflict answers of
+  the real run. **A batch queue gives its gain on changes that merge cleanly with each other; on a
+  set built to collide it tests about one change per run, like a test per change.**
+- `land` waiting for the verdict does not keep batches small: 13 agents can queue 13 changes.
+
+### Queue v2 (branch `queue-v2`, not released, not run with real agents)
+
+Two changes that follow from the run: `land` checks the change against main and against every
+change queued ahead and answers a conflict at once, with the other change's lines; and the agent
+is told to land again after a conflict fix without running the whole suite itself (arm `Q2`), so
+the queue's test is the only full one.
+
+Prediction from a scripted model of the 13 `hard` changes (an agent that takes 25 s to fix a
+conflict, then, in v1 only, runs the 60 s suite, then lands again):
+
+| | Queue v1, model | Queue v2, model | Queue v1, real run | Git, real runs |
+|---|---|---|---|---|
+| Entry time | 1038 s | 726 s | 1109 s | 1192 and 1259 s |
+| Test runs | 12 | 12 | 13 | 46 and 48 |
+
+- The model puts v2 at 30 % under v1 and about 40 % under git. The threshold for a paid v2 run was
+  a predicted entry time of at most half of git's; **726 s is not under half of 1192 s, so no v2
+  run was made.**
+- The prediction is weak. The model's fix only applies when the tasks before it are on main, which
+  forces a near-serial order, so its closeness to the real v1 run may be chance. Its stubs never
+  fail a test.
+- Risk of v2, not measured: an agent that does not run the suite itself may hand in more changes
+  that fail, and each one spoils a batch. The measure would be the share of changes the queue's
+  test rejected, v1 against v2 (v1, real run: 1 of 14 `land` calls that reached the test).
+
+### Limits of this page
+
+- One queue run and two git runs, one model, one task set built to collide, a suite of 3 s made
+  longer to 60 s with a sleep.
+- During the second git run a compile and a test run of about a minute ran on the same machine. Its
+  times may be slightly longer for that.
+- The agents' whole-suite runs take 60 s in both arms; a repository with a fast targeted test and a
+  slow full one would shift time from the agents to the queue.
