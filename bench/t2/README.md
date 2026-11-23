@@ -144,6 +144,13 @@ preregistration. `rehearse` runs them only when named (`--arms G,Q`).
   `PYTHONPATH=src`; click needs no `--land-queue-setup`. The runner lands what agents left open through
   the bridge, which waits for the queue too; a change the queue rejects there stays out.
 
+- **Q2** ("queue v2"). Arm Q run with the queue v2 binary (built from the branch `queue-v2`), and with
+  `Q2_NOTE` instead of `Q_NOTE`. The v2 binary checks a change at `land` against main and against the
+  changes queued ahead of it, and answers `conflict` at once, with the other change's lines
+  (`conflicts_with`). The note tells the agent to land again after a conflict without running the full
+  test first; the queue runs it. The records are those of arm Q. The arm needs the v2 binary in
+  `T2_TREEYARD`; the kit does not check which binary it is, but the run file has its sha256.
+
 Both arms give Claude Code longer tool timeouts (`LONG_TOOL_ENV`), because `t2-integrate` and `land` wait
 for tests. Arm Q gives Codex `tool_timeout_sec = 3600` for the MCP server.
 
@@ -180,7 +187,14 @@ Tasks on main, integration tests, cost and wall time are recorded as in every ar
 `T2_STUB_MODES` takes `gate-ok` and `gate-fail` (arm G), `queue-ok` and `queue-fail` (arm Q). Each stub
 adds a file of its own (`t2_stub_<k>.txt`), so no two stubs conflict, and enters at once. A `-fail` stub
 also adds `tests/test_t2_stub_fail.py`, a test that fails; after the failure it removes that file and
-enters again. With 13 stubs entering at the same moment, these modes load the entry path much harder
+enters again. `queue-ref` applies the task's `reference.patch` and lands once; a conflict is not resolved.
+`queue-model` is a model of an agent, for predictions: after a conflict it waits `T2_STUB_FIX_S` seconds,
+writes the task's `resolved-<k>.patch` (or `reference.patch`) on main's files as soon as one applies, in a new
+change, runs `t2-test` first when `T2_STUB_RETEST=1`, and lands again. `T2_STUB_SPREAD_S` makes slot k wait
+(k-1) times that many seconds before its first entry. The run file's `entry.queue_events` lists every queue
+event with its body, and `entry.timeline` the events and `land` calls in time order (events have 1 s
+resolution, audit rows ms; a `land` call is also counted when the bridge asks again after the verdict).
+With 13 stubs entering at the same moment, these modes load the entry path much harder
 than agents that finish at different times.
 
 ```sh

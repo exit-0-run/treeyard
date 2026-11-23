@@ -1672,19 +1672,38 @@ def stub_entry(c, a, k, mode, talk):
 
 def stub_queue_model(c, a, k, talk, spread):
     """`queue-model` (arms Q, Q2): a model of an agent that fixes conflicts, for a prediction, not a measurement.
-    It applies the task's `reference.patch` in `dir`, waits `spread`, lands. On `conflict` it waits
-    `T2_STUB_FIX_S` seconds (the time to fix), takes the files of the task at its change's base as the server
-    now holds it (main, or in queue v2 the queued change it is stacked on), applies `resolved-<k>.patch` there, or
-    else `reference.patch`, writes the result into `dir` and lands again; when neither applies it gives up and the
-    change stays out. With `T2_STUB_RETEST=1` it runs `t2-test` in `dir` before each new land (an agent of arm Q),
-    without it lands at once (arm Q2). At most 8 lands."""
+    It applies the task's `reference.patch` in `dir`, waits `spread`, lands. On `conflict` it spends
+    `T2_STUB_FIX_S` seconds (the time to fix), then writes its fix as the task's own change on main as it is
+    then: `resolved-<k>.patch` (the task on top of tasks 1..k-1), else `reference.patch` (the task on the pin),
+    on main's files of the task. When neither applies to main yet (the earlier tasks it was written for are
+    not all on main), it looks again every 2 s, up to 30 minutes. The fix goes into a new change (`start`;
+    the old one is abandoned), so it is based on main also in queue v2. With `T2_STUB_RETEST=1` it runs
+    `t2-test` in `dir` before that land (an agent of arm Q), without it lands at once (arm Q2). At most 8
+    lands."""
     td = Path(a["task_dir"])
     fix_s = float(os.environ.get("T2_STUB_FIX_S") or 25)
     retest = os.environ.get("T2_STUB_RETEST") == "1"
     ty = ctx_bin(c)
+    files = meta(td)["files"]
     br = NativeBridge(ty, c["url"], a["agent"], cwd=a["cwd"])
+
+    def fix_on_main():
+        tmp = Path(tempfile.mkdtemp(prefix=f"model-{k}-", dir=c["run_dir"]))
+        subprocess.run(["git", "init", "-q"], cwd=tmp)
+        for f in files:
+            rd = subprocess.run([ty, "call", "--url", c["url"], "read", json.dumps({"path": f})], capture_output=True, text=True)
+            content = json.loads(rd.stdout or "{}").get("content") if rd.returncode == 0 else None
+            if content is not None:
+                (tmp / f).parent.mkdir(parents=True, exist_ok=True)
+                (tmp / f).write_text(content)
+        for patch in (td / f"resolved-{k}.patch", td / "reference.patch"):
+            if patch.is_file() and subprocess.run(["git", "apply", str(patch)], cwd=tmp, capture_output=True).returncode == 0:
+                return tmp, patch.name
+        shutil.rmtree(tmp, ignore_errors=True)
+        return None, None
+
     try:
-        st = ntool(br, "start", {"intent": a["title"], "paths": meta(td)["files"]}, talk)
+        st = ntool(br, "start", {"intent": a["title"], "paths": files}, talk)
         cid, d = st.get("id"), st.get("dir")
         if not d:
             emit({"type": "note", "start": "failed"})
@@ -1700,27 +1719,20 @@ def stub_queue_model(c, a, k, talk, spread):
             if not (status == "conflict" or (status == "tests_failed" and r.get("conflicted"))):
                 break
             time.sleep(fix_s)
-            ch = json.loads(subprocess.run([ty, "call", "--url", c["url"], "change", json.dumps({"change": cid})],
-                                           capture_output=True, text=True).stdout or "{}")
-            base = ch.get("base") or "main"
-            tmp = Path(tempfile.mkdtemp(prefix=f"model-{k}-", dir=c["run_dir"]))
-            subprocess.run(["git", "init", "-q"], cwd=tmp)
-            for f in meta(td)["files"]:
-                rd = subprocess.run([ty, "call", "--url", c["url"], "read", json.dumps({"path": f, "at": base})],
-                                    capture_output=True, text=True)
-                content = json.loads(rd.stdout or "{}").get("content") if rd.returncode == 0 else None
-                if content is not None:
-                    (tmp / f).parent.mkdir(parents=True, exist_ok=True)
-                    (tmp / f).write_text(content)
-            fixed = None
-            for patch in (td / f"resolved-{k}.patch", td / "reference.patch"):
-                if patch.is_file() and subprocess.run(["git", "apply", str(patch)], cwd=tmp, capture_output=True).returncode == 0:
-                    fixed = patch.name
-                    break
-            emit({"type": "note", "fix": fixed or "none applies"})
-            if not fixed:
+            t_wait = time.time()
+            tmp, how = fix_on_main()
+            while tmp is None and time.time() - t_wait < 1800:
+                time.sleep(2)
+                tmp, how = fix_on_main()
+            emit({"type": "note", "fix": how or "none applies", "waited_for_main_s": round(time.time() - t_wait, 1)})
+            if tmp is None:
                 break
-            for f in meta(td)["files"]:
+            subprocess.run([ty, "call", "--url", c["url"], "abandon", json.dumps({"change": cid})], capture_output=True)
+            st = ntool(br, "start", {"intent": a["title"], "paths": files}, talk)
+            cid, d = st.get("id"), st.get("dir")
+            if not d:
+                break
+            for f in files:
                 src, dst = tmp / f, Path(d) / f
                 if src.is_file():
                     dst.parent.mkdir(parents=True, exist_ok=True)
