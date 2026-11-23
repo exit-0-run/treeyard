@@ -188,6 +188,34 @@ python3 bench/t2/t2.py run --scratch S --arm G --repo click --set hard --rep 1 -
 T2_STUB_MODES=queue-ok,queue-fail,queue-ok,... python3 bench/t2/t2.py run --scratch S --arm Q --repo click --set hard --rep 1 --harness stub --test-pad-s 57 --results S/q
 ```
 
+## Broken or deleted work, every real run so far
+
+Did one agent's merge break or delete another agent's work (a task passed on main and a later
+merge or conflict resolution of another agent made it fail)? Counted by script where main's
+history exists and from the audit's per-commit table where it does not; per run in
+[`dev/losses-all.md`](dev/losses-all.md).
+
+| Runs | Set | Runs | Broke or deleted another's work | Work alone, not together | How counted |
+|---|---|---|---|---|---|
+| Git, merge at the end (A) | heavy | 12 | 2 | 2 | audit table |
+| Git, agents integrate (A2) | heavy | 13 | 2 | 1 | audit table |
+| Git, merge at the end (A) | hard | 1 | 0 | 0 | script |
+| Git, a 60 s test for every change (G) | hard | 2 | 1 | 2 | script |
+| **Git, all** | | **28** | **5** | **5** | |
+| TreeYard, API mode (B) | heavy | 12 | 0 | 1 | audit table |
+| TreeYard, native mode (BN) | heavy | 10 | 0 | 1 | audit table |
+| TreeYard, native with land test (BN) | heavy | 3 | 0 known, 1 not traced | 1 | final main only |
+| TreeYard, land queue v1 (Q) | hard | 1 | 0 | 0 | script, every state of main |
+| **TreeYard, all** | | **26** | **0 known, 1 not traced** | **3** | |
+
+Git 5 of 28 runs, TreeYard 0 known of 26, with two limits that belong to these numbers: one
+TreeYard run (r42 of the land-test series) lost a task and its history was deleted before anyone
+traced why, so the count is "0 known", not 0; and this is a table made after the fact from runs of
+different sets, arms, binaries and prompts that were not drawn for this comparison, in which three
+of the four `heavy` cases come from runs with two kinds of agent, and with one model the count is
+2 of 15 git runs. The table says where the loss was seen, not how much more often it happens with
+git.
+
 ## Hand-back
 
 The same mechanics in every arm. On a conflict at the runner's merge (A, A2) or land (B):

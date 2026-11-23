@@ -20,15 +20,16 @@ pass at the end and their integration test does not. A task its own agent got wr
 | TreeYard, land queue v1 | hard | Q | 1 | 0 | 0 | every state of main (`t2.py health`) |
 | **TreeYard, all** | | | **26** | **0 known, 1 not traced** | **3 runs** | |
 
-- In the five git runs the shape is the same: a refactor is on main, a feature agent settles a
-  conflict in the moved code and removes or bypasses what the refactor needs, and no test in the
-  repository's suite notices. In r61 of arm G the test before entry ran and passed.
-- Three of the four heavy cases are in runs with two kinds of agent; with one model it happened in
-  2 of 15 git runs (heavy A r12, hard G r61).
-- Run r42 of the land-test series lost a task and nobody traced why before its history was
-  deleted, so the TreeYard count is "0 known".
-- The sets, arms, binaries and prompts differ between rows. The table says where the loss was seen,
-  not how much more often it happens with git.
+Git 5 of 28 runs, TreeYard 0 known of 26, with two limits that belong to these numbers: run r42 of
+the land-test series lost a task and its history was deleted before anyone traced why, so the
+TreeYard count is "0 known", not 0; and the sets, arms, binaries and prompts differ between rows,
+three of the four `heavy` cases are in runs with two kinds of agent, and with one model it happened
+in 2 of 15 git runs (heavy A r12, hard G r61). The table says where the loss was seen, not how much
+more often it happens with git.
+
+In the five git runs the shape is the same: a refactor is on main, a feature agent settles a
+conflict in the moved code and removes or bypasses what the refactor needs, and no test in the
+repository's suite notices. In r61 of arm G the test before entry ran and passed.
 
 Sources: [`heavy-runs/`](heavy-runs/README.md), [`hard-runs/`](hard-runs/README.md),
 [`queue-runs/`](queue-runs/README.md).
