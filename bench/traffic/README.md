@@ -203,8 +203,8 @@ fixed after 120 s ([`results/queue-steady.json`](results/queue-steady.json)).
   fix), and it was rejected about 9 to 11 minutes after it was ready. About half of the rejected
   changes had not entered when the run ended.
 - The rate moves within a run: by ten-minute thirds it runs from 96 to 336 an hour.
-- The queue is overloaded throughout (50 agents offer about 5 times what enters; 24 to 42 ready
-  changes had not entered at the end), so the waits are those of a full queue, not of a queue that
+- The queue is overloaded throughout (the agents made 1.4 to 1.7 times the changes that entered,
+  while most of them stood waiting; 24 to 42 ready changes had not entered at the end), so the waits are those of a full queue, not of a queue that
   keeps up.
 
 ### Limits
