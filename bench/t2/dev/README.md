@@ -695,6 +695,18 @@ then the refactors other than k applied by the same generator.
   The other limits leave room for long work (suite runs of a minute or more, a hand-back) and still stop a
   runaway agent.
 
+| Rehearsal (oracle, noop) | Tasks on main | Integration | Conflicts | Interventions | Suite all / pinned |
+|---|---|---|---|---|---|
+| A oracle | 9/9 | 12/12 | 8 (hand-backs) | 0 | green / green |
+| A2 oracle | 9/9 | 12/12 | 0 | 0 | green / green |
+| A3 oracle | 9/9 | 12/12 | 0 | 0 | green / green |
+| BN oracle | 9/9 | 12/12 | 8 land conflicts | 0 (l9 held by `undoes`, landed with `undo`) | green / green |
+| B oracle | 8/9 | 8/12 | 8 | 1 (l9 held by `undoes`; the runner does not override) | green / green |
+| A, A2, A3, B, BN noop | 0/9 | 0/12 | 0 | 0 | green / green |
+
+Solo: oracle 9/9 hidden tests pass, noop 0/9, suite green in every run. `validate`: every check ok, 36 of
+36 pairs of reference patches conflict in git. Files in [`checks-long/`](checks-long/).
+
 ### Commands
 
 ```sh

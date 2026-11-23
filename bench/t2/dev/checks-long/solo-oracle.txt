@@ -1,0 +1,13 @@
+| task | rep | harness | hidden test | failed functions | suite all / pinned | turns | tokens | Claude USD | wall s |
+|---|---|---|---|---|---|---|---|---|---|
+| l1-quoted-names | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.34 |
+| l2-graph-header | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.34 |
+| l3-line-errors | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.62 |
+| l4-output-format | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.43 |
+| l5-file-bytes | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.44 |
+| l6-compression | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.43 |
+| l7-line-parser | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.37 |
+| l8-line-writer | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.39 |
+| l9-text-file | 1 | oracle | pass | - | green/green | 1 | 0 | 0.0 | 0.5 |
+
+hidden tests passed: 9/9; Claude USD 0.0

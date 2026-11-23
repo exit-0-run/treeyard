@@ -986,7 +986,7 @@ class DevTests(unittest.TestCase):
             k.select_kit(["requests", "click"])
         self.assertTrue(k.select_kit(["click"]))
         self.assertEqual((k.TASKS_DIR, k.RESULTS, k.TASK_TOTAL), (k.DEV / "tasks", k.DEV / "results", 10))
-        self.assertEqual(list(k.REPOS), ["click"])
+        self.assertEqual(list(k.REPOS), ["click", "networkx"])
         self.assertEqual(sorted(k.load_taskdefs().TASKS), ["click"])
         self.assertEqual(k.test_path("click", {"id": "c1-strip-spaces"}), "tests/test_t2_c1_strip_spaces.py")
         self.assertEqual(k.fill(["{python}"], self.tmp), [str(self.tmp / "t2" / "env" / "dev-venv" / "bin" / "python")])
