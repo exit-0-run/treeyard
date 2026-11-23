@@ -66,46 +66,42 @@ run again at 50, 75 and 100 agents with `gc.auto=0`, `maintenance.auto=false` an
 changed, with nothing else of this test running. Reported beside the first result: fetch errors and
 the clog point.
 
-## Results (2026-11-22)
+## Results (2026-11-22 and 23)
 
 **In one sentence: TreeYard's advantage in throughput exists without a test before entry and from
 hundreds of agents on; with a test before entry on the rebased tree (git, or TreeYard's land test)
-there is none, both stop at about 3600 / test length changes an hour. Only the queue mode, which
-tests a batch of changes in one run, goes above that.**
+there is none, both stop at about 3600 / test length changes an hour. Only a queue that tests a
+batch of changes in one run goes above that, and it loses most of that gain when changes fail the
+test.**
+
+Batch queues are not special to TreeYard: plain git has them as services around the repository
+(GitHub merge queue, GitLab merge trains, Bors, Mergify, Zuul). TreeYard has one built in, and on
+the `queue` branch an agent's `land` waits in it for the verdict. This page does not compare
+TreeYard's queue with any of those.
 
 Raw results: [`results/`](results/).
 
-### Series 1, no test before entry
+### No test before entry: git without automatic housekeeping against TreeYard
+
+One go, the arms alternating level by level ([`results/fair.json`](results/fair.json)).
 
 | Agents | Arm | Per hour | Median wait | 95th percentile | Retries | Entered | Ready, not entered |
 |---|---|---|---|---|---|---|---|
-| 10 | git | 1 280 | 0.19 s | 0.35 s | 3 | 64 | 0 |
-| 10 | TreeYard | 1 280 | 0.04 s | 0.09 s | 2 | 64 | 0 |
-| 20 | git | 2 500 | 0.17 s | 0.35 s | 10 | 125 | 0 |
-| 20 | TreeYard | 2 500 | 0.04 s | 0.07 s | 7 | 125 | 0 |
-| 50 | git | 5 960 | 0.37 s | 1.2 s | 219 | 298 | 0 |
-| 50 | TreeYard | 6 040 | 0.04 s | 0.06 s | 47 | 302 | 0 |
-| 100 | git | 2 500 | 20 s | 205 s | 6 161 | 174 | 26 |
-| 100 | TreeYard | 12 420 | 0.06 s | 0.21 s | 107 | 622 | 0 |
-| 200 | git | 780 | 115 s | 242 s | 5 770 | 63 | 164 |
-| 200 | TreeYard | 24 080 | 0.08 s | 0.34 s | 252 | 1 205 | 0 |
+| 50 | git | 5 980 | 0.19 s | 0.41 s | 98 | 299 | 0 |
+| 50 | TreeYard | 6 260 | 0.04 s | 0.09 s | 39 | 313 | 0 |
+| 75 | git | 9 040 | 0.21 s | 0.42 s | 237 | 452 | 0 |
+| 75 | TreeYard | 9 560 | 0.02 s | 0.04 s | 73 | 478 | 0 |
+| 100 | git | 7 200 | 0.29 s | 124 s | 5 456 | 409 | 35 |
+| 100 | TreeYard | 12 260 | 0.03 s | 0.08 s | 96 | 613 | 0 |
+| 200 | git | 1 200 | 85 s | 259 s | 7 916 | 92 | 160 |
+| 200 | TreeYard | 23 880 | 0.06 s | 0.21 s | 266 | 1 194 | 0 |
 
-Git clogs between 50 and 100 agents (retries 35 times the entries at 100); TreeYard holds to 200
-(wait twice its wait at 10). No change that entered is missing on main in any arm or series. In that
-first run 15 of the 100 scripted git agents stopped on a fetch error; the script then made a failed
-git command a retry, and git was run again:
-
-| Agents | Git as it comes: per hour / median / retries / fetch errors | Git without automatic housekeeping: the same |
-|---|---|---|
-| 50 | 5 960 / 0.24 s / 139 / 0 | 6 000 / 0.16 s / 104 / 0 |
-| 75 | 5 120 / 0.53 s / 5 606 / 1 683 | 8 200 / 0.50 s / 1 539 / 0 |
-| 100 | 2 860 / 3.7 s / 5 999 / 0 | 4 200 / 0.88 s / 6 485 / 0 |
-
-With housekeeping off the fetch errors are gone (1 683 to 0) and git does better at 75 agents, but
-the clog point by the rule is the same: retries pass entries at 75 agents (3.5 times) and at 100
-agents 48 ready changes never enter. The second column ran on a quieter machine (load average 31
-against 126 at 75 agents), so the two columns differ in more than the setting. The clog is about
-6 000 to 8 000 changes an hour, the traffic of 210 to 290 agents that each deliver 28 changes an hour.
+- Git clogs between 75 and 100 agents: at 100 the retries are 13 times the entries and 35 ready
+  changes never enter. Its best rate is about 9 000 changes an hour, the traffic of about 320
+  agents that each deliver 28 changes an hour.
+- TreeYard holds to 200 agents, the highest level run (median wait 0.06 s, no change left out).
+- Up to 75 agents the two arms deliver the same; git's wait is under half a second.
+- No change that entered is missing on main in any arm.
 
 ### Series 2 and step 1b, a test before entry
 
@@ -136,11 +132,57 @@ against 126 at 75 agents), so the two columns differ in more than the setting. T
   3 to 7 times 3600 / test length; at the top levels of the 2 s and 10 s tests it was still limited
   by what the agents offered, at 30 s and longer it sat at 5.5 times (a batch of 8 per test run,
   less the gaps between runs). Its median wait is about twice the test length.
-- A `sleep` never fails. A failing batch costs the queue more test runs (bisect); that cost is not
-  measured here. The queue arm is not what `treeyard connect --land-test` sets up today.
+- A `sleep` never fails, so this table is the queue with no failing change. The next table adds them.
+
+### The queue with failing changes
+
+50 agents, changes entering main per hour within the window, and in brackets the ratio to
+3600 / test length ([`results/queue-bad.json`](results/queue-bad.json)).
+
+| Test | 3600 / test | Batch | 0 % bad | 5 % | 10 % | 20 % | 30 % |
+|---|---|---|---|---|---|---|---|
+| 30 s | 120 | 4 | 408 (3.4) | 408 (3.4) | 312 (2.6) | 228 (1.9) | 144 (1.2) |
+| 30 s | 120 | 8 | 804 (6.7) | 408 (3.4) | 336 (2.8) | 336 (2.8) | 96 (0.8) |
+| 30 s | 120 | 16 | 1 584 (13.2) | 600 (5.0) | 24 (0.2) | 36 (0.3) | 0 (0.0) |
+| 60 s | 60 | 4 | 188 (3.1) | 202 (3.4) | 135 (2.2) | 142 (2.4) | 90 (1.5) |
+| 60 s | 60 | 8 | 382 (6.4) | 255 (4.2) | **210 (3.5)** | 68 (1.1) | 60 (1.0) |
+| 60 s | 60 | 16 | 742 (12.4) | 248 (4.1) | 15 (0.2) | 15 (0.2) | 0 (0.0) |
+| 120 s | 30 | 4 | 94 (3.1) | 94 (3.1) | 71 (2.4) | 49 (1.6) | 45 (1.5) |
+| 120 s | 30 | 8 | 191 (6.4) | 128 (4.3) | 105 (3.5) | 34 (1.1) | 30 (1.0) |
+| 120 s | 30 | 16 | 364 (12.1) | 128 (4.3) | 64 (2.1) | 8 (0.3) | 0 (0.0) |
+
+- **The rule is met in this one run:** at 10 % bad changes and a 60 s test, batch 8 gives 210
+  changes an hour, 3.5 times 3600 / test length (the rule asks for 2 times). That number is 28
+  changes in 4 batches, so it is rough.
+- **Failing changes cost most of the gain.** Batch 8 falls from 6.4 times with no bad change to
+  3.4 to 4.3 at 5 %, 2.8 to 3.5 at 10 % and about 1 at 20 to 30 % (one cell of six gives 2.8), the
+  level of a test per change.
+- **A large batch breaks down.** Batch 16 gives 12 to 13 times with no bad change and next to
+  nothing from 10 % bad on (one cell of nine gives 2.1): nearly every batch of 16 then holds a bad
+  change, and while the queue looks for it nothing enters. The landing times show gaps of four
+  test lengths after a failing batch of 8.
+- **No bad change reached main** in any of the 45 cells (297 bad changes made, 103 rejected by the
+  queue, the others still waiting at the end).
+- **No rejected change entered after its fix** within any cell: the fixed changes were still
+  waiting at the end. The wait of a bad change is therefore not measured.
+- The queue was overloaded in every cell with bad changes: 19 to 50 ready changes had not entered
+  at the end, and the median wait of the good changes that entered was 1 to 12 test lengths.
 
 ### Limits
 
+- The queue with failing changes: one run per cell, and a window of 8 to 10 test lengths, about as
+  long as the search after one or two failing batches. The cells with bad changes show the first
+  minutes of an overloaded queue, not a steady state; a single cell can be far off (see 20 % bad,
+  batch 8, at 30 s against 60 s). The three test lengths use the same random draws, so they are
+  close to one schedule at three speeds, not three samples. The fix of a rejected change is
+  instant; a real agent takes minutes.
+- Git as it comes, with automatic housekeeping, ran in earlier series, not alternating with
+  TreeYard and under other load on the machine. At 50, 75 and 100 agents it gave 5 960, 5 120 and
+  2 860 changes an hour, with 1 683 fetch errors at 75 agents, some naming "possible repository
+  corruption on the remote side"; with housekeeping off those errors were 0. In the very first
+  series 15 of 100 scripted git agents stopped on a fetch error; the script then made a failed git
+  command a retry. These numbers are in `results/series1.json`, `series3.json` and
+  `series4-nogc.json` and are not the comparison of this page.
 - One machine plays the shared repository or server and every agent, and other work ran on it during
   parts of series 1, 2 and 1b (load average is in the result files). The clog point of git in series
   1 depends on this machine's cores; the pile-up of retries does not.
