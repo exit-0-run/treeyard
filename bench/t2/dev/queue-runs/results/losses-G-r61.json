@@ -1,0 +1,30 @@
+{
+ "run": "G-click-hard-r61-real-pad57",
+ "tasks_on_main": 12,
+ "tasks": 13,
+ "integration_passed": 20,
+ "integration": 21,
+ "losses": [
+  {
+   "test": "h11-prompter",
+   "kind": "task",
+   "cause": "broken by",
+   "by": "h8-choice-menu"
+  },
+  {
+   "test": "i21-default-text-enum",
+   "kind": "integration",
+   "cause": "do not fit",
+   "by": null
+  }
+ ],
+ "breaks": [
+  {
+   "test": "h11-prompter",
+   "from": "702e00b4e384",
+   "subject": "agent-7: integrate (tested)",
+   "to": null,
+   "transient": false
+  }
+ ]
+}

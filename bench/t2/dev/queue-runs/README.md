@@ -44,3 +44,44 @@ an hour, and a queue with batch 8 gives 2.6 to 6.4 times that. Does the gain sho
 Free rehearsal with scripted agents (both arms, 60 s test): 13 of 13 tasks and 21 of 21 integration
 tests in both; with one failing change the queue rejected it, the agent side saw it, and it entered
 after the fix; arm G kept it out.
+
+## Results (2026-11-23)
+
+Three runs, not four: after the first queue run the second one was held back to find out why the
+queue tested one change at a time. Both git runs were done by then. The queue run below is
+"queue v1". Result files: [`results/`](results/).
+
+| Measure | Git r61 | Git r62 | Queue v1 r61 |
+|---|---|---|---|
+| Tasks on main | 12/13 | 13/13 | 13/13 |
+| Integration tests | 20/21 | 20/21 | 21/21 |
+| **Entry time**, first change ready to last entry | 21.0 min | 19.9 min | 18.5 min |
+| **Test runs at entry** | 48 | 46 | 13 |
+| Test runs at entry that failed | 1 | 0 | 1 (the change entered after its fix) |
+| Repeats because main moved | 34 | 33 | - |
+| Conflict answers to agents | 37 | 41 | 30 |
+| Wall time of the run | 22.7 min | 21.4 min | 20.5 min |
+| Claude USD | 4.54 | 4.54 | 5.56 |
+
+**The gain does not show.** The rule asked for an entry time in arm Q of at most half of arm G's.
+Queue v1 was 7 to 12 % faster, in these runs, with a suite made longer to 60 s. One queue run and
+two git runs give no interval.
+
+- **Test runs.** The queue ran the test 13 times, git 46 and 48 times. In git every change that
+  enters before yours makes your tested result stale, so the test runs again on the new main; the
+  queue tests a change once it is at the front.
+- **The queue tested one change at a time.** 13 test runs for 13 entries and 1 rejection, so
+  no batch was larger than two. The expectation of two batches was wrong for this set.
+- **Where the time went in queue v1** (agent time from an agent's first `land` to its entry, summed
+  over 13 agents, about 102 minutes, from the transcripts; the parts overlap a little):
+  waiting in `land` that ended with the change on main 25 min; waiting in `land` that ended with a
+  conflict answer 24 min (30 answers, 48 s each on average); the agents' own runs of the whole
+  suite 47 min; editing after a conflict about 5 min. The agents ran the whole suite 73 times. In
+  13 of the 14 `land` calls that reached the queue's test the agent had just run the whole suite
+  on the same change itself.
+- **Losses.** Git r61: task h11 passed on main and the merge of the h8 agent broke it; the suite
+  does not cover it, so the test before entry let it through. Git r61 and r62: integration test
+  i21 fails, two tasks that work alone and not together. Queue v1: nothing lost, and no state of
+  main broke a task that passed before. Three runs do not show that the queue prevents such losses.
+- The change the queue rejected had passed its agent's own run of the suite; it failed with the
+  other agents' changes under it.

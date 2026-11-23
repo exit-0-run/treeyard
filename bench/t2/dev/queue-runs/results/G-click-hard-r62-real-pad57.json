@@ -1,0 +1,2058 @@
+{
+ "agent_area": "system temp dir",
+ "agent_stats": [
+  {
+   "cost_usd": 0.140433,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 18168,
+   "tokens_cached_in": 200185,
+   "tokens_fresh_in": 18184,
+   "tokens_in": 218369,
+   "tokens_out": 4771,
+   "tool_calls": 9,
+   "turns": 10,
+   "wall_s": 227.01
+  },
+  {
+   "cost_usd": 0.313207,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 35710,
+   "tokens_cached_in": 775488,
+   "tokens_fresh_in": 35754,
+   "tokens_in": 811242,
+   "tokens_out": 9273,
+   "tool_calls": 22,
+   "turns": 23,
+   "wall_s": 886.39
+  },
+  {
+   "cost_usd": 0.62907,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 66813,
+   "tokens_cached_in": 1782841,
+   "tokens_fresh_in": 66875,
+   "tokens_in": 1849716,
+   "tokens_out": 18341,
+   "tool_calls": 56,
+   "turns": 57,
+   "wall_s": 671.17
+  },
+  {
+   "cost_usd": 0.421092,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 43982,
+   "tokens_cached_in": 1256135,
+   "tokens_fresh_in": 44042,
+   "tokens_in": 1300177,
+   "tokens_out": 11943,
+   "tool_calls": 34,
+   "turns": 35,
+   "wall_s": 979.2
+  },
+  {
+   "cost_usd": 0.25862,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 30034,
+   "tokens_cached_in": 440881,
+   "tokens_fresh_in": 30062,
+   "tokens_in": 470943,
+   "tokens_out": 9434,
+   "tool_calls": 17,
+   "turns": 18,
+   "wall_s": 320.65
+  },
+  {
+   "cost_usd": 0.3148,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 35415,
+   "tokens_cached_in": 720039,
+   "tokens_fresh_in": 35453,
+   "tokens_in": 755492,
+   "tokens_out": 10106,
+   "tool_calls": 24,
+   "turns": 25,
+   "wall_s": 394.5
+  },
+  {
+   "cost_usd": 0.364585,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 42587,
+   "tokens_cached_in": 768412,
+   "tokens_fresh_in": 42625,
+   "tokens_in": 811037,
+   "tokens_out": 11732,
+   "tool_calls": 22,
+   "turns": 23,
+   "wall_s": 527.95
+  },
+  {
+   "cost_usd": 0.300803,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 34252,
+   "tokens_cached_in": 517750,
+   "tokens_fresh_in": 34282,
+   "tokens_in": 552032,
+   "tokens_out": 11196,
+   "tool_calls": 15,
+   "turns": 16,
+   "wall_s": 458.41
+  },
+  {
+   "cost_usd": 0.415099,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 44295,
+   "tokens_cached_in": 1129850,
+   "tokens_fresh_in": 44347,
+   "tokens_in": 1174197,
+   "tokens_out": 12483,
+   "tool_calls": 27,
+   "turns": 28,
+   "wall_s": 743.45
+  },
+  {
+   "cost_usd": 0.523045,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 50460,
+   "tokens_cached_in": 1704392,
+   "tokens_fresh_in": 50538,
+   "tokens_in": 1754930,
+   "tokens_out": 15061,
+   "tool_calls": 40,
+   "turns": 41,
+   "wall_s": 1142.93
+  },
+  {
+   "cost_usd": 0.275224,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 11,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 30443,
+   "tokens_cached_in": 757035,
+   "tokens_fresh_in": 30487,
+   "tokens_in": 787522,
+   "tokens_out": 7766,
+   "tool_calls": 26,
+   "turns": 27,
+   "wall_s": 814.79
+  },
+  {
+   "cost_usd": 0.104069,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 12,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 16071,
+   "tokens_cached_in": 116851,
+   "tokens_fresh_in": 16081,
+   "tokens_in": 132932,
+   "tokens_out": 2808,
+   "tool_calls": 5,
+   "turns": 6,
+   "wall_s": 146.46
+  },
+  {
+   "cost_usd": 0.482135,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 13,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 47587,
+   "tokens_cached_in": 1433973,
+   "tokens_fresh_in": 47657,
+   "tokens_in": 1481630,
+   "tokens_out": 14825,
+   "tool_calls": 36,
+   "turns": 37,
+   "wall_s": 1278.99
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "ba80d9694077df6525e877b59f5ce0a133d24121b7a12dc6bc88f9b95e759083"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "930aadaa066adcc6824f766fed5b8a63a36de5d1144c190c5a7498dcddd9f26b"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "0bad80f26880ceaacc6f3ae602d721cbc88283795096562e6c9c300af7ebefba"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 4,
+   "prompt_sha256": "4de013265ea44fb249d4d19a03e0e80fbf96936b8666259f5424237a6a5ad0c2"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 5,
+   "prompt_sha256": "f8e6ddf6a2d117615f6c8b09cbeb9f9fc99d2e0c118ab1f5e57425d7558bbe19"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 6,
+   "prompt_sha256": "750941f3db3a349d6c9cb986ab03f0db9731c5e170d70ccc0cf7fd3d0e961bcd"
+  },
+  {
+   "agent": "claude-7",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 7,
+   "prompt_sha256": "76a7e0f1d33f285e853c986f4bd977943ac0cca63dc1692b8c62783bca7ea648"
+  },
+  {
+   "agent": "claude-8",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 8,
+   "prompt_sha256": "dfb9f10f2783f7ed75ec786d39301e01a170004aa751812592b0044ee69719b9"
+  },
+  {
+   "agent": "claude-9",
+   "harness": "claude",
+   "id": "h10-help-markdown",
+   "k": 9,
+   "prompt_sha256": "7e75bd5dc9bd1ac93dc4b0f815e6c4d7aed07058d7015b4b7f59f218b8c73a46"
+  },
+  {
+   "agent": "claude-10",
+   "harness": "claude",
+   "id": "h11-prompter",
+   "k": 10,
+   "prompt_sha256": "704d03daf7dc5725f4387fb917cfae597758d2a0cb02047364e65d3067a028d3"
+  },
+  {
+   "agent": "claude-11",
+   "harness": "claude",
+   "id": "h12-option-prompt",
+   "k": 11,
+   "prompt_sha256": "c810f183bf3237cccfd3aee56d72817a28d19303793f75f996ecc2af8af5299c"
+  },
+  {
+   "agent": "claude-12",
+   "harness": "claude",
+   "id": "h13-help-formatter",
+   "k": 12,
+   "prompt_sha256": "d140637757bd811b1ecd5ab80294961e1b07af4b3570755d7be58db0f3a1a91d"
+  },
+  {
+   "agent": "claude-13",
+   "harness": "claude",
+   "id": "h14-default-text",
+   "k": 13,
+   "prompt_sha256": "896247fcf3a689ca7fa42fdc8cf5088d81d35c800f44b17ec28b66ff57c9d329"
+  }
+ ],
+ "arm": "G",
+ "arm_block_sha256": "6599888819ecd668bc81a9de79857e4463a29fd09b7b6d34a1afa70e02ccc004",
+ "by_harness": {
+  "claude": {
+   "agents": 13,
+   "cost_usd": 4.542182,
+   "tokens_cache_write": 495817,
+   "tokens_cached_in": 11603832,
+   "tokens_fresh_in": 496387,
+   "tokens_in": 12100219,
+   "tokens_out": 139739,
+   "tool_calls": 333,
+   "turns": 346
+  }
+ },
+ "conflict_work": {
+  "claude_seconds": 5673.0,
+  "claude_seconds_total": 8569.5,
+  "claude_usd": 2.0528,
+  "claude_usd_total": 4.5422,
+  "episodes": 11,
+  "per_agent": [
+   {
+    "episodes": 0,
+    "k": 1,
+    "seconds": 0.0,
+    "usd": 0.0
+   },
+   {
+    "episodes": 1,
+    "k": 2,
+    "seconds": 720.6,
+    "usd": 0.2121
+   },
+   {
+    "episodes": 1,
+    "k": 3,
+    "seconds": 408.9,
+    "usd": 0.1561
+   },
+   {
+    "episodes": 1,
+    "k": 4,
+    "seconds": 739.6,
+    "usd": 0.2413
+   },
+   {
+    "episodes": 1,
+    "k": 5,
+    "seconds": 136.1,
+    "usd": 0.0643
+   },
+   {
+    "episodes": 1,
+    "k": 6,
+    "seconds": 135.8,
+    "usd": 0.0417
+   },
+   {
+    "episodes": 1,
+    "k": 7,
+    "seconds": 275.7,
+    "usd": 0.1138
+   },
+   {
+    "episodes": 1,
+    "k": 8,
+    "seconds": 215.3,
+    "usd": 0.1234
+   },
+   {
+    "episodes": 1,
+    "k": 9,
+    "seconds": 501.5,
+    "usd": 0.2489
+   },
+   {
+    "episodes": 1,
+    "k": 10,
+    "seconds": 912.2,
+    "usd": 0.404
+   },
+   {
+    "episodes": 1,
+    "k": 11,
+    "seconds": 588.5,
+    "usd": 0.1119
+   },
+   {
+    "episodes": 0,
+    "k": 12,
+    "seconds": 0.0,
+    "usd": 0.0
+   },
+   {
+    "episodes": 1,
+    "k": 13,
+    "seconds": 1038.7,
+    "usd": 0.3353
+   }
+  ],
+  "share_of_claude_seconds": 0.662,
+  "share_of_claude_usd": 0.4519
+ },
+ "cost_usd": 4.542182,
+ "cost_usd_claude_only": 4.542182,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h11-prompter": true,
+  "h12-option-prompt": true,
+  "h13-help-formatter": true,
+  "h14-default-text": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "entry": {
+  "calls": [
+   {
+    "by": "agent",
+    "k": 12,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 80.28,
+    "t1_s": 141.52,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 97.81,
+    "t1_s": 159.53,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 1,
+    "repeats": 1,
+    "status": "integrated",
+    "t0_s": 98.23,
+    "t1_s": 220.83,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 11,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 100.0,
+    "t1_s": 222.64,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 109.67,
+    "t1_s": 232.37,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 110.6,
+    "t1_s": 233.48,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 5,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 178.45,
+    "t1_s": 178.81,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 7,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 184.19,
+    "t1_s": 245.38,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 6,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 190.84,
+    "t1_s": 252.22,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 3,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 194.56,
+    "t1_s": 256.29,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 224.72,
+    "t1_s": 225.15,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 8,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 234.93,
+    "t1_s": 235.47,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 9,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 235.87,
+    "t1_s": 236.37,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 5,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 253.91,
+    "t1_s": 314.88,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 291.05,
+    "t1_s": 413.63,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 11,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 291.99,
+    "t1_s": 415.23,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 2,
+    "status": "conflict",
+    "t0_s": 300.95,
+    "t1_s": 424.16,
+    "tests": 2,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 309.78,
+    "t1_s": 370.89,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 7,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 324.08,
+    "t1_s": 324.36,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 8,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 325.23,
+    "t1_s": 325.54,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 6,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 326.69,
+    "t1_s": 387.97,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 3,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 339.52,
+    "t1_s": 400.81,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 365.75,
+    "t1_s": 366.07,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 8,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 389.7,
+    "t1_s": 450.83,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 7,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 390.96,
+    "t1_s": 391.32,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 436.04,
+    "t1_s": 436.34,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 441.43,
+    "t1_s": 441.87,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 9,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 445.8,
+    "t1_s": 446.13,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 7,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 459.74,
+    "t1_s": 521.1,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 3,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 471.21,
+    "t1_s": 532.81,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 482.15,
+    "t1_s": 482.56,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 11,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 482.15,
+    "t1_s": 543.68,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 501.61,
+    "t1_s": 563.34,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 520.85,
+    "t1_s": 582.36,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 565.12,
+    "t1_s": 565.53,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 9,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 587.95,
+    "t1_s": 588.49,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 3,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 604.31,
+    "t1_s": 665.26,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 11,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 617.3,
+    "t1_s": 679.23,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 618.35,
+    "t1_s": 680.23,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 3,
+    "status": "conflict",
+    "t0_s": 647.2,
+    "t1_s": 830.75,
+    "tests": 3,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 658.67,
+    "t1_s": 720.06,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 9,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 675.44,
+    "t1_s": 737.93,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 707.24,
+    "t1_s": 707.63,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 748.33,
+    "t1_s": 748.72,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 11,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 750.31,
+    "t1_s": 811.2,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 786.75,
+    "t1_s": 848.07,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 807.31,
+    "t1_s": 868.56,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 2,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 819.06,
+    "t1_s": 880.14,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 4,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 910.54,
+    "t1_s": 971.94,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 918.12,
+    "t1_s": 979.84,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 934.94,
+    "t1_s": 935.28,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 0,
+    "status": "conflict",
+    "t0_s": 1016.6,
+    "t1_s": 1016.98,
+    "tests": 0,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 10,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 1076.06,
+    "t1_s": 1137.35,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 1,
+    "status": "conflict",
+    "t0_s": 1085.2,
+    "t1_s": 1146.46,
+    "tests": 1,
+    "tests_failed": 0
+   },
+   {
+    "by": "agent",
+    "k": 13,
+    "repeats": 0,
+    "status": "integrated",
+    "t0_s": 1211.62,
+    "t1_s": 1272.21,
+    "tests": 1,
+    "tests_failed": 0
+   }
+  ],
+  "entries": 13,
+  "entries_by_runner": 0,
+  "entry_time_s": 1191.92,
+  "entry_times_s": [
+   141.5,
+   220.81,
+   314.87,
+   387.95,
+   450.81,
+   521.08,
+   665.24,
+   737.92,
+   811.19,
+   880.13,
+   971.93,
+   1137.34,
+   1272.2
+  ],
+  "first_ready_by": "agent-12",
+  "first_ready_s": 80.28,
+  "integrate_calls": 55,
+  "integrate_calls_by_runner": 0,
+  "last_entry_s": 1272.2,
+  "repeats_main_moved": 33,
+  "statuses": {
+   "conflict": 42,
+   "integrated": 13
+  },
+  "test_runs": 46,
+  "test_runs_failed": 0,
+  "test_seconds": 2799.43
+ },
+ "false_alarms": 0,
+ "flow": {
+  "changes_on_main": 13,
+  "changes_per_hour": 36.51,
+  "pieces_waited": 13,
+  "retries": 42,
+  "wait_s_median": 408.97,
+  "wait_s_p95": 912.2
+ },
+ "guard": {
+  "1": {
+   "added": 148,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 32,
+   "test_added": 21
+  },
+  "10": {
+   "added": 347,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompter.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 169,
+   "test_added": 23
+  },
+  "11": {
+   "added": 175,
+   "files": 4,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_option_prompt.py",
+    "src/click/core.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 47,
+   "test_added": 31
+  },
+  "12": {
+   "added": 348,
+   "files": 6,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 293,
+   "test_added": 16
+  },
+  "13": {
+   "added": 150,
+   "files": 6,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/_default_text.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 82,
+   "test_added": 17
+  },
+  "2": {
+   "added": 206,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 71,
+   "test_added": 32
+  },
+  "3": {
+   "added": 243,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 4,
+   "test_added": 42
+  },
+  "4": {
+   "added": 170,
+   "files": 9,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_option_prompt.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 6,
+   "test_added": 32
+  },
+  "5": {
+   "added": 162,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 15,
+   "test_added": 46
+  },
+  "6": {
+   "added": 286,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_termui.py",
+    "tests/test_types/test_ParamType.py"
+   ],
+   "removed": 3,
+   "test_added": 45
+  },
+  "7": {
+   "added": 219,
+   "files": 6,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 3,
+   "test_added": 55
+  },
+  "8": {
+   "added": 188,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 8,
+   "test_added": 47
+  },
+  "9": {
+   "added": 194,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 31
+  }
+ },
+ "handback_sha256": "6fd7b3122b8117411cc0ed4c0d009c7fabcf8fc0cece68b7701181214314281e",
+ "harness": "real",
+ "integrate_conflicts": 42,
+ "integrated_by_agent": 13,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i10-prompter-secret": true,
+  "i11-prompter-attempts": true,
+  "i12-prompter-choice-menu": true,
+  "i13-option-prompt-attempts": true,
+  "i14-option-prompt-menu": true,
+  "i15-option-prompt-secret": true,
+  "i16-help-formatter-groups": true,
+  "i17-help-formatter-theme": true,
+  "i18-help-formatter-markdown": true,
+  "i19-default-text-hidden": true,
+  "i2-hidden-default-item": true,
+  "i20-default-text-byte-size": true,
+  "i21-default-text-enum": false,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 20,
+ "integration_total": 21,
+ "integrations": {
+  "1": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 98.23,
+    "t_s": 220.83
+   }
+  ],
+  "10": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 224.72,
+    "t_s": 225.15
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 300.95,
+    "t_s": 424.16
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 565.12,
+    "t_s": 565.53
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 707.24,
+    "t_s": 707.63
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 786.75,
+    "t_s": 848.07
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 918.12,
+    "t_s": 979.84
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 1076.06,
+    "t_s": 1137.35
+   }
+  ],
+  "11": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 100.0,
+    "t_s": 222.64
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 291.99,
+    "t_s": 415.23
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 482.16,
+    "t_s": 543.68
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 617.3,
+    "t_s": 679.23
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 750.31,
+    "t_s": 811.2
+   }
+  ],
+  "12": [
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 80.28,
+    "t_s": 141.52
+   }
+  ],
+  "13": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 110.6,
+    "t_s": 233.48
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 309.78,
+    "t_s": 370.89
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 441.43,
+    "t_s": 441.87
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 520.85,
+    "t_s": 582.36
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 658.67,
+    "t_s": 720.06
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 807.31,
+    "t_s": 868.56
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 934.94,
+    "t_s": 935.28
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 1016.6,
+    "t_s": 1016.98
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 1085.2,
+    "t_s": 1146.46
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 1211.62,
+    "t_s": 1272.21
+   }
+  ],
+  "2": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 97.81,
+    "t_s": 159.53
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 291.05,
+    "t_s": 413.63
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 482.15,
+    "t_s": 482.56
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 618.35,
+    "t_s": 680.23
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 748.33,
+    "t_s": 748.72
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 819.06,
+    "t_s": 880.14
+   }
+  ],
+  "3": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 194.56,
+    "t_s": 256.29
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 339.52,
+    "t_s": 400.81
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 471.21,
+    "t_s": 532.81
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 604.31,
+    "t_s": 665.26
+   }
+  ],
+  "4": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 109.67,
+    "t_s": 232.37
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 365.75,
+    "t_s": 366.07
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 436.04,
+    "t_s": 436.34
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 501.61,
+    "t_s": 563.34
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 647.2,
+    "t_s": 830.75
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 910.54,
+    "t_s": 971.94
+   }
+  ],
+  "5": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 178.45,
+    "t_s": 178.81
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 253.91,
+    "t_s": 314.88
+   }
+  ],
+  "6": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 190.84,
+    "t_s": 252.22
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 326.69,
+    "t_s": 387.97
+   }
+  ],
+  "7": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 184.19,
+    "t_s": 245.38
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 324.08,
+    "t_s": 324.36
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 390.96,
+    "t_s": 391.32
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 459.74,
+    "t_s": 521.1
+   }
+  ],
+  "8": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 234.93,
+    "t_s": 235.47
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 325.23,
+    "t_s": 325.54
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 389.7,
+    "t_s": 450.83
+   }
+  ],
+  "9": [
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 235.87,
+    "t_s": 236.37
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 445.8,
+    "t_s": 446.13
+   },
+   {
+    "exit": 1,
+    "status": "conflict",
+    "t0_s": 587.95,
+    "t_s": 588.49
+   },
+   {
+    "exit": 0,
+    "status": "integrated",
+    "t0_s": 675.44,
+    "t_s": 737.93
+   }
+  ]
+ },
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [],
+ "lost_lines": {
+  "per_agent": {
+   "1": 16,
+   "10": 0,
+   "11": 1,
+   "12": 7,
+   "13": 0,
+   "2": 25,
+   "3": 4,
+   "4": 21,
+   "5": 1,
+   "6": 7,
+   "7": 29,
+   "8": 5,
+   "9": 0
+  },
+  "total": 116
+ },
+ "merge_conflicts": 0,
+ "merges": [
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 11,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 12,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  },
+  {
+   "conflict": false,
+   "conflict_files": [],
+   "handback": null,
+   "intervention": false,
+   "k": 13,
+   "left_out": false,
+   "needs_human": false,
+   "runner_integrate": [],
+   "skipped_paths": [],
+   "status": "on main"
+  }
+ ],
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 13,
+ "needs_human": 0,
+ "preamble_sha256": "3d562305fc46e364513bb86f292d824f35e88d7e3194380dd39ef1b587546bdd",
+ "reacted": 0,
+ "rep": 62,
+ "repo": "click",
+ "run": "G-click-hard-r62-real-pad57",
+ "set": "hard",
+ "set_agents": 13,
+ "set_mix": [
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude"
+ ],
+ "setup_s": 2.57,
+ "started": "2026-11-23T13:10:34",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.05,
+ "suite_s": 3.26,
+ "suite_tail_all": "...................................................................... [ 50%]\n........................................................................ [ 52%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n...............sssssssssssssssssssss..................ss................ [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n.................................................................s...... [ 73%]\n.....................................s.................................. [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n......................................................................   [100%]\n2420 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.81s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.61s\n",
+ "tasks_on_main": 13,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 1
+  },
+  "10": {
+   "passed": true,
+   "runs": 11
+  },
+  "11": {
+   "passed": true,
+   "runs": 5
+  },
+  "12": {
+   "passed": true,
+   "runs": 1
+  },
+  "13": {
+   "passed": true,
+   "runs": 10
+  },
+  "2": {
+   "passed": true,
+   "runs": 8
+  },
+  "3": {
+   "passed": true,
+   "runs": 4
+  },
+  "4": {
+   "passed": true,
+   "runs": 7
+  },
+  "5": {
+   "passed": true,
+   "runs": 3
+  },
+  "6": {
+   "passed": true,
+   "runs": 3
+  },
+  "7": {
+   "passed": true,
+   "runs": 5
+  },
+  "8": {
+   "passed": true,
+   "runs": 5
+  },
+  "9": {
+   "passed": true,
+   "runs": 10
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ParamType.py"
+ ],
+ "test_pad_s": 57.0,
+ "test_pad_scope": "suite",
+ "test_passed_agents": 13,
+ "tokens_cache_write": 495817,
+ "tokens_cached_in": 11603832,
+ "tokens_fresh_in": 496387,
+ "tokens_in": 12100219,
+ "tokens_out": 139739,
+ "tool_calls": 333,
+ "treeyard_sha256": "ae35f8861f7d693fa683810673a9c90494b136c9429bc316a9145f8813e476fc",
+ "treeyard_version": "treeyard 0.2.0",
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "3718e5e318d660ef10be0d97ea625313dd5e144ba37907250a27dfa2ec35b671",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "3718e5e318d660ef10be0d97ea625313dd5e144ba37907250a27dfa2ec35b671",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 1281.84,
+ "warned": 0,
+ "warned_pairs": [],
+ "warnings": {
+  "1": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "11": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "12": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "13": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "2": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "4": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "7": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "8": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  },
+  "9": {
+   "first_warning_call": null,
+   "kinds": [],
+   "others": [],
+   "reacted": false,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}

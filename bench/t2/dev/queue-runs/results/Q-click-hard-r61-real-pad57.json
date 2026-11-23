@@ -1,0 +1,1867 @@
+{
+ "agent_area": "system temp dir",
+ "agent_land_conflicts": 30,
+ "agent_stats": [
+  {
+   "cost_usd": 0.214488,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 1,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 31633,
+   "tokens_cached_in": 292776,
+   "tokens_fresh_in": 31657,
+   "tokens_in": 324433,
+   "tokens_out": 5863,
+   "tool_calls": 11,
+   "turns": 12,
+   "wall_s": 371.55
+  },
+  {
+   "cost_usd": 0.241773,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 2,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 39151,
+   "tokens_cached_in": 249334,
+   "tokens_fresh_in": 39169,
+   "tokens_in": 288503,
+   "tokens_out": 6020,
+   "tool_calls": 9,
+   "turns": 10,
+   "wall_s": 241.57
+  },
+  {
+   "cost_usd": 0.718396,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 3,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 78154,
+   "tokens_cached_in": 2510499,
+   "tokens_fresh_in": 78244,
+   "tokens_in": 2588743,
+   "tokens_out": 15455,
+   "tool_calls": 48,
+   "turns": 49,
+   "wall_s": 1085.77
+  },
+  {
+   "cost_usd": 0.258118,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 4,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 40173,
+   "tokens_cached_in": 277959,
+   "tokens_fresh_in": 40193,
+   "tokens_in": 318152,
+   "tokens_out": 6959,
+   "tool_calls": 10,
+   "turns": 11,
+   "wall_s": 242.19
+  },
+  {
+   "cost_usd": 0.306789,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 5,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 42673,
+   "tokens_cached_in": 479426,
+   "tokens_fresh_in": 42705,
+   "tokens_in": 522131,
+   "tokens_out": 8809,
+   "tool_calls": 16,
+   "turns": 17,
+   "wall_s": 298.63
+  },
+  {
+   "cost_usd": 0.421149,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 6,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 52296,
+   "tokens_cached_in": 889631,
+   "tokens_fresh_in": 52342,
+   "tokens_in": 941973,
+   "tokens_out": 12291,
+   "tool_calls": 24,
+   "turns": 25,
+   "wall_s": 614.96
+  },
+  {
+   "cost_usd": 0.842491,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 7,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 85591,
+   "tokens_cached_in": 2738587,
+   "tokens_fresh_in": 85685,
+   "tokens_in": 2824272,
+   "tokens_out": 22608,
+   "tool_calls": 47,
+   "turns": 48,
+   "wall_s": 1229.4
+  },
+  {
+   "cost_usd": 0.676133,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 8,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 68845,
+   "tokens_cached_in": 1885693,
+   "tokens_fresh_in": 68927,
+   "tokens_in": 1954620,
+   "tokens_out": 21202,
+   "tool_calls": 41,
+   "turns": 42,
+   "wall_s": 1025.91
+  },
+  {
+   "cost_usd": 0.294794,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 9,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 43600,
+   "tokens_cached_in": 449278,
+   "tokens_fresh_in": 43628,
+   "tokens_in": 492906,
+   "tokens_out": 7541,
+   "tool_calls": 14,
+   "turns": 15,
+   "wall_s": 497.0
+  },
+  {
+   "cost_usd": 0.446525,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 10,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 55422,
+   "tokens_cached_in": 1001830,
+   "tokens_fresh_in": 55474,
+   "tokens_in": 1057304,
+   "tokens_out": 12455,
+   "tool_calls": 27,
+   "turns": 28,
+   "wall_s": 736.41
+  },
+  {
+   "cost_usd": 0.325109,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 11,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 43005,
+   "tokens_cached_in": 790634,
+   "tokens_fresh_in": 43053,
+   "tokens_in": 833687,
+   "tokens_out": 7393,
+   "tool_calls": 24,
+   "turns": 25,
+   "wall_s": 557.45
+  },
+  {
+   "cost_usd": 0.35533,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 12,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 46463,
+   "tokens_cached_in": 863841,
+   "tokens_fresh_in": 46515,
+   "tokens_in": 910356,
+   "tokens_out": 8299,
+   "tool_calls": 25,
+   "turns": 26,
+   "wall_s": 675.68
+  },
+  {
+   "cost_usd": 0.454424,
+   "exit": 0,
+   "harness": "claude",
+   "invocations": 1,
+   "k": 13,
+   "killed": null,
+   "models": [
+    "claude-sonnet-5-5"
+   ],
+   "tokens_cache_write": 57105,
+   "tokens_cached_in": 1309595,
+   "tokens_fresh_in": 57167,
+   "tokens_in": 1366762,
+   "tokens_out": 9492,
+   "tool_calls": 32,
+   "turns": 33,
+   "wall_s": 889.84
+  }
+ ],
+ "agents": [
+  {
+   "agent": "claude-1",
+   "harness": "claude",
+   "id": "h1-prompt-text",
+   "k": 1,
+   "prompt_sha256": "db5c7972020fdc66f15d686c33d8459f935b0d3062cf1b9b2cf6307cbf062a28"
+  },
+  {
+   "agent": "claude-2",
+   "harness": "claude",
+   "id": "h2-help-items",
+   "k": 2,
+   "prompt_sha256": "a94b5b7ff38a21d53a8542f138f963ee8f38d6f3f9c05100cc989edb8ce5e495"
+  },
+  {
+   "agent": "claude-3",
+   "harness": "claude",
+   "id": "h3-secrets",
+   "k": 3,
+   "prompt_sha256": "33871f2cf64ad43b89152b8e68fa1a8ef257c5d655d6e06fa0f67d1a88a616c0"
+  },
+  {
+   "agent": "claude-4",
+   "harness": "claude",
+   "id": "h5-prompt-attempts",
+   "k": 4,
+   "prompt_sha256": "8a8e549f68cffcb9298c5583abf407ff55793c087c51d425551cf98f0c3e77cf"
+  },
+  {
+   "agent": "claude-5",
+   "harness": "claude",
+   "id": "h6-option-groups",
+   "k": 5,
+   "prompt_sha256": "3a769cde79d41e540e0879fe1f6d8cd77e21418f7b860bc89227448f6ec82161"
+  },
+  {
+   "agent": "claude-6",
+   "harness": "claude",
+   "id": "h7-byte-size",
+   "k": 6,
+   "prompt_sha256": "b69443546ce2bec68fe370ad73078fc23ad201bb317f959bf0fee31ea2024d1d"
+  },
+  {
+   "agent": "claude-7",
+   "harness": "claude",
+   "id": "h8-choice-menu",
+   "k": 7,
+   "prompt_sha256": "9a4513841106068182af792f56e0e23fe568a98ba5180841979234347339a341"
+  },
+  {
+   "agent": "claude-8",
+   "harness": "claude",
+   "id": "h9-help-theme",
+   "k": 8,
+   "prompt_sha256": "ed0987a48a831f4ac3905fa23565fef406ff85836f2e87803373b5211367dea9"
+  },
+  {
+   "agent": "claude-9",
+   "harness": "claude",
+   "id": "h10-help-markdown",
+   "k": 9,
+   "prompt_sha256": "225b603b219f1821e9a02ca6227139871963256ca09c82f04d1f900580996e68"
+  },
+  {
+   "agent": "claude-10",
+   "harness": "claude",
+   "id": "h11-prompter",
+   "k": 10,
+   "prompt_sha256": "e35207f1149dcfa9bf67e11986e7c055e12496a9acdfaac1d20376b7a4c4fb55"
+  },
+  {
+   "agent": "claude-11",
+   "harness": "claude",
+   "id": "h12-option-prompt",
+   "k": 11,
+   "prompt_sha256": "7e5876a89d9d416a7d6940ef6c09f059e024110d8ef78f362f3933302cea9e0d"
+  },
+  {
+   "agent": "claude-12",
+   "harness": "claude",
+   "id": "h13-help-formatter",
+   "k": 12,
+   "prompt_sha256": "c2b6de268ada0d004ce1c16657248a77b685d11520f9dbef81c20b12a65f7f8b"
+  },
+  {
+   "agent": "claude-13",
+   "harness": "claude",
+   "id": "h14-default-text",
+   "k": 13,
+   "prompt_sha256": "ab8a58235b90df4cb0f75802bf0579fbaf033eeee4265d1661eb5e09a4e01fc5"
+  }
+ ],
+ "arm": "Q",
+ "arm_block_sha256": "a110a10aa55992b8df46828e9a881d0e7d1fdd489099a8ceacbf8fb2b7415a03",
+ "block_sha256": "5c71d0a80a3a62f0c7e9a8e52470dcbc2176b3055ad068e69b73cb6a7b827eca",
+ "by_harness": {
+  "claude": {
+   "agents": 13,
+   "cost_usd": 5.555519,
+   "tokens_cache_write": 684111,
+   "tokens_cached_in": 13739083,
+   "tokens_fresh_in": 684759,
+   "tokens_in": 14423842,
+   "tokens_out": 144387,
+   "tool_calls": 328,
+   "turns": 341
+  }
+ },
+ "cost_usd": 5.555519,
+ "cost_usd_claude_only": 5.555519,
+ "done": {
+  "h1-prompt-text": true,
+  "h10-help-markdown": true,
+  "h11-prompter": true,
+  "h12-option-prompt": true,
+  "h13-help-formatter": true,
+  "h14-default-text": true,
+  "h2-help-items": true,
+  "h3-secrets": true,
+  "h5-prompt-attempts": true,
+  "h6-option-groups": true,
+  "h7-byte-size": true,
+  "h8-choice-menu": true,
+  "h9-help-theme": true
+ },
+ "entry": {
+  "batch": 8,
+  "entries": 13,
+  "entry_time_s": 1109.4,
+  "first_ready_s": 109.95,
+  "last_entry_s": 1219.35,
+  "parallel": "server default",
+  "rejected": [
+   {
+    "change": "ch_975c340ece62",
+    "entered_later": true,
+    "k": 11,
+    "times": 1
+   }
+  ],
+  "rejected_changes": 1,
+  "rejections": 1,
+  "server_events": {
+   "conflict": 30,
+   "landed": 13,
+   "queued": 44,
+   "rejected": 1,
+   "test_run": 13
+  },
+  "test": {
+   "env": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "src",
+    "VIRTUAL_ENV": "<scratch>/t2/env/dev-venv"
+   },
+   "pad_s": 57.0,
+   "setup": null,
+   "suite": [
+    "<scratch>/t2/env/dev-venv/bin/python",
+    "-m",
+    "pytest",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "tests",
+    "--ignore=tests/test_deprecations.py"
+   ]
+  },
+  "test_runs": 13,
+  "test_runs_failed": 1,
+  "test_seconds": 784.7,
+  "time_resolution_s": 1,
+  "verdicts": {
+   "agent:conflict": 30,
+   "agent:landed": 13,
+   "agent:tests_failed": 1,
+   "agent:undoes": 12,
+   "runner:empty": 13
+  }
+ },
+ "false_alarms": 0,
+ "guard": {
+  "1": {
+   "added": 155,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 32,
+   "test_added": 21
+  },
+  "10": {
+   "added": 279,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/_prompter.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 105,
+   "test_added": 17
+  },
+  "11": {
+   "added": 161,
+   "files": 4,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_option_prompt.py",
+    "src/click/core.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 47,
+   "test_added": 28
+  },
+  "12": {
+   "added": 345,
+   "files": 6,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 299,
+   "test_added": 17
+  },
+  "13": {
+   "added": 156,
+   "files": 6,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/_default_text.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 75,
+   "test_added": 24
+  },
+  "2": {
+   "added": 196,
+   "files": 5,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "src/click/types.py",
+    "tests/test_options.py"
+   ],
+   "removed": 63,
+   "test_added": 28
+  },
+  "3": {
+   "added": 216,
+   "files": 12,
+   "paths": [
+    "docs/api.md",
+    "docs/option-decorators.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_default_text.py",
+    "src/click/_prompt.py",
+    "src/click/_prompter.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_options.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 4,
+   "test_added": 49
+  },
+  "4": {
+   "added": 174,
+   "files": 8,
+   "paths": [
+    "docs/api.md",
+    "docs/exceptions.md",
+    "docs/prompts.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/exceptions.py",
+    "src/click/termui.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 5,
+   "test_added": 37
+  },
+  "5": {
+   "added": 121,
+   "files": 4,
+   "paths": [
+    "docs/documentation.md",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 15,
+   "test_added": 33
+  },
+  "6": {
+   "added": 285,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/parameter-types.md",
+    "src/click/__init__.py",
+    "src/click/_prompt.py",
+    "src/click/core.py",
+    "src/click/types.py",
+    "tests/test_types/test_ByteSize.py"
+   ],
+   "removed": 2,
+   "test_added": 74
+  },
+  "7": {
+   "added": 245,
+   "files": 9,
+   "paths": [
+    "docs/prompts.md",
+    "src/click/_default_text.py",
+    "src/click/_option_prompt.py",
+    "src/click/_prompt.py",
+    "src/click/_prompter.py",
+    "src/click/core.py",
+    "src/click/termui.py",
+    "src/click/types.py",
+    "tests/test_termui.py"
+   ],
+   "removed": 1,
+   "test_added": 66
+  },
+  "8": {
+   "added": 189,
+   "files": 7,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/_help_formatter.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 2,
+   "test_added": 45
+  },
+  "9": {
+   "added": 198,
+   "files": 6,
+   "paths": [
+    "docs/api.md",
+    "docs/documentation.md",
+    "src/click/__init__.py",
+    "src/click/core.py",
+    "src/click/formatting.py",
+    "tests/test_formatting.py"
+   ],
+   "removed": 0,
+   "test_added": 28
+  }
+ },
+ "handback_sha256": "5c7fc1952fca3733c02b2181238a048f9176b86c56af14307c055ed6cc3014b1",
+ "harness": "real",
+ "hold_reacted": 3,
+ "integration": {
+  "i1-prompt-text-enum-names": true,
+  "i10-prompter-secret": true,
+  "i11-prompter-attempts": true,
+  "i12-prompter-choice-menu": true,
+  "i13-option-prompt-attempts": true,
+  "i14-option-prompt-menu": true,
+  "i15-option-prompt-secret": true,
+  "i16-help-formatter-groups": true,
+  "i17-help-formatter-theme": true,
+  "i18-help-formatter-markdown": true,
+  "i19-default-text-hidden": true,
+  "i2-hidden-default-item": true,
+  "i20-default-text-byte-size": true,
+  "i21-default-text-enum": true,
+  "i3-group-headings-themed": true,
+  "i4-markdown-hidden-default": true,
+  "i5-markdown-byte-size": true,
+  "i6-markdown-option-groups": true,
+  "i7-prompt-text-byte-size": true,
+  "i8-markdown-with-a-theme": true,
+  "i9-markdown-custom-item": true
+ },
+ "integration_passed": 21,
+ "integration_total": 21,
+ "interventions": 0,
+ "kit": 2,
+ "land_conflicts": 0,
+ "land_holds": 12,
+ "land_queue": {
+  "batch": 8,
+  "parallel": "server default",
+  "setup": null,
+  "test": "t2-test (the runner's copy: the suite plus the pad, in the server's test slots)"
+ },
+ "land_refused": 0,
+ "land_test_rounds": 0,
+ "land_test_seconds": 0.0,
+ "land_tests_failed": 1,
+ "land_tests_failed_runner": 0,
+ "lands": [
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 1,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_8b3f16a7e679",
+     "error": "Error: change ch_8b3f16a7e679 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 2,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_d04e2da14516",
+     "error": "Error: change ch_d04e2da14516 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 3,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_c84d194279bd",
+     "error": "Error: change ch_c84d194279bd is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_1fed8726d6c6"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 4,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_48726d13d5a7",
+     "error": "Error: change ch_48726d13d5a7 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 5,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_84ef8696b4ef",
+     "error": "Error: change ch_84ef8696b4ef is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 6,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_03aa98cdd41c",
+     "error": "Error: change ch_03aa98cdd41c is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_c0916de866d2"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 7,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_9a5e2744e483",
+     "error": "Error: change ch_9a5e2744e483 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_25bfda19fe3f"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 8,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_64c63c76fb02",
+     "error": "Error: change ch_64c63c76fb02 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_639b0c549374"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 9,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_504ae31802fb",
+     "error": "Error: change ch_504ae31802fb is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 10,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_3eebdafd5cb9",
+     "error": "Error: change ch_3eebdafd5cb9 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_22284d409d99"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 11,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_4b3fb6be91fd",
+     "error": "Error: change ch_4b3fb6be91fd is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_975c340ece62"
+   ]
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 12,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_0655d88fc18a",
+     "error": "Error: change ch_0655d88fc18a is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": []
+  },
+  {
+   "conflict": false,
+   "handback": null,
+   "intervention": false,
+   "k": 13,
+   "left_out": [],
+   "needs_human": false,
+   "runner_landed": [
+    {
+     "change": "ch_571ef5402af8",
+     "error": "Error: change ch_571ef5402af8 is empty: apply edits before landing\n",
+     "status": "empty",
+     "workspace": true
+    }
+   ],
+   "skipped_paths": [],
+   "undoes_held": [],
+   "undoes_held_changes": [
+    "ch_2a647a186f1c"
+   ]
+  }
+ ],
+ "legacy_false_alarms": 27,
+ "legacy_reacted": 10,
+ "legacy_true_conflict_pairs": [
+  "1-10",
+  "1-11",
+  "1-13",
+  "1-3",
+  "1-4",
+  "1-6",
+  "1-7",
+  "10-11",
+  "10-13",
+  "2-12",
+  "2-13",
+  "2-3",
+  "2-6",
+  "2-8",
+  "2-9",
+  "3-10",
+  "3-11",
+  "3-13",
+  "3-4",
+  "3-7",
+  "4-10",
+  "4-11",
+  "4-7",
+  "5-11",
+  "5-12",
+  "6-13",
+  "6-7",
+  "7-10",
+  "7-11",
+  "7-13",
+  "8-12",
+  "8-9",
+  "9-12"
+ ],
+ "legacy_warned_before_land": 12,
+ "legacy_warned_pair_kinds": {
+  "1-10": [
+   "conflict",
+   "overlap"
+  ],
+  "1-11": [
+   "conflict"
+  ],
+  "1-12": [
+   "overlap"
+  ],
+  "1-13": [
+   "conflict"
+  ],
+  "1-3": [
+   "conflict"
+  ],
+  "1-4": [
+   "conflict"
+  ],
+  "1-6": [
+   "conflict"
+  ],
+  "1-7": [
+   "conflict"
+  ],
+  "1-8": [
+   "overlap"
+  ],
+  "1-9": [
+   "overlap"
+  ],
+  "10-11": [
+   "conflict"
+  ],
+  "10-12": [
+   "overlap"
+  ],
+  "10-13": [
+   "conflict"
+  ],
+  "11-12": [
+   "overlap"
+  ],
+  "11-13": [
+   "conflict",
+   "overlap"
+  ],
+  "2-12": [
+   "conflict",
+   "overlap"
+  ],
+  "2-13": [
+   "conflict",
+   "overlap"
+  ],
+  "2-3": [
+   "conflict",
+   "overlap"
+  ],
+  "2-5": [
+   "overlap"
+  ],
+  "2-6": [
+   "conflict",
+   "overlap"
+  ],
+  "2-8": [
+   "conflict",
+   "overlap"
+  ],
+  "3-10": [
+   "conflict",
+   "overlap"
+  ],
+  "3-11": [
+   "conflict"
+  ],
+  "3-13": [
+   "conflict",
+   "overlap"
+  ],
+  "3-4": [
+   "overlap"
+  ],
+  "3-5": [
+   "overlap"
+  ],
+  "3-6": [
+   "conflict",
+   "overlap"
+  ],
+  "3-7": [
+   "conflict",
+   "overlap"
+  ],
+  "3-8": [
+   "overlap"
+  ],
+  "3-9": [
+   "overlap"
+  ],
+  "4-11": [
+   "conflict"
+  ],
+  "4-12": [
+   "overlap"
+  ],
+  "4-13": [
+   "conflict",
+   "overlap"
+  ],
+  "4-5": [
+   "overlap"
+  ],
+  "4-8": [
+   "overlap"
+  ],
+  "5-12": [
+   "conflict",
+   "overlap"
+  ],
+  "5-13": [
+   "overlap"
+  ],
+  "5-6": [
+   "overlap"
+  ],
+  "5-8": [
+   "conflict",
+   "overlap"
+  ],
+  "5-9": [
+   "conflict",
+   "overlap"
+  ],
+  "6-13": [
+   "conflict"
+  ],
+  "6-7": [
+   "conflict",
+   "overlap"
+  ],
+  "6-8": [
+   "overlap"
+  ],
+  "6-9": [
+   "overlap"
+  ],
+  "7-10": [
+   "conflict",
+   "overlap"
+  ],
+  "7-11": [
+   "conflict",
+   "overlap"
+  ],
+  "7-13": [
+   "conflict",
+   "overlap"
+  ],
+  "7-8": [
+   "overlap"
+  ],
+  "8-10": [
+   "overlap"
+  ],
+  "8-11": [
+   "overlap"
+  ],
+  "8-12": [
+   "conflict",
+   "overlap"
+  ],
+  "8-13": [
+   "overlap"
+  ],
+  "8-9": [
+   "conflict"
+  ],
+  "9-10": [
+   "overlap"
+  ],
+  "9-12": [
+   "conflict"
+  ],
+  "9-13": [
+   "overlap"
+  ]
+ },
+ "legacy_warned_pairs": [
+  [
+   1,
+   3
+  ],
+  [
+   1,
+   4
+  ],
+  [
+   1,
+   6
+  ],
+  [
+   1,
+   7
+  ],
+  [
+   1,
+   8
+  ],
+  [
+   1,
+   9
+  ],
+  [
+   1,
+   10
+  ],
+  [
+   1,
+   11
+  ],
+  [
+   1,
+   12
+  ],
+  [
+   1,
+   13
+  ],
+  [
+   2,
+   3
+  ],
+  [
+   2,
+   5
+  ],
+  [
+   2,
+   6
+  ],
+  [
+   2,
+   8
+  ],
+  [
+   2,
+   12
+  ],
+  [
+   2,
+   13
+  ],
+  [
+   3,
+   4
+  ],
+  [
+   3,
+   5
+  ],
+  [
+   3,
+   6
+  ],
+  [
+   3,
+   7
+  ],
+  [
+   3,
+   8
+  ],
+  [
+   3,
+   9
+  ],
+  [
+   3,
+   10
+  ],
+  [
+   3,
+   11
+  ],
+  [
+   3,
+   13
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   4,
+   8
+  ],
+  [
+   4,
+   11
+  ],
+  [
+   4,
+   12
+  ],
+  [
+   4,
+   13
+  ],
+  [
+   5,
+   6
+  ],
+  [
+   5,
+   8
+  ],
+  [
+   5,
+   9
+  ],
+  [
+   5,
+   12
+  ],
+  [
+   5,
+   13
+  ],
+  [
+   6,
+   7
+  ],
+  [
+   6,
+   8
+  ],
+  [
+   6,
+   9
+  ],
+  [
+   6,
+   13
+  ],
+  [
+   7,
+   8
+  ],
+  [
+   7,
+   10
+  ],
+  [
+   7,
+   11
+  ],
+  [
+   7,
+   13
+  ],
+  [
+   8,
+   9
+  ],
+  [
+   8,
+   10
+  ],
+  [
+   8,
+   11
+  ],
+  [
+   8,
+   12
+  ],
+  [
+   8,
+   13
+  ],
+  [
+   9,
+   10
+  ],
+  [
+   9,
+   12
+  ],
+  [
+   9,
+   13
+  ],
+  [
+   10,
+   11
+  ],
+  [
+   10,
+   12
+  ],
+  [
+   10,
+   13
+  ],
+  [
+   11,
+   12
+  ],
+  [
+   11,
+   13
+  ]
+ ],
+ "limit_kills": [],
+ "limits": {
+  "claude_budget_usd": 8.0,
+  "max_tokens": 20000000,
+  "max_turns": 300,
+  "timeout_s": 3600
+ },
+ "log": [
+  "12:24:55 connect: imported main as changeset aa1f0729c0d4"
+ ],
+ "lost_lines": {
+  "per_agent": {
+   "1": 16,
+   "10": 0,
+   "11": 0,
+   "12": 1,
+   "13": 0,
+   "2": 23,
+   "3": 0,
+   "4": 14,
+   "5": 6,
+   "6": 8,
+   "7": 0,
+   "8": 0,
+   "9": 0
+  },
+  "total": 68
+ },
+ "merge_conflicts": 0,
+ "models": {
+  "claude": [
+   "claude-sonnet-5-5"
+  ]
+ },
+ "n_tasks": 13,
+ "needs_human": 0,
+ "preamble_sha256": "20765e6f79db3dc19e6100ddfac9ab13aced52d1dd4e13b002952cc849c8fea3",
+ "q_note_sha256": "c3444cc108bd967927eea738551e050a7d1a3d5514b9cf4707e5332af3af33c0",
+ "reacted": 4,
+ "rep": 61,
+ "repo": "click",
+ "run": "Q-click-hard-r61-real-pad57",
+ "set": "hard",
+ "set_agents": 13,
+ "set_mix": [
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude",
+  "claude"
+ ],
+ "setup_s": 1.44,
+ "started": "2026-11-23T12:24:55",
+ "status": "done",
+ "suite_green": true,
+ "suite_green_all": true,
+ "suite_green_pinned": true,
+ "suite_pinned_s": 3.05,
+ "suite_s": 3.16,
+ "suite_tail_all": "...................................................................... [ 52%]\n........................................................................ [ 55%]\n........................................................................ [ 58%]\n........................................................................ [ 61%]\n................sssssssssssssssssssss..................ss............... [ 64%]\n........................................................................ [ 67%]\n........................................................................ [ 70%]\n.......................................................................s [ 72%]\n...........................................................s............ [ 75%]\n........................................................................ [ 78%]\n........................................................................ [ 81%]\n........................................................................ [ 84%]\n........................................................................ [ 87%]\n........................................................................ [ 90%]\n........................................................................ [ 93%]\n........................................................................ [ 96%]\n........................................................................ [ 99%]\n....................                                                     [100%]\n2442 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.66s\n",
+ "suite_tail_pinned": "...................................................................... [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 56%]\n........................................................................ [ 59%]\n........................................................................ [ 62%]\n........sssssssssssssssssssss..................ss....................... [ 65%]\n........................................................................ [ 68%]\n........................................................................ [ 71%]\n...................................................s.................... [ 74%]\n......................s................................................. [ 77%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n........................................................................ [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 91%]\n........................................................................ [ 94%]\n........................................................................ [ 97%]\n.......................................................                  [100%]\n2405 passed, 25 skipped, 31000 deselected, 1 xfailed in 2.64s\n",
+ "tasks_on_main": 13,
+ "test_command": {
+  "1": {
+   "passed": true,
+   "runs": 3
+  },
+  "10": {
+   "passed": true,
+   "runs": 8
+  },
+  "11": {
+   "passed": true,
+   "runs": 7
+  },
+  "12": {
+   "passed": true,
+   "runs": 5
+  },
+  "13": {
+   "passed": true,
+   "runs": 8
+  },
+  "2": {
+   "passed": true,
+   "runs": 1
+  },
+  "3": {
+   "passed": true,
+   "runs": 9
+  },
+  "4": {
+   "passed": true,
+   "runs": 1
+  },
+  "5": {
+   "passed": true,
+   "runs": 2
+  },
+  "6": {
+   "passed": true,
+   "runs": 5
+  },
+  "7": {
+   "passed": true,
+   "runs": 12
+  },
+  "8": {
+   "passed": true,
+   "runs": 10
+  },
+  "9": {
+   "passed": true,
+   "runs": 6
+  }
+ },
+ "test_files_restored": [
+  "tests/test_formatting.py",
+  "tests/test_options.py",
+  "tests/test_termui.py",
+  "tests/test_types/test_ByteSize.py"
+ ],
+ "test_pad_s": 57.0,
+ "test_pad_scope": "suite",
+ "test_passed_agents": 13,
+ "tokens_cache_write": 684111,
+ "tokens_cached_in": 13739083,
+ "tokens_fresh_in": 684759,
+ "tokens_in": 14423842,
+ "tokens_out": 144387,
+ "tool_calls": 328,
+ "treeyard_sha256": "ae35f8861f7d693fa683810673a9c90494b136c9429bc316a9145f8813e476fc",
+ "treeyard_version": "treeyard 0.2.0",
+ "undoes_held": 7,
+ "undoes_held_runner": 0,
+ "undoes_overridden": 4,
+ "user_config_after": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "3718e5e318d660ef10be0d97ea625313dd5e144ba37907250a27dfa2ec35b671",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_before": {
+  "~/.claude.json": "run-path entries: 0",
+  "~/.claude/CLAUDE.md": "missing",
+  "~/.claude/settings.json": "3718e5e318d660ef10be0d97ea625313dd5e144ba37907250a27dfa2ec35b671",
+  "~/.codex/config.toml": "77f6a520b3c3c9c72ece96c85ede9ceb2845c6ada0554105658271f972c91ec1",
+  "~/.config/opencode/opencode.json": "missing"
+ },
+ "user_config_unchanged": true,
+ "wall_s": 1230.11,
+ "warned": 7,
+ "warned_pairs": [
+  "1-10",
+  "1-3",
+  "1-6",
+  "1-7",
+  "2-13",
+  "2-6",
+  "2-8",
+  "4-10",
+  "4-11",
+  "8-12"
+ ],
+ "warnings": {
+  "1": {
+   "changes": [
+    "ch_28067dab47f8"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 1,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "10": {
+   "changes": [
+    "ch_22284d409d99"
+   ],
+   "first_warning_call": 15,
+   "held_changes": [
+    "ch_22284d409d99"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 2,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_28067dab47f8",
+    "ch_910f67199387"
+   ],
+   "reacted": true,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "11": {
+   "changes": [
+    "ch_975c340ece62"
+   ],
+   "first_warning_call": 16,
+   "held_changes": [
+    "ch_975c340ece62"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 1,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 1,
+   "others": [
+    "ch_910f67199387"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "12": {
+   "changes": [
+    "ch_8d4bb1744de5"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 3,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "13": {
+   "changes": [
+    "ch_2a647a186f1c"
+   ],
+   "first_warning_call": 13,
+   "held_changes": [
+    "ch_2a647a186f1c"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 5,
+   "land_holds": 1,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_5ab8a3aa0304"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "2": {
+   "changes": [
+    "ch_5ab8a3aa0304"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "3": {
+   "changes": [
+    "ch_1fed8726d6c6"
+   ],
+   "first_warning_call": 24,
+   "held_changes": [
+    "ch_1fed8726d6c6"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 6,
+   "land_holds": 1,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_28067dab47f8"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "4": {
+   "changes": [
+    "ch_910f67199387"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "5": {
+   "changes": [
+    "ch_b48e80798b99"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 0,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  },
+  "6": {
+   "changes": [
+    "ch_c0916de866d2"
+   ],
+   "first_warning_call": 14,
+   "held_changes": [
+    "ch_c0916de866d2"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 2,
+   "land_holds": 2,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_28067dab47f8",
+    "ch_5ab8a3aa0304"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "7": {
+   "changes": [
+    "ch_25bfda19fe3f"
+   ],
+   "first_warning_call": 21,
+   "held_changes": [
+    "ch_25bfda19fe3f"
+   ],
+   "hold_reacted": false,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 5,
+   "land_holds": 2,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_28067dab47f8"
+   ],
+   "reacted": false,
+   "undoes_overridden": 1,
+   "warned": true,
+   "with_main": false
+  },
+  "8": {
+   "changes": [
+    "ch_639b0c549374"
+   ],
+   "first_warning_call": 13,
+   "held_changes": [
+    "ch_639b0c549374"
+   ],
+   "hold_reacted": true,
+   "kinds": [
+    "undoes"
+   ],
+   "land_conflicts": 3,
+   "land_holds": 3,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [
+    "ch_5ab8a3aa0304",
+    "ch_8d4bb1744de5"
+   ],
+   "reacted": true,
+   "undoes_overridden": 0,
+   "warned": true,
+   "with_main": false
+  },
+  "9": {
+   "changes": [
+    "ch_7e80935803c5"
+   ],
+   "first_warning_call": null,
+   "held_changes": [],
+   "hold_reacted": false,
+   "kinds": [],
+   "land_conflicts": 1,
+   "land_holds": 0,
+   "land_refused": 0,
+   "land_test_rounds": 0,
+   "land_test_seconds": 0.0,
+   "land_tests_failed": 0,
+   "others": [],
+   "reacted": false,
+   "undoes_overridden": 0,
+   "warned": false,
+   "with_main": false
+  }
+ }
+}
