@@ -151,6 +151,18 @@ One go, the arms alternating level by level ([`results/fair.json`](results/fair.
 | 120 s | 30 | 8 | 191 (6.4) | 128 (4.3) | 105 (3.5) | 34 (1.1) | 30 (1.0) |
 | 120 s | 30 | 16 | 364 (12.1) | 128 (4.3) | 64 (2.1) | 8 (0.3) | 0 (0.0) |
 
+**The gain of the queue depends on the share of changes that fail the test, and at our agents
+that share was 0 of 43.** Counted from stored runs with real agents: 30 changes in three runs with
+the land test and the 13 states of main of a git run with 13 agents, the repository's suite each
+time; 0 failed, and the 95 % interval reaches up to 8.2 % (the count and its limits are in
+`bench/t2/dev/hard-runs/README.md` on the `connect` branch). So the measured share sits in the
+columns 0 % to 5 %, and the data cannot rule out the 10 % column. The agents run the tests
+themselves before they hand a change in; a suite that takes long enough to need a queue may be run
+less often by them, and then more changes would fail at entry.
+
+Until the longer run below is in, **every number in the columns with bad changes comes from the
+first minutes of an overloaded queue.**
+
 - **The rule is met in this one run:** at 10 % bad changes and a 60 s test, batch 8 gives 210
   changes an hour, 3.5 times 3600 / test length (the rule asks for 2 times). That number is 28
   changes in 4 batches, so it is rough.
@@ -161,6 +173,10 @@ One go, the arms alternating level by level ([`results/fair.json`](results/fair.
   nothing from 10 % bad on (one cell of nine gives 2.1): nearly every batch of 16 then holds a bad
   change, and while the queue looks for it nothing enters. The landing times show gaps of four
   test lengths after a failing batch of 8.
+- **Not built: a batch size that follows the share of failing changes.** The table says a fixed
+  batch is wrong at one end or the other: 16 is best with no bad change and useless from 10 % on,
+  4 holds up best at 20 to 30 %. An idea for the queue: start large, halve the batch after a
+  failing one, grow it again after clean ones. Noted here, not built and not measured.
 - **No bad change reached main** in any of the 45 cells (297 bad changes made, 103 rejected by the
   queue, the others still waiting at the end).
 - **No rejected change entered after its fix** within any cell: the fixed changes were still
