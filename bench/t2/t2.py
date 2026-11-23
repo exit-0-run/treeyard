@@ -3484,7 +3484,21 @@ class Run:
         for e in ev:
             if e.get("kind") in ("queued", "rejected", "landed", "test_run", "test_passed", "test_failed", "conflict"):
                 counts[e["kind"]] = counts.get(e["kind"], 0) + 1
-        return {"first_ready_s": round(first - t_ref, 2) if first else None,
+        timeline = []
+        try:   # the order of the queue's events, to see how large its batches were; a record only
+            for e in ev:
+                if e.get("kind") in counts:
+                    b_ = body(e)
+                    chs = b_.get("changes") or e.get("changes") or ([b_.get("change")] if b_.get("change") else [])
+                    timeline.append({"t": round(e["time"] - t_ref, 1), "kind": e["kind"], "agents": [k_of.get(c) for c in chs],
+                                     "ok": b_.get("ok"), "seconds": b_.get("seconds")})
+            for r in audit:
+                if r.get("op") == "land":
+                    timeline.append({"t": round(r["time_ms"] / 1000 - t_ref, 1), "kind": "land_call", "agents": [k_of.get(r.get("change"))]})
+            timeline.sort(key=lambda x: x["t"])
+        except Exception as exc:  # noqa: BLE001
+            timeline = [{"error": str(exc)[:200]}]
+        return {"timeline": timeline, "first_ready_s": round(first - t_ref, 2) if first else None,
                 "last_entry_s": round(last - t_ref, 2) if last else None,
                 "entry_time_s": round(last - first, 2) if first and last else None, "time_resolution_s": 1,
                 "entries": len(landed), "test_runs": len(runs), "test_runs_failed": sum(1 for e in runs if not body(e).get("ok")),
